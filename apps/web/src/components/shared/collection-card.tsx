@@ -157,13 +157,16 @@ export function CollectionListItem({
 			to="/dashboard/collections/$collectionId"
 			params={{ collectionId: id }}
 			preload="intent"
-			className="flex min-h-24 items-center gap-4 rounded-xl p-3 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			className="flex min-h-28 items-center gap-5 rounded-xl p-4 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 		>
-			<div className="size-18 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
+			<div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
 				<CollectionArtwork covers={previewCovers} />
 			</div>
 			<div className="min-w-0 flex-1">
-				<p title={name} className="truncate font-semibold text-base">
+				<p
+					title={name}
+					className="truncate font-semibold text-lg leading-tight"
+				>
 					{name}
 				</p>
 				<p className="truncate text-muted-foreground text-sm tabular-nums">
@@ -202,10 +205,10 @@ export function CollectionCardSkeleton({
 
 export function CollectionListItemSkeleton(): JSX.Element {
 	return (
-		<div className="flex min-h-24 items-center gap-4 p-3">
-			<Skeleton className="size-18 shrink-0 rounded-lg" />
+		<div className="flex min-h-28 items-center gap-5 p-4">
+			<Skeleton className="size-20 shrink-0 rounded-lg" />
 			<div className="flex min-w-0 flex-1 flex-col gap-2">
-				<Skeleton className="h-5 w-48 max-w-2/3 rounded" />
+				<Skeleton className="h-6 w-48 max-w-2/3 rounded" />
 				<Skeleton className="h-4 w-24 rounded" />
 			</div>
 		</div>

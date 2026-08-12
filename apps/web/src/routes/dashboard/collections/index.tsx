@@ -8,6 +8,7 @@ import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { CreateCollectionButton } from "@/components/shared/create-collection-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ShelfListItem } from "@/components/shared/shelf-card";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import { PAGE_SHELL } from "@/lib/page-layout";
@@ -61,21 +62,17 @@ function CollectionsPage() {
 		const visibleCollections = isAudiobook
 			? audiobookCollections
 			: ebookCollections;
-		const systemListHeadingId = `${mediaType}-system-lists-heading`;
-		const collectionHeadingId = `${mediaType}-collections-heading`;
 
 		return (
-			<div className="space-y-8">
-				<section aria-labelledby={systemListHeadingId}>
-					<h2
-						id={systemListHeadingId}
-						className="font-semibold text-base tracking-tight"
-					>
-						{isAudiobook
+			<div className="space-y-6">
+				<section
+					aria-label={
+						isAudiobook
 							? m["collection.listening_lists"]()
-							: m["collection.reading_lists"]()}
-					</h2>
-					<ul className="mt-3 flex flex-col gap-1">
+							: m["collection.reading_lists"]()
+					}
+				>
+					<ul className="flex flex-col gap-1">
 						{shelfSummaries?.map((shelf) => {
 							const count = isAudiobook
 								? (shelf.audiobookCount ?? 0)
@@ -98,15 +95,11 @@ function CollectionsPage() {
 					</ul>
 				</section>
 
-				<section aria-labelledby={collectionHeadingId}>
-					<h2
-						id={collectionHeadingId}
-						className="font-semibold text-base tracking-tight"
-					>
-						{m["collection.your_collections"]()}
-					</h2>
+				<Separator />
+
+				<section aria-label={m["collection.your_collections"]()}>
 					{visibleCollections.length > 0 ? (
-						<ul className="mt-3 flex flex-col gap-1">
+						<ul className="flex flex-col gap-1">
 							{visibleCollections.map((item) => {
 								const count = isAudiobook
 									? (item.audiobookCount ?? 0)
@@ -129,7 +122,7 @@ function CollectionsPage() {
 							})}
 						</ul>
 					) : (
-						<div className="mt-3 rounded-xl bg-muted/60 px-5 py-8 sm:px-6">
+						<div className="rounded-xl bg-muted/60 px-5 py-8 sm:px-6">
 							<h3 className="font-medium text-base">
 								{isAudiobook
 									? m["collection.no_audiobook_collections_title"]()
@@ -140,7 +133,7 @@ function CollectionsPage() {
 									? m["collection.no_audiobook_collections_desc"]()
 									: m["collection.no_book_collections_desc"]()}
 							</p>
-							<div className="mt-4">
+							<div className="mt-4 hidden md:block">
 								<CreateCollectionButton />
 							</div>
 						</div>
@@ -165,7 +158,11 @@ function CollectionsPage() {
 		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<CollectionToolbar
 				title={m["nav.collections"]()}
-				actions={pageLoading ? undefined : <CreateCollectionButton />}
+				actions={
+					pageLoading ? undefined : (
+						<CreateCollectionButton className="hidden md:inline-flex" />
+					)
+				}
 			/>
 
 			{pageLoading && (
@@ -179,29 +176,36 @@ function CollectionsPage() {
 			)}
 
 			{!pageLoading && (
-				<Tabs defaultValue="ebooks" className="gap-5">
-					<TabsList
-						variant="line"
-						className="grid min-h-11 w-full grid-cols-2 p-0 sm:flex sm:w-fit"
-					>
-						<TabsTrigger
-							value="ebooks"
-							className="min-h-11 min-w-0 whitespace-normal px-3 text-center leading-tight sm:flex-none sm:px-4"
+				<>
+					<Tabs defaultValue="ebooks" className="gap-5">
+						<TabsList
+							variant="line"
+							className="grid min-h-11 w-full grid-cols-2 p-0 sm:flex sm:w-fit"
 						>
-							{m["collection.book_lists"]()}
-						</TabsTrigger>
-						<TabsTrigger
-							value="audiobooks"
-							className="min-h-11 min-w-0 whitespace-normal px-3 text-center leading-tight sm:flex-none sm:px-4"
-						>
-							{m["collection.audiobook_lists"]()}
-						</TabsTrigger>
-					</TabsList>
-					<TabsContent value="ebooks">{renderLists("ebook")}</TabsContent>
-					<TabsContent value="audiobooks">
-						{renderLists("audiobook")}
-					</TabsContent>
-				</Tabs>
+							<TabsTrigger
+								value="ebooks"
+								className="min-h-11 min-w-0 whitespace-normal px-3 text-center leading-tight sm:flex-none sm:px-4"
+							>
+								{m["collection.book_lists"]()}
+							</TabsTrigger>
+							<TabsTrigger
+								value="audiobooks"
+								className="min-h-11 min-w-0 whitespace-normal px-3 text-center leading-tight sm:flex-none sm:px-4"
+							>
+								{m["collection.audiobook_lists"]()}
+							</TabsTrigger>
+						</TabsList>
+						<TabsContent value="ebooks">{renderLists("ebook")}</TabsContent>
+						<TabsContent value="audiobooks">
+							{renderLists("audiobook")}
+						</TabsContent>
+					</Tabs>
+
+					<CreateCollectionButton
+						iconOnly
+						className="fixed right-[max(1rem,var(--safe-area-right))] bottom-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom)+1rem)] z-20 size-12 shadow-lg md:hidden"
+					/>
+				</>
 			)}
 		</div>
 	);

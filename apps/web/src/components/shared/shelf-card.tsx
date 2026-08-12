@@ -114,9 +114,9 @@ export function ShelfListItem({
 			params={{ status }}
 			search={{ mediaType }}
 			preload="intent"
-			className="flex min-h-24 items-center gap-4 rounded-xl p-3 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+			className="flex min-h-28 items-center gap-5 rounded-xl p-4 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 		>
-			<div className="size-18 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
+			<div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
 				<CollectionArtwork
 					covers={previewCovers}
 					fallback={
@@ -128,7 +128,10 @@ export function ShelfListItem({
 				/>
 			</div>
 			<div className="min-w-0 flex-1">
-				<p title={label} className="truncate font-semibold text-base">
+				<p
+					title={label}
+					className="truncate font-semibold text-lg leading-tight"
+				>
 					{label}
 				</p>
 				<p className="truncate text-muted-foreground text-sm tabular-nums">

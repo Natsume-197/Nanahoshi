@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -15,7 +16,13 @@ import { orpc } from "@/utils/orpc";
  * Button + dialog for the collections page. Renders nothing without the
  * permission; the rail's create menu opens the dialog on its own.
  */
-export function CreateCollectionButton() {
+export function CreateCollectionButton({
+	iconOnly = false,
+	className,
+}: {
+	iconOnly?: boolean;
+	className?: string;
+} = {}) {
 	const { can } = useAbilities();
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -23,9 +30,15 @@ export function CreateCollectionButton() {
 
 	return (
 		<>
-			<Button type="button" onClick={() => setIsOpen(true)}>
-				<Plus data-icon="inline-start" />
-				{m["collection.new"]()}
+			<Button
+				type="button"
+				size={iconOnly ? "icon" : "default"}
+				aria-label={iconOnly ? m["collection.new"]() : undefined}
+				className={cn(iconOnly && "rounded-full", className)}
+				onClick={() => setIsOpen(true)}
+			>
+				<Plus aria-hidden="true" data-icon="inline-start" />
+				{iconOnly ? null : m["collection.new"]()}
 			</Button>
 			<CreateCollectionDialog open={isOpen} onOpenChange={setIsOpen} />
 		</>

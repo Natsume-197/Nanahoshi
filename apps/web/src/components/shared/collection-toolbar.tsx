@@ -1,5 +1,6 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 /**
  * Page header shared by collection pages (likes, series, narrators): a large
@@ -12,17 +13,26 @@ export function CollectionToolbar({
 	subtitle,
 	actions,
 	loading = false,
+	titleSize = "compact",
 }: {
 	title: ReactNode;
 	subtitle?: ReactNode;
 	actions?: ReactNode;
 	loading?: boolean;
+	titleSize?: "default" | "compact";
 }) {
 	return (
 		<div className="flex flex-wrap items-end justify-between gap-4">
 			<div className="space-y-1.5">
 				<div className="flex items-center gap-2.5">
-					<h1 className="font-bold text-3xl tracking-tight md:text-4xl">
+					<h1
+						className={cn(
+							"text-balance tracking-tight",
+							titleSize === "compact"
+								? "font-semibold text-2xl leading-tight md:text-3xl"
+								: "font-bold text-3xl md:text-4xl",
+						)}
+					>
 						{title}
 					</h1>
 					{loading ? (
