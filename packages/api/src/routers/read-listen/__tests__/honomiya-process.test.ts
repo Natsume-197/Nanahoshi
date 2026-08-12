@@ -6,6 +6,22 @@ import {
 } from "../honomiya-process";
 
 describe("Honomiya process boundary", () => {
+	test("prefers the CLI bundled in production images", async () => {
+		const expected = "/opt/honomiya/cli.js";
+		const checked: string[] = [];
+		const result = await resolveHonomiyaCliPath(
+			undefined,
+			"/app/apps/server",
+			async (candidate) => {
+				checked.push(candidate);
+				if (candidate !== expected) throw new Error("not found");
+			},
+		);
+
+		expect(result).toBe(expected);
+		expect(checked).toEqual([expected]);
+	});
+
 	test("discovers an independent sibling repository from a nested server cwd", async () => {
 		const expected = path.resolve("/projects/Honomiya/src/cli.ts");
 		const result = await resolveHonomiyaCliPath(

@@ -1,4 +1,5 @@
 import {
+	ArrowSquareOut,
 	ArrowsClockwise,
 	CircleNotch,
 	Cloud,
@@ -256,6 +257,17 @@ export function HonomiyaSettings() {
 						{m["settings.honomiya.credentials_desc"]()}
 					</p>
 				</div>
+
+				<Button asChild variant="outline" className="self-start">
+					<a
+						href="https://modal.com/settings/tokens"
+						target="_blank"
+						rel="noreferrer"
+					>
+						<ArrowSquareOut data-icon="inline-start" aria-hidden="true" />
+						{m["settings.honomiya.open_modal_tokens"]()}
+					</a>
+				</Button>
 
 				<form
 					className="flex flex-col gap-6"

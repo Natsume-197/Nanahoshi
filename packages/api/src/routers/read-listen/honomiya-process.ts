@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import path from "node:path";
 
 const CLI_RELATIVE_PATH = path.join("Honomiya", "src", "cli.ts");
+export const BUNDLED_HONOMIYA_CLI_PATH = "/opt/honomiya/cli.js";
 
 export async function resolveHonomiyaCliPath(
 	configuredPath: string | undefined,
@@ -12,6 +13,13 @@ export async function resolveHonomiyaCliPath(
 		const resolved = path.resolve(configuredPath);
 		await canRead(resolved);
 		return resolved;
+	}
+
+	try {
+		await canRead(BUNDLED_HONOMIYA_CLI_PATH);
+		return BUNDLED_HONOMIYA_CLI_PATH;
+	} catch {
+		// Development uses a sibling checkout; production images bundle the CLI.
 	}
 
 	let current = path.resolve(cwd);

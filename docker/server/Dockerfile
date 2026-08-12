@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
-ARG BUN_VERSION=1.3.12
+ARG BUN_VERSION=1.3.14
 ARG CALIBRE_VERSION=9.11.0
+ARG HONOMIYA_REF=7208c57b8a31b8da364a6739bce8d9bc8e324839
 
 # ── Dependency manifests ─────────────────────────────────────────────
 FROM oven/bun:${BUN_VERSION}-alpine AS base
@@ -46,6 +47,22 @@ RUN rm -rf \
 	/app/node_modules/.bun/node_modules/@huggingface \
 	/app/node_modules/.bun/node_modules/onnxruntime-*
 
+# ── Honomiya CLI ─────────────────────────────────────────────────────
+FROM base AS honomiya
+ARG HONOMIYA_REF
+RUN apk add --no-cache git
+RUN mkdir -p /src/Honomiya \
+	&& git -C /src/Honomiya init \
+	&& git -C /src/Honomiya fetch --depth=1 \
+		https://github.com/Natsume-197/Honomiya.git "${HONOMIYA_REF}" \
+	&& git -C /src/Honomiya checkout --detach FETCH_HEAD \
+	&& test "$(git -C /src/Honomiya rev-parse HEAD)" = "${HONOMIYA_REF}"
+WORKDIR /src/Honomiya
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+	bun install --frozen-lockfile \
+	&& bun run build \
+	&& bun ./dist/cli.js --version
+
 # ── Worker toolchain ─────────────────────────────────────────────────
 FROM base AS calibre
 ARG CALIBRE_VERSION
@@ -73,7 +90,9 @@ RUN groupadd --system nanahoshi \
 WORKDIR /app/apps/server
 RUN mkdir -p data/converted \
 	&& chown -R nanahoshi:nanahoshi /app/apps/server /home/nanahoshi
-ENV ENVIRONMENT=production HOME=/home/nanahoshi
+ENV ENVIRONMENT=production \
+	HOME=/home/nanahoshi \
+	HONOMIYA_CLI_PATH=/opt/honomiya/cli.js
 
 # ── Worker image ─────────────────────────────────────────────────────
 FROM runtime AS worker
@@ -91,6 +110,7 @@ COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=production-deps /app/apps/server/node_modules ./node_modules
 COPY --from=calibre /opt/calibre /opt/calibre
 COPY --from=build /app/apps/server/bin ./bin
+COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
 ENV PATH="/opt/calibre:${PATH}" QT_QPA_PLATFORM=offscreen PROCESS_ROLE=worker
 USER nanahoshi
 CMD ["bun", "run", "dist/worker.mjs"]
@@ -106,6 +126,7 @@ COPY --from=build /app/apps/server/package.json ./package.json
 COPY --from=build /app/packages/db/src/migrations ./dist/migrations
 COPY --from=api-deps /app/node_modules /app/node_modules
 COPY --from=api-deps /app/apps/server/node_modules ./node_modules
+COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
 USER nanahoshi
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
