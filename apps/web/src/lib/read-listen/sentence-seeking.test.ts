@@ -147,6 +147,75 @@ function createHarness({
 	};
 }
 
+function createMultiSectionHarness() {
+	const dom = new JSDOM(`
+		<main>
+			<section id="chapter-one" class="book-content"><p>First.</p></section>
+			<section id="chapter-two" class="book-content"><p>Second.</p></section>
+		</main>`);
+	const document = dom.window.document;
+	const idleCallbacks: IdleRequestCallback[] = [];
+	Object.defineProperty(dom.window, "requestIdleCallback", {
+		value: (callback: IdleRequestCallback) => {
+			idleCallbacks.push(callback);
+			return idleCallbacks.length;
+		},
+	});
+	Object.defineProperty(dom.window, "cancelIdleCallback", {
+		value: () => {},
+	});
+	const createTreeWalker = mock(document.createTreeWalker.bind(document));
+	Object.defineProperty(document, "createTreeWalker", {
+		value: createTreeWalker,
+	});
+	const surface = document.querySelector("main");
+	if (!surface) throw new Error("fixture surface missing");
+	const cleanup = bindReadListenSentenceSeeking({
+		surface,
+		targetsBySection: new Map([
+			[
+				"chapter-one",
+				[
+					{
+						anchor: {
+							kind: "text-quote" as const,
+							sectionRef: "one.xhtml",
+							exact: "First.",
+						},
+						value: "cue-one",
+					},
+				],
+			],
+			[
+				"chapter-two",
+				[
+					{
+						anchor: {
+							kind: "text-quote" as const,
+							sectionRef: "two.xhtml",
+							exact: "Second.",
+						},
+						value: "cue-two",
+					},
+				],
+			],
+		]),
+		onActivate: () => {},
+		keyboardLabel: "Book text",
+	});
+	createTreeWalker.mockClear();
+	return {
+		cleanup,
+		createTreeWalker,
+		flushNextIdle: () => {
+			idleCallbacks.shift()?.({
+				didTimeout: false,
+				timeRemaining: () => 50,
+			});
+		},
+	};
+}
+
 describe("Read & Listen sentence seeking", () => {
 	test("does not activate a sentence when the click lands outside rendered text", () => {
 		const harness = createHarness({
@@ -217,8 +286,9 @@ describe("Read & Listen sentence seeking", () => {
 			characterRect: () => ({ left: 0, right: 100, top: 0, bottom: 20 }),
 		});
 		harness.movePointer(50, 10, 2);
-		const observer =
-			new harness.surface.ownerDocument.defaultView.MutationObserver(() => {});
+		const view = harness.surface.ownerDocument.defaultView;
+		if (!view) throw new Error("fixture window missing");
+		const observer = new view.MutationObserver(() => {});
 		observer.observe(harness.surface, { attributes: true });
 
 		harness.movePointer(50, 10, 9);
@@ -247,6 +317,17 @@ describe("Read & Listen sentence seeking", () => {
 
 		harness.movePointer(50, 10);
 		expect(harness.createTreeWalker).toHaveBeenCalledTimes(1);
+		harness.cleanup();
+	});
+
+	test("warms at most one section index per idle task", () => {
+		const harness = createMultiSectionHarness();
+
+		harness.flushNextIdle();
+
+		expect(harness.createTreeWalker).toHaveBeenCalledTimes(1);
+		harness.flushNextIdle();
+		expect(harness.createTreeWalker).toHaveBeenCalledTimes(2);
 		harness.cleanup();
 	});
 

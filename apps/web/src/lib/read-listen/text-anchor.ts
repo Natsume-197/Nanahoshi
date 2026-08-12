@@ -92,9 +92,20 @@ function indexedPosition(
 ): number {
 	const nodePositions = positions.get(node);
 	if (!nodePositions?.length) return -1;
-	const atOrAfter = nodePositions.find(
-		(position) => position.sourceOffset >= offset,
-	);
+	let low = 0;
+	let high = nodePositions.length - 1;
+	let candidate = -1;
+	while (low <= high) {
+		const middle = Math.floor((low + high) / 2);
+		const position = nodePositions[middle];
+		if (!position || position.sourceOffset < offset) {
+			low = middle + 1;
+		} else {
+			candidate = middle;
+			high = middle - 1;
+		}
+	}
+	const atOrAfter = candidate >= 0 ? nodePositions[candidate] : undefined;
 	return (
 		atOrAfter?.normalizedOffset ??
 		(nodePositions.at(-1)?.normalizedOffset ?? -2) + 1

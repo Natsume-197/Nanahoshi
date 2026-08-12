@@ -194,20 +194,36 @@ export function bindReadListenSentenceSeeking<T>({
 		return index.find(position);
 	};
 	const view = surface.ownerDocument.defaultView;
-	const warmRenderedIndexes = () => {
-		for (const [sectionId, targets] of targetsBySection) {
-			const section = surface.ownerDocument.getElementById(sectionId);
-			if (section) indexForSection(section, targets);
+	const sectionsToWarm = [...targetsBySection];
+	let nextWarmupIndex = 0;
+	let idleWarmupId: number | undefined;
+	let timeoutWarmupId: number | undefined;
+	const scheduleNextWarmup = () => {
+		if (!view || nextWarmupIndex >= sectionsToWarm.length) return;
+		if (typeof view.requestIdleCallback === "function") {
+			idleWarmupId = view.requestIdleCallback(warmNextRenderedIndex, {
+				timeout: 200,
+			});
+		} else {
+			timeoutWarmupId = view.setTimeout(warmNextRenderedIndex, 0);
 		}
 	};
-	const idleWarmupId =
-		view && typeof view.requestIdleCallback === "function"
-			? view.requestIdleCallback(warmRenderedIndexes, { timeout: 200 })
-			: undefined;
-	const timeoutWarmupId =
-		view && idleWarmupId === undefined
-			? view.setTimeout(warmRenderedIndexes, 0)
-			: undefined;
+	const warmNextRenderedIndex = () => {
+		idleWarmupId = undefined;
+		timeoutWarmupId = undefined;
+		while (nextWarmupIndex < sectionsToWarm.length) {
+			const entry = sectionsToWarm[nextWarmupIndex];
+			nextWarmupIndex += 1;
+			if (!entry) continue;
+			const [sectionId, targets] = entry;
+			const section = surface.ownerDocument.getElementById(sectionId);
+			if (!section) continue;
+			indexForSection(section, targets);
+			break;
+		}
+		scheduleNextWarmup();
+	};
+	scheduleNextWarmup();
 
 	const showPendingHover = () => {
 		pointerFrame = 0;

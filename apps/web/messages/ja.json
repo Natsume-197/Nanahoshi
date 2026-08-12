@@ -2111,6 +2111,8 @@
 		"controls_label": "読みながら聴くための操作",
 		"play_audiobook": "オーディオブックを再生",
 		"pause_audiobook": "オーディオブックを一時停止",
+		"previous_sentence": "前の文",
+		"next_sentence": "次の文",
 		"follow_text": "文章を追う",
 		"following_text": "文章を追跡中",
 		"seek_from_text": "文から音声へ移動",

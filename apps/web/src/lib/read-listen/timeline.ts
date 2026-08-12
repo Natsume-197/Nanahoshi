@@ -60,6 +60,37 @@ export function findReadListenCue(
 	return cue && globalTimeMs < cue.globalEndMs ? cue : undefined;
 }
 
+/** Finds the sentence immediately before or after the playhead in O(log n). */
+export function findAdjacentReadListenCue(
+	timeline: ReadListenTimelineCue[],
+	globalTimeMs: number,
+	direction: -1 | 1,
+): ReadListenTimelineCue | undefined {
+	let low = 0;
+	let high = timeline.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		const cue = timeline[middle];
+		if (cue && cue.globalStartMs <= globalTimeMs) low = middle + 1;
+		else high = middle;
+	}
+	const nextIndex = low;
+	const currentOrPreviousIndex = nextIndex - 1;
+	const currentOrPrevious = timeline[currentOrPreviousIndex];
+	const isInsideCue = Boolean(
+		currentOrPrevious && globalTimeMs < currentOrPrevious.globalEndMs,
+	);
+	const targetIndex =
+		direction > 0
+			? isInsideCue
+				? currentOrPreviousIndex + 1
+				: nextIndex
+			: isInsideCue
+				? currentOrPreviousIndex - 1
+				: currentOrPreviousIndex;
+	return timeline[targetIndex];
+}
+
 export function toReaderSectionReference(
 	sectionRef: string,
 	format: ReaderSourceFormat,

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ReadListenCue } from "@nanahoshi-v2/read-listen/manifest";
 import {
 	createReadListenTimeline,
+	findAdjacentReadListenCue,
 	findReadListenCue,
 	toReaderSectionReference,
 } from "./timeline";
@@ -45,6 +46,20 @@ describe("Read & Listen timeline", () => {
 
 		expect(findReadListenCue(timeline, 50)).toBeUndefined();
 		expect(findReadListenCue(timeline, 600)).toBeUndefined();
+	});
+
+	test("finds previous and next sentences from cues and narration gaps", () => {
+		const timeline = createReadListenTimeline(cues, [
+			{ index: 0, duration: 10 },
+			{ index: 1, duration: 20 },
+		]);
+
+		expect(findAdjacentReadListenCue(timeline, 300, -1)).toBeUndefined();
+		expect(findAdjacentReadListenCue(timeline, 300, 1)?.id).toBe("second");
+		expect(findAdjacentReadListenCue(timeline, 600, -1)?.id).toBe("first");
+		expect(findAdjacentReadListenCue(timeline, 600, 1)?.id).toBe("second");
+		expect(findAdjacentReadListenCue(timeline, 10_300, -1)?.id).toBe("first");
+		expect(findAdjacentReadListenCue(timeline, 10_300, 1)).toBeUndefined();
 	});
 
 	test("maps Honomiya EPUB references to reader section ids", () => {

@@ -2133,6 +2133,8 @@
 		"controls_label": "Read and listen controls",
 		"play_audiobook": "Play audiobook",
 		"pause_audiobook": "Pause audiobook",
+		"previous_sentence": "Previous sentence",
+		"next_sentence": "Next sentence",
 		"follow_text": "Follow text",
 		"following_text": "Following text",
 		"seek_from_text": "Seek audio from sentences",

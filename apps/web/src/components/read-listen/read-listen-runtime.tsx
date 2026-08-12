@@ -9,9 +9,13 @@ import {
 	SeekReadListenFromText,
 } from "@/components/read-listen/read-listen-bindings";
 import type { BookReaderApi } from "@/components/reader/reader-shared-props";
-import { useAudioPlayerState } from "@/context/audio-player-context";
+import {
+	useAudioPlayerActions,
+	useAudioPlayerState,
+} from "@/context/audio-player-context";
 import {
 	createReadListenTimeline,
+	findAdjacentReadListenCue,
 	findReadListenCue,
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
@@ -48,6 +52,7 @@ export function ReadListenRuntime({
 		{ cueId: string; playbackReachedCue: boolean } | undefined
 	>();
 	const player = useAudioPlayerState();
+	const { seekTo } = useAudioPlayerActions();
 	const sessionQuery = useQuery(
 		orpc.readListen.getSession.queryOptions({ input: { pairUuid, ebookUuid } }),
 	);
@@ -97,6 +102,14 @@ export function ReadListenRuntime({
 			? findReadListenCue(timeline, player.globalCurrentTime * 1000)
 			: undefined;
 	const alignmentRevision = sessionQuery.data?.alignment.createdAt ?? "pending";
+	const previousCue =
+		isAudiobookLoaded && timeline
+			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, -1)
+			: undefined;
+	const nextCue =
+		isAudiobookLoaded && timeline
+			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, 1)
+			: undefined;
 
 	if (initialSeekCue && activeCue) {
 		if (
@@ -180,6 +193,14 @@ export function ReadListenRuntime({
 						placement="reader"
 						readListen={{
 							statusText: currentText,
+							canSeekPreviousSentence: Boolean(previousCue),
+							onSeekPreviousSentence: () => {
+								if (previousCue) seekTo(previousCue.globalStartMs / 1000);
+							},
+							canSeekNextSentence: Boolean(nextCue),
+							onSeekNextSentence: () => {
+								if (nextCue) seekTo(nextCue.globalStartMs / 1000);
+							},
 							followText,
 							onToggleFollowText: () => setFollowText((current) => !current),
 							seekFromText,

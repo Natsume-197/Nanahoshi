@@ -1,4 +1,10 @@
-import { BookOpenText, Crosshair, CursorClick } from "@phosphor-icons/react";
+import {
+	BookOpenText,
+	Crosshair,
+	CursorClick,
+	SkipBack,
+	SkipForward,
+} from "@phosphor-icons/react";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -6,6 +12,10 @@ import { m } from "@/paraglide/messages";
 /** Read & Listen contributes context to the player, never playback controls. */
 export type ReadListenPlayerContext = {
 	statusText: string;
+	canSeekPreviousSentence: boolean;
+	onSeekPreviousSentence: () => void;
+	canSeekNextSentence: boolean;
+	onSeekNextSentence: () => void;
 	followText: boolean;
 	onToggleFollowText: () => void;
 	seekFromText: boolean;
@@ -78,6 +88,24 @@ export function ReadListenControlsGroup({
 			className={cn("flex min-w-0 items-center border-0 p-0", className)}
 		>
 			<legend className="sr-only">{m["read_listen.controls_label"]()}</legend>
+			<PlayerIconButton
+				label={m["read_listen.previous_sentence"]()}
+				side={side}
+				disabled={!context.canSeekPreviousSentence}
+				onClick={context.onSeekPreviousSentence}
+				className={buttonClassName}
+			>
+				<SkipBack aria-hidden="true" className="size-5" />
+			</PlayerIconButton>
+			<PlayerIconButton
+				label={m["read_listen.next_sentence"]()}
+				side={side}
+				disabled={!context.canSeekNextSentence}
+				onClick={context.onSeekNextSentence}
+				className={buttonClassName}
+			>
+				<SkipForward aria-hidden="true" className="size-5" />
+			</PlayerIconButton>
 			<ReadListenFollowButton
 				context={context}
 				side={side}

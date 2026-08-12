@@ -7,6 +7,14 @@ const seekTo = mock((time: number) => {
 	playerTime = time;
 });
 const scrollIntoView = mock(() => {});
+let capturedReadListen:
+	| {
+			canSeekPreviousSentence: boolean;
+			canSeekNextSentence: boolean;
+			onSeekPreviousSentence: () => void;
+			onSeekNextSentence: () => void;
+	  }
+	| undefined;
 
 const cues = [
 	{
@@ -85,7 +93,10 @@ mock.module("@/context/audio-player-context", () => ({
 }));
 
 mock.module("@/components/audio-player/mini-player", () => ({
-	MiniPlayer: () => null,
+	MiniPlayer: ({ readListen }: { readListen?: typeof capturedReadListen }) => {
+		capturedReadListen = readListen;
+		return null;
+	},
 }));
 
 const { ReadListenRuntime } = await import("./read-listen-runtime");
@@ -115,6 +126,7 @@ afterEach(() => {
 	playerTime = 0;
 	seekTo.mockClear();
 	scrollIntoView.mockClear();
+	capturedReadListen = undefined;
 });
 
 describe("ReadListenRuntime", () => {
@@ -142,5 +154,38 @@ describe("ReadListenRuntime", () => {
 		);
 
 		expect(scrollIntoView).not.toHaveBeenCalled();
+	});
+
+	test("seeks to the previous and next aligned sentences", () => {
+		const view = render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[]}
+			/>,
+		);
+
+		expect(capturedReadListen?.canSeekPreviousSentence).toBe(false);
+		expect(capturedReadListen?.canSeekNextSentence).toBe(true);
+		capturedReadListen?.onSeekNextSentence();
+		expect(seekTo).toHaveBeenLastCalledWith(9);
+
+		view.rerender(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[]}
+			/>,
+		);
+		expect(capturedReadListen?.canSeekPreviousSentence).toBe(true);
+		expect(capturedReadListen?.canSeekNextSentence).toBe(false);
+		capturedReadListen?.onSeekPreviousSentence();
+		expect(seekTo).toHaveBeenLastCalledWith(0);
 	});
 });
