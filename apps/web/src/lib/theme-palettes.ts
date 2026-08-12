@@ -99,8 +99,8 @@ const PALETTE_VAR_NAME_SET = new Set(PALETTE_VAR_NAMES);
 export const DEFAULT_CUSTOM_INPUT: Record<PaletteBase, CustomThemeInput> = {
 	dark: {
 		base: "dark",
-		background: "#202020",
-		card: "#2e2e2e",
+		background: "#1c1c1c",
+		card: "#2a2a2a",
 		primary: "#fafafa",
 	},
 	light: {
