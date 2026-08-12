@@ -528,22 +528,14 @@
 	--panel-in-offset: -0.5rem;
 }
 
-@keyframes marquee-sweep {
-	0%,
-	15% {
-		transform: translateX(0);
-	}
-	50%,
-	65% {
+@keyframes marquee-loop {
+	to {
 		transform: translateX(var(--marquee-shift));
-	}
-	100% {
-		transform: translateX(0);
 	}
 }
 
-@utility marquee-sweep {
-	animation: marquee-sweep var(--marquee-duration) ease-in-out infinite;
+@utility marquee-loop {
+	animation: marquee-loop var(--marquee-duration) linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

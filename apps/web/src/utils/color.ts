@@ -93,6 +93,25 @@ export function getMutedAccentSurfaceColor(accentColor: string): string | null {
 // tile per frame. Caching the object also keeps its identity stable.
 const tintedCardStyles = new Map<string, CSSProperties | undefined>();
 
+const hoverTintStyles = new Map<string, CSSProperties>();
+
+/**
+ * Hover wash for a vertical card: the artwork's own color mixed into the theme's
+ * hover surface. Kept faint — the muted subtitle sits on top of it.
+ */
+export function getHoverTintStyle(
+	tint: string | null | undefined,
+): CSSProperties | undefined {
+	if (!tint) return undefined;
+	const cached = hoverTintStyles.get(tint);
+	if (cached) return cached;
+	const style: CSSProperties = {
+		backgroundColor: `color-mix(in oklab, ${tint} 14%, var(--surface-hover))`,
+	};
+	hoverTintStyles.set(tint, style);
+	return style;
+}
+
 /**
  * The whole "this card is the color of its artwork" treatment in one place:
  * the muted plate plus the foreground that survives on it. Shared by the

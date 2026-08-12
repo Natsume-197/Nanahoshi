@@ -75,7 +75,6 @@ export function GenreTileSkeletonGrid() {
 			{SKELETON_KEYS.map((key) => (
 				<Skeleton
 					key={key}
-					variant="surface"
 					className="rounded-xl"
 					style={{ aspectRatio: GENRE_TILE_ASPECT }}
 				/>

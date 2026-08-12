@@ -6,8 +6,8 @@ import {
 	DeviceTablet,
 	DownloadSimple,
 	Heart,
-	Minus,
 	ThumbsDown,
+	XCircle,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useState, useSyncExternalStore } from "react";
@@ -184,7 +184,7 @@ export function BookContextMenuContentPanel() {
 							{isReadingProgressActionBusy ? (
 								<CircleNotch className="animate-spin" />
 							) : (
-								<Minus />
+								<XCircle />
 							)}
 							{isAudiobook
 								? m["book.remove_continue_listening"]()

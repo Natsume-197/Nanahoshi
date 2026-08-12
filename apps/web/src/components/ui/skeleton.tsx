@@ -1,42 +1,24 @@
 import { cn } from "@/lib/utils";
 
-type SkeletonOwnProps = {
-	variant?: "default" | "surface";
+type DivSkeletonProps = React.ComponentPropsWithRef<"div"> & {
+	as?: "div";
 };
 
-type DivSkeletonProps = SkeletonOwnProps &
-	React.ComponentPropsWithRef<"div"> & {
-		as?: "div";
-	};
-
-type SpanSkeletonProps = SkeletonOwnProps &
-	React.ComponentPropsWithRef<"span"> & {
-		as: "span";
-	};
+type SpanSkeletonProps = React.ComponentPropsWithRef<"span"> & {
+	as: "span";
+};
 
 type SkeletonProps = DivSkeletonProps | SpanSkeletonProps;
 
-function skeletonClassName(
-	variant: NonNullable<SkeletonOwnProps["variant"]>,
-	className?: string,
-) {
-	return cn(
-		"skeleton-pulse rounded-2xl",
-		variant === "surface" ? "bg-surface-card" : "bg-foreground/10",
-		className,
-	);
+function skeletonClassName(className?: string) {
+	return cn("skeleton-pulse rounded-2xl bg-foreground/10", className);
 }
 
-function renderDivSkeleton({
-	as: _as,
-	className,
-	variant = "default",
-	...props
-}: DivSkeletonProps) {
+function renderDivSkeleton({ as: _as, className, ...props }: DivSkeletonProps) {
 	return (
 		<div
 			data-slot="skeleton"
-			className={skeletonClassName(variant, className)}
+			className={skeletonClassName(className)}
 			{...props}
 		/>
 	);
@@ -45,13 +27,12 @@ function renderDivSkeleton({
 function renderSpanSkeleton({
 	as: _as,
 	className,
-	variant = "default",
 	...props
 }: SpanSkeletonProps) {
 	return (
 		<span
 			data-slot="skeleton"
-			className={skeletonClassName(variant, className)}
+			className={skeletonClassName(className)}
 			{...props}
 		/>
 	);

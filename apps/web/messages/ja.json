@@ -898,6 +898,7 @@
 		"ebook": "電子書籍",
 		"audiobook": "オーディオブック",
 		"format": "形式",
+		"all_formats": "すべて",
 		"item_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],

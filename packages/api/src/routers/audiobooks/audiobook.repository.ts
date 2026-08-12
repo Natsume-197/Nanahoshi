@@ -235,6 +235,7 @@ export class AudiobookRepository {
 				filename: book.filename,
 				title: audiobookMetadata.title,
 				cover: audiobookMetadata.cover,
+				mainColor: audiobookMetadata.mainColor,
 				duration: audiobookMetadata.duration,
 			})
 			.from(book)

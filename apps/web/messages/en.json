@@ -898,6 +898,7 @@
 		"ebook": "Ebook",
 		"audiobook": "Audiobook",
 		"format": "Format",
+		"all_formats": "All",
 		"item_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],

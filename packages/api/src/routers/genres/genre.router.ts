@@ -19,7 +19,7 @@ export const genresRouter = {
 					cursor: z.number().int().min(0).optional(),
 					sort: z.enum(["name", "books", "recent"]).default("name").optional(),
 					query: z.string().optional(),
-					mediaType: z.enum(["ebook", "audiobook"]).optional(),
+					mediaType: z.enum(["ebook", "audiobook", "all"]).optional(),
 				})
 				.optional(),
 		)
@@ -31,21 +31,23 @@ export const genresRouter = {
 				input?.sort ?? "name",
 				input?.query?.trim() || undefined,
 				context.accessibleLibraryIds,
-				input?.mediaType ?? "ebook",
+				input?.mediaType ?? "all",
 			);
 			return rows.map(({ id: _id, ...row }) => row);
 		}),
 	count: orgReadProcedure
 		.input(
 			z
-				.object({ mediaType: z.enum(["ebook", "audiobook"]).optional() })
+				.object({
+					mediaType: z.enum(["ebook", "audiobook", "all"]).optional(),
+				})
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
 			return genreRepository.count(
 				context.serverId,
 				context.accessibleLibraryIds,
-				input?.mediaType ?? "ebook",
+				input?.mediaType ?? "all",
 			);
 		}),
 	getByUuid: orgReadProcedure

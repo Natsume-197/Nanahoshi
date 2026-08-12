@@ -13,15 +13,17 @@ import {
  * so the two repositories are only their table names.
  */
 export type FacetSort = "name" | "books" | "recent";
-export type FacetMediaType = "ebook" | "audiobook";
+export type FacetSingleMediaType = "ebook" | "audiobook";
+/** "all" spans both formats: the default listing, and the only mixed one. */
+export type FacetMediaType = FacetSingleMediaType | "all";
 
 export type FacetDefinition = {
 	/** Base table (`genre`, `tag`). */
 	table: SQL;
 	/** The facet's id column on the link tables (`genre_id`, `tag_id`). */
 	linkColumn: SQL;
-	/** Link table per media type. Formats are a facet, never mixed. */
-	links: Record<FacetMediaType, SQL>;
+	/** Link table per format. */
+	links: Record<FacetSingleMediaType, SQL>;
 };
 
 export type FacetRow = {
@@ -31,6 +33,7 @@ export type FacetRow = {
 	bookCount: number;
 	covers: string[] | null;
 	colors: (string | null)[] | null;
+	squares: (boolean | null)[] | null;
 };
 
 export type FacetListOptions = {
@@ -43,15 +46,42 @@ export type FacetListOptions = {
 	mediaType: FacetMediaType;
 };
 
-const METADATA: Record<FacetMediaType, SQL> = {
+const METADATA: Record<FacetSingleMediaType, SQL> = {
 	ebook: sql`book_metadata`,
 	audiobook: sql`audiobook_metadata`,
 };
 
+/** A book row is one format, so the union can't double-count a book. */
+function linksFor(facet: FacetDefinition, mediaType: FacetMediaType): SQL {
+	if (mediaType !== "all") return facet.links[mediaType];
+	return sql`(
+		SELECT ${facet.linkColumn}, book_id FROM ${facet.links.ebook}
+		UNION ALL
+		SELECT ${facet.linkColumn}, book_id FROM ${facet.links.audiobook}
+	)`;
+}
+
+function metadataFor(mediaType: FacetMediaType): SQL {
+	if (mediaType !== "all") return METADATA[mediaType];
+	return sql`(
+		SELECT book_id, cover, main_color, FALSE AS is_square FROM book_metadata
+		UNION ALL
+		SELECT book_id, cover, main_color, TRUE AS is_square FROM audiobook_metadata
+	)`;
+}
+
+/** Whether a candidate cover is native square artwork, per format. */
+function squareFor(mediaType: FacetMediaType): SQL {
+	if (mediaType === "all") return sql`md2.is_square`;
+	return mediaType === "audiobook" ? sql`TRUE` : sql`FALSE`;
+}
+
+// Names are stored as the provider wrote them, so a case-sensitive sort files
+// every capitalized facet ahead of the lowercase ones.
 const ORDER_BY: Record<FacetSort, SQL> = {
-	name: sql`f.name ASC`,
-	books: sql`"bookCount" DESC, f.name ASC`,
-	recent: sql`f.created_at DESC NULLS LAST, f.name ASC`,
+	name: sql`lower(f.name) ASC`,
+	books: sql`"bookCount" DESC, lower(f.name) ASC`,
+	recent: sql`f.created_at DESC NULLS LAST, lower(f.name) ASC`,
 };
 
 /**
@@ -78,7 +108,7 @@ export function facetListQuery(
 	const scopePredicate = accessiblePredicateSql(scope);
 	if (scopePredicate) filters.push(scopePredicate);
 
-	const links = facet.links[mediaType];
+	const links = linksFor(facet, mediaType);
 	// The candidate scan only needs `library` when it filters on the server.
 	const candidateLibraryJoin = serverId
 		? sql`INNER JOIN library l2 ON l2.id = b2.library_id AND l2.server_id = ${serverId}`
@@ -91,14 +121,15 @@ export function facetListQuery(
 			f.name,
 			f."bookCount",
 			cov.covers,
-			cov.colors
+			cov.colors,
+			cov.squares
 		FROM (
 			SELECT
 				f.id,
 				f.uuid,
 				f.name,
 				f.created_at,
-				COUNT(*)::int AS "bookCount"
+				COUNT(DISTINCT b.id)::int AS "bookCount"
 			FROM ${facet.table} f
 			INNER JOIN ${links} lk ON lk.${facet.linkColumn} = f.id
 			INNER JOIN book b ON b.id = lk.book_id
@@ -112,11 +143,12 @@ export function facetListQuery(
 		LEFT JOIN LATERAL (
 			SELECT
 				array_agg(c.cover) AS covers,
-				array_agg(c.main_color) AS colors
+				array_agg(c.main_color) AS colors,
+				array_agg(c.is_square) AS squares
 			FROM (
-				SELECT md2.cover, md2.main_color
+				SELECT md2.cover, md2.main_color, ${squareFor(mediaType)} AS is_square
 				FROM ${links} lk2
-				INNER JOIN ${METADATA[mediaType]} md2 ON md2.book_id = lk2.book_id
+				INNER JOIN ${metadataFor(mediaType)} md2 ON md2.book_id = lk2.book_id
 				INNER JOIN book b2 ON b2.id = lk2.book_id
 				${candidateLibraryJoin}
 				WHERE lk2.${facet.linkColumn} = f.id
@@ -143,7 +175,7 @@ export function facetCountQuery(
 		SELECT COUNT(*)::int AS count FROM (
 			SELECT f.id
 			FROM ${facet.table} f
-			INNER JOIN ${facet.links[mediaType]} lk ON lk.${facet.linkColumn} = f.id
+			INNER JOIN ${linksFor(facet, mediaType)} lk ON lk.${facet.linkColumn} = f.id
 			INNER JOIN book b ON b.id = lk.book_id
 			INNER JOIN library l ON l.id = b.library_id
 			WHERE ${visibleBookSql("b")}
@@ -172,11 +204,12 @@ function offsetFor(uuid: string): number {
  */
 export function pickFacetArtwork(
 	rows: FacetRow[],
-): Array<{ cover: string | null; mainColor: string | null }> {
+): Array<{ cover: string | null; mainColor: string | null; square: boolean }> {
 	const used = new Set<string>();
 	return rows.map((row) => {
 		const covers = row.covers ?? [];
-		if (covers.length === 0) return { cover: null, mainColor: null };
+		if (covers.length === 0)
+			return { cover: null, mainColor: null, square: false };
 		const start = offsetFor(row.uuid) % covers.length;
 		let pick = start;
 		for (let step = 0; step < covers.length; step++) {
@@ -190,6 +223,7 @@ export function pickFacetArtwork(
 		return {
 			cover: covers[pick] ?? null,
 			mainColor: row.colors?.[pick] ?? null,
+			square: row.squares?.[pick] ?? false,
 		};
 	});
 }

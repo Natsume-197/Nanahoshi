@@ -5,7 +5,11 @@ import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-g
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getMutedAccentSurfaceColor, getTintedCardStyle } from "@/utils/color";
+import {
+	getHoverTintStyle,
+	getMutedAccentSurfaceColor,
+	getTintedCardStyle,
+} from "@/utils/color";
 import {
 	type CoverPreset,
 	getCoverPresetUrl,
@@ -251,13 +255,12 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"scale-[0.985] rounded-md opacity-0 shadow-black/25 shadow-lg outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
-						// Height-driven: the artwork keeps its own ratio and the shadow
-						// traces the cover itself, never empty slot. A lifted cover rather
-						// than an outlined one — the card already supplies the edge, and
-						// the shadow is what reads as a physical book.
+						"scale-[0.985] rounded-md opacity-0 outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
 						isHorizontal
-							? cn("h-full", square ? "w-full" : "w-auto")
+							? cn(
+									"h-full shadow-black/25 shadow-lg",
+									square ? "w-full" : "w-auto",
+								)
 							: square
 								? cn(
 										"relative z-[1] aspect-square w-full object-cover",
@@ -328,6 +331,7 @@ export function BookCardShell({
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
 				aria-hidden
+				style={isHorizontal ? undefined : getHoverTintStyle(tint)}
 				className={cn(
 					"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
 					isHorizontal

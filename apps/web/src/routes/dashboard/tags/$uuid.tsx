@@ -4,6 +4,7 @@ import { EntityBooksView } from "@/components/catalog/entity-books-view";
 import type { SortOption } from "@/components/shared/sort-select";
 import { m } from "@/paraglide/messages";
 import type { BookSortMode } from "@/utils/filter-sort-books";
+import { capitalizeFirst } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/tags/$uuid")({
@@ -52,7 +53,11 @@ function TagDetailPage() {
 			defaultSort="title"
 			sortOptions={sortOptions}
 			formatFilter
-			title={entity?.name ?? m["entity_page.tag_fallback"]()}
+			title={
+				entity?.name
+					? capitalizeFirst(entity.name)
+					: m["entity_page.tag_fallback"]()
+			}
 			subtitle={
 				total ? m["entity_page.tag_subtitle"]({ count: total }) : undefined
 			}

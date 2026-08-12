@@ -18,8 +18,6 @@ import {
 export type TagSort = FacetSort;
 export type TagMediaType = FacetMediaType;
 
-// Formats are a facet, never mixed: list/count scope to one format's link
-// table. Only getByUuid spans both (the detail page owns its format filter).
 const TAG_FACET: FacetDefinition = {
 	table: sql`tag`,
 	linkColumn: sql`tag_id`,
@@ -36,7 +34,7 @@ export class TagRepository {
 		sort: TagSort = "name",
 		query?: string,
 		scope: LibraryScope = "ALL",
-		mediaType: TagMediaType = "ebook",
+		mediaType: TagMediaType = "all",
 	) {
 		const result = await db.execute(
 			facetListQuery(TAG_FACET, {
@@ -59,6 +57,7 @@ export class TagRepository {
 			bookCount: row.bookCount,
 			cover: artwork[index]?.cover ?? null,
 			mainColor: artwork[index]?.mainColor ?? null,
+			square: artwork[index]?.square ?? false,
 		}));
 	}
 
@@ -92,7 +91,7 @@ export class TagRepository {
 	async count(
 		serverId?: string,
 		scope: LibraryScope = "ALL",
-		mediaType: TagMediaType = "ebook",
+		mediaType: TagMediaType = "all",
 	) {
 		const result = await db.execute(
 			facetCountQuery(TAG_FACET, { serverId, scope, mediaType }),

@@ -27,6 +27,7 @@ import { useCollectionView } from "@/hooks/use-collection-view";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename } from "@/utils/covers";
+import { capitalizeFirst } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -36,8 +37,7 @@ type SortMode = "name" | "books" | "recent";
 /** AniList-style split: genres are the coarse facet, tags the fine one. */
 type Facet = "genres" | "tags";
 
-/** Formats are a facet, never mixed: one format per listing. */
-type Format = "ebook" | "audiobook";
+type Format = "all" | "ebook" | "audiobook";
 
 const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "name", label: "Name" },
@@ -58,7 +58,7 @@ function GenresPage() {
 	const [facet, setFacet] = useUiSnapshotState<Facet>("genres-facet", "genres");
 	const [format, setFormat] = useUiSnapshotState<Format>(
 		"genres-format",
-		"ebook",
+		"all",
 	);
 	const isTags = facet === "tags";
 	const isAudiobook = format === "audiobook";
@@ -82,6 +82,7 @@ function GenresPage() {
 		{ value: "tags", label: m["library_page.tags"]() },
 	];
 	const formatOptions: readonly FilterOption[] = [
+		{ value: "all", label: m["media.all_formats"]() },
 		{ value: "ebook", label: m["search.books"]() },
 		{ value: "audiobook", label: m["search.audiobooks"]() },
 	];
@@ -134,10 +135,12 @@ function GenresPage() {
 			? ({ to: "/dashboard/tags/$uuid", params: { uuid } } as const)
 			: ({ to: "/dashboard/genres/$uuid", params: { uuid } } as const);
 
-	const entityBookCount = (count: number) =>
-		isAudiobook
+	const entityBookCount = (count: number) => {
+		if (format === "all") return m["media.item_count"]({ count });
+		return isAudiobook
 			? m["media.audiobook_count"]({ count })
 			: m["media.book_count"]({ count });
+	};
 
 	const filterBar = (
 		<FilterBar>
@@ -213,11 +216,11 @@ function GenresPage() {
 			renderGridItem={(g) => (
 				<GenreTile
 					linkProps={{ ...detailLink(g.uuid), preload: "intent" }}
-					name={g.name}
+					name={capitalizeFirst(g.name)}
 					subtitle={entityBookCount(g.bookCount)}
 					coverFilename={getCoverFilename(g.cover) ?? undefined}
 					tint={g.mainColor}
-					square={isAudiobook}
+					square={g.square}
 				/>
 			)}
 			listHeader={
@@ -230,7 +233,7 @@ function GenresPage() {
 					linkProps={detailLink(g.uuid)}
 					coverFilename={getCoverFilename(g.cover)}
 					coverFallback={<Tag className="size-4 text-muted-foreground/40" />}
-					title={g.name}
+					title={capitalizeFirst(g.name)}
 					subtitle={entityBookCount(g.bookCount)}
 					meta={g.bookCount}
 				/>

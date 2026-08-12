@@ -102,6 +102,7 @@ export const SeriesSection = memo(function SeriesSection({
 							ariaLabel={s.name}
 							coverFilename={getCoverFilename(s.cover) ?? undefined}
 							coverPreset={coverPresets.small}
+							tint={s.color}
 							square={aspectRatio === "square"}
 							coverFrameRatio={aspectRatio}
 							compactTextBlock

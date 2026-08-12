@@ -78,6 +78,7 @@ export const RandomAudiobooksSection = memo(
 							title={audiobook.title}
 							filename={audiobook.filename}
 							cover={audiobook.cover}
+							tint={audiobook.mainColor}
 							authors={audiobook.authors}
 							contextMenuEnabled={false}
 							priority={index === 0}

@@ -140,6 +140,14 @@ export function formatNames(people: { name: string }[] | null | undefined) {
 	return people?.map((p) => p.name).join(", ");
 }
 
+/** Genres and tags are stored normalized to lowercase; display them capitalized. */
+export function capitalizeFirst(value: string): string {
+	if (!value) return value;
+	const [first] = value;
+	const upper = first?.toLocaleUpperCase(getLocale());
+	return upper === first ? value : `${upper}${value.slice(first?.length ?? 1)}`;
+}
+
 /** Extracts a 4-digit year from a date string (or full date). */
 export function resolveYear(publishedDate?: string | null): string | null {
 	if (!publishedDate) return null;

@@ -19,8 +19,6 @@ import {
 export type GenreSort = FacetSort;
 export type GenreMediaType = FacetMediaType;
 
-// Formats are a facet, never mixed: list/count scope to one format's link
-// table. Only getByUuid spans both (the detail page owns its format filter).
 const GENRE_FACET: FacetDefinition = {
 	table: sql`genre`,
 	linkColumn: sql`genre_id`,
@@ -66,7 +64,7 @@ export class GenreRepository {
 		sort: GenreSort = "name",
 		query?: string,
 		scope: LibraryScope = "ALL",
-		mediaType: GenreMediaType = "ebook",
+		mediaType: GenreMediaType = "all",
 	) {
 		const result = await db.execute(
 			facetListQuery(GENRE_FACET, {
@@ -89,6 +87,7 @@ export class GenreRepository {
 			bookCount: row.bookCount,
 			cover: artwork[index]?.cover ?? null,
 			mainColor: artwork[index]?.mainColor ?? null,
+			square: artwork[index]?.square ?? false,
 		}));
 	}
 
@@ -122,7 +121,7 @@ export class GenreRepository {
 	async count(
 		serverId?: string,
 		scope: LibraryScope = "ALL",
-		mediaType: GenreMediaType = "ebook",
+		mediaType: GenreMediaType = "all",
 	) {
 		const result = await db.execute(
 			facetCountQuery(GENRE_FACET, { serverId, scope, mediaType }),
