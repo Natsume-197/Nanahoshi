@@ -267,9 +267,18 @@ export const setHardcoverConfig = (
 
 const RECOMMENDATIONS_KEY = "recommendations";
 
-export type RecommendationsConfig = { enabled: boolean };
+export type RecommendationsConfig = {
+	/** Whether any recommendation feature needs the shared similarity model. */
+	enabled: boolean;
+	personalizedEnabled: boolean;
+	similarEnabled: boolean;
+};
 
-const DEFAULT_RECOMMENDATIONS_CONFIG: RecommendationsConfig = { enabled: true };
+const DEFAULT_RECOMMENDATIONS_CONFIG: RecommendationsConfig = {
+	enabled: true,
+	personalizedEnabled: true,
+	similarEnabled: true,
+};
 
 export async function getRecommendationsConfig(
 	serverId: string,
@@ -277,7 +286,17 @@ export async function getRecommendationsConfig(
 	const value = await settingsRepository.getOrgValue<
 		Partial<RecommendationsConfig>
 	>(serverId, RECOMMENDATIONS_KEY);
-	return { ...DEFAULT_RECOMMENDATIONS_CONFIG, ...value };
+	// Before the features were split, `enabled` controlled both. Treat it as the
+	// fallback so existing organizations keep exactly the behavior they chose.
+	const legacyEnabled =
+		value?.enabled ?? DEFAULT_RECOMMENDATIONS_CONFIG.enabled;
+	const personalizedEnabled = value?.personalizedEnabled ?? legacyEnabled;
+	const similarEnabled = value?.similarEnabled ?? legacyEnabled;
+	return {
+		enabled: personalizedEnabled || similarEnabled,
+		personalizedEnabled,
+		similarEnabled,
+	};
 }
 
 export async function isRecommendationsEnabled(
@@ -286,11 +305,31 @@ export async function isRecommendationsEnabled(
 	return (await getRecommendationsConfig(serverId)).enabled;
 }
 
+export async function isPersonalizedRecommendationsEnabled(
+	serverId: string,
+): Promise<boolean> {
+	return (await getRecommendationsConfig(serverId)).personalizedEnabled;
+}
+
+export async function isSimilarRecommendationsEnabled(
+	serverId: string,
+): Promise<boolean> {
+	return (await getRecommendationsConfig(serverId)).similarEnabled;
+}
+
 export async function setRecommendationsConfig(
 	serverId: string,
 	patch: Partial<RecommendationsConfig>,
 ): Promise<RecommendationsConfig> {
-	const merged = { ...(await getRecommendationsConfig(serverId)), ...patch };
+	const current = await getRecommendationsConfig(serverId);
+	const personalizedEnabled =
+		patch.personalizedEnabled ?? current.personalizedEnabled;
+	const similarEnabled = patch.similarEnabled ?? current.similarEnabled;
+	const merged: RecommendationsConfig = {
+		enabled: personalizedEnabled || similarEnabled,
+		personalizedEnabled,
+		similarEnabled,
+	};
 	await settingsRepository.upsertOrgValue(
 		serverId,
 		RECOMMENDATIONS_KEY,

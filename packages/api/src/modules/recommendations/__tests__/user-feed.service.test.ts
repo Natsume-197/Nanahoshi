@@ -163,6 +163,17 @@ describe("refreshUser", () => {
 		expect(computeRuns).toBe(0);
 	});
 
+	test("personalized recommendations disabled → skipped without computing", async () => {
+		orgSettings.set("org:recommendations", {
+			enabled: true,
+			personalizedEnabled: false,
+			similarEnabled: true,
+		});
+		const result = await refreshUser("org", "u1");
+		expect(result).toEqual({ skipped: true, reason: "disabled" });
+		expect(computeRuns).toBe(0);
+	});
+
 	test("stable signals → single compute", async () => {
 		fpSequence = ["fp-1", "fp-1"];
 		await refreshUser("org", "u1");

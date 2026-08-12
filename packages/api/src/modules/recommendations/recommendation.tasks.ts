@@ -1,5 +1,8 @@
 import { recommendationsQueue } from "../../infrastructure/queue/queues/recommendations.queue";
-import { isRecommendationsEnabled } from "../../routers/settings/settings.service";
+import {
+	isPersonalizedRecommendationsEnabled,
+	isRecommendationsEnabled,
+} from "../../routers/settings/settings.service";
 import { createTask, deleteTask, getActiveTasks } from "../taskManager";
 import {
 	REBUILD_JOB_PRIORITY,
@@ -88,7 +91,7 @@ export async function startServerRecommendationFeedsRefresh(
 	serverId: string,
 	userId?: string,
 ): Promise<RecommendationRebuildStartResult> {
-	if (!(await isRecommendationsEnabled(serverId))) {
+	if (!(await isPersonalizedRecommendationsEnabled(serverId))) {
 		return { started: false, count: 0, reason: "disabled" };
 	}
 

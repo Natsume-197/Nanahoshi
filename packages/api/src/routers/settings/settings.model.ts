@@ -18,9 +18,17 @@ export const UpdateRanobedbDumpInput = z.object({
 	autoUpdate: z.boolean().optional(),
 });
 
-export const UpdateRecommendationsInput = z.object({
-	enabled: z.boolean(),
-});
+export const UpdateRecommendationsInput = z
+	.object({
+		personalizedEnabled: z.boolean().optional(),
+		similarEnabled: z.boolean().optional(),
+	})
+	.refine(
+		(value) =>
+			value.personalizedEnabled !== undefined ||
+			value.similarEnabled !== undefined,
+		{ message: "Provide at least one recommendation setting" },
+	);
 
 export const HonomiyaConfigSchema = z.object({
 	enabled: z.boolean(),

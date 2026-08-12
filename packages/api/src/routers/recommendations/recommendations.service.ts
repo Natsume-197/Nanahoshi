@@ -1,7 +1,11 @@
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { WorkKind } from "../../modules/recommendations/types";
 import type { LibraryScope } from "../_shared/library-scope";
-import { isRecommendationsEnabled } from "../settings/settings.service";
+import {
+	isPersonalizedRecommendationsEnabled,
+	isRecommendationsEnabled,
+	isSimilarRecommendationsEnabled,
+} from "../settings/settings.service";
 import { impressionStore } from "./impression.store";
 import type {
 	ContinueSeriesItem,
@@ -166,7 +170,7 @@ export async function forUser(
 	scope: LibraryScope,
 	options: { format: RecommendationFormat; perMixLimit: number },
 ): Promise<ForUserOutput> {
-	if (!(await isRecommendationsEnabled(serverId))) {
+	if (!(await isPersonalizedRecommendationsEnabled(serverId))) {
 		return { enabled: false, mixes: [] };
 	}
 
@@ -315,7 +319,7 @@ export async function similarToBook(
 	scope: LibraryScope,
 	input: { bookUuid: string; format: RecommendationFormat; limit: number },
 ): Promise<{ enabled: boolean; items: RecommendationItem[] }> {
-	if (!(await isRecommendationsEnabled(serverId))) {
+	if (!(await isSimilarRecommendationsEnabled(serverId))) {
 		return { enabled: false, items: [] };
 	}
 	const work = await recommendationsRepository.resolveWorkForBook(
@@ -385,7 +389,7 @@ export async function similarToSeries(
 	scope: LibraryScope,
 	input: { seriesUuid: string; format: RecommendationFormat; limit: number },
 ): Promise<{ enabled: boolean; items: RecommendationItem[] }> {
-	if (!(await isRecommendationsEnabled(serverId))) {
+	if (!(await isSimilarRecommendationsEnabled(serverId))) {
 		return { enabled: false, items: [] };
 	}
 	const seriesId = await recommendationsRepository.resolveSeriesId(

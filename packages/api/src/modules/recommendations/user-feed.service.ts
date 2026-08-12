@@ -1,5 +1,5 @@
 import { logger } from "../../lib/logger";
-import { isRecommendationsEnabled } from "../../routers/settings/settings.service";
+import { isPersonalizedRecommendationsEnabled } from "../../routers/settings/settings.service";
 import type { EmbeddingSpace } from "./candidate-generation";
 import { EMBEDDING_DIM } from "./candidate-generation";
 import { recommendationComputeRepository as repo } from "./recommendation-compute.repository";
@@ -367,7 +367,7 @@ export async function refreshUser(
 	serverId: string,
 	userId: string,
 ): Promise<{ mixes: number } | { skipped: true; reason: string }> {
-	if (!(await isRecommendationsEnabled(serverId))) {
+	if (!(await isPersonalizedRecommendationsEnabled(serverId))) {
 		return { skipped: true, reason: "disabled" };
 	}
 	const before = await repo.computeUserSignalsFingerprint(serverId, userId);

@@ -113,6 +113,17 @@ describe("startServerRecommendationFeedsRefresh", () => {
 		expect(added).toEqual([]);
 	});
 
+	test("refuses when only similar titles are enabled", async () => {
+		orgSettings.set("org-a:recommendations", {
+			enabled: true,
+			personalizedEnabled: false,
+			similarEnabled: true,
+		});
+		const result = await startServerRecommendationFeedsRefresh("org-a");
+		expect(result).toEqual({ started: false, count: 0, reason: "disabled" });
+		expect(added).toEqual([]);
+	});
+
 	test("refuses while a rebuild for the same server is running", async () => {
 		activeTasks = [
 			{ status: "running", type: "recommendations-rebuild", serverId: "org-a" },
@@ -156,6 +167,17 @@ describe("startServerRecommendationRebuild", () => {
 			full: true,
 			taskId: "task-1",
 		});
+	});
+
+	test("remains available when only similar titles are enabled", async () => {
+		orgSettings.set("org-a:recommendations", {
+			enabled: true,
+			personalizedEnabled: false,
+			similarEnabled: true,
+		});
+		const result = await startServerRecommendationRebuild("org-a");
+		expect(result.started).toBe(true);
+		expect(added[0]?.name).toBe("rebuild-server");
 	});
 
 	test("refuses while a feeds refresh for the same server is running", async () => {

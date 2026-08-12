@@ -138,6 +138,19 @@ describe("forUser", () => {
 		expect(result).toEqual({ enabled: false, mixes: [] });
 	});
 
+	test("personalized mixes can be disabled while similar titles stay enabled", async () => {
+		orgSettings.set("org-a:recommendations", {
+			enabled: true,
+			personalizedEnabled: false,
+			similarEnabled: true,
+		});
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "all",
+			perMixLimit: 15,
+		});
+		expect(result).toEqual({ enabled: false, mixes: [] });
+	});
+
 	test("groups items under their mix and drops empty mixes", async () => {
 		mixHeaders = [
 			{ mixIndex: 0, anchorTitle: "Liked Series", hasAnchor: true },
@@ -497,6 +510,34 @@ describe("popular", () => {
 describe("similarToBook", () => {
 	test("disabled → enabled:false", async () => {
 		orgSettings.set("org-a:recommendations", { enabled: false });
+		const result = await service.similarToBook("u1", "org-a", "ALL", {
+			bookUuid: "b1",
+			format: "all",
+			limit: 12,
+		});
+		expect(result).toEqual({ enabled: false, items: [] });
+	});
+
+	test("similar titles stay enabled when personalized mixes are disabled", async () => {
+		orgSettings.set("org-a:recommendations", {
+			enabled: true,
+			personalizedEnabled: false,
+			similarEnabled: true,
+		});
+		const result = await service.similarToBook("u1", "org-a", "ALL", {
+			bookUuid: "missing",
+			format: "all",
+			limit: 12,
+		});
+		expect(result).toEqual({ enabled: true, items: [] });
+	});
+
+	test("similar titles can be disabled while personalized mixes stay enabled", async () => {
+		orgSettings.set("org-a:recommendations", {
+			enabled: true,
+			personalizedEnabled: true,
+			similarEnabled: false,
+		});
 		const result = await service.similarToBook("u1", "org-a", "ALL", {
 			bookUuid: "b1",
 			format: "all",

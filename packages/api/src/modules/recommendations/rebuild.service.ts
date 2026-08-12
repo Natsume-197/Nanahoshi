@@ -1,7 +1,10 @@
 import type { Job } from "bullmq";
 import { logger } from "../../lib/logger";
 import { settingsRepository } from "../../routers/settings/settings.repository";
-import { isRecommendationsEnabled } from "../../routers/settings/settings.service";
+import {
+	isPersonalizedRecommendationsEnabled,
+	isRecommendationsEnabled,
+} from "../../routers/settings/settings.service";
 import {
 	buildEmbeddingSpace,
 	type EmbeddingSpace,
@@ -239,7 +242,9 @@ export async function rebuildServer(
 		"./user-feed.service"
 	);
 	await repo.pruneNonMemberRecommendations(serverId);
-	const memberIds = await repo.listActiveOrgMemberIds(serverId);
+	const memberIds = (await isPersonalizedRecommendationsEnabled(serverId))
+		? await repo.listActiveOrgMemberIds(serverId)
+		: [];
 	const sharedContext =
 		memberIds.length > 0
 			? await timed("sharedContextMs", () =>

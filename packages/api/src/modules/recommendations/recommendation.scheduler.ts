@@ -1,6 +1,9 @@
 import { recommendationsQueue } from "../../infrastructure/queue/queues/recommendations.queue";
 import { logger } from "../../lib/logger";
-import { isRecommendationsEnabled } from "../../routers/settings/settings.service";
+import {
+	isPersonalizedRecommendationsEnabled,
+	isRecommendationsEnabled,
+} from "../../routers/settings/settings.service";
 import { recommendationComputeRepository } from "./recommendation-compute.repository";
 
 const log = logger.child({ component: "recommendation-scheduler" });
@@ -95,6 +98,7 @@ export async function enqueueUserRefresh(
 	serverId: string,
 	userId: string,
 ): Promise<void> {
+	if (!(await isPersonalizedRecommendationsEnabled(serverId))) return;
 	await recommendationsQueue
 		.add("refresh-user", { serverId, userId } satisfies RefreshUserJobData, {
 			...RECOMMENDATION_JOB_OPTS,
