@@ -1,7 +1,3 @@
-import type {
-	MixRow,
-	RecommendationItem,
-} from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { BookCard } from "@/components/books/book-card";
@@ -10,29 +6,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import { mergeRecommendationMixes } from "./recommendation-mixes-utils";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
 type RecommendationFormat = "books" | "audiobooks";
-
-/** Round-robin keeps every taste mix represented in the single format row. */
-export function mergeRecommendationMixes(
-	mixes: MixRow[],
-	limit: number,
-): RecommendationItem[] {
-	const items: RecommendationItem[] = [];
-	const seen = new Set<string>();
-	const longestMix = Math.max(0, ...mixes.map((mix) => mix.items.length));
-	for (let rank = 0; rank < longestMix && items.length < limit; rank++) {
-		for (const mix of mixes) {
-			const item = mix.items[rank];
-			if (!item || seen.has(item.book.uuid)) continue;
-			seen.add(item.book.uuid);
-			items.push(item);
-			if (items.length >= limit) break;
-		}
-	}
-	return items;
-}
 
 export const RecommendationsSection = memo(function RecommendationsSection({
 	format,

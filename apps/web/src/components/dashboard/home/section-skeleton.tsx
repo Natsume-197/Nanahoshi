@@ -4,7 +4,7 @@ import { ScrollSection } from "@/components/shared/scroll-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export const DASHBOARD_LIMIT = 15;
+export const DASHBOARD_LIMIT = 12;
 
 /** Width of a single media tile inside the dashboard carousels. */
 export const DASHBOARD_BOOK_TILE_CLASS =

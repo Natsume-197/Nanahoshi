@@ -17,6 +17,7 @@ import {
 import {
 	computeSessionBoost,
 	filterFlatRows,
+	isSuppressed,
 	rerankMixRows,
 	type ServingContext,
 	workKey,
@@ -94,6 +95,40 @@ function toItem(row: RepresentativeRow): RecommendationItem {
 	};
 }
 
+/**
+ * Completes a short personalized rail without repeating a work or its resolved
+ * display volume. Popularity is only a final serving fallback: personalized
+ * rows always remain in their own mixes and the client appends this mix last.
+ */
+function selectBackfillRows(
+	rows: RepresentativeRow[],
+	ctx: ServingContext,
+	personalized: RepresentativeRow[],
+	limit: number,
+): RepresentativeRow[] {
+	if (limit <= 0) return [];
+	const seenWorks = new Set(
+		personalized.map((row) => workKey(row.kind, row.itemId)),
+	);
+	const seenBooks = new Set(personalized.map((row) => row.bookUuid));
+	const selected: RepresentativeRow[] = [];
+	for (const row of rows) {
+		const key = workKey(row.kind, row.itemId);
+		if (
+			isSuppressed(row, ctx) ||
+			seenWorks.has(key) ||
+			seenBooks.has(row.bookUuid)
+		) {
+			continue;
+		}
+		seenWorks.add(key);
+		seenBooks.add(row.bookUuid);
+		selected.push(row);
+		if (selected.length >= limit) break;
+	}
+	return selected;
+}
+
 export async function forUser(
 	userId: string,
 	serverId: string,
@@ -136,8 +171,12 @@ export async function forUser(
 	// what actually reached the screen — feeds the impression counter below
 	let shownRows: RepresentativeRow[] = reranked;
 
-	// nothing computed yet (fresh server/user) → popularity fallback at read time
-	if (mixes.length === 0) {
+	// A short personalized result is completed at read time. This catches both
+	// cold start and small candidate pools after live permission/format filters.
+	const personalizedBookCount = new Set(reranked.map((row) => row.bookUuid))
+		.size;
+	const deficit = Math.max(0, options.perMixLimit - personalizedBookCount);
+	if (deficit > 0) {
 		const popular = await recommendationsRepository.topPopular(
 			serverId,
 			userId,
@@ -145,14 +184,16 @@ export async function forUser(
 			options.format,
 			options.perMixLimit * FLAT_OVERFETCH,
 		);
-		const filtered = filterFlatRows(popular, ctx, options.perMixLimit);
-		if (filtered.length > 0) {
+		const backfill = selectBackfillRows(popular, ctx, reranked, deficit);
+		if (backfill.length > 0) {
+			const nextMixIndex =
+				Math.max(-1, ...mixes.map((mix) => mix.mixIndex)) + 1;
 			mixes.push({
-				mixIndex: 0,
+				mixIndex: nextMixIndex,
 				anchorTitle: null,
-				items: filtered.map(toItem),
+				items: backfill.map(toItem),
 			});
-			shownRows = filtered;
+			shownRows = [...reranked, ...backfill];
 		}
 	}
 

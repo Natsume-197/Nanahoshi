@@ -210,6 +210,92 @@ describe("forUser", () => {
 		expect(result.mixes[0]?.items[0]?.reason.type).toBe("popular");
 	});
 
+	test("partially populated mixes are backfilled to the requested rail size", async () => {
+		mixHeaders = [
+			{ mixIndex: 0, anchorTitle: "Liked Series", hasAnchor: true },
+		];
+		mixItems = [
+			row({ kind: "book", itemId: 1, bookUuid: "personal-1", rank: 0 }),
+			row({ kind: "book", itemId: 2, bookUuid: "personal-2", rank: 1 }),
+		];
+		popularRows = Array.from({ length: 13 }, (_, index) =>
+			row({
+				kind: "book",
+				itemId: index + 3,
+				bookUuid: `popular-${index + 1}`,
+				reason: "popular",
+				reasonTitle: null,
+			}),
+		);
+
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "books",
+			perMixLimit: 15,
+		});
+		const served = result.mixes.flatMap((mix) => mix.items);
+
+		expect(served).toHaveLength(15);
+		expect(new Set(served.map((item) => item.book.uuid)).size).toBe(15);
+		expect(
+			served.filter((item) => item.reason.type === "popular"),
+		).toHaveLength(13);
+	});
+
+	test("popular backfill excludes duplicate, completed, and dismissed works", async () => {
+		mixHeaders = [
+			{ mixIndex: 0, anchorTitle: "Liked Series", hasAnchor: true },
+		];
+		mixItems = [
+			row({ kind: "book", itemId: 1, bookUuid: "personal-1", rank: 0 }),
+			row({ kind: "book", itemId: 2, bookUuid: "personal-2", rank: 1 }),
+		];
+		popularRows = [
+			row({
+				kind: "book",
+				itemId: 1,
+				bookUuid: "same-work-different-volume",
+				reason: "popular",
+			}),
+			row({
+				kind: "book",
+				itemId: 3,
+				bookUuid: "personal-2",
+				reason: "popular",
+			}),
+			row({
+				kind: "book",
+				itemId: 4,
+				bookUuid: "completed",
+				representativeCompleted: true,
+				reason: "popular",
+			}),
+			row({
+				kind: "book",
+				itemId: 5,
+				bookUuid: "dismissed",
+				reason: "popular",
+			}),
+			...Array.from({ length: 3 }, (_, index) =>
+				row({
+					kind: "book",
+					itemId: index + 6,
+					bookUuid: `fill-${index + 1}`,
+					reason: "popular",
+				}),
+			),
+		];
+		dismissed = new Set(["book:5"]);
+
+		const result = await service.forUser("u1", "org-a", "ALL", {
+			format: "books",
+			perMixLimit: 5,
+		});
+
+		expect(
+			result.mixes.flatMap((mix) => mix.items.map((item) => item.book.uuid)),
+		).toEqual(["personal-1", "personal-2", "fill-1", "fill-2", "fill-3"]);
+	});
+
 	test("drops a work whose shown volume is already completed", async () => {
 		mixHeaders = [{ mixIndex: 0, anchorTitle: null, hasAnchor: true }];
 		mixItems = [
