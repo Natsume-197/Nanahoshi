@@ -82,8 +82,10 @@
 	opacity: 0.8;
 }
 
-.book-content a:hover {
-	opacity: 0.95;
+@media (hover: hover) and (pointer: fine) {
+	.book-content a:hover {
+		opacity: 0.95;
+	}
 }
 
 .book-content ruby > rt {

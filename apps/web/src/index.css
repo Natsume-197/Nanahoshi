@@ -60,6 +60,7 @@
 	--chart-4: oklch(0.55 0.011 285.7);
 	--chart-5: oklch(0.45 0.012 285.7);
 	--radius: 0.5rem;
+	--tap-highlight: oklch(0 0 0 / 8%);
 	--safe-area-top: env(safe-area-inset-top, 0px);
 	--safe-area-right: env(safe-area-inset-right, 0px);
 	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -116,6 +117,7 @@
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
+	--tap-highlight: oklch(1 0 0 / 12%);
 	/* Every dark surface is a pure neutral (r=g=b): the ladder carries no hue,
 	   so nothing picks up a cool cast as it rises off the canvas. Hover and
 	   border steps are white veils rather than fixed values, so they keep
@@ -278,10 +280,6 @@
 		font-family: var(--font-reader-sans);
 	}
 
-	* {
-		-webkit-tap-highlight-color: transparent;
-	}
-
 	button:not(:disabled) {
 		cursor: pointer;
 	}
@@ -292,6 +290,9 @@
 
 	html {
 		@apply font-sans;
+		/* Replace Safari's blue/gray flash without removing touch feedback. This
+		   inherited color also follows the active light/dark appearance. */
+		-webkit-tap-highlight-color: var(--tap-highlight);
 	}
 	h1,
 	h2,
