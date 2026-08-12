@@ -8,8 +8,8 @@ import {
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { bindReadListenSentenceSeeking } from "@/lib/read-listen/sentence-seeking";
 import {
+	getReadListenPositionIndex,
 	installReadListenActiveHighlight,
-	resolveReadListenAnchor,
 } from "@/lib/read-listen/text-anchor";
 import { findReadListenCueNearCharacter } from "@/lib/read-listen/text-position";
 import {
@@ -65,11 +65,16 @@ function LoadReadListenAudiobookOnMount({
 
 export function ActiveReadListenCue({
 	cue,
+	sectionTargets,
 	followText,
 	sourceFormat,
 	readerApiRef,
 }: {
 	cue: ReadListenTimelineCue;
+	sectionTargets: ReadonlyArray<{
+		anchor: ReadListenTimelineCue["text"];
+		value: ReadListenTimelineCue;
+	}>;
 	followText: boolean;
 	sourceFormat: ReaderSourceFormat;
 	readerApiRef: RefObject<BookReaderApi | null>;
@@ -97,7 +102,9 @@ export function ActiveReadListenCue({
 				}
 				return;
 			}
-			const resolved = resolveReadListenAnchor(section, cue.text);
+			const resolved = getReadListenPositionIndex(section, sectionTargets).get(
+				cue,
+			)?.resolved;
 			if (!resolved) return;
 			cleanupHighlight =
 				installReadListenActiveHighlight(resolved) ?? undefined;

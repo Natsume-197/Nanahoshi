@@ -2,7 +2,7 @@ import { getCharacterCount } from "@/lib/reader/character-count";
 import { getParagraphNodes } from "@/lib/reader/get-paragraph-nodes";
 import type { Section } from "@/lib/reader/types";
 import {
-	createReadListenPositionIndex,
+	getReadListenPositionIndex,
 	type ReadListenAnchorTarget,
 } from "./text-anchor";
 
@@ -63,7 +63,7 @@ export function findReadListenCueNearCharacter<T>(input: {
 		if (!section || !targets?.length) continue;
 
 		const offsets = characterOffsets(section);
-		const index = createReadListenPositionIndex(section, targets);
+		const index = getReadListenPositionIndex(section, targets);
 		for (const match of index.matches) {
 			const first = match.resolved.segments[0];
 			const nodeStart = first ? offsets.get(first.node) : undefined;

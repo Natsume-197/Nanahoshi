@@ -68,14 +68,32 @@ function createHarness({
 		throw new Error("fixture text missing");
 	}
 	let currentCaretOffset = caretOffset;
+	const caretPositionFromPoint = mock(() => ({
+		offsetNode: text,
+		offset: currentCaretOffset,
+	}));
 	Object.defineProperty(document, "caretPositionFromPoint", {
-		value: () => ({ offsetNode: text, offset: currentCaretOffset }),
+		value: caretPositionFromPoint,
 	});
 	Object.defineProperty(dom.window.Range.prototype, "getClientRects", {
 		value(this: Range) {
 			const rect = characterRect(this.startOffset);
 			return rect ? [rect] : [];
 		},
+	});
+	const setHighlight = mock(() => {});
+	Object.defineProperty(dom.window, "CSS", {
+		configurable: true,
+		value: {
+			highlights: {
+				set: setHighlight,
+				delete: () => true,
+			},
+		},
+	});
+	Object.defineProperty(dom.window, "Highlight", {
+		configurable: true,
+		value: class Highlight {},
 	});
 	const activate = mock(() => {});
 	const cleanup = bindReadListenSentenceSeeking({
@@ -107,7 +125,7 @@ function createHarness({
 			}),
 		);
 	};
-	const movePointer = (
+	const dispatchPointerMove = (
 		clientX: number,
 		clientY: number,
 		nextCaretOffset = caretOffset,
@@ -120,6 +138,13 @@ function createHarness({
 				clientY,
 			}),
 		);
+	};
+	const movePointer = (
+		clientX: number,
+		clientY: number,
+		nextCaretOffset = caretOffset,
+	) => {
+		dispatchPointerMove(clientX, clientY, nextCaretOffset);
 		flushAnimationFrame();
 	};
 	return {
@@ -127,6 +152,9 @@ function createHarness({
 		cleanup,
 		click,
 		movePointer,
+		movePointerImmediately: dispatchPointerMove,
+		setHighlight,
+		caretPositionFromPoint,
 		surface,
 		createTreeWalker,
 		flushIdle: () => {
@@ -169,7 +197,11 @@ function createMultiSectionHarness() {
 		value: createTreeWalker,
 	});
 	const surface = document.querySelector("main");
-	if (!surface) throw new Error("fixture surface missing");
+	const visibleParagraph = document.querySelector("#chapter-two p");
+	if (!surface || !visibleParagraph) throw new Error("fixture surface missing");
+	Object.defineProperty(document, "elementFromPoint", {
+		value: () => visibleParagraph,
+	});
 	const cleanup = bindReadListenSentenceSeeking({
 		surface,
 		targetsBySection: new Map([
@@ -217,6 +249,31 @@ function createMultiSectionHarness() {
 }
 
 describe("Read & Listen sentence seeking", () => {
+	test("installs the hover highlight in the same pointer event", () => {
+		const harness = createHarness({
+			caretOffset: 5,
+			characterRect: () => ({ left: 0, right: 100, top: 0, bottom: 20 }),
+		});
+
+		harness.movePointerImmediately(50, 10);
+
+		expect(harness.setHighlight).toHaveBeenCalledTimes(1);
+		harness.cleanup();
+	});
+
+	test("reuses the current sentence geometry while the pointer stays inside it", () => {
+		const harness = createHarness({
+			caretOffset: 5,
+			characterRect: () => ({ left: 0, right: 100, top: 0, bottom: 20 }),
+		});
+
+		harness.movePointer(40, 10);
+		harness.movePointerImmediately(60, 10);
+
+		expect(harness.caretPositionFromPoint).toHaveBeenCalledTimes(1);
+		harness.cleanup();
+	});
+
 	test("does not activate a sentence when the click lands outside rendered text", () => {
 		const harness = createHarness({
 			caretOffset: 5,
@@ -283,15 +340,18 @@ describe("Read & Listen sentence seeking", () => {
 			textContent: "First. Second.",
 			cueTexts: ["First.", "Second."],
 			caretOffset: 5,
-			characterRect: () => ({ left: 0, right: 100, top: 0, bottom: 20 }),
+			characterRect: (offset) =>
+				offset < 7
+					? { left: 0, right: 49, top: 0, bottom: 20 }
+					: { left: 51, right: 100, top: 0, bottom: 20 },
 		});
-		harness.movePointer(50, 10, 2);
+		harness.movePointer(25, 10, 2);
 		const view = harness.surface.ownerDocument.defaultView;
 		if (!view) throw new Error("fixture window missing");
 		const observer = new view.MutationObserver(() => {});
 		observer.observe(harness.surface, { attributes: true });
 
-		harness.movePointer(50, 10, 9);
+		harness.movePointer(75, 10, 9);
 
 		expect(harness.cursor()).toBe("pointer");
 		expect(
@@ -326,6 +386,10 @@ describe("Read & Listen sentence seeking", () => {
 		harness.flushNextIdle();
 
 		expect(harness.createTreeWalker).toHaveBeenCalledTimes(1);
+		expect(harness.createTreeWalker.mock.calls[0]?.[0]).toHaveProperty(
+			"id",
+			"chapter-two",
+		);
 		harness.flushNextIdle();
 		expect(harness.createTreeWalker).toHaveBeenCalledTimes(2);
 		harness.cleanup();

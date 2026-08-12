@@ -11,8 +11,10 @@ let capturedReadListen:
 	| {
 			canSeekPreviousSentence: boolean;
 			canSeekNextSentence: boolean;
+			canRepeatSentence: boolean;
 			onSeekPreviousSentence: () => void;
 			onSeekNextSentence: () => void;
+			onRepeatSentence: () => void;
 	  }
 	| undefined;
 
@@ -186,6 +188,24 @@ describe("ReadListenRuntime", () => {
 		expect(capturedReadListen?.canSeekPreviousSentence).toBe(true);
 		expect(capturedReadListen?.canSeekNextSentence).toBe(false);
 		capturedReadListen?.onSeekPreviousSentence();
+		expect(seekTo).toHaveBeenLastCalledWith(0);
+	});
+
+	test("repeats the active aligned sentence from its beginning", () => {
+		playerTime = 0.5;
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[]}
+			/>,
+		);
+
+		expect(capturedReadListen?.canRepeatSentence).toBe(true);
+		capturedReadListen?.onRepeatSentence();
 		expect(seekTo).toHaveBeenLastCalledWith(0);
 	});
 });

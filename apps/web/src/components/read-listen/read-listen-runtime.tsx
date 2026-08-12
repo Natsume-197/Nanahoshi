@@ -110,6 +110,11 @@ export function ReadListenRuntime({
 		isAudiobookLoaded && timeline
 			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, 1)
 			: undefined;
+	const repeatCue =
+		activeCue ??
+		(isAudiobookLoaded && timeline
+			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, -1)
+			: undefined);
 
 	if (initialSeekCue && activeCue) {
 		if (
@@ -175,6 +180,11 @@ export function ReadListenRuntime({
 				<ActiveReadListenCue
 					key={`${alignmentRevision}:${sourceFormat}:${activeCue.id}:${followText}`}
 					cue={activeCue}
+					sectionTargets={
+						targetsBySection.get(
+							toReaderSectionReference(activeCue.text.sectionRef, sourceFormat),
+						) ?? []
+					}
 					followText={followText && !suppressInitialCueFollow}
 					sourceFormat={sourceFormat}
 					readerApiRef={readerApiRef}
@@ -200,6 +210,10 @@ export function ReadListenRuntime({
 							canSeekNextSentence: Boolean(nextCue),
 							onSeekNextSentence: () => {
 								if (nextCue) seekTo(nextCue.globalStartMs / 1000);
+							},
+							canRepeatSentence: Boolean(repeatCue),
+							onRepeatSentence: () => {
+								if (repeatCue) seekTo(repeatCue.globalStartMs / 1000);
 							},
 							followText,
 							onToggleFollowText: () => setFollowText((current) => !current),

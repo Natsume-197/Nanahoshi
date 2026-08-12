@@ -1,5 +1,5 @@
 import {
-	createReadListenPositionIndex,
+	getReadListenPositionIndex,
 	installReadListenHoverHighlight,
 	type ReadListenAnchorTarget,
 	type ReadListenPositionMatch,
@@ -99,11 +99,13 @@ export function bindReadListenSentenceSeeking<T>({
 		"aria-keyshortcuts",
 		"ArrowUp ArrowDown ArrowLeft ArrowRight Enter Escape",
 	);
-	const indexes = new WeakMap<
-		Element,
-		ReturnType<typeof createReadListenPositionIndex<T>>
-	>();
 	let hoveredValue: T | undefined;
+	let hoveredRects: Array<{
+		left: number;
+		right: number;
+		top: number;
+		bottom: number;
+	}> = [];
 	let cleanupHover: (() => void) | null = null;
 	let pointerFrame = 0;
 	let keyboardMatch: ReadListenPositionMatch<T> | undefined;
@@ -115,23 +117,23 @@ export function bindReadListenSentenceSeeking<T>({
 		cleanupHover?.();
 		cleanupHover = null;
 		hoveredValue = undefined;
+		hoveredRects = [];
 	};
 
 	const clearHover = () => {
+		pendingPointer = undefined;
+		cancelAnimationFrame(pointerFrame);
+		pointerFrame = 0;
 		clearHoverHighlight();
 		delete surface.dataset.readListenSentenceHit;
+	};
+	const clearHoverGeometry = () => {
+		hoveredRects = [];
 	};
 	const indexForSection = (
 		section: Element,
 		targets: ReadListenAnchorTarget<T>[],
-	) => {
-		let index = indexes.get(section);
-		if (!index) {
-			index = createReadListenPositionIndex(section, targets);
-			indexes.set(section, index);
-		}
-		return index;
-	};
+	) => getReadListenPositionIndex(section, targets);
 
 	const renderedMatches = (): ReadListenPositionMatch<T>[] => {
 		const matches: ReadListenPositionMatch<T>[] = [];
@@ -142,6 +144,13 @@ export function bindReadListenSentenceSeeking<T>({
 		}
 		return matches;
 	};
+	const measureMatchRects = (match: ReadListenPositionMatch<T>) =>
+		match.resolved.segments.flatMap((segment) => {
+			const range = surface.ownerDocument.createRange();
+			range.setStart(segment.node, segment.startOffset);
+			range.setEnd(segment.node, segment.endOffset);
+			return [...range.getClientRects()];
+		});
 
 	const showKeyboardMatch = (match: ReadListenPositionMatch<T>) => {
 		clearHover();
@@ -195,6 +204,28 @@ export function bindReadListenSentenceSeeking<T>({
 	};
 	const view = surface.ownerDocument.defaultView;
 	const sectionsToWarm = [...targetsBySection];
+	const centerTarget = surface.ownerDocument.elementFromPoint?.(
+		(surface.ownerDocument.documentElement.clientWidth ||
+			view?.innerWidth ||
+			0) / 2,
+		(surface.ownerDocument.documentElement.clientHeight ||
+			view?.innerHeight ||
+			0) / 2,
+	);
+	let centeredSection: Element | null = centerTarget ?? null;
+	while (centeredSection && !targetsBySection.has(centeredSection.id)) {
+		centeredSection = centeredSection.parentElement;
+	}
+	if (centeredSection) {
+		const centeredIndex = sectionsToWarm.findIndex(
+			([sectionId]) => sectionId === centeredSection?.id,
+		);
+		const centeredEntry = sectionsToWarm[centeredIndex];
+		if (centeredIndex > 0 && centeredEntry) {
+			sectionsToWarm.splice(centeredIndex, 1);
+			sectionsToWarm.unshift(centeredEntry);
+		}
+	}
 	let nextWarmupIndex = 0;
 	let idleWarmupId: number | undefined;
 	let timeoutWarmupId: number | undefined;
@@ -225,22 +256,48 @@ export function bindReadListenSentenceSeeking<T>({
 	};
 	scheduleNextWarmup();
 
-	const showPendingHover = () => {
-		pointerFrame = 0;
-		const pointer = pendingPointer;
-		pendingPointer = undefined;
-		if (!pointer) return;
+	const showHoverAt = (pointer: {
+		target: Element;
+		clientX: number;
+		clientY: number;
+	}) => {
+		if (
+			!pointer.target.closest(INTERACTIVE_SELECTOR) &&
+			hoveredValue !== undefined &&
+			hoveredRects.some(
+				(rect) =>
+					pointer.clientX >= rect.left &&
+					pointer.clientX <= rect.right &&
+					pointer.clientY >= rect.top &&
+					pointer.clientY <= rect.bottom,
+			)
+		) {
+			return;
+		}
 		const match = resolvePointer(
 			pointer.target,
 			pointer.clientX,
 			pointer.clientY,
 		);
-		if (match?.value === hoveredValue) return;
+		if (match?.value === hoveredValue) {
+			if (match && !hoveredRects.length) {
+				hoveredRects = measureMatchRects(match);
+			}
+			return;
+		}
 		clearHoverHighlight();
 		surface.toggleAttribute("data-read-listen-sentence-hit", Boolean(match));
 		if (!match) return;
 		cleanupHover = installReadListenHoverHighlight(match.resolved);
 		hoveredValue = match.value;
+		hoveredRects = measureMatchRects(match);
+	};
+
+	const showPendingHover = () => {
+		pointerFrame = 0;
+		const pointer = pendingPointer;
+		pendingPointer = undefined;
+		if (pointer) showHoverAt(pointer);
 	};
 
 	const handlePointerMove = (event: PointerEvent) => {
@@ -249,13 +306,16 @@ export function bindReadListenSentenceSeeking<T>({
 			clearHover();
 			return;
 		}
-		pendingPointer = {
+		const pointer = {
 			target: event.target as Element,
 			clientX: event.clientX,
 			clientY: event.clientY,
 		};
 		if (!pointerFrame) {
+			showHoverAt(pointer);
 			pointerFrame = requestAnimationFrame(showPendingHover);
+		} else {
+			pendingPointer = pointer;
 		}
 	};
 
@@ -322,6 +382,8 @@ export function bindReadListenSentenceSeeking<T>({
 	surface.addEventListener("pointermove", handlePointerMove);
 	surface.addEventListener("pointerleave", clearHover);
 	surface.addEventListener("click", handleSentenceClick);
+	surface.addEventListener("scroll", clearHoverGeometry, true);
+	view?.addEventListener("resize", clearHoverGeometry);
 	keyboardSurface.addEventListener("focus", handleKeyboardFocus);
 	keyboardSurface.addEventListener("blur", handleKeyboardBlur);
 	keyboardSurface.addEventListener("keydown", handleKeyboard);
@@ -330,7 +392,6 @@ export function bindReadListenSentenceSeeking<T>({
 			if (value === null) keyboardSurface.removeAttribute(name);
 			else keyboardSurface.setAttribute(name, value);
 		};
-		cancelAnimationFrame(pointerFrame);
 		if (idleWarmupId !== undefined) view?.cancelIdleCallback(idleWarmupId);
 		if (timeoutWarmupId !== undefined) view?.clearTimeout(timeoutWarmupId);
 		clearHover();
@@ -338,6 +399,8 @@ export function bindReadListenSentenceSeeking<T>({
 		surface.removeEventListener("pointermove", handlePointerMove);
 		surface.removeEventListener("pointerleave", clearHover);
 		surface.removeEventListener("click", handleSentenceClick);
+		surface.removeEventListener("scroll", clearHoverGeometry, true);
+		view?.removeEventListener("resize", clearHoverGeometry);
 		keyboardSurface.removeEventListener("focus", handleKeyboardFocus);
 		keyboardSurface.removeEventListener("blur", handleKeyboardBlur);
 		keyboardSurface.removeEventListener("keydown", handleKeyboard);

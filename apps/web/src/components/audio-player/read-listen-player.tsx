@@ -2,6 +2,7 @@ import {
 	BookOpenText,
 	Crosshair,
 	CursorClick,
+	RepeatOnce,
 	SkipBack,
 	SkipForward,
 } from "@phosphor-icons/react";
@@ -16,6 +17,8 @@ export type ReadListenPlayerContext = {
 	onSeekPreviousSentence: () => void;
 	canSeekNextSentence: boolean;
 	onSeekNextSentence: () => void;
+	canRepeatSentence: boolean;
+	onRepeatSentence: () => void;
 	followText: boolean;
 	onToggleFollowText: () => void;
 	seekFromText: boolean;
@@ -96,6 +99,15 @@ export function ReadListenControlsGroup({
 				className={buttonClassName}
 			>
 				<SkipBack aria-hidden="true" className="size-5" />
+			</PlayerIconButton>
+			<PlayerIconButton
+				label={m["read_listen.repeat_sentence"]()}
+				side={side}
+				disabled={!context.canRepeatSentence}
+				onClick={context.onRepeatSentence}
+				className={buttonClassName}
+			>
+				<RepeatOnce aria-hidden="true" className="size-5" />
 			</PlayerIconButton>
 			<PlayerIconButton
 				label={m["read_listen.next_sentence"]()}

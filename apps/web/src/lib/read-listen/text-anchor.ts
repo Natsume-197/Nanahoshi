@@ -20,6 +20,8 @@ export type ReadListenPositionMatch<T> = {
 	resolved: ResolvedReadListenAnchor;
 };
 
+const positionIndexCache = new WeakMap<Element, WeakMap<object, unknown>>();
+
 const IGNORED_SELECTOR =
 	'script,style,noscript,svg,nav,rt,rp,[hidden],[aria-hidden="true"]';
 
@@ -143,7 +145,9 @@ function segmentsForRange(
 	end: number,
 ): TextSegment[] {
 	const segments: TextSegment[] = [];
-	for (const point of mapping.slice(start, end)) {
+	for (let index = start; index < end; index += 1) {
+		const point = mapping[index];
+		if (!point) continue;
 		const previous = segments.at(-1);
 		if (previous?.node === point.node && previous.endOffset === point.offset) {
 			previous.endOffset = point.offset + 1;
@@ -166,7 +170,8 @@ export function resolveReadListenAnchor(
 		const fragment = [...section.querySelectorAll<HTMLElement>("[id]")].find(
 			(element) => element.id === anchor.fragmentId,
 		);
-		const nodes = acceptedTextNodes(fragment ?? section);
+		if (!fragment) return null;
+		const nodes = acceptedTextNodes(fragment);
 		return nodes.length
 			? {
 					segments: nodes.map((node) => ({
@@ -195,9 +200,10 @@ export function resolveReadListenAnchor(
 /** Builds one immutable lookup over a rendered section for pointer interaction. */
 export function createReadListenPositionIndex<T>(
 	section: Element,
-	targets: ReadListenAnchorTarget<T>[],
+	targets: readonly ReadListenAnchorTarget<T>[],
 ): {
 	matches: ReadListenPositionMatch<T>[];
+	get(value: T): ReadListenPositionMatch<T> | undefined;
 	find(position: {
 		node: Text;
 		offset: number;
@@ -210,19 +216,28 @@ export function createReadListenPositionIndex<T>(
 		end: number;
 		match: ReadListenPositionMatch<T>;
 	}> = [];
-	const fragments: Array<{
-		id: string;
-		match: ReadListenPositionMatch<T>;
-	}> = [];
+	const fragmentMatchesByNode = new WeakMap<Text, ReadListenPositionMatch<T>>();
+	let elementsById: Map<string, HTMLElement> | undefined;
+	const findFragment = (id: string) => {
+		if (!elementsById) {
+			elementsById = new Map(
+				[...section.querySelectorAll<HTMLElement>("[id]")].map((element) => [
+					element.id,
+					element,
+				]),
+			);
+		}
+		return elementsById.get(id);
+	};
 	const matches: ReadListenPositionMatch<T>[] = [];
+	const matchesByValue = new Map<T, ReadListenPositionMatch<T>>();
 	let nextQuoteStart = 0;
 	for (const target of targets) {
 		const anchor = target.anchor;
 		if (anchor.kind === "fragment") {
-			const fragment = [...section.querySelectorAll<HTMLElement>("[id]")].find(
-				(element) => element.id === anchor.fragmentId,
-			);
-			const nodes = acceptedTextNodes(fragment ?? section);
+			const fragment = findFragment(anchor.fragmentId);
+			if (!fragment) continue;
+			const nodes = acceptedTextNodes(fragment);
 			if (nodes.length) {
 				const match = {
 					value: target.value,
@@ -234,11 +249,13 @@ export function createReadListenPositionIndex<T>(
 						})),
 					},
 				};
-				fragments.push({
-					id: anchor.fragmentId,
-					match,
-				});
+				for (const node of nodes) {
+					if (!fragmentMatchesByNode.has(node)) {
+						fragmentMatchesByNode.set(node, match);
+					}
+				}
 				matches.push(match);
+				matchesByValue.set(target.value, match);
 			}
 			continue;
 		}
@@ -246,10 +263,7 @@ export function createReadListenPositionIndex<T>(
 		const exact = normalizeQuote(anchor.exact);
 		const prefix = anchor.prefix ? normalizeQuote(anchor.prefix) : undefined;
 		const suffix = anchor.suffix ? normalizeQuote(anchor.suffix) : undefined;
-		let start = quoteStart(text, exact, prefix, suffix, nextQuoteStart);
-		if (start < 0 && nextQuoteStart > 0) {
-			start = quoteStart(text, exact, prefix, suffix);
-		}
+		const start = quoteStart(text, exact, prefix, suffix, nextQuoteStart);
 		if (start < 0) continue;
 		nextQuoteStart = start + exact.length;
 		const segments = segmentsForRange(mapping, start, start + exact.length);
@@ -264,25 +278,25 @@ export function createReadListenPositionIndex<T>(
 				match,
 			});
 			matches.push(match);
+			matchesByValue.set(target.value, match);
 		}
 	}
 	textRanges.sort((left, right) => left.start - right.start);
 
 	return {
 		matches,
+		get(value: T) {
+			return matchesByValue.get(value);
+		},
 		find(position) {
-			const fragment = position.node.parentElement?.closest("[id]");
-			const fragmentMatch = fragments.find(
-				(candidate) => candidate.id === fragment?.id,
-			);
-			if (fragmentMatch) return fragmentMatch.match;
+			const fragmentMatch = fragmentMatchesByNode.get(position.node);
 
 			const positionIndex = indexedPosition(
 				positions,
 				position.node,
 				position.offset,
 			);
-			if (positionIndex < 0) return undefined;
+			if (positionIndex < 0) return fragmentMatch;
 			let low = 0;
 			let high = textRanges.length - 1;
 			let candidate = -1;
@@ -297,18 +311,37 @@ export function createReadListenPositionIndex<T>(
 				}
 			}
 			const range = candidate >= 0 ? textRanges[candidate] : undefined;
-			return range && positionIndex < range.end ? range.match : undefined;
+			return range && positionIndex < range.end ? range.match : fragmentMatch;
 		},
 	};
+}
+
+/** Reuses one immutable text index until the section or alignment is replaced. */
+export function getReadListenPositionIndex<T>(
+	section: Element,
+	targets: readonly ReadListenAnchorTarget<T>[],
+): ReturnType<typeof createReadListenPositionIndex<T>> {
+	let indexesByAlignment = positionIndexCache.get(section);
+	if (!indexesByAlignment) {
+		indexesByAlignment = new WeakMap<object, unknown>();
+		positionIndexCache.set(section, indexesByAlignment);
+	}
+	const cached = indexesByAlignment.get(targets);
+	if (cached) {
+		return cached as ReturnType<typeof createReadListenPositionIndex<T>>;
+	}
+	const index = createReadListenPositionIndex(section, targets);
+	indexesByAlignment.set(targets, index);
+	return index;
 }
 
 /** Resolves a DOM caret back to an aligned cue without rewriting book markup. */
 export function findReadListenTargetAtPosition<T>(
 	section: Element,
-	targets: ReadListenAnchorTarget<T>[],
+	targets: readonly ReadListenAnchorTarget<T>[],
 	position: { node: Text; offset: number },
 ): T | undefined {
-	return createReadListenPositionIndex(section, targets).find(position)?.value;
+	return getReadListenPositionIndex(section, targets).find(position)?.value;
 }
 
 /** Paints a cue range through the CSS Highlights API without rewriting book markup. */
