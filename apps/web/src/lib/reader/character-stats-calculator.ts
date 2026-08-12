@@ -5,7 +5,11 @@
  */
 
 import { binarySearch, binarySearchNoNegative } from "./binary-search";
-import { getCharacterCount } from "./character-count";
+import {
+	countTextCharactersBeforeOffset,
+	getCharacterCount,
+	sourceOffsetForCharacterCount,
+} from "./character-count";
 import { formatPos } from "./format-pos";
 import { getParagraphNodes } from "./get-paragraph-nodes";
 import { getNodeBoundingRect } from "./range-util";
@@ -18,6 +22,8 @@ export class CharacterStatsCalculator {
 	readonly paragraphPos: number[];
 
 	private readonly paragraphs: Node[];
+
+	private readonly nodeStartCharacters = new Map<Node, number>();
 
 	private paragraphPosToAccCharCount = new Map<number, number>();
 
@@ -34,6 +40,7 @@ export class CharacterStatsCalculator {
 		this.accumulatedCharCount = [];
 		let exploredCharCount = 0;
 		for (const node of this.paragraphs) {
+			this.nodeStartCharacters.set(node, exploredCharCount);
 			exploredCharCount += getCharacterCount(node);
 			this.accumulatedCharCount.push(exploredCharCount);
 		}
@@ -103,10 +110,105 @@ export class CharacterStatsCalculator {
 		);
 	}
 
+	/**
+	 * Rebuilds paragraph geometry in small tasks. Live setting changes can touch
+	 * tens of thousands of text nodes; yielding prevents the final debounced
+	 * relayout from becoming one proportional main-thread stall.
+	 */
+	async updateParagraphPosCooperative(
+		scrollPos = 0,
+		isCancelled: () => boolean = () => false,
+	) {
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const nextParagraphPos = Array<number>(this.paragraphs.length);
+		const paragraphPosToIndices = new Map<number, number[]>();
+		for (let i = 0; i < this.paragraphs.length; i += 1) {
+			if (isCancelled()) return false;
+			const node = this.paragraphs[i];
+			const nodeRect = getNodeBoundingRect(this.document, node);
+			const paragraphSize = this.verticalMode
+				? nodeRect.width
+				: nodeRect.height;
+			const nodeLeft = formatPos(
+				this.verticalMode ? nodeRect.left : nodeRect.bottom,
+				this.direction,
+			);
+			const paragraphPos =
+				paragraphSize <= 0
+					? nextParagraphPos[i - 1] || 0
+					: nodeLeft - scrollElRef - dimensionAdjustment + scrollPos;
+			nextParagraphPos[i] = paragraphPos;
+			const indices = paragraphPosToIndices.get(paragraphPos) || [];
+			indices.push(i);
+			paragraphPosToIndices.set(paragraphPos, indices);
+			if (i > 0 && i % 100 === 0) await yieldToMainThread();
+		}
+		if (isCancelled()) return false;
+		for (const [index, position] of nextParagraphPos.entries()) {
+			this.paragraphPos[index] = position;
+		}
+		this.paragraphPosToAccCharCount = new Map(
+			[...paragraphPosToIndices.entries()].map(([paragraphPos, indices]) => [
+				paragraphPos,
+				Math.max(...indices.map((i) => this.accumulatedCharCount[i])),
+			]),
+		);
+		return true;
+	}
+
 	calcExploredCharCount(customReadingPointScrollOffset = 0) {
 		return this.getCharCountByScrollPos(
 			this.scrollPos + customReadingPointScrollOffset,
 		);
+	}
+
+	/**
+	 * Reads the first rendered character at the reading edge. Unlike the legacy
+	 * paragraph geometry this preserves a position inside a text node that spans
+	 * several screens. It is intentionally used for bookmarks/reflows rather than
+	 * every scroll event: caret hit-testing may force layout in the browser.
+	 */
+	calcPreciseExploredCharCount() {
+		const view = this.document.defaultView;
+		if (!view) return this.calcExploredCharCount();
+		const viewport = this.getViewportRect();
+		const contentRect = this.containerEl.getBoundingClientRect();
+		const style = getComputedStyle(this.containerEl);
+		const paddingTop = Number.parseFloat(style.paddingTop) || 0;
+		const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+		const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+		const lineHeight = Math.max(8, Number.parseFloat(style.lineHeight) || 24);
+		const values: number[] = [];
+
+		if (this.verticalMode) {
+			const edge =
+				this.direction === "rtl"
+					? viewport.right - paddingRight
+					: viewport.left + paddingLeft;
+			const top = Math.max(viewport.top, contentRect.top);
+			const bottom = Math.min(viewport.bottom, contentRect.bottom);
+			const ys = sampleBetween(top, bottom);
+			for (const inset of [2, lineHeight / 2, lineHeight]) {
+				const x = this.direction === "rtl" ? edge - inset : edge + inset;
+				for (const y of ys) {
+					const value = this.characterAtPoint(x, y);
+					if (value !== undefined) values.push(value);
+				}
+			}
+		} else {
+			const edge = viewport.top + paddingTop;
+			const left = Math.max(viewport.left, contentRect.left);
+			const right = Math.min(viewport.right, contentRect.right);
+			const xs = sampleBetween(left, right);
+			for (const inset of [2, lineHeight / 2, lineHeight]) {
+				for (const x of xs) {
+					const value = this.characterAtPoint(x, edge + inset);
+					if (value !== undefined) values.push(value);
+				}
+			}
+		}
+
+		return values.length ? Math.min(...values) : this.calcExploredCharCount();
 	}
 
 	getCharCountByScrollPos(scrollPos: number) {
@@ -133,6 +235,9 @@ export class CharacterStatsCalculator {
 	 * trailing-edge paragraphPos when the node can't be measured.
 	 */
 	getReadingEdgeScrollPos(charCount: number): number {
+		const precise = this.getScrollPosForCharCount(charCount, this.rawScrollPos);
+		if (precise !== undefined) return precise;
+
 		const index = binarySearchNoNegative(this.accumulatedCharCount, charCount);
 		// The node at index ends at charCount; the one you're reading into is the
 		// next (fall back to the last node at the very end of the book).
@@ -154,6 +259,110 @@ export class CharacterStatsCalculator {
 
 		const paragraphPos = nodeLeadingEdge - scrollElRef - dimensionAdjustment;
 		return formatPos(paragraphPos, this.direction);
+	}
+
+	/** Absolute scroll coordinate that puts an exact character at the edge. */
+	getScrollPosForCharCount(
+		charCount: number,
+		currentScrollPos: number,
+	): number | undefined {
+		const point = this.characterPointForCount(charCount);
+		if (!point) return undefined;
+		const viewport = this.getViewportRect();
+		const style = getComputedStyle(this.containerEl);
+		if (this.verticalMode) {
+			const padding =
+				Number.parseFloat(
+					this.direction === "rtl" ? style.paddingRight : style.paddingLeft,
+				) || 0;
+			const desired =
+				this.direction === "rtl"
+					? viewport.right - padding
+					: viewport.left + padding;
+			const rendered =
+				this.direction === "rtl" ? point.rect.right : point.rect.left;
+			return currentScrollPos + rendered - desired;
+		}
+		const paddingTop = Number.parseFloat(style.paddingTop) || 0;
+		return currentScrollPos + point.rect.top - (viewport.top + paddingTop);
+	}
+
+	getCharacterRectForCount(charCount: number) {
+		return this.characterPointForCount(charCount)?.rect;
+	}
+
+	private characterAtPoint(x: number, y: number): number | undefined {
+		const caretDocument = this.document as Document & {
+			caretPositionFromPoint?: (
+				x: number,
+				y: number,
+			) => { offsetNode: Node; offset: number } | null;
+			caretRangeFromPoint?: (x: number, y: number) => Range | null;
+		};
+		const position = caretDocument.caretPositionFromPoint?.(x, y);
+		const node =
+			position?.offsetNode.nodeType === Node.TEXT_NODE
+				? (position.offsetNode as Text)
+				: undefined;
+		const offset = node ? position?.offset : undefined;
+		const range = node ? null : caretDocument.caretRangeFromPoint?.(x, y);
+		const rangeNode =
+			range?.startContainer.nodeType === Node.TEXT_NODE
+				? (range.startContainer as Text)
+				: undefined;
+		const finalNode = node ?? rangeNode;
+		const finalOffset = offset ?? range?.startOffset;
+		if (!finalNode || finalOffset === undefined) return undefined;
+		const start = this.nodeStartCharacters.get(finalNode);
+		if (start === undefined) return undefined;
+		return start + countTextCharactersBeforeOffset(finalNode.data, finalOffset);
+	}
+
+	private characterPointForCount(charCount: number) {
+		if (!this.paragraphs.length) return undefined;
+		let index = binarySearchNoNegative(this.accumulatedCharCount, charCount);
+		if (
+			index < this.paragraphs.length - 1 &&
+			(this.accumulatedCharCount[index] ?? 0) <= charCount
+		) {
+			index += 1;
+		}
+		index = Math.max(0, Math.min(index, this.paragraphs.length - 1));
+		const node = this.paragraphs[index];
+		if (!node || node.nodeType !== Node.TEXT_NODE) return undefined;
+		const text = node as Text;
+		const start = this.nodeStartCharacters.get(text) ?? 0;
+		const localCount = Math.max(0, charCount - start);
+		const sourceOffset = sourceOffsetForCharacterCount(text.data, localCount);
+		const range = this.document.createRange();
+		const rangeStart = Math.min(
+			sourceOffset,
+			Math.max(0, text.data.length - 1),
+		);
+		const codePoint = text.data.codePointAt(rangeStart);
+		const length = codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
+		range.setStart(text, rangeStart);
+		range.setEnd(text, Math.min(text.data.length, rangeStart + length));
+		const rect = range.getBoundingClientRect();
+		return rect.width || rect.height ? { rect } : undefined;
+	}
+
+	private getViewportRect() {
+		if (
+			this.scrollEl === this.document.documentElement ||
+			this.scrollEl === this.document.body
+		) {
+			const width =
+				this.document.documentElement.clientWidth ||
+				this.document.defaultView?.innerWidth ||
+				0;
+			const height =
+				this.document.documentElement.clientHeight ||
+				this.document.defaultView?.innerHeight ||
+				0;
+			return { top: 0, left: 0, right: width, bottom: height };
+		}
+		return this.scrollEl.getBoundingClientRect();
 	}
 
 	getBookMarkPosForSection(startCount: number, charCount: number) {
@@ -228,7 +437,29 @@ export class CharacterStatsCalculator {
 		return formatPos(this.scrollEl[this.scrollPosProp], this.direction);
 	}
 
+	private get rawScrollPos() {
+		return this.scrollEl[this.scrollPosProp];
+	}
+
 	private get scrollPosProp() {
 		return this.verticalMode ? "scrollLeft" : "scrollTop";
 	}
+}
+
+function sampleBetween(start: number, end: number) {
+	if (end <= start) return [(start + end) / 2];
+	const size = end - start;
+	return [0.15, 0.35, 0.5, 0.65, 0.85].map(
+		(fraction) => start + size * fraction,
+	);
+}
+
+async function yieldToMainThread() {
+	const scheduler = (
+		globalThis as typeof globalThis & {
+			scheduler?: { yield?: () => Promise<void> };
+		}
+	).scheduler;
+	if (scheduler?.yield) await scheduler.yield();
+	else await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }

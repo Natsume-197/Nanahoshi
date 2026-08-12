@@ -5,7 +5,7 @@
  */
 
 import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useEffect } from "react";
 import type { SectionWithProgress } from "@/components/reader/book-reader-continuous";
 import { readerMix } from "@/components/reader/reader-controls";
 import type { ReaderTheme } from "@/lib/reader/settings";
@@ -56,6 +56,14 @@ export function ReaderToc({
 	onNavigate,
 	onClose,
 }: ReaderTocProps) {
+	useEffect(() => {
+		const root = document.documentElement.style;
+		const previousOverflow = root.overflow;
+		root.overflow = "hidden";
+		return () => {
+			root.overflow = previousOverflow;
+		};
+	}, []);
 	const sectionData = [...sectionProgress.values()];
 	if (!sectionData.length) return null;
 

@@ -46,6 +46,26 @@ describe("Read & Listen text anchors", () => {
 		).toHaveLength(0);
 	});
 
+	test("resolves a Focus fragment against its rendered sentence", () => {
+		const dom = new JSDOM(
+			'<section data-focus-fragment-ids="[&quot;middle&quot;]">Middle heading.</section>',
+		);
+		const section = dom.window.document.querySelector("section");
+		if (!section) throw new Error("fixture section missing");
+		const anchor = {
+			kind: "fragment" as const,
+			sectionRef: "chapter.xhtml",
+			fragmentId: "middle",
+		};
+
+		expect(resolveReadListenAnchor(section, anchor)?.segments).toHaveLength(1);
+		expect(
+			createReadListenPositionIndex(section, [
+				{ anchor, value: "focus-fragment" },
+			]).matches[0]?.value,
+		).toBe("focus-fragment");
+	});
+
 	test("finds a fragment cue through descendants that have their own ids", () => {
 		const dom = new JSDOM(
 			'<section><p id="sentence"><span id="word">Nested text.</span></p></section>',

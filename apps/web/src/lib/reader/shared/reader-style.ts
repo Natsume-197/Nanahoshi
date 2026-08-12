@@ -77,8 +77,37 @@ export function buildReaderStyle(c: ReaderStyleConfig): CSSProperties {
 	};
 }
 
+/**
+ * Continuous-mode sizing for the book surface. Horizontal text must own the
+ * full available inline size and clip publication CSS on the non-reading axis:
+ * otherwise a wide EPUB descendant contributes to the root scrollWidth, and a
+ * modal scroll lock can turn that hidden overflow into a viewport scrollbar.
+ */
+export function buildContinuousReaderSizing(
+	verticalMode: boolean,
+	secondDimensionMaxValue: number,
+): CSSProperties {
+	if (verticalMode) {
+		return {
+			maxHeight: secondDimensionMaxValue
+				? `${secondDimensionMaxValue}px`
+				: undefined,
+		};
+	}
+
+	return {
+		boxSizing: "border-box",
+		width: "100%",
+		minWidth: 0,
+		maxWidth: secondDimensionMaxValue
+			? `${secondDimensionMaxValue}px`
+			: undefined,
+		overflowX: "clip",
+	};
+}
+
 interface ReaderClassesConfig {
-	mode: "continuous" | "paginated";
+	mode: "continuous" | "paginated" | "focus";
 	verticalMode: boolean;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;

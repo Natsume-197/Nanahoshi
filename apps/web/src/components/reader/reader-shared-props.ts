@@ -6,6 +6,7 @@ import type {
 } from "@/lib/reader/settings";
 import type {
 	ReaderBookmark,
+	ReaderTextAnchor,
 	Section,
 	SectionWithProgress,
 } from "@/lib/reader/types";
@@ -15,6 +16,9 @@ export interface BookReaderApi {
 	nextPage(): void;
 	prevPage(): void;
 	navigateToSection(reference: string): void;
+	/** Navigate/resolve a semantic text target without assuming full-book DOM. */
+	navigateToTextAnchor?(anchor: ReaderTextAnchor): void;
+	resolveTextAnchor?(anchor: ReaderTextAnchor): number | undefined;
 	/** Continuous-engine capability; absent from page-turning engines. */
 	toggleAutoScroll?(): void;
 	setAutoScrollMultiplier?(multiplier: number): void;
@@ -22,7 +26,7 @@ export interface BookReaderApi {
 	scrollToBookmark(bookmark: ReaderBookmark): void;
 	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
 	/** Re-measure after a live (non-remount) layout-affecting setting change. */
-	relayout(): void;
+	relayout(position?: ReaderBookmark): void;
 	/** PDF-engine capability; opens its native, progressively populated search. */
 	openSearch?(): void;
 	/**
@@ -40,6 +44,8 @@ export interface BookReaderApi {
  */
 export interface BaseReaderProps {
 	htmlContent: string;
+	/** BCP 47 publication language, used for language-aware text composition. */
+	language: string;
 	verticalMode: boolean;
 	theme: ReaderTheme;
 	fontFamilyGroupOne: string;
@@ -61,6 +67,8 @@ export interface BaseReaderProps {
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
 	disableWheelNavigation: boolean;
+	/** Reader navigation is suspended while application chrome owns input. */
+	navigationBlocked: boolean;
 	sections: Section[];
 	/** Reading position to restore (scroll/page target), shown to no one. */
 	initialPosition: ReaderBookmark | undefined;

@@ -26,8 +26,12 @@ import {
 	getReaderScrollbarTrackColor,
 } from "@/lib/reader/settings";
 import { handleReaderContentClick } from "@/lib/reader/shared/reader-content-click";
-import { applyReaderDocumentChrome } from "@/lib/reader/shared/reader-document-chrome";
 import {
+	applyReaderDocumentChrome,
+	getReaderScrollbarWidth,
+} from "@/lib/reader/shared/reader-document-chrome";
+import {
+	buildContinuousReaderSizing,
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
@@ -72,11 +76,16 @@ interface ReaderInternals {
 	resizeTimer?: ReturnType<typeof setTimeout>;
 	sectionTimer?: ReturnType<typeof setTimeout>;
 	relayoutTimer?: ReturnType<typeof setTimeout>;
+	preciseScrollTimer?: ReturnType<typeof setTimeout>;
+	layoutRevision: number;
+	scheduleRecalc?: (restorePosition?: boolean) => void;
+	userInputPending: boolean;
 	scrollRafPending?: boolean;
 }
 
 export function BookReaderContinuous({
 	htmlContent,
+	language,
 	verticalMode,
 	theme,
 	fontFamilyGroupOne,
@@ -98,6 +107,7 @@ export function BookReaderContinuous({
 	hideFurigana,
 	furiganaStyle,
 	disableWheelNavigation,
+	navigationBlocked,
 	autoPositionOnResize,
 	autoScrollMultiplier,
 	sections,
@@ -115,6 +125,8 @@ export function BookReaderContinuous({
 		isProgrammaticScroll: false,
 		// Dirty until finishInit measures everything for the first time.
 		layoutDirty: true,
+		layoutRevision: 0,
+		userInputPending: false,
 		sectionToElement: new Map(),
 		sectionData: new Map(),
 	});
@@ -131,6 +143,8 @@ export function BookReaderContinuous({
 	onAutoScrollChangeRef.current = onAutoScrollChange;
 	const disableWheelNavigationRef = useRef(disableWheelNavigation);
 	disableWheelNavigationRef.current = disableWheelNavigation;
+	const navigationBlockedRef = useRef(navigationBlocked);
+	navigationBlockedRef.current = navigationBlocked;
 	// Live settings read by long-lived DOM handlers (the component does not
 	// remount when these change, so closures must not capture them).
 	const livePropsRef = useRef({
@@ -180,7 +194,7 @@ export function BookReaderContinuous({
 	const reportExplored = () => {
 		const s = internalsRef.current;
 		if (!s.calculator) return;
-		onExploredChangeRef.current(s.calculator.calcExploredCharCount());
+		onExploredChangeRef.current(s.calculator.calcPreciseExploredCharCount());
 	};
 
 	// Keep the intended position stable across reflows. Only move when the
@@ -412,12 +426,17 @@ export function BookReaderContinuous({
 
 		// Layout shifts from late image loads: recalculate paragraph positions
 		// and keep the intended reading position stable.
-		const scheduleRecalc = () => {
+		const scheduleRecalc = (restorePosition = true) => {
 			clearTimeout(s.recalcTimer);
-			s.recalcTimer = setTimeout(() => {
+			const revision = ++s.layoutRevision;
+			s.recalcTimer = setTimeout(async () => {
 				if (cancelled) return;
-				calculator.updateParagraphPos();
-				restoreIntendedPos();
+				const measured = await calculator.updateParagraphPosCooperative(
+					0,
+					() => cancelled || revision !== s.layoutRevision,
+				);
+				if (!measured) return;
+				if (restorePosition) restoreIntendedPos();
 				reportExplored();
 				updateSectionProgress();
 				refreshBookmarkMarker(s.displayedBookmark);
@@ -428,6 +447,7 @@ export function BookReaderContinuous({
 			s.layoutDirty = true;
 			scheduleRecalc();
 		};
+		s.scheduleRecalc = scheduleRecalc;
 		contentEl.addEventListener("load", handleResourceLoad, true);
 
 		// Vertical mode: translate vertical wheel into horizontal page scroll
@@ -437,17 +457,26 @@ export function BookReaderContinuous({
 			requestAnimationFrame,
 		);
 		const handleWheel = (ev: WheelEvent) => {
-			if (verticalMode && !disableWheelNavigationRef.current) {
+			s.userInputPending = true;
+			if (
+				verticalMode &&
+				!disableWheelNavigationRef.current &&
+				!navigationBlockedRef.current
+			) {
 				scrollFn(ev, livePropsRef.current.fontSize, viewportWidth());
 			}
 		};
 		document.body.addEventListener("wheel", handleWheel, { passive: false });
 
-		const finishInit = () => {
+		const finishInit = async () => {
 			if (cancelled) return;
 			applyVerticalReadingHeight();
 			refitImages();
-			calculator.updateParagraphPos();
+			const measured = await calculator.updateParagraphPosCooperative(
+				0,
+				() => cancelled,
+			);
+			if (!measured) return;
 
 			const firstSection = contentEl.firstElementChild;
 			if (firstSection) {
@@ -501,19 +530,24 @@ export function BookReaderContinuous({
 				s.layoutDirty = true;
 				document.documentElement.style.setProperty(
 					"scrollbar-width",
-					hidden ? "none" : "auto",
+					hidden ? "none" : getReaderScrollbarWidth(),
 				);
 				if (!hidden) scheduleRecalc();
 			},
-			relayout: () => {
+			relayout: (position) => {
+				s.layoutDirty = true;
 				// Debounced: the quick-settings sliders commit one change per drag
 				// tick and re-measuring the whole book each tick freezes the drag.
 				// Then wait for any new font to be ready and re-measure with the
 				// margin/page-size dependent managers rebuilt from live props.
 				clearTimeout(s.relayoutTimer);
+				if (position) {
+					s.prevIntendedCharCount = position.exploredCharCount;
+				}
+				const revision = ++s.layoutRevision;
 				s.relayoutTimer = setTimeout(() => {
 					document.fonts.ready.then(() => {
-						requestAnimationFrame(() => {
+						requestAnimationFrame(async () => {
 							if (cancelled) return;
 							const margin = livePropsRef.current.firstDimensionMargin || 0;
 							s.bookmarkManager = new BookmarkManagerContinuous(
@@ -527,7 +561,15 @@ export function BookReaderContinuous({
 								window,
 							);
 							refitImages();
-							calculator.updateParagraphPos();
+							s.isProgrammaticScroll = true;
+							s.pageManager.scrollTo(
+								calculator.getReadingEdgeScrollPos(s.prevIntendedCharCount),
+							);
+							const measured = await calculator.updateParagraphPosCooperative(
+								0,
+								() => cancelled || revision !== s.layoutRevision,
+							);
+							if (!measured) return;
 							restoreIntendedPos();
 							reportExplored();
 							updateSectionProgress();
@@ -545,6 +587,8 @@ export function BookReaderContinuous({
 			clearTimeout(s.resizeTimer);
 			clearTimeout(s.sectionTimer);
 			clearTimeout(s.relayoutTimer);
+			clearTimeout(s.preciseScrollTimer);
+			s.scheduleRecalc = undefined;
 			autoScroller.destroy();
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
@@ -555,8 +599,40 @@ export function BookReaderContinuous({
 		};
 	});
 
+	useWindowEvent("pointerdown", () => {
+		internalsRef.current.userInputPending = true;
+	});
+
+	useWindowEvent("touchstart", () => {
+		internalsRef.current.userInputPending = true;
+	});
+
+	useWindowEvent("keydown", (event) => {
+		if (
+			[
+				"ArrowDown",
+				"ArrowLeft",
+				"ArrowRight",
+				"ArrowUp",
+				"End",
+				"Home",
+				"PageDown",
+				"PageUp",
+				"Space",
+			].includes(event.code)
+		) {
+			internalsRef.current.userInputPending = true;
+		}
+	});
+
 	useWindowEvent("scroll", () => {
 		const s = internalsRef.current;
+		const userScroll = s.userInputPending || !s.isProgrammaticScroll;
+		if (s.layoutDirty && userScroll) {
+			s.layoutRevision += 1;
+		}
+		s.isProgrammaticScroll = false;
+		s.userInputPending = false;
 
 		// Coalesce bursts of scroll events into one measurement per frame —
 		// each calcExploredCharCount reads the scroll position, which forces a
@@ -581,10 +657,22 @@ export function BookReaderContinuous({
 
 		clearTimeout(s.sectionTimer);
 		s.sectionTimer = setTimeout(updateSectionProgress, 500);
+		clearTimeout(s.preciseScrollTimer);
+		s.preciseScrollTimer = setTimeout(() => {
+			if (!s.calculator || s.isProgrammaticScroll) return;
+			const precise = s.calculator.calcPreciseExploredCharCount();
+			s.prevIntendedCharCount = precise;
+			onExploredChangeRef.current(precise);
+			if (s.layoutDirty) s.scheduleRecalc?.();
+		}, 120);
 	});
 
 	useWindowEvent("resize", () => {
 		const s = internalsRef.current;
+		clearTimeout(s.preciseScrollTimer);
+		if (s.calculator && !s.layoutDirty) {
+			s.prevIntendedCharCount = s.calculator.calcPreciseExploredCharCount();
+		}
 		// Flag immediately: the reflow fires scroll events (clamping, mobile
 		// URL bar) well before the debounced re-measure below runs.
 		s.layoutDirty = true;
@@ -594,22 +682,11 @@ export function BookReaderContinuous({
 				if (!s.calculator || !s.pageManager) return;
 				applyVerticalReadingHeight();
 				refitImages();
-				s.calculator.updateParagraphPos();
-				if (autoPositionOnResize) {
-					restoreIntendedPos();
-				}
-				reportExplored();
-				updateSectionProgress();
-				refreshBookmarkMarker(s.displayedBookmark);
-				clearLayoutDirtyNextFrame();
+				s.scheduleRecalc?.(autoPositionOnResize);
 			});
 		}, 100);
 	});
 
-	const maxHeight =
-		verticalMode && secondDimensionMaxValue
-			? secondDimensionMaxValue
-			: undefined;
 	// readerColumnHeight reads window/document, so guard it for SSR (the strip
 	// height is re-pinned client-side in applyVerticalReadingHeight anyway).
 	const childHeight =
@@ -633,11 +710,7 @@ export function BookReaderContinuous({
 			enableFontKerning,
 			enableFontVPAL,
 		}),
-		maxWidth:
-			!verticalMode && secondDimensionMaxValue
-				? `${secondDimensionMaxValue}px`
-				: undefined,
-		maxHeight: maxHeight ? `${maxHeight}px` : undefined,
+		...buildContinuousReaderSizing(verticalMode, secondDimensionMaxValue),
 		...({
 			// The image-height cap must equal the *rendered* column height (the
 			// smaller of the configured max-height and the viewport), not the
@@ -677,6 +750,7 @@ export function BookReaderContinuous({
 		<>
 			<div
 				ref={contentElRef}
+				lang={language || undefined}
 				className={containerClasses}
 				style={containerStyle}
 			/>

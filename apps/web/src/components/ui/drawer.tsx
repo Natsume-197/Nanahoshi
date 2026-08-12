@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 type DrawerContextProps = {
 	hasSnapPoints: boolean;
 	modal: DrawerPrimitive.Root.Props["modal"];
+	overlayClassName?: string;
 	showSwipeHandle: boolean;
 	swipeDirection: NonNullable<DrawerPrimitive.Root.Props["swipeDirection"]>;
 };
@@ -24,17 +25,25 @@ function useDrawer() {
 
 function Drawer({
 	modal = true,
+	overlayClassName,
 	showSwipeHandle = false,
 	snapPoints,
 	swipeDirection = "down",
 	...props
 }: DrawerPrimitive.Root.Props & {
+	overlayClassName?: string;
 	showSwipeHandle?: boolean;
 }) {
 	const hasSnapPoints = snapPoints != null && snapPoints.length > 0;
 	const contextValue = React.useMemo(
-		() => ({ hasSnapPoints, modal, showSwipeHandle, swipeDirection }),
-		[hasSnapPoints, modal, showSwipeHandle, swipeDirection],
+		() => ({
+			hasSnapPoints,
+			modal,
+			overlayClassName,
+			showSwipeHandle,
+			swipeDirection,
+		}),
+		[hasSnapPoints, modal, overlayClassName, showSwipeHandle, swipeDirection],
 	);
 
 	return (
@@ -100,14 +109,23 @@ function DrawerContent({
 	children,
 	...props
 }: DrawerPrimitive.Popup.Props) {
-	const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
+	const {
+		hasSnapPoints,
+		modal,
+		overlayClassName,
+		showSwipeHandle,
+		swipeDirection,
+	} = useDrawer();
 	const swipeAxis =
 		swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
 	return (
 		<DrawerPortal data-slot="drawer-portal">
 			{modal === true && (
-				<DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />
+				<DrawerOverlay
+					data-snap-points={hasSnapPoints ? "" : undefined}
+					className={overlayClassName}
+				/>
 			)}
 			<DrawerPrimitive.Viewport
 				data-slot="drawer-viewport"

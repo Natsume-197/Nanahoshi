@@ -24,7 +24,9 @@ export type SectionWithProgress = Section & { progress: number };
  * HTML on load — the original EPUB is not kept, so a full re-parse is not an
  * option offline. Bump when getCharacterCount/getParagraphNodes change.
  */
-export const BOOK_COUNT_VERSION = 2;
+export const BOOK_COUNT_VERSION = 3;
+/** Version of the persisted explored-character coordinate system. */
+export const READER_POSITION_VERSION = 2;
 
 /** Version of Content Form inference for cached ReaderBookData. */
 export const BOOK_CONTENT_FORM_VERSION = 1;
@@ -71,7 +73,25 @@ export interface ReaderBookData {
 export interface ReaderBookmark {
 	exploredCharCount: number;
 	progress: number;
+	positionVersion?: number;
 	scrollX?: number;
 	scrollY?: number;
 	lastBookmarkModified: number;
 }
+
+/** DOM-independent text target used by reader engines and Read & Listen. */
+export type ReaderTextAnchor =
+	| {
+			kind: "fragment";
+			sectionReference: string;
+			fragmentId: string;
+	  }
+	| {
+			kind: "text-quote";
+			sectionReference: string;
+			exact: string;
+			prefix?: string;
+			suffix?: string;
+			/** Zero-based occurrence among equal quotes in the same section. */
+			occurrence?: number;
+	  };

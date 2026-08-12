@@ -16,7 +16,11 @@ import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
-import type { ReaderSourceFormat, Section } from "@/lib/reader/types";
+import type {
+	ReaderSourceFormat,
+	ReaderTextAnchor,
+	Section,
+} from "@/lib/reader/types";
 import { m } from "@/paraglide/messages";
 import type { client } from "@/utils/orpc";
 
@@ -25,6 +29,26 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 function followScrollBehavior(): ScrollBehavior {
 	return window.matchMedia?.(REDUCED_MOTION_QUERY).matches ? "auto" : "smooth";
+}
+
+function semanticReaderAnchor(
+	target: ReadListenTimelineCue["text"],
+	sectionReference: string,
+	sectionTargets: ReadonlyArray<{
+		anchor: ReadListenTimelineCue["text"];
+		value: ReadListenTimelineCue;
+	}>,
+	targetIndex: number,
+): ReaderTextAnchor {
+	if (target.kind === "fragment") return { ...target, sectionReference };
+	const normalizedExact = target.exact.replace(/\s+/gu, " ").trim();
+	const occurrence = sectionTargets.slice(0, targetIndex).filter((entry) => {
+		return (
+			entry.anchor.kind === "text-quote" &&
+			entry.anchor.exact.replace(/\s+/gu, " ").trim() === normalizedExact
+		);
+	}).length;
+	return { ...target, sectionReference, occurrence };
 }
 
 type AudiobookDetails = Awaited<
@@ -88,13 +112,37 @@ export function ActiveReadListenCue({
 			cue.text.sectionRef,
 			sourceFormat,
 		);
+		const targetIndex = Math.max(
+			0,
+			sectionTargets.findIndex((target) => target.value.id === cue.id),
+		);
+		const readerAnchor = semanticReaderAnchor(
+			cue.text,
+			sectionReference,
+			sectionTargets,
+			targetIndex,
+		);
 
 		const install = () => {
 			if (cancelled) return;
+			if (
+				followText &&
+				attempts === 0 &&
+				readerApiRef.current?.navigateToTextAnchor
+			) {
+				readerApiRef.current.navigateToTextAnchor(readerAnchor);
+				attempts += 1;
+				animationFrame = requestAnimationFrame(install);
+				return;
+			}
 			const section = document.getElementById(sectionReference);
 			if (!section) {
 				if (followText && attempts === 0) {
-					readerApiRef.current?.navigateToSection(sectionReference);
+					if (readerApiRef.current?.navigateToTextAnchor) {
+						readerApiRef.current.navigateToTextAnchor(readerAnchor);
+					} else {
+						readerApiRef.current?.navigateToSection(sectionReference);
+					}
 				}
 				attempts += 1;
 				if (attempts < MAX_ANCHOR_FRAMES) {
@@ -159,6 +207,8 @@ export function SeekReadListenFromText({
 	targetCharacter,
 	sections,
 	targetsBySection,
+	readerApiRef,
+	sourceFormat,
 	onSettled,
 }: {
 	targetCharacter: number;
@@ -170,6 +220,8 @@ export function SeekReadListenFromText({
 			value: ReadListenTimelineCue;
 		}>
 	>;
+	readerApiRef: RefObject<BookReaderApi | null>;
+	sourceFormat: ReaderSourceFormat;
 	onSettled: (cue: ReadListenTimelineCue | undefined) => void;
 }) {
 	const { seekTo } = useAudioPlayerActions();
@@ -178,14 +230,68 @@ export function SeekReadListenFromText({
 		let cancelled = false;
 		let animationFrame = 0;
 		let attempts = 0;
+		const nearestSectionTargets = sections
+			.map((section) => {
+				const start = section.startCharacter ?? 0;
+				const end = start + (section.characters ?? 0);
+				const distance =
+					targetCharacter < start
+						? start - targetCharacter
+						: targetCharacter > end
+							? targetCharacter - end
+							: 0;
+				return {
+					distance,
+					targets: targetsBySection.get(section.reference) ?? [],
+				};
+			})
+			.filter((entry) => entry.targets.length > 0)
+			.sort((left, right) => left.distance - right.distance)[0]?.targets;
+		const quoteOccurrences = new Map<string, number>();
+		const semanticNearestTargets = (nearestSectionTargets ?? []).map(
+			(target) => {
+				const sectionReference = toReaderSectionReference(
+					target.anchor.sectionRef,
+					sourceFormat,
+				);
+				if (target.anchor.kind === "fragment") {
+					return { target, anchor: { ...target.anchor, sectionReference } };
+				}
+				const key = `${sectionReference}\u0000${target.anchor.exact.replace(/\s+/gu, " ").trim()}`;
+				const occurrence = quoteOccurrences.get(key) ?? 0;
+				quoteOccurrences.set(key, occurrence + 1);
+				return {
+					target,
+					anchor: { ...target.anchor, sectionReference, occurrence },
+				};
+			},
+		);
 		const apply = () => {
 			if (cancelled) return;
-			const cue = findReadListenCueNearCharacter({
-				targetCharacter,
-				sections,
-				targetsBySection,
-				document,
-			});
+			const focusCue = semanticNearestTargets
+				.map((entry) => ({
+					target: entry.target,
+					character: readerApiRef.current?.resolveTextAnchor?.(
+						entry.anchor as ReaderTextAnchor,
+					),
+				}))
+				.filter(
+					(entry): entry is typeof entry & { character: number } =>
+						entry.character !== undefined,
+				)
+				.sort(
+					(left, right) =>
+						Math.abs(left.character - targetCharacter) -
+						Math.abs(right.character - targetCharacter),
+				)[0]?.target.value;
+			const cue =
+				focusCue ??
+				findReadListenCueNearCharacter({
+					targetCharacter,
+					sections,
+					targetsBySection,
+					document,
+				});
 			if (cue) {
 				seekTo(cue.globalStartMs / 1000);
 				onSettled(cue);

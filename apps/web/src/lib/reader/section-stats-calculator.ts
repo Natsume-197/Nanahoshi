@@ -66,6 +66,14 @@ export class SectionCharacterStatsCalculator {
 		return this.getCharCountByScrollPos(this.getVirtualScrollPos() + offset);
 	}
 
+	calcPreciseExploredCharCount() {
+		if (!this.calculator) return -1;
+		return (
+			this.getSectionStartCount() +
+			this.calculator.calcPreciseExploredCharCount()
+		);
+	}
+
 	getCharCountByScrollPos(scrollPos: number) {
 		if (!this.calculator) return -1;
 		const startCount = this.getSectionStartCount();
@@ -84,6 +92,19 @@ export class SectionCharacterStatsCalculator {
 		const isEndChar = charCount === endCount && endCount - startCount > 0;
 		if (mirroredCount < 0 || charCount > endCount || isEndChar) return -1;
 		if (mirroredCount === 0) return 0;
+		const preciseRect = this.calculator.getCharacterRectForCount(mirroredCount);
+		if (preciseRect) {
+			const viewportRect = this.scrollEl.getBoundingClientRect();
+			const renderedOffset = this.verticalMode
+				? preciseRect.top - viewportRect.top
+				: preciseRect.left - viewportRect.left;
+			const preciseScroll = this.getVirtualScrollPos() + renderedOffset;
+			return Math.max(
+				0,
+				this.screenSize *
+					Math.floor(Math.max(0, preciseScroll) / this.screenSize),
+			);
+		}
 
 		const index = binarySearchNoNegative(
 			this.calculator.accumulatedCharCount,

@@ -5,7 +5,7 @@
  */
 
 export type WritingMode = "horizontal-tb" | "vertical-rl";
-export type TextLayout = "scroll" | "paginated";
+export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
@@ -116,14 +116,9 @@ export function getReaderScrollbarColor(theme: ReaderThemeColors): string {
 	return `color-mix(in oklab, ${theme.fontColor} 40%, ${theme.backgroundColor})`;
 }
 
-/**
- * Document scrollbar track while reading. A transparent track leaves the
- * full-size reading bar looking like wasted space beside the thumb; tint it
- * faintly from the theme's own colors (oklab, see getReaderScrollbarColor) so
- * the gutter reads as part of the bar instead of an empty margin.
- */
+/** Fill the document scrollbar gutter with the book surface itself. */
 export function getReaderScrollbarTrackColor(theme: ReaderThemeColors): string {
-	return `color-mix(in oklab, ${theme.fontColor} 12%, ${theme.backgroundColor})`;
+	return theme.backgroundColor;
 }
 
 const CUSTOM_THEMES_KEY = "nanahoshi-reader-custom-themes";
@@ -147,6 +142,8 @@ export function saveCustomThemes(themes: CustomReaderThemes) {
 }
 
 export interface ReaderSettings {
+	/** Serialized settings schema; used for one-time preference migrations. */
+	settingsVersion: number;
 	/** Built-in theme id or a custom theme name. */
 	theme: string;
 	textLayout: TextLayout;
@@ -184,8 +181,11 @@ export interface ReaderSettings {
 	maxCachedBooks: number;
 }
 
+export const READER_SETTINGS_VERSION = 2;
+
 /** Default reader experience for new local settings. */
 export const defaultReaderSettings: ReaderSettings = {
+	settingsVersion: READER_SETTINGS_VERSION,
 	theme: "nanahoshi-theme",
 	textLayout: "scroll",
 	fontFamilyGroupOne: "Noto Serif JP",
@@ -201,7 +201,7 @@ export const defaultReaderSettings: ReaderSettings = {
 	enableFontKerning: false,
 	enableFontVPAL: false,
 	prioritizeReaderStyles: false,
-	enableTextJustification: false,
+	enableTextJustification: true,
 	enableTextWrapPretty: false,
 	secondDimensionMaxValue: 0,
 	firstDimensionMargin: 0,
@@ -219,30 +219,139 @@ export const defaultReaderSettings: ReaderSettings = {
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
 
+export const READER_FONT_SIZE_MIN = 12;
+export const READER_FONT_SIZE_MAX = 60;
+export const READER_LINE_HEIGHT_MIN = 1.2;
+export const READER_LINE_HEIGHT_MAX = 2.4;
+
+const clampNumber = (
+	value: unknown,
+	fallback: number,
+	min: number,
+	max: number,
+) =>
+	typeof value === "number" && Number.isFinite(value)
+		? Math.min(max, Math.max(min, value))
+		: fallback;
+
 export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 	if (!raw || typeof raw !== "object") return defaultReaderSettings;
 
 	const stored = raw as Partial<ReaderSettings>;
 	const next = { ...defaultReaderSettings };
-	for (const key of Object.keys(
-		defaultReaderSettings,
-	) as (keyof ReaderSettings)[]) {
-		if (Object.hasOwn(stored, key)) {
-			(
-				next as Record<
-					keyof ReaderSettings,
-					ReaderSettings[keyof ReaderSettings]
-				>
-			)[key] = stored[key] as ReaderSettings[keyof ReaderSettings];
-		}
+	if (typeof stored.theme === "string" && stored.theme.trim()) {
+		next.theme = stored.theme;
+	}
+	if (typeof stored.fontFamilyGroupOne === "string") {
+		next.fontFamilyGroupOne = stored.fontFamilyGroupOne;
+	}
+	if (typeof stored.fontFamilyGroupTwo === "string") {
+		next.fontFamilyGroupTwo = stored.fontFamilyGroupTwo;
+	}
+	if (stored.fontWeight === null) {
+		next.fontWeight = null;
+	} else if (
+		typeof stored.fontWeight === "number" &&
+		Number.isFinite(stored.fontWeight)
+	) {
+		next.fontWeight = Math.round(
+			Math.min(900, Math.max(100, stored.fontWeight)),
+		);
+	}
+	if (stored.textMarginMode === "auto" || stored.textMarginMode === "manual")
+		next.textMarginMode = stored.textMarginMode;
+	if (
+		stored.writingMode === "horizontal-tb" ||
+		stored.writingMode === "vertical-rl"
+	)
+		next.writingMode = stored.writingMode;
+	if (
+		stored.verticalTextOrientation === "mixed" ||
+		stored.verticalTextOrientation === "upright"
+	)
+		next.verticalTextOrientation = stored.verticalTextOrientation;
+	if (
+		stored.furiganaStyle === "Hide" ||
+		stored.furiganaStyle === "Partial" ||
+		stored.furiganaStyle === "Toggle" ||
+		stored.furiganaStyle === "Full"
+	)
+		next.furiganaStyle = stored.furiganaStyle;
+	const booleanKeys = [
+		"enableFontKerning",
+		"enableFontVPAL",
+		"prioritizeReaderStyles",
+		"enableTextWrapPretty",
+		"autoPositionOnResize",
+		"disableWheelNavigation",
+		"showCharacterCounter",
+		"showPercentage",
+		"hideFurigana",
+		"avoidPageBreak",
+	] as const;
+	for (const key of booleanKeys) {
+		if (typeof stored[key] === "boolean") next[key] = stored[key];
+	}
+	// Before v2 the default was ragged alignment, which leaves an apparent
+	// one-glyph gutter in CJK books. Migrate that old default once; from v2 on,
+	// an explicit opt-out remains respected.
+	if (
+		typeof stored.settingsVersion === "number" &&
+		stored.settingsVersion >= READER_SETTINGS_VERSION &&
+		typeof stored.enableTextJustification === "boolean"
+	) {
+		next.enableTextJustification = stored.enableTextJustification;
 	}
 	const legacyViewMode = (raw as { viewMode?: unknown }).viewMode;
 	next.textLayout =
-		stored.textLayout === "paginated" || stored.textLayout === "scroll"
+		stored.textLayout === "paginated" ||
+		stored.textLayout === "scroll" ||
+		stored.textLayout === "focus"
 			? stored.textLayout
 			: legacyViewMode === "paginated"
 				? "paginated"
 				: "scroll";
+	next.fontSize = clampNumber(
+		stored.fontSize,
+		defaultReaderSettings.fontSize,
+		READER_FONT_SIZE_MIN,
+		READER_FONT_SIZE_MAX,
+	);
+	next.lineHeight = clampNumber(
+		stored.lineHeight,
+		defaultReaderSettings.lineHeight,
+		READER_LINE_HEIGHT_MIN,
+		READER_LINE_HEIGHT_MAX,
+	);
+	next.textIndentation = clampNumber(stored.textIndentation, 0, 0, 10);
+	next.textMarginValue = clampNumber(stored.textMarginValue, 0, 0, 10);
+	next.firstDimensionMargin = clampNumber(
+		stored.firstDimensionMargin,
+		0,
+		0,
+		10_000,
+	);
+	next.secondDimensionMaxValue = clampNumber(
+		stored.secondDimensionMaxValue,
+		0,
+		0,
+		10_000,
+	);
+	next.pageColumns = Math.round(clampNumber(stored.pageColumns, 0, 0, 2));
+	next.autoScrollMultiplier = clampNumber(
+		stored.autoScrollMultiplier,
+		defaultReaderSettings.autoScrollMultiplier,
+		1,
+		100,
+	);
+	next.maxCachedBooks = Math.round(
+		clampNumber(
+			stored.maxCachedBooks,
+			defaultReaderSettings.maxCachedBooks,
+			1,
+			100,
+		),
+	);
 	return next;
 }
 

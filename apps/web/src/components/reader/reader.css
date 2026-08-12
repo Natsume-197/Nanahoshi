@@ -19,6 +19,45 @@
 	font-family: var(--font-family-serif, "Noto Serif JP", serif);
 }
 
+.focus-reader-surface {
+	padding-top: max(1.5rem, var(--safe-area-top));
+	padding-right: calc(var(--safe-area-right) + 3.5rem);
+	padding-bottom: max(
+		1.5rem,
+		var(--reader-player-reserve-mobile, var(--safe-area-bottom))
+	);
+	padding-left: calc(var(--safe-area-left) + 3.5rem);
+}
+
+@media (min-width: 48rem) {
+	.focus-reader-surface {
+		padding-bottom: max(
+			1.5rem,
+			var(--reader-player-reserve-desktop, var(--safe-area-bottom))
+		);
+	}
+}
+
+/* Focus mode: one sentence is rendered at a time, independently of the
+   publication's block spacing and alignment. Inline semantics such as ruby
+   and emphasis remain intact. */
+.book-content--focus,
+.book-content--focus p {
+	margin: 0 !important;
+	text-align: center !important;
+	text-indent: 0 !important;
+}
+
+.book-content--focus {
+	align-items: safe center;
+	justify-content: safe center;
+}
+
+.book-content--focus .focus-sentence-content {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
 /* The doubled-up .book-content mirrors ttu's Svelte scoping class: these caps
    must out-specify the EPUB's own stylesheet, which is prefixed with
    .book-content (e.g. `.book-content .fit { max-width: 100% }`). */
@@ -151,6 +190,29 @@
 	hyphens: auto !important;
 }
 
+/* CJK lines are packed in full-width glyph cells. When the available width is
+   not an exact multiple of a cell, start alignment leaves an apparent empty
+   strip almost one glyph wide. Inter-character justification distributes that
+   remainder across non-final lines; the final line stays natural. */
+.book-content.ttu-apply-justification:is(:lang(ja), :lang(zh), :lang(ko)),
+.book-content.ttu-apply-justification:is(:lang(ja), :lang(zh), :lang(ko)) p {
+	text-justify: inter-character;
+}
+
+.book-content.ttu-apply-important.ttu-apply-justification:is(
+	:lang(ja),
+	:lang(zh),
+	:lang(ko)
+),
+.book-content.ttu-apply-important.ttu-apply-justification:is(
+		:lang(ja),
+		:lang(zh),
+		:lang(ko)
+	)
+	p {
+	text-justify: inter-character !important;
+}
+
 .book-content:not(.ttu-apply-important).ttu-text-wrap-pretty,
 .book-content:not(.ttu-apply-important).ttu-text-wrap-pretty p {
 	text-wrap: pretty;
@@ -162,6 +224,28 @@
 }
 
 /* Continuous mode: sections get breathing room on the scroll axis */
+
+/* The adapter maps the publication's <html>/<body> classes onto generated
+   wrappers so its typography still applies. Page-level EPUB rules frequently
+   put width/max-width, side padding, or side margins on those classes; keeping
+   them here shrinks text to ~95% even when the reader's Horizontal padding is
+   0. The generated wrappers are reader structure, so they must fill the area;
+   paragraph/figure styling inside them remains publication-owned. Physical
+   sides are intentional: this rule is scoped to horizontal-tb. */
+.book-content.book-content--continuous.book-content--writing-horizontal-tb > *,
+.book-content.book-content--continuous.book-content--writing-horizontal-tb
+	.ttu-book-html-wrapper,
+.book-content.book-content--continuous.book-content--writing-horizontal-tb
+	.ttu-book-body-wrapper {
+	box-sizing: border-box !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	max-width: none !important;
+	margin-right: 0 !important;
+	margin-left: 0 !important;
+	padding-right: 0 !important;
+	padding-left: 0 !important;
+}
 
 /* Cap the reading strip to the viewport height so vertical-rl text flows into
    more horizontal columns instead of growing the page vertically. Using the

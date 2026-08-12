@@ -16,6 +16,14 @@ const pdf = {
 	storedAt: 0,
 } satisfies ReaderBookData;
 
+const epub = {
+	...pdf,
+	uuid: "epub",
+	sourceFormat: "epub",
+	contentForm: "text",
+	title: "EPUB",
+} satisfies ReaderBookData;
+
 describe("resolveReaderPresentation", () => {
 	test("always selects the dedicated PDF engine", () => {
 		const result = resolveReaderPresentation({
@@ -27,5 +35,17 @@ describe("resolveReaderPresentation", () => {
 
 		expect(result.engine).toBe("pdf");
 		expect(result.supportsComic).toBe(false);
+	});
+
+	test("selects the sentence-focused text engine", () => {
+		const result = resolveReaderPresentation({
+			book: epub,
+			preference: { readAs: "text", textLayout: "focus" },
+			defaultTextLayout: "scroll",
+			comicLayout: "single-page",
+		});
+
+		expect(result.engine).toBe("text-focus");
+		expect(result.textLayout).toBe("focus");
 	});
 });

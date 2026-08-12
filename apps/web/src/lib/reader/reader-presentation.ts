@@ -6,6 +6,7 @@ export type ReadAs = "auto" | "text" | "comic";
 export type ReaderEngineKind =
 	| "text-scroll"
 	| "text-paginated"
+	| "text-focus"
 	| "comic"
 	| "pdf";
 
@@ -75,7 +76,9 @@ export function resolveReaderPresentation({
 					? "comic"
 					: textLayout === "paginated"
 						? "text-paginated"
-						: "text-scroll",
+						: textLayout === "focus"
+							? "text-focus"
+							: "text-scroll",
 		supportsComic,
 	};
 }
@@ -95,6 +98,7 @@ export function updateReaderPresentationPreference(
 function normalizePreference(value: unknown): ReaderPresentationPreference {
 	if (value === "continuous") return { readAs: "text", textLayout: "scroll" };
 	if (value === "paginated") return { readAs: "text", textLayout: "paginated" };
+	if (value === "focus") return { readAs: "text", textLayout: "focus" };
 	if (value === "visual") return { readAs: "comic" };
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return { readAs: "auto" };
@@ -104,7 +108,10 @@ function normalizePreference(value: unknown): ReaderPresentationPreference {
 	if (stored.readAs === "text") {
 		return {
 			readAs: "text",
-			textLayout: stored.textLayout === "paginated" ? "paginated" : "scroll",
+			textLayout:
+				stored.textLayout === "paginated" || stored.textLayout === "focus"
+					? stored.textLayout
+					: "scroll",
 		};
 	}
 	return { readAs: "auto" };

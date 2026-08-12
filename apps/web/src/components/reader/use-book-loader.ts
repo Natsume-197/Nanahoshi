@@ -91,11 +91,16 @@ export function useBookLoader({
 					.getProgress({ bookUuid: uuid })
 					.then((progress) => ({
 						exploredCharCount: progress?.exploredCharCount ?? 0,
+						bookCharCount: progress?.bookCharCount ?? 0,
 						modifiedAt: progress?.lastReadAt
 							? new Date(progress.lastReadAt).getTime()
 							: 0,
 					}))
-					.catch(() => ({ exploredCharCount: 0, modifiedAt: 0 }));
+					.catch(() => ({
+						exploredCharCount: 0,
+						bookCharCount: 0,
+						modifiedAt: 0,
+					}));
 
 				if (sourceFormat === "pdf") {
 					if (!serverId)
@@ -168,6 +173,7 @@ export function useBookLoader({
 				const initial = resolveInitialBookmark(
 					loadLocalBookmark(uuid),
 					serverProgress,
+					data.characters,
 				);
 
 				const currentSettings = loadReaderSettings();

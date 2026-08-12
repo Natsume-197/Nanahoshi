@@ -49,6 +49,10 @@ import type {
 import {
 	type CustomReaderThemes,
 	getReaderTheme,
+	READER_FONT_SIZE_MAX,
+	READER_FONT_SIZE_MIN,
+	READER_LINE_HEIGHT_MAX,
+	READER_LINE_HEIGHT_MIN,
 	type ReaderSettings,
 	type ReaderThemeColors,
 	readerThemes,
@@ -557,8 +561,9 @@ export function ReaderSettingsOverlay({
 							<Segmented
 								theme={theme}
 								options={[
-									{ id: "scroll", text: "Scroll" },
+									{ id: "scroll", text: "Continuous" },
 									{ id: "paginated", text: "Paginated" },
+									{ id: "focus", text: "Focus" },
 								]}
 								selected={presentation.textLayout}
 								onSelect={(value) =>
@@ -569,7 +574,7 @@ export function ReaderSettingsOverlay({
 								}
 							/>,
 							{
-								hint: "Choose whether text moves continuously or page by page",
+								hint: "Read continuously, page by page, or one centered sentence at a time",
 							},
 						)}
 						{row(
@@ -674,8 +679,8 @@ export function ReaderSettingsOverlay({
 					"Font size",
 					<SliderRow
 						theme={theme}
-						min={12}
-						max={60}
+						min={READER_FONT_SIZE_MIN}
+						max={READER_FONT_SIZE_MAX}
 						step={1}
 						value={settings.fontSize}
 						format={(fontSize) => `${fontSize}px`}
@@ -686,8 +691,8 @@ export function ReaderSettingsOverlay({
 					"Line height",
 					<SliderRow
 						theme={theme}
-						min={1.2}
-						max={2.4}
+						min={READER_LINE_HEIGHT_MIN}
+						max={READER_LINE_HEIGHT_MAX}
 						step={0.05}
 						value={settings.lineHeight}
 						format={(lineHeight) => lineHeight.toFixed(2)}
@@ -795,7 +800,7 @@ export function ReaderSettingsOverlay({
 						/>,
 					)}
 				{row(
-					"Text justification",
+					"Justify text",
 					<Toggle
 						theme={theme}
 						value={settings.enableTextJustification}

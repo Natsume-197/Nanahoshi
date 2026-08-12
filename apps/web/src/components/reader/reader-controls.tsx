@@ -8,6 +8,7 @@
 import { Minus, Plus } from "@phosphor-icons/react";
 import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import type { ReaderTheme } from "@/lib/reader/settings";
+import { cn } from "@/lib/utils";
 
 export function readerMix(theme: ReaderTheme, pct: number): string {
 	return `color-mix(in oklab, ${theme.fontColor} ${pct}%, ${theme.backgroundColor})`;
@@ -23,10 +24,10 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section className="flex flex-col gap-4">
+		<section className="flex flex-col gap-3">
 			<h2
-				className="border-b pb-1.5 font-medium text-xs uppercase tracking-wider opacity-50"
-				style={{ borderColor: readerMix(theme, 15) }}
+				className="px-0.5 font-semibold text-sm"
+				style={{ color: readerMix(theme, 68) }}
 			>
 				{title}
 			</h2>
@@ -64,17 +65,23 @@ export function Segmented<T extends string | number | boolean>({
 	theme,
 	options,
 	selected,
+	ariaLabel,
 	onSelect,
 }: {
 	theme: ReaderTheme;
 	options: SegmentedOption<T>[];
 	selected: T;
+	ariaLabel?: string;
 	onSelect: (id: T) => void;
 }) {
 	return (
-		<div
-			className="flex overflow-hidden rounded-md border"
-			style={{ borderColor: readerMix(theme, 25) }}
+		<fieldset
+			aria-label={ariaLabel}
+			className="flex min-w-0 overflow-hidden rounded-xl p-1"
+			style={{
+				backgroundColor: readerMix(theme, 8),
+				boxShadow: `inset 0 0 0 1px ${readerMix(theme, 10)}`,
+			}}
 		>
 			{options.map((option) => {
 				const isSelected = option.id === selected;
@@ -82,14 +89,16 @@ export function Segmented<T extends string | number | boolean>({
 					<button
 						key={String(option.id)}
 						type="button"
-						className="h-9 flex-1 cursor-pointer px-2 text-sm transition-colors duration-150 sm:h-8"
+						aria-pressed={isSelected}
+						className="h-10 flex-1 cursor-pointer rounded-lg px-2 font-medium text-sm outline-none transition-[background-color,color,box-shadow,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 active:scale-[0.96] sm:h-8"
 						style={
 							isSelected
 								? {
-										backgroundColor: theme.fontColor,
-										color: theme.backgroundColor,
+										backgroundColor: readerMix(theme, 16),
+										boxShadow: `0 1px 2px ${readerMix(theme, 12)}`,
+										color: theme.fontColor,
 									}
-								: undefined
+								: { color: readerMix(theme, 62) }
 						}
 						onClick={() => {
 							if (!isSelected) onSelect(option.id);
@@ -99,7 +108,7 @@ export function Segmented<T extends string | number | boolean>({
 					</button>
 				);
 			})}
-		</div>
+		</fieldset>
 	);
 }
 
@@ -129,30 +138,46 @@ export function Toggle({
 export function Stepper({
 	theme,
 	display,
+	compact = false,
+	canDecrease = true,
+	canIncrease = true,
 	onStep,
 }: {
 	theme: ReaderTheme;
 	display: string;
+	compact?: boolean;
+	canDecrease?: boolean;
+	canIncrease?: boolean;
 	onStep: (direction: -1 | 1) => void;
 }) {
 	return (
 		<div
-			className="flex h-9 items-center justify-between rounded-md border sm:h-8"
-			style={{ borderColor: readerMix(theme, 25) }}
+			className={cn(
+				"flex h-11 items-center justify-between rounded-xl sm:h-8",
+				compact ? "w-fit" : "w-full",
+			)}
+			style={{
+				backgroundColor: readerMix(theme, 8),
+				boxShadow: `inset 0 0 0 1px ${readerMix(theme, 10)}`,
+			}}
 		>
 			<button
 				type="button"
-				title="Decrease"
-				className="flex h-full w-10 cursor-pointer items-center justify-center opacity-60 transition-opacity duration-150 hover:opacity-100"
+				aria-label="Decrease"
+				disabled={!canDecrease}
+				className="flex h-full w-11 cursor-pointer items-center justify-center opacity-60 transition-[opacity,scale] duration-150 hover:opacity-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25 sm:w-10"
 				onClick={() => onStep(-1)}
 			>
 				<Minus className="size-4" />
 			</button>
-			<span className="text-sm tabular-nums">{display}</span>
+			<span className="min-w-12 px-1 text-center font-medium text-sm tabular-nums">
+				{display}
+			</span>
 			<button
 				type="button"
-				title="Increase"
-				className="flex h-full w-10 cursor-pointer items-center justify-center opacity-60 transition-opacity duration-150 hover:opacity-100"
+				aria-label="Increase"
+				disabled={!canIncrease}
+				className="flex h-full w-11 cursor-pointer items-center justify-center opacity-60 transition-[opacity,scale] duration-150 hover:opacity-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25 sm:w-10"
 				onClick={() => onStep(1)}
 			>
 				<Plus className="size-4" />
@@ -168,6 +193,7 @@ export function SliderRow({
 	step,
 	value,
 	format,
+	showValue = true,
 	onChange,
 }: {
 	theme: ReaderTheme;
@@ -177,6 +203,7 @@ export function SliderRow({
 	value: number;
 	/** Human-readable rendering of a slider value, shown beside it live. */
 	format: (value: number) => string;
+	showValue?: boolean;
 	onChange: (value: number) => void;
 }) {
 	// Commits on release, not per drag tick: every committed change re-styles
@@ -201,7 +228,7 @@ export function SliderRow({
 	};
 
 	return (
-		<div className="flex h-9 items-center gap-3 sm:h-8">
+		<div className="flex h-11 items-center gap-3 sm:h-8">
 			<input
 				type="range"
 				className="h-1 min-w-0 flex-1 cursor-pointer"
@@ -215,19 +242,23 @@ export function SliderRow({
 				onKeyUp={commit}
 				onBlur={commit}
 			/>
-			<span className="w-14 shrink-0 text-right text-sm tabular-nums opacity-80">
-				{format(shown)}
-			</span>
+			{showValue && (
+				<span className="w-14 shrink-0 text-right text-sm tabular-nums opacity-80">
+					{format(shown)}
+				</span>
+			)}
 		</div>
 	);
 }
 
 export function ThemedSelect({
+	id,
 	theme,
 	value,
 	onChange,
 	children,
 }: {
+	id?: string;
 	theme: ReaderTheme;
 	value: string;
 	onChange: (value: string) => void;
@@ -235,8 +266,13 @@ export function ThemedSelect({
 }) {
 	return (
 		<select
-			className="h-9 w-full cursor-pointer rounded-md border bg-transparent px-2 text-sm sm:h-8"
-			style={{ borderColor: readerMix(theme, 25), color: theme.fontColor }}
+			id={id}
+			className="h-11 w-full cursor-pointer rounded-xl border-0 px-3 text-base outline-none focus-visible:outline-2 focus-visible:outline-offset-1 sm:h-8 sm:text-sm"
+			style={{
+				backgroundColor: readerMix(theme, 8),
+				boxShadow: `inset 0 0 0 1px ${readerMix(theme, 10)}`,
+				color: theme.fontColor,
+			}}
 			value={value}
 			onChange={(event) => onChange(event.target.value)}
 		>

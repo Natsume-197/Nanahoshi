@@ -89,6 +89,7 @@ function computeViewport(
 
 export function BookReaderPaginated({
 	htmlContent,
+	language,
 	verticalMode,
 	theme,
 	fontFamilyGroupOne,
@@ -110,6 +111,7 @@ export function BookReaderPaginated({
 	hideFurigana,
 	furiganaStyle,
 	disableWheelNavigation,
+	navigationBlocked,
 	avoidPageBreak,
 	pageColumns,
 	sections,
@@ -160,6 +162,8 @@ export function BookReaderPaginated({
 	onSectionProgressChangeRef.current = onSectionProgressChange;
 	const disableWheelNavigationRef = useRef(disableWheelNavigation);
 	disableWheelNavigationRef.current = disableWheelNavigation;
+	const navigationBlockedRef = useRef(navigationBlocked);
+	navigationBlockedRef.current = navigationBlocked;
 	// Live settings read by long-lived DOM handlers (no remount on change).
 	const livePropsRef = useRef({
 		hideFurigana,
@@ -170,7 +174,7 @@ export function BookReaderPaginated({
 	const reportExplored = () => {
 		const s = internalsRef.current;
 		if (!s.calculator) return;
-		const explored = s.calculator.calcExploredCharCount();
+		const explored = s.calculator.calcPreciseExploredCharCount();
 		onExploredChangeRef.current(Math.max(0, explored));
 	};
 
@@ -252,8 +256,9 @@ export function BookReaderPaginated({
 	// tick, and re-measuring every paragraph on each tick freezes the drag.
 	// Only the last tick's layout matters; the timer also guarantees React has
 	// committed the new layout props before anything is measured.
-	const scheduleRelayout = () => {
+	const scheduleRelayout = (position?: ReaderBookmark) => {
 		const s = internalsRef.current;
+		if (position) s.previousIntendedCount = position.exploredCharCount;
 		clearTimeout(s.relayoutTimer);
 		s.relayoutTimer = setTimeout(() => {
 			document.fonts.ready.then(() => {
@@ -397,7 +402,12 @@ export function BookReaderPaginated({
 				requestSection: (index, onRendered) => renderSection(index, onRendered),
 				onPageChange: (isUser) => {
 					if (!s.calculator) return;
-					const explored = Math.max(0, s.calculator.calcExploredCharCount());
+					const explored = Math.max(
+						0,
+						isUser
+							? s.calculator.calcPreciseExploredCharCount()
+							: s.calculator.calcExploredCharCount(),
+					);
 					if (isUser) {
 						s.previousIntendedCount = explored;
 					}
@@ -433,7 +443,9 @@ export function BookReaderPaginated({
 
 		// Wheel flips pages (ttu: throttled, passive)
 		const handleWheel = (ev: WheelEvent) => {
-			if (disableWheelNavigationRef.current) return;
+			if (disableWheelNavigationRef.current || navigationBlockedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			if (now - s.lastWheelAt < 50) return;
 			s.lastWheelAt = now;
@@ -447,7 +459,7 @@ export function BookReaderPaginated({
 		document.body.addEventListener("wheel", handleWheel, { passive: true });
 
 		const handleTouchStart = (ev: TouchEvent) => {
-			if (ev.touches.length !== 1) {
+			if (navigationBlockedRef.current || ev.touches.length !== 1) {
 				s.touchStartX = Number.NaN;
 				s.touchStartY = Number.NaN;
 				return;
@@ -458,6 +470,11 @@ export function BookReaderPaginated({
 		};
 
 		const handleTouchEnd = (ev: TouchEvent) => {
+			if (navigationBlockedRef.current) {
+				s.touchStartX = Number.NaN;
+				s.touchStartY = Number.NaN;
+				return;
+			}
 			if (Number.isNaN(s.touchStartX) || Number.isNaN(s.touchStartY)) return;
 
 			const startX = s.touchStartX;
@@ -534,7 +551,7 @@ export function BookReaderPaginated({
 			getBookmark: () => {
 				const exploredCharCount = Math.max(
 					0,
-					calculator.calcExploredCharCount(),
+					calculator.calcPreciseExploredCharCount(),
 				);
 				return {
 					exploredCharCount,
@@ -593,6 +610,12 @@ export function BookReaderPaginated({
 
 	useWindowEvent("resize", () => {
 		const s = internalsRef.current;
+		if (s.calculator) {
+			s.previousIntendedCount = Math.max(
+				0,
+				s.calculator.calcPreciseExploredCharCount(),
+			);
+		}
 		clearTimeout(s.resizeTimer);
 		s.resizeTimer = setTimeout(() => {
 			setResizeTick((tick) => tick + 1);
@@ -659,6 +682,7 @@ export function BookReaderPaginated({
 			>
 				<div
 					ref={scrollElRef}
+					lang={language || undefined}
 					className={scrollElClasses}
 					style={scrollElStyle}
 				>

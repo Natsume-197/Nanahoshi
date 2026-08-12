@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import type { ComponentProps } from "react";
+import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 
 let activeAudiobookUuid: string | null = "audio-1";
 const loadAudiobook = mock(() => {});
@@ -129,6 +130,50 @@ describe("Read & Listen player bindings", () => {
 		);
 
 		expect(activeRanges[0]?.startOffset).toBe(3);
+	});
+
+	test("passes a repeated cue occurrence to virtualized reader modes", () => {
+		document.body.innerHTML = "";
+		const navigateToTextAnchor = mock(() => {});
+		const firstCue = {
+			id: "first-repeat",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter.xhtml",
+				exact: "はい。",
+			},
+			audioFileIndex: 0,
+			startMs: 0,
+			endMs: 1_000,
+			globalStartMs: 0,
+			globalEndMs: 1_000,
+		};
+		const secondCue = {
+			...firstCue,
+			id: "second-repeat",
+			startMs: 1_000,
+			endMs: 2_000,
+			globalStartMs: 1_000,
+			globalEndMs: 2_000,
+		};
+		render(
+			<ActiveReadListenCue
+				cue={secondCue}
+				sectionTargets={[
+					{ anchor: firstCue.text, value: firstCue },
+					{ anchor: secondCue.text, value: secondCue },
+				]}
+				followText
+				sourceFormat="epub"
+				readerApiRef={{
+					current: { navigateToTextAnchor } as unknown as BookReaderApi,
+				}}
+			/>,
+		);
+
+		expect(navigateToTextAnchor).toHaveBeenCalledWith(
+			expect.objectContaining({ occurrence: 1 }),
+		);
 	});
 
 	test("reloads the audiobook paused after the player is stopped", () => {
@@ -299,6 +344,8 @@ describe("Read & Listen player bindings", () => {
 						["ttu-epub-chapter-xhtml", [{ anchor: cue.text, value: cue }]],
 					])
 				}
+				readerApiRef={{ current: null }}
+				sourceFormat="epub"
 				onSettled={() => {}}
 			/>,
 		);

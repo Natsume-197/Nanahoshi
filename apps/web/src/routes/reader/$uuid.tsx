@@ -38,6 +38,7 @@ import {
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
 import { getBook } from "@/functions/books/get-book";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
@@ -87,11 +88,12 @@ import {
 import {
 	type CustomReaderThemes,
 	getReaderScrollbarColor,
+	getReaderScrollbarTrackColor,
 	getReaderTheme,
 	loadCustomThemes,
 	type ReaderSettings,
-	saveReaderSettings,
 } from "@/lib/reader/settings";
+import { getReaderScrollbarWidth } from "@/lib/reader/shared/reader-document-chrome";
 import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
 import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
 import { client, orpc } from "@/utils/orpc";
@@ -187,6 +189,7 @@ function ReaderPage() {
 	const audioPlayerBook = useAudioPlayerBook();
 	const { stop } = useAudioPlayerActions();
 	const navigate = useNavigate();
+	const isMobile = useIsMobile();
 	const pairingsQuery = useQuery(
 		orpc.readListen.getPairings.queryOptions({
 			input: { publicationUuid: uuid },
@@ -248,8 +251,11 @@ function ReaderPage() {
 	const [pdfDocumentPageCount, setPdfDocumentPageCount] = useState<
 		number | null
 	>(null);
+	const [readerApiRevision, setReaderApiRevision] = useState(0);
 	const apiRef = useRef<BookReaderApi | null>(null);
 	const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
+	const livePositionRef = useRef<ReaderBookmark | undefined>(undefined);
+	const overlayEntryPositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	const readListenPositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	// -1 = no report from the reader yet (0 is a real position: book start).
 	const exploredRef = useRef(-1);
@@ -266,6 +272,8 @@ function ReaderPage() {
 		previousUuidRef.current = uuid;
 		setPresentationPreference(loadReaderPresentationPreference(uuid));
 		setPdfDocumentPageCount(null);
+		livePositionRef.current = undefined;
+		overlayEntryPositionRef.current = undefined;
 	}
 
 	const toggleReadListen = () => {
@@ -330,6 +338,7 @@ function ReaderPage() {
 			bookCharCountRef.current = data.characters;
 			// The restored bookmark is also the displayed marker.
 			setBookmark(initial);
+			livePositionRef.current = initial;
 		},
 	});
 
@@ -373,10 +382,24 @@ function ReaderPage() {
 	const handleExploredChange = (count: number) => {
 		if (count === exploredRef.current) return;
 		exploredRef.current = count;
+		livePositionRef.current = {
+			exploredCharCount: count,
+			progress: bookCharCountRef.current ? count / bookCharCountRef.current : 0,
+			lastBookmarkModified: Date.now(),
+		};
 		setExploredCharCount(count);
 		setIsBookmarkScreen(
 			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
 		);
+	};
+
+	const captureReaderPosition = () => {
+		const position = apiRef.current?.getBookmark();
+		if (!position) return livePositionRef.current;
+		livePositionRef.current = position;
+		exploredRef.current = position.exploredCharCount;
+		setExploredCharCount(position.exploredCharCount);
+		return position;
 	};
 
 	// Direct commit path, used by keybinds while the overlay is closed
@@ -402,9 +425,18 @@ function ReaderPage() {
 	// rest re-measure in place — relayout() itself coalesces the slider-drag
 	// bursts and waits out the React commit.
 	const handleQuickSettingsChange = (patch: Partial<ReaderSettings>) => {
+		const layoutChanged = Object.keys(patch).some((key) =>
+			LAYOUT_SETTING_KEYS.has(key),
+		);
+		const position = layoutChanged ? captureReaderPosition() : undefined;
 		handleSettingsChange(patch);
-		if (Object.keys(patch).some((key) => LAYOUT_SETTING_KEYS.has(key))) {
-			apiRef.current?.relayout();
+		if (patch.theme) {
+			applyReaderBackground(
+				getReaderTheme(patch.theme, customThemesRef.current).backgroundColor,
+			);
+		}
+		if (layoutChanged && patch.writingMode === undefined) {
+			apiRef.current?.relayout(position);
 		}
 	};
 
@@ -419,8 +451,10 @@ function ReaderPage() {
 	const handlePresentationChange = (change: ReaderPresentationChange) => {
 		// Capture a mode-neutral position before the active engine unmounts. Every
 		// engine maps exploredCharCount onto the same normalized section sequence.
-		const currentPosition = apiRef.current?.getBookmark();
+		const currentPosition =
+			captureReaderPosition() ?? overlayEntryPositionRef.current;
 		if (currentPosition) {
+			livePositionRef.current = currentPosition;
 			exploredRef.current = currentPosition.exploredCharCount;
 			setExploredCharCount(currentPosition.exploredCharCount);
 		}
@@ -451,18 +485,33 @@ function ReaderPage() {
 	// scrollbar (it paints in the viewport gutter, outside any element), so the
 	// reader drops it entirely while one is up and re-anchors on restore.
 	const hideDocumentScrollbar = () => {
+		// Do this synchronously before mounting a Base UI modal. Its scroll lock
+		// otherwise sees the EPUB's hidden intrinsic overflow, reserves a body
+		// gutter, and may expose an off-axis document scrollbar.
+		document.documentElement.style.setProperty("scrollbar-width", "none");
 		apiRef.current?.setScrollbarHidden?.(true);
 	};
 
 	const restoreDocumentScrollbar = (themeId: string) => {
+		const readerTheme = getReaderTheme(themeId, customThemesRef.current);
 		document.documentElement.style.setProperty(
 			"scrollbar-color",
-			`${getReaderScrollbarColor(getReaderTheme(themeId, customThemesRef.current))} transparent`,
+			`${getReaderScrollbarColor(readerTheme)} ${getReaderScrollbarTrackColor(readerTheme)}`,
+		);
+		document.documentElement.style.setProperty(
+			"scrollbar-width",
+			getReaderScrollbarWidth(),
 		);
 		apiRef.current?.setScrollbarHidden?.(false);
 	};
 
+	const closeQuickSettings = () => {
+		setQuickSettingsOpen(false);
+		restoreDocumentScrollbar(settings.theme);
+	};
+
 	const openSettings = () => {
+		overlayEntryPositionRef.current = captureReaderPosition();
 		hideDocumentScrollbar();
 		setDraftSettings(settings);
 	};
@@ -470,6 +519,7 @@ function ReaderPage() {
 	const applyCommittedSettings = (
 		next: ReaderSettings,
 		prev: ReaderSettings,
+		position?: ReaderBookmark,
 	) => {
 		const structuralChanged =
 			next.textLayout !== prev.textLayout ||
@@ -482,12 +532,13 @@ function ReaderPage() {
 		// Structural changes remount (the remount measures from scratch); other
 		// layout changes re-measure in place (relayout waits out the commit).
 		if (!structuralChanged && layoutChanged) {
-			apiRef.current?.relayout();
+			apiRef.current?.relayout(position);
 		}
 	};
 
 	const closeSettings = () => {
 		const next = draftSettings;
+		const position = overlayEntryPositionRef.current ?? captureReaderPosition();
 		setDraftSettings(null);
 		if (!next) return;
 
@@ -498,32 +549,24 @@ function ReaderPage() {
 				setProfileSettings(profilesStore, activeProfileId, next),
 			),
 		);
-		applyCommittedSettings(next, settings);
+		if (position) livePositionRef.current = position;
+		applyCommittedSettings(next, settings, position);
+		overlayEntryPositionRef.current = undefined;
 	};
 
 	// Swaps the live settings for another profile's (overlay closed): restyles
 	// the page chrome and remounts/relayouts the book like a settings commit.
 	const applyProfileSettings = (next: ReaderSettings) => {
 		const prev = settingsRef.current;
+		const position = captureReaderPosition();
 		setSettings(next);
 		const nextTheme = getReaderTheme(next.theme, customThemesRef.current);
 		applyReaderBackground(nextTheme.backgroundColor);
 		document.documentElement.style.setProperty(
 			"scrollbar-color",
-			`${getReaderScrollbarColor(nextTheme)} transparent`,
+			`${getReaderScrollbarColor(nextTheme)} ${getReaderScrollbarTrackColor(nextTheme)}`,
 		);
-		applyCommittedSettings(next, prev);
-	};
-
-	// Switching profiles doesn't modify the store (no push) — only the
-	// per-device pointer and the legacy settings mirror move.
-	const handleProfileSwitch = (id: string) => {
-		if (id === activeProfileId) return;
-		setActiveProfileId(id);
-		setActiveProfileIdState(id);
-		const next = getProfileSettings(profilesStore, id);
-		saveReaderSettings(next);
-		applyProfileSettings(next);
+		applyCommittedSettings(next, prev, position);
 	};
 
 	// Switch while the overlay is open: the draft is saved into the outgoing
@@ -692,11 +735,12 @@ function ReaderPage() {
 		galleryOpen,
 		tocOpen,
 		settingsOpen: settingsOpen || quickSettingsOpen,
+		navigationBlocked: Boolean(audioPlayerBook) && isAudioPlayerExpanded,
 		onBookmark: bookmarkPage,
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: () => {
-			setQuickSettingsOpen(false);
-			closeSettings();
+			if (quickSettingsOpen) closeQuickSettings();
+			else closeSettings();
 		},
 		onChangeChapter: changeChapter,
 		onAutoScrollMultiplierChange: (next) => {
@@ -763,13 +807,14 @@ function ReaderPage() {
 	// Structural remounts (view/writing mode change) restore the position the
 	// reader was at, not the original load-time position.
 	const initialPosition =
-		exploredRef.current >= 0
+		livePositionRef.current ??
+		(exploredRef.current >= 0
 			? {
 					exploredCharCount: exploredRef.current,
 					progress: data.characters ? exploredRef.current / data.characters : 0,
 					lastBookmarkModified: Date.now(),
 				}
-			: loadState.bookmark;
+			: loadState.bookmark);
 
 	// Only truly structural settings remount the reader (different component /
 	// different scroll axis). Everything else — fonts, sizes, margins, furigana,
@@ -800,6 +845,12 @@ function ReaderPage() {
 					"--player-height": "88px",
 					"--player-reserve":
 						"calc(var(--player-height) + var(--safe-area-bottom))",
+					"--reader-player-reserve-mobile": audioPlayerBook
+						? "calc(var(--mobile-player-height) + var(--safe-area-bottom))"
+						: "var(--safe-area-bottom)",
+					"--reader-player-reserve-desktop": audioPlayerBook
+						? "var(--player-reserve)"
+						: "var(--safe-area-bottom)",
 				} as CSSProperties
 			}
 		>
@@ -821,6 +872,7 @@ function ReaderPage() {
 
 			<ReaderEngine
 				key={readerKey}
+				bookUuid={uuid}
 				presentation={presentation}
 				book={data}
 				htmlContent={html}
@@ -832,8 +884,26 @@ function ReaderPage() {
 				onExploredCharCountChange={handleExploredChange}
 				onSectionProgressChange={setSectionProgress}
 				onToggleChrome={() => setShowHeader((open) => !open)}
+				onExitFocus={() =>
+					handlePresentationChange({ type: "text-layout", value: "scroll" })
+				}
+				navigationBlocked={
+					settingsOpen ||
+					quickSettingsOpen ||
+					tocOpen ||
+					galleryOpen ||
+					(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
+				}
 				controllerRef={(controller: BookReaderApi | null) => {
 					apiRef.current = controller;
+					if (controller) {
+						setReaderApiRevision((revision) => revision + 1);
+						// A flow/orientation switch can replace the controller while an
+						// overlay is still open; keep its modal lock gutter-free.
+						if (quickSettingsOpen || settingsOpen || galleryOpen) {
+							controller.setScrollbarHidden?.(true);
+						}
+					}
 				}}
 				pdfSource={loadState.pdfSource}
 				onPdfDocumentReady={handlePdfDocumentReady}
@@ -851,6 +921,7 @@ function ReaderPage() {
 						readerSurfaceRef={readerSurfaceRef}
 						sections={data.sections}
 						initialTextPosition={readListenEntryCharacter}
+						readerDomRevision={`${readerKey}:${readerApiRevision}`}
 					/>
 				)}
 			{!readListenPairUuid &&
@@ -903,6 +974,7 @@ function ReaderPage() {
 				}}
 				onQuickSettingsClick={() => {
 					setShowHeader(false);
+					hideDocumentScrollbar();
 					setQuickSettingsOpen(true);
 				}}
 				readListenAvailable={readListenAvailable}
@@ -951,9 +1023,8 @@ function ReaderPage() {
 					mangaSettings={mangaSettings}
 					settings={settings}
 					theme={theme}
-					profiles={profilesStore.profiles}
-					activeProfileId={activeProfileId}
-					onProfileSwitch={handleProfileSwitch}
+					customThemes={customThemes}
+					isMobile={isMobile}
 					onChange={handleQuickSettingsChange}
 					onMangaSettingsChange={handleMangaSettingsChange}
 					onPresentationChange={handlePresentationChange}
@@ -961,7 +1032,7 @@ function ReaderPage() {
 						setQuickSettingsOpen(false);
 						openSettings();
 					}}
-					onClose={() => setQuickSettingsOpen(false)}
+					onClose={closeQuickSettings}
 				/>
 			)}
 

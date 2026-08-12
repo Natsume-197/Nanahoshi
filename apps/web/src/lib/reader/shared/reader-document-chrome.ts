@@ -3,12 +3,25 @@
 // can't leak into the rest of the app. Owns global chrome only — the vertical
 // strip height, scroll resets, and content wiring stay in the reader.
 export interface ReaderDocumentChromeOptions {
-	mode: "continuous" | "paginated";
+	mode: "continuous" | "paginated" | "focus";
 	verticalMode: boolean;
 	backgroundColor: string;
 	/** Continuous only: the full-size themed document scrollbar colors. */
 	scrollbarColor?: string;
 	scrollbarTrackColor?: string;
+}
+
+const COMPACT_READER_QUERY = "(max-width: 48rem), (pointer: coarse)";
+
+/**
+ * Classic scrollbars consume layout width. Compact/touch readers already show
+ * progress in the footer, so keep the native bar only on larger precise-pointer
+ * screens where its draggable affordance is useful.
+ */
+export function getReaderScrollbarWidth(
+	win: Pick<Window, "matchMedia"> = window,
+): "auto" | "none" {
+	return win.matchMedia(COMPACT_READER_QUERY).matches ? "none" : "auto";
 }
 
 export function applyReaderDocumentChrome(
@@ -28,9 +41,10 @@ export function applyReaderDocumentChrome(
 		// The reader anchors by character count on every reflow; the browser's own
 		// scroll anchoring fights those corrections with extra scrolls.
 		setProp("overflow-anchor", "none");
-		// The app-wide scrollbar (thin) is too subtle for the reading axis — use a
-		// full-size bar themed to the book colors.
-		setProp("scrollbar-width", "auto");
+		// A classic scrollbar reserves ~15 CSS px (often ~30 physical px on mobile)
+		// and visibly shortens every line. Compact/touch screens use the footer's
+		// progress instead; larger precise-pointer screens retain the draggable bar.
+		setProp("scrollbar-width", getReaderScrollbarWidth());
 		if (o.scrollbarColor && o.scrollbarTrackColor) {
 			// Not tracked in setKeys: the unconditional cleanup below already owns
 			// scrollbar-color (it also clears the settings overlay's preview tint).

@@ -25,6 +25,17 @@ const positionIndexCache = new WeakMap<Element, WeakMap<object, unknown>>();
 const IGNORED_SELECTOR =
 	'script,style,noscript,svg,nav,rt,rp,[hidden],[aria-hidden="true"]';
 
+function focusSectionHasFragment(section: Element, fragmentId: string) {
+	const ids = section.getAttribute("data-focus-fragment-ids");
+	if (!ids) return false;
+	try {
+		const parsed = JSON.parse(ids) as unknown;
+		return Array.isArray(parsed) && parsed.includes(fragmentId);
+	} catch {
+		return false;
+	}
+}
+
 function acceptedTextNodes(root: Element): Text[] {
 	const showText = root.ownerDocument.defaultView?.NodeFilter.SHOW_TEXT ?? 4;
 	const walker = root.ownerDocument.createTreeWalker(root, showText);
@@ -167,9 +178,11 @@ export function resolveReadListenAnchor(
 	anchor: ReadListenCue["text"],
 ): ResolvedReadListenAnchor | null {
 	if (anchor.kind === "fragment") {
-		const fragment = [...section.querySelectorAll<HTMLElement>("[id]")].find(
-			(element) => element.id === anchor.fragmentId,
-		);
+		const fragment =
+			[...section.querySelectorAll<HTMLElement>("[id]")].find(
+				(element) => element.id === anchor.fragmentId,
+			) ??
+			(focusSectionHasFragment(section, anchor.fragmentId) ? section : null);
 		if (!fragment) return null;
 		const nodes = acceptedTextNodes(fragment);
 		return nodes.length
@@ -227,7 +240,12 @@ export function createReadListenPositionIndex<T>(
 				]),
 			);
 		}
-		return elementsById.get(id);
+		return (
+			elementsById.get(id) ??
+			(focusSectionHasFragment(section, id)
+				? (section as HTMLElement)
+				: undefined)
+		);
 	};
 	const matches: ReadListenPositionMatch<T>[] = [];
 	const matchesByValue = new Map<T, ReadListenPositionMatch<T>>();

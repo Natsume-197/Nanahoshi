@@ -8,12 +8,14 @@ import type {
 	SectionWithProgress,
 } from "@/lib/reader/types";
 import { BookReaderContinuous } from "./book-reader-continuous";
+import { BookReaderFocus } from "./book-reader-focus";
 import { BookReaderManga } from "./book-reader-manga";
 import { BookReaderPaginated } from "./book-reader-paginated";
 import { BookReaderPdf } from "./book-reader-pdf";
 import type { BookReaderApi } from "./reader-shared-props";
 
 interface ReaderEngineProps {
+	bookUuid: string;
 	presentation: ReaderPresentation;
 	book: Pick<ReaderBookData, "language" | "presentation" | "sections">;
 	htmlContent: string;
@@ -25,6 +27,8 @@ interface ReaderEngineProps {
 	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onToggleChrome: () => void;
+	onExitFocus: () => void;
+	navigationBlocked: boolean;
 	controllerRef: (controller: BookReaderApi | null) => void;
 	pdfSource?: PdfReaderSource;
 	onPdfDocumentReady?: (pageCount: number) => void;
@@ -36,6 +40,7 @@ interface ReaderEngineProps {
  * internal to this module.
  */
 export function ReaderEngine({
+	bookUuid,
 	presentation,
 	book,
 	htmlContent,
@@ -47,6 +52,8 @@ export function ReaderEngine({
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	onToggleChrome,
+	onExitFocus,
+	navigationBlocked,
 	controllerRef,
 	pdfSource,
 	onPdfDocumentReady,
@@ -91,6 +98,7 @@ export function ReaderEngine({
 	const verticalMode = readerSettings.writingMode === "vertical-rl";
 	const sharedProps = {
 		htmlContent,
+		language: book.language,
 		verticalMode,
 		theme,
 		fontFamilyGroupOne: readerSettings.fontFamilyGroupOne,
@@ -112,6 +120,7 @@ export function ReaderEngine({
 		hideFurigana: readerSettings.hideFurigana,
 		furiganaStyle: readerSettings.furiganaStyle,
 		disableWheelNavigation: readerSettings.disableWheelNavigation,
+		navigationBlocked,
 		sections: book.sections,
 		initialPosition,
 		initialBookmark,
@@ -126,6 +135,16 @@ export function ReaderEngine({
 				{...sharedProps}
 				avoidPageBreak={readerSettings.avoidPageBreak}
 				pageColumns={readerSettings.pageColumns}
+			/>
+		);
+	}
+	if (presentation.engine === "text-focus") {
+		return (
+			<BookReaderFocus
+				{...sharedProps}
+				bookUuid={bookUuid}
+				language={book.language}
+				onExitFocus={onExitFocus}
 			/>
 		);
 	}

@@ -1,4 +1,4 @@
-import type { ReaderBookmark } from "./types";
+import { READER_POSITION_VERSION, type ReaderBookmark } from "./types";
 
 // The manual bookmark is the single source of truth for the saved reading
 // position — there is deliberately no separate "last position" record saved on
@@ -17,7 +17,13 @@ export function loadLocalBookmark(uuid: string): ReaderBookmark | undefined {
 
 export function saveLocalBookmark(uuid: string, bookmark: ReaderBookmark) {
 	try {
-		window.localStorage.setItem(keyFor(uuid), JSON.stringify(bookmark));
+		window.localStorage.setItem(
+			keyFor(uuid),
+			JSON.stringify({
+				...bookmark,
+				positionVersion: READER_POSITION_VERSION,
+			}),
+		);
 	} catch {
 		// no-op
 	}

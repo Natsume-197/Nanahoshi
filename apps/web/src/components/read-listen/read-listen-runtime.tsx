@@ -34,6 +34,7 @@ export function ReadListenRuntime({
 	readerSurfaceRef,
 	sections,
 	initialTextPosition,
+	readerDomRevision,
 }: {
 	pairUuid: string;
 	ebookUuid: string;
@@ -42,6 +43,7 @@ export function ReadListenRuntime({
 	readerSurfaceRef: RefObject<HTMLElement | null>;
 	sections: Section[];
 	initialTextPosition?: number;
+	readerDomRevision: string;
 }) {
 	const [followText, setFollowText] = useState(true);
 	const [seekFromText, setSeekFromText] = useState(false);
@@ -164,10 +166,12 @@ export function ReadListenRuntime({
 				timeline &&
 				targetsBySection.size > 0 && (
 					<SeekReadListenFromText
-						key={`${pairUuid}:${alignmentRevision}:${initialTextPosition}`}
+						key={`${pairUuid}:${alignmentRevision}:${initialTextPosition}:${readerDomRevision}`}
 						targetCharacter={initialTextPosition}
 						sections={sections}
 						targetsBySection={targetsBySection}
+						readerApiRef={readerApiRef}
+						sourceFormat={sourceFormat}
 						onSettled={(cue) => {
 							setInitialSeekCue(
 								cue ? { cueId: cue.id, playbackReachedCue: false } : undefined,
@@ -178,7 +182,7 @@ export function ReadListenRuntime({
 				)}
 			{activeCue && !isInitialTextSeekPending && (
 				<ActiveReadListenCue
-					key={`${alignmentRevision}:${sourceFormat}:${activeCue.id}:${followText}`}
+					key={`${alignmentRevision}:${sourceFormat}:${activeCue.id}:${followText}:${readerDomRevision}`}
 					cue={activeCue}
 					sectionTargets={
 						targetsBySection.get(
@@ -192,7 +196,7 @@ export function ReadListenRuntime({
 			)}
 			{seekFromText && isAudiobookLoaded && (
 				<ReadListenSentenceSeeking
-					key={`${pairUuid}:${alignmentRevision}:${sourceFormat}`}
+					key={`${pairUuid}:${alignmentRevision}:${sourceFormat}:${readerDomRevision}`}
 					surfaceRef={readerSurfaceRef}
 					targetsBySection={targetsBySection}
 				/>

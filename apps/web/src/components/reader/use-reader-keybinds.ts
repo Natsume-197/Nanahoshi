@@ -16,6 +16,8 @@ interface UseReaderKeybindsArgs {
 	galleryOpen: boolean;
 	tocOpen: boolean;
 	settingsOpen: boolean;
+	/** A non-reader surface (for example the expanded player) owns input. */
+	navigationBlocked?: boolean;
 	onBookmark: () => void;
 	onCloseToc: () => void;
 	onCloseSettings: () => void;
@@ -50,6 +52,7 @@ export function useReaderKeybinds({
 	galleryOpen,
 	tocOpen,
 	settingsOpen,
+	navigationBlocked = false,
 	onBookmark,
 	onCloseToc,
 	onCloseSettings,
@@ -80,7 +83,7 @@ export function useReaderKeybinds({
 		) {
 			return;
 		}
-		if (galleryOpen) return; // the gallery handles its own keys
+		if (galleryOpen || navigationBlocked) return; // the owning overlay handles its own keys
 		if (tocOpen || settingsOpen) {
 			if (event.key === "Escape") {
 				onCloseToc();

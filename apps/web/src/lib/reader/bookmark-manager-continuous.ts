@@ -23,7 +23,7 @@ export class BookmarkManagerContinuous {
 	) {}
 
 	formatBookmarkData(): ReaderBookmark {
-		const exploredCharCount = this.calculator.calcExploredCharCount();
+		const exploredCharCount = this.calculator.calcPreciseExploredCharCount();
 		const bookCharCount = this.calculator.charCount;
 
 		const { verticalMode } = this.calculator;
