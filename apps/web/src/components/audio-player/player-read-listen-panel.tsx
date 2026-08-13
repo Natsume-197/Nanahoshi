@@ -31,6 +31,7 @@ import {
 	getReadListenCueDisplayText,
 	getReadListenTextEdgePadding,
 	scrollReadListenTextByKey,
+	shouldPauseReadListenFollowingOnPointerDown,
 } from "@/lib/read-listen/synchronized-text";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -78,7 +79,7 @@ function PlayerReadListenSessionPanel({
 	const virtualizer = useVirtualizer({
 		count: session.timeline.length,
 		getScrollElement: () => scrollRef.current,
-		estimateSize: () => 76,
+		estimateSize: () => 80,
 		overscan: 10,
 		getItemKey: (index) => session.timeline[index]?.id ?? index,
 		paddingStart: edgePadding,
@@ -165,9 +166,14 @@ function PlayerReadListenSessionPanel({
 				onKeyDown={handleManualScrollKey}
 				onWheel={() => setFollowText(false)}
 				onPointerDown={(event) => {
-					if (event.button === 0) setFollowText(false);
+					if (
+						event.button === 0 &&
+						shouldPauseReadListenFollowingOnPointerDown(event.target)
+					) {
+						setFollowText(false);
+					}
 				}}
-				className="h-full overflow-y-auto overscroll-contain px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-inset"
+				className="scrollbar-none read-listen-lyrics-viewport h-full overflow-y-auto overscroll-contain px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-inset"
 			>
 				<ol
 					className="relative m-0 w-full list-none p-0"
@@ -186,7 +192,7 @@ function PlayerReadListenSessionPanel({
 								data-index={item.index}
 								data-read-listen-cue-id={cue.id}
 								ref={virtualizer.measureElement}
-								className="absolute inset-x-0 top-0 px-1"
+								className="absolute inset-x-0 top-0 px-1 py-2"
 								style={{ transform: `translateY(${item.start}px)` }}
 							>
 								{text ? (
@@ -199,10 +205,10 @@ function PlayerReadListenSessionPanel({
 											session.seekToCue(cue);
 										}}
 										className={cn(
-											"min-h-14 w-full rounded-xl px-3 py-3 text-start text-base leading-relaxed outline-none transition-[background-color,color] duration-150 focus-visible:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring/70 md:text-lg",
+											"min-h-16 w-full text-pretty rounded-xl px-3 py-4 text-center text-lg leading-relaxed outline-none transition-colors duration-150 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/70 md:text-xl",
 											isActive
-												? "bg-foreground/10 font-semibold text-foreground"
-												: "text-foreground/70 hover:bg-foreground/5 hover:text-foreground",
+												? "font-semibold text-foreground"
+												: "text-foreground/40 hover:text-foreground/70",
 										)}
 									>
 										{text}
@@ -217,8 +223,10 @@ function PlayerReadListenSessionPanel({
 											session.seekToCue(cue);
 										}}
 										className={cn(
-											"min-h-16 w-full rounded-xl px-3 py-3 text-start text-muted-foreground text-sm leading-relaxed outline-none transition-[background-color,color] duration-150 hover:bg-foreground/5 hover:text-foreground focus-visible:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring/70",
-											isActive && "bg-foreground/10",
+											"min-h-16 w-full text-pretty rounded-xl px-3 py-4 text-center text-sm leading-relaxed outline-none transition-colors duration-150 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/70",
+											isActive
+												? "font-medium text-foreground/75"
+												: "text-foreground/35 hover:text-foreground/60",
 										)}
 									>
 										{m["read_listen.fragment_requires_reader"]()}

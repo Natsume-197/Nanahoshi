@@ -29,6 +29,9 @@ describe("PlayerModeSelector", () => {
 		});
 		expect((listen as HTMLInputElement).checked).toBe(false);
 		expect((readListen as HTMLInputElement).checked).toBe(true);
+		expect(readListen.nextElementSibling?.className).toContain(
+			"bg-white text-black",
+		);
 
 		fireEvent.click(listen);
 		expect(onModeChange).toHaveBeenCalledWith("listen");

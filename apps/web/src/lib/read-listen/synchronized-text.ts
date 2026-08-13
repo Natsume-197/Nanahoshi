@@ -16,6 +16,22 @@ export function getReadListenTextEdgePadding(viewportHeight: number): number {
 	return Math.max(0, Math.ceil(viewportHeight / 2));
 }
 
+/**
+ * Cue presses seek and resume following on click. Do not treat their earlier
+ * pointerdown as a manual viewport interaction, or the resume button flashes
+ * for the frame between pointerdown and click.
+ */
+export function shouldPauseReadListenFollowingOnPointerDown(
+	target: EventTarget | null,
+): boolean {
+	const pointerTarget = target as
+		| (EventTarget & {
+				closest?: (selector: string) => unknown;
+		  })
+		| null;
+	return pointerTarget?.closest?.("[data-read-listen-cue-id]") == null;
+}
+
 export function getReadListenManualScrollDelta({
 	key,
 	viewportHeight,

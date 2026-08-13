@@ -680,15 +680,36 @@
 	background:
 		linear-gradient(
 			to bottom,
-			oklch(0.08 0 0 / 2%),
-			oklch(0.08 0 0 / 5%) 58%,
-			oklch(0.08 0 0 / 12%)
+			transparent 34%,
+			oklch(0.055 0 0 / 6%) 48%,
+			oklch(0.055 0 0 / 18%) 66%,
+			oklch(0.055 0 0 / 34%) 84%,
+			oklch(0.055 0 0 / 52%) 100%
 		),
 		radial-gradient(
 			ellipse 105% 84% at 50% 45%,
 			transparent 62%,
 			oklch(0.08 0 0 / 8%) 100%
 		);
+}
+
+/* The synchronized text reads as one continuous lyric surface. Edge cues stay
+   discoverable while the center retains full contrast for the active line. */
+.read-listen-lyrics-viewport {
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 11%,
+		black 84%,
+		transparent
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 11%,
+		black 84%,
+		transparent
+	);
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -699,6 +720,11 @@
 	.player-ambient-veil {
 		background: oklch(0.08 0 0 / 64%);
 	}
+
+	.read-listen-lyrics-viewport {
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
 }
 
 @media (prefers-contrast: more) {
@@ -707,6 +733,10 @@
 	}
 	.player-ambient-veil {
 		background: oklch(0.08 0 0 / 72%);
+	}
+	.read-listen-lyrics-viewport {
+		-webkit-mask-image: none;
+		mask-image: none;
 	}
 }
 

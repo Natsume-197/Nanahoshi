@@ -149,12 +149,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 						isLarge ? "py-3" : "py-2",
 					)}
 				>
-					<SliderPrimitive.Track
-						className={cn(
-							"relative w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height]",
-							isLarge ? "h-1.5 group-hover:h-2" : "h-1 group-hover:h-1.5",
-						)}
-					>
+					<SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
 						{hoverPct != null && (
 							<span
 								className="pointer-events-none absolute h-full rounded-full bg-foreground/35"
@@ -178,14 +173,9 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 							elapsed: formatTime(elapsed),
 							total: formatTime(total),
 						})}
-						className={cn(
-							// Hidden until hover on a mouse, but a touch screen has no
-							// hover: there the position marker has to be permanent.
-							"pointer-events-none block size-0 rounded-full bg-foreground transition-[width,height] focus-visible:outline-hidden",
-							isLarge
-								? "pointer-coarse:size-5 focus-visible:size-5 group-hover:size-5"
-								: "pointer-coarse:size-4 focus-visible:size-4 group-hover:size-4",
-						)}
+						// Hidden until hover on a mouse, but a touch screen has no
+						// hover: there the position marker has to be permanent.
+						className="pointer-events-none block pointer-coarse:size-4 size-0 rounded-full bg-foreground transition-[width,height] focus-visible:size-4 focus-visible:outline-hidden group-hover:size-4"
 					/>
 				</SliderPrimitive.Control>
 			</SliderPrimitive.Root>
@@ -197,7 +187,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 		return (
 			<div data-sheet-ignore className={cn("flex w-full flex-col", className)}>
 				{track}
-				<div className="-mt-2 flex items-baseline justify-between text-foreground/90 text-xs tabular-nums">
+				<div className="-mt-2 flex items-baseline justify-between text-muted-foreground text-sm tabular-nums">
 					<span>{formatTime(elapsed)}</span>
 					<span>{rightLabel}</span>
 				</div>

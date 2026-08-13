@@ -47,6 +47,9 @@ describe("expanded player ambient background", () => {
 	it("keeps a dark contrast veil above the artwork", () => {
 		expect(source).toContain('className="player-ambient-veil"');
 		expect(css).toContain(".player-ambient-veil {");
+		expect(css).toContain("transparent 34%");
+		expect(css).toContain("oklch(0.055 0 0 / 18%) 66%");
+		expect(css).toContain("oklch(0.055 0 0 / 52%) 100%");
 		expect(css).toContain("transparent 62%");
 	});
 
@@ -60,5 +63,22 @@ describe("expanded player ambient background", () => {
 		expect(source).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
 		expect(source).toContain("max-[22rem]:row-start-2");
 		expect(source).not.toContain("absolute left-1/2 -translate-x-1/2");
+	});
+
+	it("lets the artwork yield before lower player controls are clipped", () => {
+		expect(source).toContain(
+			'"flex min-h-0 w-full flex-1 items-center justify-center"',
+		);
+		expect(source).not.toContain("min-h-[min(52vw,18rem)]");
+		expect(source).toContain("gap-3 md:max-w-lg md:gap-4");
+	});
+
+	it("keeps the artwork size stable across playback states", () => {
+		expect(source).not.toContain('!isPlaying && "scale-[0.94]"');
+		expect(source).not.toContain("transition-transform duration-500");
+	});
+
+	it("allows the artwork to use more space than the text column", () => {
+		expect(source).toContain("max-w-[calc(100%+1rem)]");
 	});
 });

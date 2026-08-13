@@ -5,6 +5,7 @@ import {
 	getReadListenTextEdgePadding,
 	isReadListenManualScrollKey,
 	scrollReadListenTextByKey,
+	shouldPauseReadListenFollowingOnPointerDown,
 } from "./synchronized-text";
 import type { ReadListenTimelineCue } from "./timeline";
 
@@ -112,5 +113,20 @@ describe("Read & Listen synchronized text", () => {
 		expect(scrollReadListenTextByKey({ key: "End", viewport })).toBe(true);
 		expect(scrollTo).toHaveBeenCalledWith({ top: 4_000, behavior: "auto" });
 		expect(scrollReadListenTextByKey({ key: "Enter", viewport })).toBe(false);
+	});
+
+	test("keeps following while a cue click is in progress", () => {
+		const cueTarget = {
+			closest: (selector: string) =>
+				selector === "[data-read-listen-cue-id]" ? cueTarget : null,
+		} as unknown as EventTarget;
+		const viewportTarget = {
+			closest: () => null,
+		} as unknown as EventTarget;
+
+		expect(shouldPauseReadListenFollowingOnPointerDown(cueTarget)).toBe(false);
+		expect(shouldPauseReadListenFollowingOnPointerDown(viewportTarget)).toBe(
+			true,
+		);
 	});
 });

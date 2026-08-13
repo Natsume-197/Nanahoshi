@@ -146,7 +146,6 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 		globalCurrentTime,
 		totalDuration,
 		speed,
-		isPlaying,
 		showError,
 	} = useAudioPlayerState();
 	const { seekTo, setExpanded } = useAudioPlayerActions();
@@ -248,10 +247,10 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 					</div>
 				</div>
 
-				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-5 pb-4 md:px-8 md:pb-6">
+				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-5 py-4 md:px-8 md:py-6">
 					{/* Below lg the chapter list takes the artwork's place inside the
 					    column, so the transport and the Chapters toggle stay reachable. */}
-					<div className="flex min-h-0 w-full min-w-0 max-w-md flex-col items-center justify-center gap-4 md:max-w-lg md:gap-5 xl:max-w-xl">
+					<div className="flex min-h-0 w-full min-w-0 max-w-md flex-col items-center justify-center gap-3 md:max-w-lg md:gap-4 xl:max-w-xl">
 						{/* touch-none per surface, never on the column: the chapter list must
 						    not sit under an ancestor that forbids panning, and the page
 						    behind must not take the gesture mid-pull. */}
@@ -278,10 +277,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 									alt={title}
 									// max-* only: an explicit height outgrows a narrow cover and
 									// detaches the shadow from the art.
-									className={cn(
-										"max-h-full max-w-full rounded-[12px] object-contain shadow-[0_20px_50px_-20px_oklch(0_0_0/0.85)] outline outline-[var(--image-outline)] -outline-offset-1 transition-transform duration-500 ease-[var(--ease-smooth-out)] motion-reduce:transition-none",
-										!isPlaying && "scale-[0.94]",
-									)}
+									className="max-h-full max-w-[calc(100%+1rem)] rounded-[12px] object-contain shadow-[0_20px_50px_-20px_oklch(0_0_0/0.85)] outline outline-[var(--image-outline)] -outline-offset-1"
 									decoding="async"
 								/>
 							) : (
@@ -296,13 +292,13 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 
 						<div className="flex w-full min-w-0 shrink-0 touch-none items-start gap-3">
 							<div className="min-w-0 flex-1">
-								<h2 className="font-bold text-xl leading-tight md:text-2xl">
+								<h2 className="font-semibold text-2xl leading-tight tracking-[-0.02em] md:text-3xl">
 									<MarqueeText text={title} />
 								</h2>
 								{authorText && (
 									<p
 										title={authorText}
-										className="mt-1.5 truncate text-muted-foreground text-sm"
+										className="mt-2 truncate text-base text-foreground/65"
 									>
 										{authorText}
 									</p>
@@ -310,7 +306,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 								{readListen && (
 									<p
 										title={readListen.statusText}
-										className="mt-2 line-clamp-2 text-foreground/80 text-sm leading-normal"
+										className="mt-2.5 line-clamp-2 text-base text-foreground/75 leading-normal"
 									>
 										{readListen.statusText}
 									</p>
@@ -334,7 +330,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 							) : (
 								// At 1× the seek bar already counts this down.
 								speed !== 1 && (
-									<p className="flex justify-end text-muted-foreground text-xs tabular-nums">
+									<p className="flex justify-end text-muted-foreground text-sm tabular-nums">
 										{m["audiobook.time_left"]({ time: timeLeft })}
 									</p>
 								)
