@@ -78,8 +78,7 @@ export function ImageUploadRow({
 				<Button
 					type="button"
 					size="sm"
-					variant="ghost"
-					className="text-muted-foreground"
+					variant="destructive"
 					onClick={onClear}
 					disabled={clearing}
 				>
