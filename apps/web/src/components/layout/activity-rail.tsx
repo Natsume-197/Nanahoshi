@@ -1,4 +1,4 @@
-import { X } from "@phosphor-icons/react";
+import { ChevronLeftIcon } from "lucide-react";
 import { MembersList } from "@/components/shared/members-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useActivityRailIsSheet } from "@/hooks/use-mobile";
+import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -33,6 +34,7 @@ export function ActivityRail({
 	reservePlayerSpace = false,
 }: ActivityRailProps) {
 	const isSheet = useActivityRailIsSheet();
+	useOverlayBackDismiss(open && isSheet, onClose);
 
 	// Escape dismisses the desktop overlay, but only when it's the topmost layer:
 	// the sheet and any open dialog handle their own Escape.
@@ -65,29 +67,35 @@ export function ActivityRail({
 					<SheetContent
 						side="right"
 						showCloseButton={false}
-						overlayClassName="bg-black/25 supports-backdrop-filter:backdrop-blur-none"
-						className="flex w-full max-w-sm flex-col gap-0 p-0"
+						overlayClassName="hidden"
+						className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 					>
-						<SheetHeader className="flex h-14 shrink-0 flex-row items-center justify-between gap-2 px-4 py-0">
-							<SheetTitle className="text-sm tracking-wide">
-								{m["members.title"]()}
-							</SheetTitle>
-							<SheetDescription className="sr-only">
-								{m["members.panel"]()}
-							</SheetDescription>
+						<SheetHeader className="grid shrink-0 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 border-b ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-[calc(var(--safe-area-top)+0.5rem)] pb-2 text-center">
 							<Button
 								type="button"
 								variant="ghost"
-								size="icon-sm"
-								aria-label={m["aria.friends_activity"]()}
-								title={m["aria.friends_activity"]()}
+								size="icon-lg"
+								aria-label={m["aria.go_back"]()}
+								title={m["aria.go_back"]()}
 								onClick={onClose}
-								className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+								className="size-11 rounded-full"
 							>
-								<X />
+								<ChevronLeftIcon />
 							</Button>
+							<div className="min-w-0">
+								<SheetTitle className="truncate font-semibold text-lg">
+									{m["members.title"]()}
+								</SheetTitle>
+								<SheetDescription className="sr-only">
+									{m["members.panel"]()}
+								</SheetDescription>
+							</div>
+							<span aria-hidden="true" />
 						</SheetHeader>
-						<MembersList />
+						<MembersList
+							onNavigate={onClose}
+							className="ps-[max(0.25rem,var(--safe-area-left))] pe-[max(0.25rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
+						/>
 					</SheetContent>
 				</Sheet>
 			)}

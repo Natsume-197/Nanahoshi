@@ -114,7 +114,7 @@ function MobileNotificationBell({ count }: { count: number }) {
 				side="right"
 				showCloseButton={false}
 				overlayClassName="hidden"
-				className="mobile-notifications-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
+				className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 			>
 				<NotificationPanel mode="screen" onNavigate={() => setOpen(false)} />
 			</SheetContent>

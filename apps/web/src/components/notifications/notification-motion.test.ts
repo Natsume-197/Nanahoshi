@@ -5,8 +5,8 @@ const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 describe("mobile notification motion", () => {
 	it("uses Base UI's symmetric starting and ending states", () => {
-		expect(css).toContain(".mobile-notifications-sheet[data-starting-style]");
-		expect(css).toContain(".mobile-notifications-sheet[data-ending-style]");
+		expect(css).toContain(".mobile-screen-sheet[data-starting-style]");
+		expect(css).toContain(".mobile-screen-sheet[data-ending-style]");
 	});
 
 	it("uses interruptible transform transitions instead of sheet keyframes", () => {

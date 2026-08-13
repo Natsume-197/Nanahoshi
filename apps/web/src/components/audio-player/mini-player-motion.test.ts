@@ -9,9 +9,10 @@ const playerBar = readFileSync(
 );
 
 describe("expanded player motion", () => {
-	it("exposes the miniplayer as soon as closing starts", () => {
-		expect(miniPlayerBarLayer(true)).toBe("z-30");
-		expect(miniPlayerBarLayer(false)).toBe("z-[41]");
+	it("keeps the miniplayer behind the panel until closing finishes", () => {
+		expect(miniPlayerBarLayer(true, true)).toBe("z-30");
+		expect(miniPlayerBarLayer(false, true)).toBe("z-30");
+		expect(miniPlayerBarLayer(false, false)).toBe("z-[41]");
 	});
 
 	it("uses an interruptible transform transition in both directions", () => {

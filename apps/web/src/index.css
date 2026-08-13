@@ -560,7 +560,7 @@
 /* Base UI keeps the popup mounted with starting/ending attributes. A CSS
    transition follows the panel's current position when it is reversed, unlike
    the generic Sheet keyframes, and lets close retrace the opening path. */
-.mobile-notifications-sheet {
+.mobile-screen-sheet {
 	animation: none;
 	transform: translate3d(0, 0, 0);
 	opacity: 1;
@@ -571,13 +571,13 @@
 	will-change: transform, opacity;
 }
 
-.mobile-notifications-sheet[data-starting-style],
-.mobile-notifications-sheet[data-ending-style] {
+.mobile-screen-sheet[data-starting-style],
+.mobile-screen-sheet[data-ending-style] {
 	transform: translate3d(100%, 0, 0);
 	opacity: 0.985;
 }
 
-.mobile-notifications-sheet[data-ending-style] {
+.mobile-screen-sheet[data-ending-style] {
 	pointer-events: none;
 	transition-duration: var(--notification-sheet-close-dur);
 }
@@ -632,7 +632,7 @@
 			var(--page-slide-ease) both;
 	}
 
-	html[data-mobile-navigation="forward"] .mobile-notifications-sheet {
+	html[data-mobile-navigation="forward"] .mobile-screen-sheet {
 		visibility: hidden;
 	}
 }
@@ -647,16 +647,16 @@
 		scroll-behavior: auto;
 	}
 
-	.mobile-notifications-sheet,
-	.mobile-notifications-sheet[data-starting-style],
-	.mobile-notifications-sheet[data-ending-style] {
+	.mobile-screen-sheet,
+	.mobile-screen-sheet[data-starting-style],
+	.mobile-screen-sheet[data-ending-style] {
 		transform: none;
 		transition-duration: var(--duration-quick);
 		transition-property: opacity;
 	}
 
-	.mobile-notifications-sheet[data-starting-style],
-	.mobile-notifications-sheet[data-ending-style] {
+	.mobile-screen-sheet[data-starting-style],
+	.mobile-screen-sheet[data-ending-style] {
 		opacity: 0;
 	}
 

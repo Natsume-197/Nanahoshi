@@ -73,7 +73,13 @@ function buildRows(members: Member[]): Row[] {
 	return rows;
 }
 
-export function MembersList() {
+export function MembersList({
+	onNavigate,
+	className,
+}: {
+	onNavigate?: () => void;
+	className?: string;
+} = {}) {
 	// Fully push-driven: every presence transition arrives live over the gateway
 	// WebSocket (usePresenceEvents patches this cache). No polling — the snapshot
 	// only refetches on mount, window focus, and gateway (re)connect.
@@ -95,7 +101,10 @@ export function MembersList() {
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+			<div
+				ref={scrollRef}
+				className={cn("min-h-0 flex-1 overflow-y-auto px-2 pb-2", className)}
+			>
 				{membersQuery.isLoading ? (
 					<MembersSkeleton />
 				) : rows.length === 0 ? (
@@ -127,7 +136,7 @@ export function MembersList() {
 											{row.label}
 										</h3>
 									) : (
-										<MemberRow member={row.member} />
+										<MemberRow member={row.member} onNavigate={onNavigate} />
 									)}
 								</div>
 							);
@@ -139,7 +148,13 @@ export function MembersList() {
 	);
 }
 
-function MemberRow({ member }: { member: Member }) {
+function MemberRow({
+	member,
+	onNavigate,
+}: {
+	member: Member;
+	onNavigate?: () => void;
+}) {
 	const meta = activityMeta(member.state);
 	const isOffline = member.state === "offline";
 	const statusLabel =
@@ -155,6 +170,7 @@ function MemberRow({ member }: { member: Member }) {
 			<Link
 				to="/dashboard/user/$username"
 				params={{ username: member.username }}
+				onClick={onNavigate}
 				className="relative shrink-0"
 				aria-label={m["members.profile_of"]({ name: member.name })}
 			>
@@ -175,6 +191,7 @@ function MemberRow({ member }: { member: Member }) {
 				<Link
 					to="/dashboard/user/$username"
 					params={{ username: member.username }}
+					onClick={onNavigate}
 					className="truncate font-medium text-foreground text-sm leading-tight hover:underline"
 					title={member.name}
 				>
@@ -184,6 +201,7 @@ function MemberRow({ member }: { member: Member }) {
 					<Link
 						to={meta.route}
 						params={{ uuid: member.book.uuid }}
+						onClick={onNavigate}
 						className="truncate text-muted-foreground text-xs leading-tight hover:underline"
 						title={statusLabel}
 					>

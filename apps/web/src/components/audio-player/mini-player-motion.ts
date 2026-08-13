@@ -1,3 +1,6 @@
-export function miniPlayerBarLayer(isExpanded: boolean) {
-	return isExpanded ? "z-30" : "z-[41]";
+export function miniPlayerBarLayer(
+	isExpanded: boolean,
+	hasExpandedContent: boolean,
+) {
+	return isExpanded || hasExpandedContent ? "z-30" : "z-[41]";
 }

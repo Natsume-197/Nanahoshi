@@ -98,7 +98,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 			<div
 				className={cn(
 					"fixed inset-x-0 text-sidebar-foreground md:bottom-0",
-					miniPlayerBarLayer(isExpanded),
+					miniPlayerBarLayer(isExpanded, hasContent),
 					placement === "reader"
 						? "bottom-[var(--safe-area-bottom)]"
 						: "bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))]",
@@ -134,7 +134,8 @@ export const MiniPlayer = memo(function MiniPlayer({
 				onTransitionEnd={(event) => {
 					if (
 						event.target !== event.currentTarget ||
-						event.propertyName !== "transform"
+						(event.propertyName !== "transform" &&
+							event.propertyName !== "opacity")
 					) {
 						return;
 					}
