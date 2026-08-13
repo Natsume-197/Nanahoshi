@@ -12,10 +12,6 @@ import { notificationRepository } from "./notification.repository";
 
 const log = logger.child({ component: "notifications" });
 
-// Library tasks notify everyone who can view the library; the rest are
-// personal and go to whoever started the task.
-const LIBRARY_AUDIENCE_TASK_TYPES = new Set(["library-scan", "library-upload"]);
-
 // Library tasks whose finish should surface an enrichment attention summary
 // (books that ended up no_match / review / failed) with a match-manager link.
 const ATTENTION_TASK_TYPES = new Set([
@@ -83,18 +79,21 @@ export const emitTaskFinished = async (task: Task) => {
 		...(attention && { attention }),
 	};
 
-	if (LIBRARY_AUDIENCE_TASK_TYPES.has(task.type)) {
+	if (task.type === "library-scan") {
 		if (!task.libraryId || !task.serverId) return;
-		// No changes → no audience noise (a nightly scheduled scan that found
-		// nothing would otherwise notify everyone every night). But whoever ran
-		// it manually still wants to know it finished clean.
-		if (task.totalJobs <= 0) {
-			if (task.userId) await dispatch(task.userId, data);
+		// Manual maintenance is personal, even when other people can administer
+		// the library. Scheduled scans have no initiator and fan out only to users
+		// who may act on their result.
+		if (task.userId) {
+			await dispatch(task.userId, data);
 			return;
 		}
+		// Avoid noise from a scheduled scan that found no work.
+		if (task.totalJobs <= 0) return;
 		const userIds = await getUsersWithLibraryAccess(
 			task.libraryId,
 			task.serverId,
+			"scan",
 		);
 		await Promise.all(
 			userIds.map((userId) =>

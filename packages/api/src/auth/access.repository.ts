@@ -380,12 +380,14 @@ async function getLibraryOverwrites(
 	return buildLibraryOverwrites(rows, pc.roleIds, userId);
 }
 
-// Fan-out resolver (library-update notifications): every member of the server
-// who may view the library. Batch: members + roles + overwrites in three
-// queries, then the pure per-user resolution in memory.
+// Fan-out resolver for library notifications. Batch: members + roles +
+// overwrites in three queries, then resolve the requested permission per user
+// in memory. Callers must choose the permission that matches the notification's
+// actionability (for example, `scan` for maintenance results).
 export async function getUsersWithLibraryAccess(
 	libraryId: number,
 	serverId: string,
+	action: string,
 ): Promise<string[]> {
 	const members = await db
 		.select({
@@ -441,7 +443,7 @@ export async function getUsersWithLibraryAccess(
 			roles: [...defaultRoles, ...(assignedByUser.get(m.userId) ?? [])],
 		});
 		const ov = buildLibraryOverwrites(overwrites, pc.roleIds, m.userId);
-		if (can(pc, ov, "library", "view")) allowed.push(m.userId);
+		if (can(pc, ov, "library", action)) allowed.push(m.userId);
 	}
 	return allowed;
 }

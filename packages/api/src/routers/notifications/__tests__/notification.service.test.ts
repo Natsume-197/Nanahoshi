@@ -6,6 +6,7 @@ let publishedEvents: Array<{
 	event: { kind: string; [key: string]: unknown };
 }> = [];
 let libraryAudience: string[] = [];
+let requestedAudienceAction: string | undefined;
 let attentionCounts = { noMatch: 0, review: 0, failed: 0 };
 
 const insertAndPrune = mock(
@@ -42,7 +43,12 @@ mock.module("../notification.events", () => ({
 }));
 
 mock.module("../../../auth/access.repository", () => ({
-	getUsersWithLibraryAccess: mock(async () => libraryAudience),
+	getUsersWithLibraryAccess: mock(
+		async (_libraryId: number, _serverId: string, action?: string) => {
+			requestedAudienceAction = action;
+			return libraryAudience;
+		},
+	),
 	invalidatePermissionCaches: mock(() => {}),
 }));
 
@@ -82,6 +88,7 @@ describe("notification.service", () => {
 		insertedRows = [];
 		publishedEvents = [];
 		libraryAudience = [];
+		requestedAudienceAction = undefined;
 		attentionCounts = { noMatch: 0, review: 0, failed: 0 };
 	});
 
@@ -113,7 +120,7 @@ describe("notification.service", () => {
 		]);
 	});
 
-	test("library tasks notify every member with library access", async () => {
+	test("a manual library scan notifies only its initiator", async () => {
 		libraryAudience = ["u1", "u2", "u3"];
 		await service.emitTaskFinished({
 			...baseTask,
@@ -123,11 +130,37 @@ describe("notification.service", () => {
 			libraryId: 42,
 		});
 
+		expect(insertedRows.map((row) => row.userId)).toEqual(["initiator"]);
+	});
+
+	test("a scheduled library scan notifies users who may administer it", async () => {
+		libraryAudience = ["owner", "library-admin"];
+		await service.emitTaskFinished({
+			...baseTask,
+			type: "library-scan",
+			totalJobs: 10,
+			userId: null,
+			libraryId: 42,
+		});
+
+		expect(requestedAudienceAction).toBe("scan");
 		expect(insertedRows.map((row) => row.userId).sort()).toEqual([
-			"u1",
-			"u2",
-			"u3",
+			"library-admin",
+			"owner",
 		]);
+	});
+
+	test("a library upload notifies only its initiator", async () => {
+		libraryAudience = ["owner", "member"];
+		await service.emitTaskFinished({
+			...baseTask,
+			type: "library-upload",
+			totalJobs: 2,
+			userId: "uploader",
+			libraryId: 42,
+		});
+
+		expect(insertedRows.map((row) => row.userId)).toEqual(["uploader"]);
 	});
 
 	test("a scan with items to review attaches the attention summary", async () => {
