@@ -8,8 +8,9 @@ const source = readFileSync(
 const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 describe("expanded player ambient background", () => {
-	it("derives several abstract blooms from the cover color", () => {
+	it("derives the complete low-chroma Now Brief field from the main color", () => {
 		expect(source).toContain('"--player-source"');
+		expect(source).toContain('"--player-source": audiobook.mainColor');
 		expect(source).toContain('className="player-ambient-field');
 		expect(source).toContain('className="player-ambient-orbs"');
 		expect(source).not.toContain("getMutedAccentSurfaceColor");
@@ -23,28 +24,30 @@ describe("expanded player ambient background", () => {
 		expect(css).not.toContain("calc(h + 24)");
 		expect(css).not.toContain("calc(h - 32)");
 		expect(css).toContain("inset: -10%");
-		expect(css).toContain("ellipse 82% 44%");
-		expect(css).toContain("0.66 calc(c * 0.09 + 0.007) h");
+		expect(css).toContain("0.31 calc(c * 0.18) h");
+		expect(css).toContain("0.255 calc(c * 0.14) h");
+		expect(css).toContain("0.22 calc(c * 0.1) h");
+		expect(css).toContain("0.43 calc(c * 0.08) h");
+		expect(css).toContain("0.36 calc(c * 0.18) h");
+		expect(css).not.toContain("--player-edge-teal");
+		expect(css).not.toContain("--player-edge-blue");
 	});
 
-	it("drifts the large diffused blooms slowly when motion is allowed", () => {
+	it("uses one filter-free ambient compositor layer", () => {
 		expect(source).not.toContain("player-ambient-specks");
-		expect(source).toContain("player-ambient-bloom-primary");
-		expect(source).toContain("player-ambient-bloom-secondary");
-		expect(source).toContain("player-ambient-bloom-accent");
-		expect(css).toContain("@keyframes player-bloom-drift-primary");
-		expect(css).toContain("@keyframes player-bloom-drift-secondary");
-		expect(css).toContain("@keyframes player-bloom-drift-accent");
-		expect(css).toContain("player-bloom-drift-primary 32s");
-		expect(css).toContain("player-bloom-drift-secondary 40s");
-		expect(css).toContain("player-bloom-drift-accent 48s");
+		expect(source).not.toContain("player-ambient-bloom-primary");
+		expect(source).not.toContain("player-ambient-bloom-secondary");
+		expect(source).not.toContain("player-ambient-bloom-accent");
+		expect(css).not.toContain("filter: blur(clamp(4rem");
+		expect(css).toContain("@keyframes player-ambient-drift");
+		expect(css).toContain("player-ambient-drift 42s");
 		expect(css).toContain("@media (prefers-reduced-motion: no-preference)");
 	});
 
 	it("keeps a dark contrast veil above the artwork", () => {
 		expect(source).toContain('className="player-ambient-veil"');
 		expect(css).toContain(".player-ambient-veil {");
-		expect(css).toContain("transparent 58%");
+		expect(css).toContain("transparent 62%");
 	});
 
 	it("falls back to the solid tinted scene when transparency is reduced", () => {

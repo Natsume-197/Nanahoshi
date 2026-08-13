@@ -79,9 +79,9 @@
 	--notification-sheet-open-dur: 360ms;
 	--notification-sheet-close-dur: 300ms;
 	--notification-sheet-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
-	--expanded-player-open-dur: 360ms;
-	--expanded-player-close-dur: 300ms;
-	--expanded-player-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+	--expanded-player-open-dur: 400ms;
+	--expanded-player-close-dur: 350ms;
+	--expanded-player-ease: var(--ease-smooth-out);
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
@@ -599,111 +599,78 @@
 	transition-duration: var(--expanded-player-close-dur);
 }
 
-/* The reference is an ambient colour field, not blurred artwork: most blooms
-   continue well beyond the viewport, so no individual shape reads as an orb. */
+/* Now Brief's character comes from a quiet, low-chroma surface. Every tone is
+   derived from the cover's main colour; only its lightness and chroma change. */
 .player-ambient-field {
-	background: oklch(from var(--player-source) 0.27 calc(c * 0.22 + 0.008) h);
+	--player-base-light: oklch(from var(--player-source) 0.31 calc(c * 0.18) h);
+	--player-base-mid: oklch(from var(--player-source) 0.255 calc(c * 0.14) h);
+	--player-base-deep: oklch(from var(--player-source) 0.22 calc(c * 0.1) h);
+
+	background: linear-gradient(
+		160deg,
+		var(--player-base-light),
+		var(--player-base-mid) 56%,
+		var(--player-base-deep)
+	);
 }
 
 .player-ambient-orbs {
-	/* A tonal ramp of one hue: the higher the lightness, the lower the chroma.
-	   This creates cover-coloured light rather than three competing colours. */
-	--player-bloom-primary: oklch(
-		from var(--player-source) 0.66 calc(c * 0.09 + 0.007) h
-	);
-	--player-bloom-secondary: oklch(
-		from var(--player-source) 0.55 calc(c * 0.14 + 0.008) h
-	);
-	--player-bloom-accent: oklch(
-		from var(--player-source) 0.62 calc(c * 0.11 + 0.008) h
-	);
+	/* Multiplying the source chroma preserves its identity without allowing a
+	   saturated cover to turn the background into a bright colour wash. */
+	--player-cover-haze: oklch(from var(--player-source) 0.47 calc(c * 0.06) h);
+	--player-soft-mist: oklch(from var(--player-source) 0.43 calc(c * 0.08) h);
+	--player-edge-deep: oklch(from var(--player-source) 0.36 calc(c * 0.18) h);
+	--player-edge-muted: oklch(from var(--player-source) 0.34 calc(c * 0.11) h);
 
 	position: absolute;
 	inset: -10%;
-	filter: blur(clamp(4rem, 8vw, 7rem));
-	transform: translate3d(0, 0, 0) scale(1.08);
+	backface-visibility: hidden;
+	background:
+		radial-gradient(
+			ellipse 118% 74% at -18% 20%,
+			color-mix(in oklab, var(--player-soft-mist) 20%, transparent) 0%,
+			color-mix(in oklab, var(--player-soft-mist) 11%, transparent) 42%,
+			color-mix(in oklab, var(--player-soft-mist) 4%, transparent) 66%,
+			transparent 86%
+		),
+		radial-gradient(
+			ellipse 92% 70% at 116% 94%,
+			color-mix(in oklab, var(--player-edge-deep) 22%, transparent) 0%,
+			color-mix(in oklab, var(--player-edge-deep) 12%, transparent) 44%,
+			color-mix(in oklab, var(--player-edge-deep) 4%, transparent) 68%,
+			transparent 88%
+		),
+		radial-gradient(
+			ellipse 88% 66% at -20% 98%,
+			color-mix(in oklab, var(--player-edge-muted) 15%, transparent) 0%,
+			color-mix(in oklab, var(--player-edge-muted) 7%, transparent) 48%,
+			color-mix(in oklab, var(--player-edge-muted) 3%, transparent) 70%,
+			transparent 88%
+		),
+		radial-gradient(
+			ellipse 92% 58% at 88% -18%,
+			color-mix(in oklab, var(--player-cover-haze) 10%, transparent) 0%,
+			color-mix(in oklab, var(--player-cover-haze) 4%, transparent) 52%,
+			transparent 84%
+		);
+	contain: paint;
+	transform: translate3d(0, 0, 0) scale(1.04);
 }
 
-/* Large diffused fields drift independently, like Samsung's ambient scenes.
-   Their edges stay outside the viewport so they never read as discrete orbs. */
-.player-ambient-bloom {
-	position: absolute;
-	inset: 0;
-	background-repeat: no-repeat;
-}
-
-.player-ambient-bloom-primary {
-	background-image: radial-gradient(
-		ellipse 78% 42% at 72% -6%,
-		color-mix(in oklab, var(--player-bloom-primary) 62%, transparent) 0%,
-		color-mix(in oklab, var(--player-bloom-primary) 38%, transparent) 40%,
-		transparent 76%
-	);
-}
-
-.player-ambient-bloom-secondary {
-	background-image: radial-gradient(
-		ellipse 64% 38% at -8% 46%,
-		color-mix(in oklab, var(--player-bloom-secondary) 58%, transparent) 0%,
-		color-mix(in oklab, var(--player-bloom-secondary) 34%, transparent) 42%,
-		transparent 78%
-	);
-}
-
-.player-ambient-bloom-accent {
-	background-image: radial-gradient(
-		ellipse 82% 44% at 78% 106%,
-		color-mix(in oklab, var(--player-bloom-accent) 60%, transparent) 0%,
-		color-mix(in oklab, var(--player-bloom-accent) 36%, transparent) 40%,
-		transparent 78%
-	);
-}
-
-@keyframes player-bloom-drift-primary {
+@keyframes player-ambient-drift {
 	from {
-		transform: translate3d(-3%, 2%, 0) scale(1.015);
+		transform: translate3d(-1%, 0.75%, 0) scale(1.04);
 	}
 
 	to {
-		transform: translate3d(3.5%, -2.5%, 0) scale(1.09);
-	}
-}
-
-@keyframes player-bloom-drift-secondary {
-	from {
-		transform: translate3d(2.5%, -2%, 0) scale(1.025);
-	}
-
-	to {
-		transform: translate3d(-4%, 3%, 0) scale(1.1);
-	}
-}
-
-@keyframes player-bloom-drift-accent {
-	from {
-		transform: translate3d(-2%, -2.5%, 0) scale(1.02);
-	}
-
-	to {
-		transform: translate3d(3.75%, 2%, 0) scale(1.095);
+		transform: translate3d(1.25%, -1%, 0) scale(1.07);
 	}
 }
 
 @media (prefers-reduced-motion: no-preference) {
-	.player-ambient-bloom {
+	.player-ambient-orbs {
 		will-change: transform;
-	}
-
-	.player-ambient-bloom-primary {
-		animation: player-bloom-drift-primary 32s ease-in-out infinite alternate;
-	}
-
-	.player-ambient-bloom-secondary {
-		animation: player-bloom-drift-secondary 40s ease-in-out infinite alternate;
-	}
-
-	.player-ambient-bloom-accent {
-		animation: player-bloom-drift-accent 48s ease-in-out infinite alternate;
+		animation: player-ambient-drift 42s ease-in-out infinite alternate;
 	}
 }
 
@@ -714,13 +681,13 @@
 		linear-gradient(
 			to bottom,
 			oklch(0.08 0 0 / 2%),
-			oklch(0.08 0 0 / 7%) 58%,
-			oklch(0.08 0 0 / 16%)
+			oklch(0.08 0 0 / 5%) 58%,
+			oklch(0.08 0 0 / 12%)
 		),
 		radial-gradient(
 			ellipse 105% 84% at 50% 45%,
-			transparent 58%,
-			oklch(0.08 0 0 / 10%) 100%
+			transparent 62%,
+			oklch(0.08 0 0 / 8%) 100%
 		);
 }
 

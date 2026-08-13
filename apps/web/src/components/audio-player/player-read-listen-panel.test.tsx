@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 let ReadListenActiveCueFollower: typeof import("./read-listen-active-cue-follower").ReadListenActiveCueFollower;
 
@@ -34,15 +34,19 @@ describe("PlayerReadListenPanel following", () => {
 	test("positions the active cue before the browser can paint the next sentence", () => {
 		let callsSeenDuringCommit = -1;
 		function CommitProbe() {
+			const viewportRef = useRef<HTMLDivElement>(null);
 			useLayoutEffect(() => {
 				callsSeenDuringCommit = scrollToIndex.mock.calls.length;
 			});
 			return (
-				<ReadListenActiveCueFollower
-					active={{ id: "next", index: 19 }}
-					layoutRevision={640}
-					scrollToIndex={scrollToIndex}
-				/>
+				<div ref={viewportRef}>
+					<ReadListenActiveCueFollower
+						active={{ id: "next", index: 19 }}
+						layoutRevision={640}
+						scrollToIndex={scrollToIndex}
+						viewportRef={viewportRef}
+					/>
+				</div>
 			);
 		}
 
@@ -52,11 +56,13 @@ describe("PlayerReadListenPanel following", () => {
 	});
 
 	test("positions immediately and re-centers the same cue after a resize", async () => {
+		const viewportRef = { current: document.createElement("div") };
 		const view = render(
 			<ReadListenActiveCueFollower
 				active={{ id: "current", index: 18 }}
 				layoutRevision={640}
 				scrollToIndex={scrollToIndex}
+				viewportRef={viewportRef}
 			/>,
 		);
 
@@ -71,6 +77,7 @@ describe("PlayerReadListenPanel following", () => {
 				active={{ id: "current", index: 18 }}
 				layoutRevision={480}
 				scrollToIndex={scrollToIndex}
+				viewportRef={viewportRef}
 			/>,
 		);
 
@@ -82,11 +89,13 @@ describe("PlayerReadListenPanel following", () => {
 	});
 
 	test("does not reposition on playback renders while the cue is unchanged", async () => {
+		const viewportRef = { current: document.createElement("div") };
 		const view = render(
 			<ReadListenActiveCueFollower
 				active={{ id: "current", index: 18 }}
 				layoutRevision={640}
 				scrollToIndex={scrollToIndex}
+				viewportRef={viewportRef}
 			/>,
 		);
 
@@ -96,9 +105,46 @@ describe("PlayerReadListenPanel following", () => {
 				active={{ id: "current", index: 18 }}
 				layoutRevision={640}
 				scrollToIndex={(index, options) => scrollToIndex(index, options)}
+				viewportRef={viewportRef}
 			/>,
 		);
 
 		expect(scrollToIndex).toHaveBeenCalledTimes(1);
+	});
+
+	test("follows a rendered cue without rebasing the virtualizer", () => {
+		const viewport = document.createElement("div");
+		const current = document.createElement("div");
+		current.dataset.readListenCueId = "current";
+		const next = document.createElement("div");
+		next.dataset.readListenCueId = "next";
+		const scrollIntoView = mock(() => {});
+		next.scrollIntoView = scrollIntoView;
+		viewport.append(current, next);
+		const viewportRef = { current: viewport };
+		const view = render(
+			<ReadListenActiveCueFollower
+				active={{ id: "current", index: 18 }}
+				layoutRevision={640}
+				scrollToIndex={scrollToIndex}
+				viewportRef={viewportRef}
+			/>,
+		);
+
+		view.rerender(
+			<ReadListenActiveCueFollower
+				active={{ id: "next", index: 19 }}
+				layoutRevision={640}
+				scrollToIndex={scrollToIndex}
+				viewportRef={viewportRef}
+			/>,
+		);
+
+		expect(scrollToIndex).toHaveBeenCalledTimes(1);
+		expect(scrollIntoView).toHaveBeenCalledWith({
+			block: "center",
+			behavior: "smooth",
+			inline: "nearest",
+		});
 	});
 });

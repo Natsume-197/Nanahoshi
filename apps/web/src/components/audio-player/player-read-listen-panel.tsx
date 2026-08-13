@@ -154,6 +154,7 @@ function PlayerReadListenSessionPanel({
 				}
 				layoutRevision={viewportHeight}
 				scrollToIndex={virtualizer.scrollToIndex}
+				viewportRef={scrollRef}
 			/>
 			<section
 				ref={scrollRef}
@@ -183,6 +184,7 @@ function PlayerReadListenSessionPanel({
 								aria-posinset={item.index + 1}
 								aria-setsize={session.timeline.length}
 								data-index={item.index}
+								data-read-listen-cue-id={cue.id}
 								ref={virtualizer.measureElement}
 								className="absolute inset-x-0 top-0 px-1"
 								style={{ transform: `translateY(${item.start}px)` }}

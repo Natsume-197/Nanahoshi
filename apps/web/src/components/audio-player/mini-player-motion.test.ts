@@ -17,8 +17,9 @@ describe("expanded player motion", () => {
 
 	it("uses an interruptible transform transition in both directions", () => {
 		expect(css).toContain('.expanded-player-sheet[data-expanded="false"]');
-		expect(css).toContain("--expanded-player-open-dur: 360ms");
-		expect(css).toContain("--expanded-player-close-dur: 300ms");
+		expect(css).toContain("--expanded-player-open-dur: 400ms");
+		expect(css).toContain("--expanded-player-close-dur: 350ms");
+		expect(css).toContain("--expanded-player-ease: var(--ease-smooth-out)");
 		expect(css).toContain("transition-property: transform");
 	});
 
