@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, memo, useRef, useState } from "react";
 import { ExpandedPlayer } from "@/components/audio-player/expanded-player";
+import { miniPlayerBarLayer } from "@/components/audio-player/mini-player-motion";
 import { PlayerBar } from "@/components/audio-player/player-bar";
 import type { ReadListenPlayerContext } from "@/components/audio-player/read-listen-player";
 import { usePlayerShortcuts } from "@/components/audio-player/use-player-shortcuts";
@@ -94,7 +95,8 @@ export const MiniPlayer = memo(function MiniPlayer({
 			<PlayerShortcuts />
 			<div
 				className={cn(
-					"fixed inset-x-0 z-40 text-sidebar-foreground md:bottom-0",
+					"fixed inset-x-0 text-sidebar-foreground md:bottom-0",
+					miniPlayerBarLayer(isExpanded),
 					placement === "reader"
 						? "bottom-[var(--safe-area-bottom)]"
 						: "bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))]",
@@ -118,6 +120,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 
 			<div
 				ref={panelRef}
+				data-expanded={isExpanded}
 				role="dialog"
 				aria-modal="true"
 				aria-label={m["audiobook.player_now_playing"]()}
@@ -127,10 +130,9 @@ export const MiniPlayer = memo(function MiniPlayer({
 				onPointerUp={drag.onPointerUp}
 				onPointerCancel={drag.onPointerCancel}
 				onTransitionEnd={(event) => {
-					// `translate-y-*` animates the `translate` property, not `transform`.
 					if (
 						event.target !== event.currentTarget ||
-						event.propertyName !== "translate"
+						event.propertyName !== "transform"
 					) {
 						return;
 					}
@@ -140,10 +142,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 				// z-40 keeps it under the popup layer, so popovers open over it. Opening
 				// is the deliberate action and gets the longer curve.
 				className={cn(
-					"fixed inset-0 z-40 overflow-hidden bg-background transition-transform ease-[var(--ease-smooth-out)]",
-					isExpanded
-						? "translate-y-0 duration-[380ms]"
-						: "pointer-events-none translate-y-full duration-[280ms]",
+					"expanded-player-sheet fixed inset-0 z-40 overflow-hidden bg-background",
 				)}
 			>
 				{/* Reopening mid-dismissal: dropping the swipe's leftover transform

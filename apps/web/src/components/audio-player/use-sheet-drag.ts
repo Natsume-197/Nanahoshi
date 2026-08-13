@@ -56,7 +56,7 @@ export function useSheetDrag({
 		const el = panelRef.current;
 		if (!el) return;
 		el.style.transition = "";
-		el.style.translate = "";
+		el.style.transform = "";
 		el.style.willChange = "";
 	};
 
@@ -69,8 +69,8 @@ export function useSheetDrag({
 			clearInlineStyles();
 			return;
 		}
-		el.style.transition = `translate ${releaseDuration(to - from, velocity)}ms var(--ease-smooth-out)`;
-		el.style.translate = `0 ${to}px`;
+		el.style.transition = `transform ${releaseDuration(to - from, velocity)}ms var(--expanded-player-ease)`;
+		el.style.transform = `translate3d(0, ${to}px, 0)`;
 	};
 
 	return {
@@ -123,7 +123,7 @@ export function useSheetDrag({
 				drag.active = true;
 				el.setPointerCapture(event.pointerId);
 				el.style.transition = "none";
-				el.style.willChange = "translate";
+				el.style.willChange = "transform";
 			}
 
 			const elapsed = event.timeStamp - drag.lastTime;
@@ -136,7 +136,7 @@ export function useSheetDrag({
 				drag.lastTime = event.timeStamp;
 			}
 
-			el.style.translate = `0 ${sheetOffset(drag.base + travel)}px`;
+			el.style.transform = `translate3d(0, ${sheetOffset(drag.base + travel)}px, 0)`;
 		},
 
 		onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => {
