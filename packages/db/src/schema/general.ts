@@ -779,6 +779,9 @@ export const enrichmentState = pgTable(
 		index("enrichment_state_retry_due_idx")
 			.on(table.nextRetryAt, table.providerAttempts)
 			.where(sql`${table.nextRetryAt} IS NOT NULL`),
+		// Duplicate grouping resolves already-confirmed provider identities via
+		// jsonb containment (provider + providerId) across large libraries.
+		index("enrichment_state_matched_gin_idx").using("gin", table.matched),
 		check(
 			"enrichment_state_retryable_status_check",
 			sql`${table.nextRetryAt} IS NULL OR ${table.status} IN ('pending', 'partial')`,

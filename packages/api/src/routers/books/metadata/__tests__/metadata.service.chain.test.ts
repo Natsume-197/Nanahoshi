@@ -1094,6 +1094,77 @@ describe("fillMissingFromLocal", () => {
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();
 	});
 
+	test("refreshes a local cover so parser improvements repair old placeholders", async () => {
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({
+				...enrichedRow,
+				asin: "B000000001",
+				fieldSources: { cover: { p: "local" } },
+			}),
+		);
+		localSpy.mockImplementation(async () => ({
+			cover: "data/covers/uuid-7-recovered.jpg",
+		}));
+
+		await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+		expect(localSpy).toHaveBeenCalledWith({
+			bookId: 7,
+			uuid: "uuid-7",
+			replaceLocalCover: true,
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.cover).toBe("data/covers/uuid-7-recovered.jpg");
+	});
+
+	test("repairs historical local covers without provenance but never locked ones", async () => {
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({
+				...enrichedRow,
+				originalCover: "data/covers/uuid-7.jpg",
+				fieldSources: {},
+				lockedFields: [],
+			}),
+		);
+		localSpy.mockImplementation(async () => ({
+			cover: "data/covers/uuid-7.jpg",
+		}));
+
+		await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+		expect(localSpy).toHaveBeenLastCalledWith({
+			bookId: 7,
+			uuid: "uuid-7",
+			replaceLocalCover: true,
+		});
+
+		mockGetEnrichRow.mockImplementation(() =>
+			Promise.resolve({
+				...enrichedRow,
+				originalCover: "data/covers/uuid-7.jpg",
+				fieldSources: {},
+				lockedFields: ["cover"],
+			}),
+		);
+		await bookMetadataService.fillMissingFromLocal({
+			bookId: 7,
+			uuid: "uuid-7",
+		});
+		expect(localSpy).toHaveBeenLastCalledWith({
+			bookId: 7,
+			uuid: "uuid-7",
+			replaceLocalCover: false,
+		});
+	});
+
 	test("fills authors only when the book has none", async () => {
 		mockGetEnrichRow.mockImplementation(() =>
 			Promise.resolve({ ...enrichedRow, authors: [] }),

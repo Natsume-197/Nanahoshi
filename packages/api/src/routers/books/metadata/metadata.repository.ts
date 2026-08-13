@@ -729,6 +729,9 @@ export class BookMetadataRepository {
 				bm.amount_chars AS "amountChars",
 				bm.content_form AS "contentForm",
 				bm.cover,
+				bm.field_sources AS "fieldSources",
+				bm.locked_fields AS "lockedFields",
+				bmo.data->>'cover' AS "originalCover",
 				jsonb_build_object('name', p.name) AS publisher,
 				COALESCE(
 					jsonb_agg(
@@ -738,11 +741,12 @@ export class BookMetadataRepository {
 				) AS authors
 			FROM book b
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_metadata_original bmo ON bmo.book_id = b.id
 			LEFT JOIN book_author ba ON ba.book_id = b.id
 			LEFT JOIN author a ON a.id = ba.author_id
 			LEFT JOIN publisher p ON p.id = bm.publisher_id
 			WHERE b.id = ${bookId}
-			GROUP BY b.id, bm.book_id, p.id
+			GROUP BY b.id, bm.book_id, bmo.book_id, p.id
 		`);
 		return rows[0] as Record<string, unknown> | undefined;
 	}

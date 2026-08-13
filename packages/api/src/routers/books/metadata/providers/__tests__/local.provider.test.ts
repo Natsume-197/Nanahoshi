@@ -3,6 +3,7 @@ import type {
 	HtmlContent,
 	PagedContent,
 } from "@nanahoshi-v2/ebook-parser/types";
+import sharp from "sharp";
 
 mock.module("@nanahoshi-v2/env/server", () => ({
 	env: {
@@ -12,9 +13,12 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 }));
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
 
-const { classifyEbookIdentifiers, measureContentForm } = await import(
-	"../local-ebook"
-);
+const {
+	classifyEbookIdentifiers,
+	findFallbackCover,
+	isBlankCover,
+	measureContentForm,
+} = await import("../local-ebook");
 
 function content(chapters: (string | (() => never))[]): HtmlContent {
 	return {
@@ -32,7 +36,92 @@ function content(chapters: (string | (() => never))[]): HtmlContent {
 	};
 }
 
+async function detailedImage(width: number, height: number): Promise<Buffer> {
+	const pixels = Buffer.alloc(width * height * 3);
+	for (let index = 0; index < pixels.length; index++) {
+		pixels[index] = (index * 31 + Math.floor(index / 97) * 17) % 256;
+	}
+	return sharp(pixels, { raw: { width, height, channels: 3 } })
+		.jpeg()
+		.toBuffer();
+}
+
 describe("local ebook catalog adapter", () => {
+	test("rejects near-white declared cover placeholders", async () => {
+		const blank = await sharp({
+			create: {
+				width: 1200,
+				height: 1600,
+				channels: 3,
+				background: "#ffffff",
+			},
+		})
+			.jpeg()
+			.toBuffer();
+		const artwork = await sharp({
+			create: {
+				width: 1200,
+				height: 1600,
+				channels: 3,
+				background: "#3355cc",
+			},
+		})
+			.composite([
+				{
+					input: Buffer.from(
+						"<svg><circle cx='600' cy='800' r='400' fill='red'/></svg>",
+					),
+				},
+			])
+			.jpeg()
+			.toBuffer();
+		expect(await isBlankCover(blank)).toBe(true);
+		expect(await isBlankCover(artwork)).toBe(false);
+	});
+
+	test("ranks safe early-spine artwork and rejects logos and placeholders", async () => {
+		const logo = await detailedImage(180, 180);
+		const blank = await sharp({
+			create: {
+				width: 1200,
+				height: 1600,
+				channels: 3,
+				background: "#ffffff",
+			},
+		})
+			.jpeg()
+			.toBuffer();
+		const artwork = await detailedImage(900, 1300);
+		const resources = new Map<string, Buffer>([
+			["ebook-resource:logo.jpg", logo],
+			["ebook-resource:placeholder.jpg", blank],
+			["ebook-resource:front-cover.jpg", artwork],
+		]);
+		const source: HtmlContent = {
+			kind: "html",
+			sections: [{ id: "title" }, { id: "cover" }],
+			toc: [],
+			async openSection(id) {
+				return id === "title"
+					? {
+							html: '<picture><source srcset="ebook-resource:logo.jpg 1x, ebook-resource:placeholder.jpg 2x"></picture>',
+							styles: [],
+						}
+					: {
+							html: '<svg><image href="ebook-resource:front-cover.jpg"/></svg>',
+							styles: [],
+						};
+			},
+			async openResource(href) {
+				const data = resources.get(href);
+				return data ? { data, mediaType: "image/jpeg" } : undefined;
+			},
+		};
+
+		const selected = await findFallbackCover(source);
+		expect(Buffer.from(selected?.data ?? [])).toEqual(artwork);
+	});
+
 	test("classifies labeled and raw ebook identifiers", () => {
 		expect(
 			classifyEbookIdentifiers({

@@ -13,6 +13,7 @@
  * that already travels everywhere describes itself.
  */
 
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -78,6 +79,31 @@ export async function acquireCover(
 	// `wx` so a re-run never truncates art another process is already serving.
 	await fs.writeFile(target, bytes, { flag: "wx" }).catch(() => {});
 	return path.relative(process.cwd(), target);
+}
+
+/**
+ * Replaces previously acquired bytes after a deliberate local-cover repair.
+ * The temporary sibling plus rename keeps readers from observing a partial
+ * write; callers must opt in because ordinary enrichment remains immutable.
+ */
+export async function replaceAcquiredCover(
+	bytes: Buffer,
+	uuid: string,
+	ext: string,
+): Promise<string | null> {
+	await ensureCoversDir();
+	const safeExt = normalizeExt(ext);
+	const target = path.join(coversDir, `${uuid}${safeExt}`);
+	const staging = `${target}.${randomUUID()}.replace`;
+	try {
+		await fs.writeFile(staging, bytes, { flag: "wx" });
+		await fs.rename(staging, target);
+		return path.relative(process.cwd(), target);
+	} catch (err) {
+		await fs.unlink(staging).catch(() => {});
+		log.warn({ err, target }, "Cover replacement failed");
+		return null;
+	}
 }
 
 /** Extensions a cover can arrive as, in the order a duplicate is most likely to

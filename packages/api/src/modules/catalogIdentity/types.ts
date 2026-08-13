@@ -17,7 +17,9 @@ export type CatalogIdentifierScheme =
 	| "isbn10"
 	| "isbn13"
 	| "asin"
-	| "embeddedUid";
+	| "embeddedUid"
+	/** Edition-scoped provider record qualified by the identity domain. */
+	| "providerEdition";
 
 export type CatalogIdentifier = {
 	scheme: CatalogIdentifierScheme;

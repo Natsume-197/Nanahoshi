@@ -6,7 +6,11 @@ import type {
 	HtmlContent,
 } from "@nanahoshi-v2/ebook-parser/types";
 import { load } from "cheerio";
-import { acquireCover } from "../../../../lib/cover-store";
+import sharp from "sharp";
+import {
+	acquireCover,
+	replaceAcquiredCover,
+} from "../../../../lib/cover-store";
 import {
 	type ContentForm,
 	contentFormTextBudget,
@@ -25,6 +29,8 @@ import {
 } from "../../../../modules/identifiers";
 
 const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
+const COVER_CANDIDATE_SECTIONS = 6;
+const COVER_CANDIDATE_LIMIT = 24;
 
 export interface LocalEbookMetadata {
 	title: string;
@@ -46,13 +52,14 @@ export interface LocalEbookMetadata {
 export async function readLocalEbook(
 	filePath: string,
 	bookUuid: string,
+	options: { replaceCover?: boolean } = {},
 ): Promise<LocalEbookMetadata> {
 	const ebook = await openEbookFile(filePath);
 	try {
 		const metadata = ebook.metadata;
 		const identifiers = classifyEbookIdentifiers(metadata);
 		const [cover, contentForm] = await Promise.all([
-			acquireEbookCover(ebook.openCover(), bookUuid),
+			acquireEbookCover(ebook.openCover(), ebook.content, bookUuid, options),
 			measureContentForm(ebook.content, metadata),
 		]);
 
@@ -77,16 +84,154 @@ export async function readLocalEbook(
 
 async function acquireEbookCover(
 	coverPromise: Promise<EbookResource | undefined>,
+	content: EbookContent,
 	bookUuid: string,
+	options: { replaceCover?: boolean },
 ): Promise<string | null> {
-	const cover = await coverPromise;
+	const declared = await coverPromise;
+	const cover =
+		declared && (await isUsableDeclaredCover(declared.data))
+			? declared
+			: content.kind === "html"
+				? await findFallbackCover(content)
+				: undefined;
+	const store = options.replaceCover ? replaceAcquiredCover : acquireCover;
 	return cover
-		? acquireCover(
-				Buffer.from(cover.data),
-				bookUuid,
-				extensionFor(cover.mediaType),
-			)
+		? store(Buffer.from(cover.data), bookUuid, extensionFor(cover.mediaType))
 		: null;
+}
+
+async function isUsableDeclaredCover(data: Uint8Array): Promise<boolean> {
+	try {
+		await sharp(Buffer.from(data)).metadata();
+		return !(await isBlankCover(data));
+	} catch {
+		return false;
+	}
+}
+
+type CoverReference = {
+	href: string;
+	sectionIndex: number;
+	documentOrder: number;
+	semantic: boolean;
+};
+
+/**
+ * Finds cover-like art only in the opening publication matter. Candidates are
+ * parsed from markup and ranked by semantic filename, position, proportions,
+ * resolution and visual information; logos and near-white placeholders fail
+ * the hard quality boundary before ranking.
+ */
+export async function findFallbackCover(
+	content: HtmlContent,
+): Promise<EbookResource | undefined> {
+	const references: CoverReference[] = [];
+	for (const [sectionIndex, section] of content.sections
+		.slice(0, COVER_CANDIDATE_SECTIONS)
+		.entries()) {
+		let html: string;
+		try {
+			html = (await content.openSection(section.id))?.html ?? "";
+		} catch {
+			continue;
+		}
+		for (const [documentOrder, href] of imageReferences(html).entries()) {
+			references.push({
+				href,
+				sectionIndex,
+				documentOrder,
+				semantic: isSemanticCoverReference(href),
+			});
+		}
+	}
+
+	// Rank on markup evidence before decoding. This keeps the expensive image
+	// probe bounded to the first candidate that also crosses the quality gate.
+	references.sort(
+		(a, b) =>
+			Number(b.semantic) - Number(a.semantic) ||
+			a.sectionIndex - b.sectionIndex ||
+			a.documentOrder - b.documentOrder,
+	);
+	for (const candidate of references.slice(0, COVER_CANDIDATE_LIMIT)) {
+		const resource = await content
+			.openResource(candidate.href)
+			.catch(() => undefined);
+		if (resource && (await isFallbackCoverCandidate(resource.data))) {
+			return resource;
+		}
+	}
+	return undefined;
+}
+
+function isSemanticCoverReference(href: string): boolean {
+	return /(?:^|[/_-])(cover|front|表紙)(?:[._-]|$)/i.test(href);
+}
+
+function imageReferences(html: string): string[] {
+	const $ = load(html);
+	const references: string[] = [];
+	$("img, source, image, [style]").each((_, element) => {
+		const node = $(element);
+		const direct =
+			node.attr("src") ?? node.attr("href") ?? node.attr("xlink:href");
+		if (direct) references.push(direct);
+		const srcset = node.attr("srcset");
+		if (srcset) {
+			for (const entry of srcset.split(",")) {
+				const href = entry.trim().split(/\s+/)[0];
+				if (href) references.push(href);
+			}
+		}
+		const style = node.attr("style") ?? "";
+		for (const match of style.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi)) {
+			if (match[1]) references.push(match[1]);
+		}
+	});
+	return [...new Set(references)];
+}
+
+async function isFallbackCoverCandidate(data: Uint8Array): Promise<boolean> {
+	try {
+		const image = sharp(Buffer.from(data));
+		const [metadata, stats] = await Promise.all([
+			image.metadata(),
+			image.stats(),
+		]);
+		const width = metadata.width ?? 0;
+		const height = metadata.height ?? 0;
+		const ratio = width / height;
+		const mean =
+			stats.channels.reduce((sum, channel) => sum + channel.mean, 0) /
+			stats.channels.length;
+		if (
+			width < 300 ||
+			height < 400 ||
+			width * height < 180_000 ||
+			ratio < 0.55 ||
+			ratio > 0.9 ||
+			stats.entropy < 1.5 ||
+			(mean > 250 && stats.entropy < 0.5)
+		) {
+			return false;
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function isBlankCover(data: Uint8Array): Promise<boolean> {
+	try {
+		const stats = await sharp(Buffer.from(data)).stats();
+		const mean =
+			stats.channels.reduce((sum, channel) => sum + channel.mean, 0) /
+			stats.channels.length;
+		return mean > 254 && stats.entropy < 0.1;
+	} catch {
+		return false;
+	}
 }
 
 export async function measureContentForm(

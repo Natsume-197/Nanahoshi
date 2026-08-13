@@ -13,6 +13,25 @@ const book = (
 ): CatalogIdentityEvidence => ({ kind: "book", title, ...extra });
 
 describe("catalogIdentity: written books", () => {
+	test("uses a provider-scoped confirmed match as identifier evidence", () => {
+		const providerId = {
+			scheme: "providerEdition" as const,
+			value: '["ranobedb","17860"]',
+		};
+		expect(
+			assessCatalogIdentity(
+				book("化物語（上）", { identifiers: [providerId] }),
+				book("化物語 上", { identifiers: [providerId] }),
+			),
+		).toMatchObject({ status: "confirmed" });
+		expect(
+			assessCatalogIdentity(
+				book("化物語（上）", { identifiers: [providerId] }),
+				book("化物語（下）", { identifiers: [providerId] }),
+			),
+		).toMatchObject({ status: "rejected" });
+	});
+
 	test("an unnumbered title and volume 1 can be the same Logical Edition", () => {
 		expect(
 			assessCatalogIdentity(

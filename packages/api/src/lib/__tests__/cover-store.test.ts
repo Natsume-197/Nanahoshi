@@ -19,6 +19,7 @@ const {
 	findAcquiredCover,
 	ingestCover,
 	masterName,
+	replaceAcquiredCover,
 	upgradeAmazonImageUrl,
 } = await import("../cover-store");
 
@@ -80,6 +81,20 @@ describe("acquire", () => {
 			path.join(coversDir, "acq-4.jpg"),
 		);
 		expect(onDisk.byteLength).toBe(first.byteLength);
+	});
+
+	test("atomically replaces bytes only through the explicit repair path", async () => {
+		const first = await makeImage(400, 600);
+		const repaired = await makeImage(800, 1200, "png");
+		await acquireCover(first, "acq-repair", ".jpg");
+
+		const stored = await replaceAcquiredCover(repaired, "acq-repair", ".jpg");
+
+		expect(stored).toBe(path.join("data", "covers", "acq-repair.jpg"));
+		const onDisk = await fs.promises.readFile(
+			path.join(coversDir, "acq-repair.jpg"),
+		);
+		expect(onDisk.equals(repaired)).toBe(true);
 	});
 
 	test("copies a file that is already on disk", async () => {

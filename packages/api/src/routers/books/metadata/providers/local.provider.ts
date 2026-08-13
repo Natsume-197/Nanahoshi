@@ -15,6 +15,7 @@ export class LocalProvider {
 			bookId?: number;
 			uuid: string;
 			filePath?: string;
+			replaceLocalCover?: boolean;
 		},
 	): Promise<Partial<BookMetadata>> {
 		if (!input.bookId) return {};
@@ -30,7 +31,9 @@ export class LocalProvider {
 		}
 
 		try {
-			const ebook = await readLocalEbook(filePath, input.uuid);
+			const ebook = await readLocalEbook(filePath, input.uuid, {
+				replaceCover: input.replaceLocalCover,
+			});
 			const authors: Author[] = ebook.authors.map((name) => ({
 				name,
 				role: null,

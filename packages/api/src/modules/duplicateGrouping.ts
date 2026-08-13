@@ -5,6 +5,7 @@ import {
 	assessCatalogIdentity,
 	assessGroupMembership,
 	type CatalogIdentityEvidence,
+	primaryProviderEditionMatch,
 } from "./catalogIdentity";
 import {
 	isUsableEmbeddedUid,
@@ -64,17 +65,28 @@ type GroupingRow = {
 	asin?: string | null;
 	embeddedUid?: string | null;
 	languageCode?: string | null;
+	catalogMatches?: unknown;
+	catalogMatchStatus?: string | null;
 };
+
+function authoritativeProviderEdition(row: GroupingRow) {
+	return row.catalogMatchStatus === "enriched" ||
+		row.catalogMatchStatus === "partial"
+		? primaryProviderEditionMatch(row.catalogMatches)
+		: null;
+}
 
 function groupingEvidence(
 	row: GroupingRow,
 	embeddedUidOccurrenceCount?: number,
 	fallback?: GroupingRow,
 ): CatalogIdentityEvidence {
+	const providerEdition = authoritativeProviderEdition(row);
 	const hasIdentifier = Boolean(
-		row.isbn13 ?? row.isbn10 ?? row.asin ?? row.embeddedUid,
+		row.isbn13 ?? row.isbn10 ?? row.asin ?? row.embeddedUid ?? providerEdition,
 	);
 	const identifiers = hasIdentifier ? row : (fallback ?? row);
+	const fallbackProviderEdition = authoritativeProviderEdition(identifiers);
 	return {
 		kind: "book",
 		title: row.title,
@@ -85,6 +97,9 @@ function groupingEvidence(
 		embeddedUid: identifiers.embeddedUid,
 		embeddedUidOccurrenceCount,
 		languageCode: row.languageCode,
+		identifiers: fallbackProviderEdition
+			? [fallbackProviderEdition.identifier]
+			: [],
 	};
 }
 
@@ -119,6 +134,7 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 
 	const isbns = validIsbnSet(row);
 	const asins = validAsinSet(row);
+	const primaryEdition = authoritativeProviderEdition(row);
 	let uids = usableUidSet(row);
 	let embeddedUidOccurrenceCount: number | undefined;
 	if (uids.length > 0 && row.libraryId != null) {
@@ -132,7 +148,10 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 	}
 	if (
 		row.libraryId == null ||
-		(isbns.length === 0 && asins.length === 0 && uids.length === 0)
+		(isbns.length === 0 &&
+			asins.length === 0 &&
+			uids.length === 0 &&
+			!primaryEdition)
 	) {
 		await clearGroup(bookId);
 		return;
@@ -140,7 +159,12 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 
 	const candidates = await bookRepository.findGroupingCandidates(
 		row.libraryId,
-		{ isbns, asins, uids },
+		{
+			isbns,
+			asins,
+			uids,
+			primaryCatalogMatch: primaryEdition?.match,
+		},
 	);
 
 	// First require a Confirmed relationship to the subject. Then apply the

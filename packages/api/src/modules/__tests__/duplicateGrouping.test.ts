@@ -76,6 +76,97 @@ describe("duplicate identifier validation", () => {
 });
 
 describe("regroupBookDuplicates via embedded uid", () => {
+	test("groups authoritative edition matches and keeps source quality canonical", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { regroupBookDuplicates } = await import("../duplicateGrouping");
+		const target = bookRepository as unknown as Record<string, unknown>;
+		const match = [{ provider: "ranobedb", providerId: "17860" }];
+		let catalogMatchStatus = "enriched";
+		const methods = {
+			getGroupingInfo: mock(async () => ({
+				libraryId: 1,
+				groupLocked: false,
+				title: "化物語（上）",
+				titleRomaji: "Bakemonogatari (Jou)",
+				isbn13: null,
+				isbn10: null,
+				asin: null,
+				embeddedUid: null,
+				catalogMatches: match,
+				catalogMatchStatus,
+			})),
+			findGroupingCandidates: mock(async () => [
+				{
+					id: 10,
+					filesizeKb: 2_000,
+					duplicateOfBookId: null,
+					title: "化物語（上）",
+					titleRomaji: "Bakemonogatari (Jou)",
+					cover: null,
+					catalogMatches: match,
+					catalogMatchStatus: "enriched",
+				},
+				{
+					id: 20,
+					filesizeKb: 1_000,
+					duplicateOfBookId: null,
+					title: "化物語 上",
+					titleRomaji: "Bakemonogatari (Jou)",
+					cover: "data/covers/20.jpg",
+					catalogMatches: match,
+					catalogMatchStatus: "enriched",
+				},
+			]),
+			clearDuplicatePointerIfSet: mock(async () => {}),
+			clearDuplicatePointers: mock(async () => {}),
+			setDuplicateOf: mock(async () => {}),
+		};
+		const originals = Object.entries(methods).map(([key, value]) => {
+			const previous = target[key];
+			target[key] = value;
+			return [key, previous] as const;
+		});
+
+		try {
+			await regroupBookDuplicates(10);
+			expect(methods.findGroupingCandidates).toHaveBeenCalledWith(1, {
+				isbns: [],
+				asins: [],
+				uids: [],
+				primaryCatalogMatch: match[0],
+			});
+			expect(methods.setDuplicateOf).toHaveBeenCalledWith([20], 10);
+
+			methods.findGroupingCandidates.mockClear();
+			methods.setDuplicateOf.mockClear();
+			catalogMatchStatus = "review";
+			await regroupBookDuplicates(10);
+			expect(methods.findGroupingCandidates).not.toHaveBeenCalled();
+			expect(methods.setDuplicateOf).not.toHaveBeenCalled();
+		} finally {
+			for (const [key, value] of originals) target[key] = value;
+		}
+	});
+
+	test("does not group by a supplemental or work-level provider match", async () => {
+		const { primaryProviderEditionMatch } = await import("../catalogIdentity");
+		expect(
+			primaryProviderEditionMatch([
+				{ provider: "openlibrary", providerId: "works/OL1W" },
+				{ provider: "ranobedb", providerId: "17860" },
+			]),
+		).toBeNull();
+		expect(
+			primaryProviderEditionMatch([
+				{ provider: "openlibrary", providerId: "books/OL1M" },
+			]),
+		).toMatchObject({
+			match: { provider: "openlibrary", providerId: "books/OL1M" },
+		});
+	});
+
 	test("keeps automatic groups disabled for the library", async () => {
 		const { bookRepository } = await import(
 			"../../routers/books/book.repository"

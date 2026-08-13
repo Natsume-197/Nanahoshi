@@ -105,12 +105,34 @@ export class BookMetadataService {
 		const row = await bookMetadataRepository.getEnrichRowByBookId(input.bookId);
 		if (!row) return null;
 
-		const local = await localProvider.getMetadata(input);
+		const coverSource = (
+			row.fieldSources as Record<string, { p?: string }> | undefined
+		)?.cover?.p;
+		const lockedFields = Array.isArray(row.lockedFields)
+			? row.lockedFields
+			: [];
+		const historicalLocalCover =
+			coverSource === "local" ||
+			(!coverSource && !this.isFieldMissing(row.originalCover));
+		const replaceLocalCover =
+			!this.isFieldMissing(row.cover) &&
+			historicalLocalCover &&
+			!lockedFields.includes("cover");
+		const local = await localProvider.getMetadata({
+			...input,
+			replaceLocalCover,
+		});
 		if (Object.keys(local).length === 0) return null;
 
 		const fill: Record<string, unknown> = {};
 		for (const key of BookMetadataService.LOCAL_FILL_FIELDS) {
+			const localCoverMayBeRefreshed = key === "cover" && replaceLocalCover;
 			if (this.isFieldMissing(row[key]) && !this.isFieldMissing(local[key])) {
+				fill[key] = local[key];
+			} else if (localCoverMayBeRefreshed && !this.isFieldMissing(local[key])) {
+				// Reprocessing must be able to repair an old local placeholder after
+				// cover extraction improves. Remote and manually locked covers retain
+				// their precedence in saveMetadata.
 				fill[key] = local[key];
 			}
 		}

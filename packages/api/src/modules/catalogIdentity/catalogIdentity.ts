@@ -429,6 +429,9 @@ function strongIdentifierKeys(evidence: CatalogIdentityEvidence): Set<string> {
 			out.add(`isbn:${normalizeIsbn(identifier.value)}`);
 		} else if (identifier.scheme === "asin" && isValidAsin(identifier.value)) {
 			out.add(`asin:${normalizeAsin(identifier.value)}`);
+		} else if (identifier.scheme === "providerEdition") {
+			const value = identifier.value.trim();
+			if (value) out.add(`provider-edition:${value}`);
 		}
 	}
 	return out;

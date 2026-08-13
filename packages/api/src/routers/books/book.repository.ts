@@ -6,6 +6,7 @@ import {
 	bookAuthor,
 	bookMetadata,
 	bookSeries,
+	enrichmentState,
 	library,
 	publisher,
 	series,
@@ -1695,10 +1696,13 @@ export class BookRepository {
 				asin: bookMetadata.asin,
 				embeddedUid: bookMetadata.embeddedUid,
 				languageCode: bookMetadata.languageCode,
+				catalogMatches: enrichmentState.matched,
+				catalogMatchStatus: enrichmentState.status,
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
 			.where(eq(book.id, bookId))
 			.limit(1);
 		return row ?? null;
@@ -1709,7 +1713,12 @@ export class BookRepository {
 	// OPF embedded uid (re-packaged copies of the same edition).
 	async findGroupingCandidates(
 		libraryId: number,
-		ids: { isbns: string[]; asins: string[]; uids?: string[] },
+		ids: {
+			isbns: string[];
+			asins: string[];
+			uids?: string[];
+			primaryCatalogMatch?: { provider: string; providerId: string };
+		},
 	) {
 		const matchers: SQL[] = [];
 		if (ids.isbns.length > 0) {
@@ -1738,6 +1747,18 @@ export class BookRepository {
 				sql`trim(coalesce(${bookMetadata.embeddedUid}, '')) IN (${uidList})`,
 			);
 		}
+		if (ids.primaryCatalogMatch) {
+			const match = ids.primaryCatalogMatch;
+			const needle = JSON.stringify([
+				{ provider: match.provider, providerId: match.providerId },
+			]);
+			matchers.push(sql`(
+				${enrichmentState.matched} @> ${needle}::jsonb
+				AND ${enrichmentState.status} IN ('enriched', 'partial')
+				AND ${enrichmentState.matched}->0->>'provider' = ${match.provider}
+				AND ${enrichmentState.matched}->0->>'providerId' = ${match.providerId}
+			)`);
+		}
 		return db
 			.select({
 				id: book.id,
@@ -1750,9 +1771,12 @@ export class BookRepository {
 				asin: bookMetadata.asin,
 				embeddedUid: bookMetadata.embeddedUid,
 				languageCode: bookMetadata.languageCode,
+				catalogMatches: enrichmentState.matched,
+				catalogMatchStatus: enrichmentState.status,
 			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
 			.where(
 				and(
 					eq(book.libraryId, libraryId),
@@ -1877,8 +1901,9 @@ export class BookRepository {
 	}
 
 	/** Paginated (id, uuid) pages of a library's ebooks, for reprocess fan-out.
-	 * Audiobooks are excluded — their pipeline (audio probe) is not reprocessable
-	 * from the OPF path. */
+	 * Hidden edition copies are included because local extraction and cover repair
+	 * belong to each concrete file; the worker still skips external enrichment for
+	 * copies that remain hidden after regrouping. Audiobooks are excluded. */
 	async listEbookIdsByLibraryAfter(
 		libraryId: number,
 		lastId: number,
@@ -1891,9 +1916,6 @@ export class BookRepository {
 				and(
 					eq(book.libraryId, libraryId),
 					gt(book.id, lastId),
-					// Hidden copies are never enriched; skip them here so the
-					// refresh doesn't queue jobs admission will reject.
-					isNull(book.duplicateOfBookId),
 					// NULL media_type predates the column and is always an ebook.
 					or(isNull(book.mediaType), notLike(book.mediaType, "audio/%")),
 				),

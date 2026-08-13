@@ -1,0 +1,1 @@
+CREATE INDEX "enrichment_state_matched_gin_idx" ON "enrichment_state" USING gin ("matched");

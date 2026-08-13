@@ -4,6 +4,11 @@ export {
 	isSupplementalCatalogTitle,
 } from "./catalogIdentity";
 export {
+	type CatalogProviderMatch,
+	primaryProviderEditionMatch,
+	providerEditionIdentifier,
+} from "./providerEdition";
+export {
 	CATALOG_IDENTITY_REASONS,
 	type CatalogCreator,
 	type CatalogIdentifier,
