@@ -599,6 +599,11 @@
 	transition-duration: var(--expanded-player-close-dur);
 }
 
+html.expanded-player-open,
+html.expanded-player-open body {
+	overscroll-behavior-y: none;
+}
+
 /* Now Brief's character comes from a quiet, low-chroma surface. Every tone is
    derived from the cover's main colour; only its lightness and chroma change. */
 .player-ambient-field {

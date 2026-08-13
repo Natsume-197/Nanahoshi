@@ -204,7 +204,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 			<div className="relative flex min-h-0 flex-1 flex-col pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)]">
 				{/* One button's padding less than the content below, so the icons land
 				    on the title's edge. */}
-				<div className="grid min-h-12 shrink-0 touch-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-1 max-[22rem]:grid-cols-2 md:min-h-14 md:px-6">
+				<div className="grid min-h-12 shrink-0 touch-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-4 py-1 max-[22rem]:grid-cols-2 md:min-h-14 md:px-6">
 					<PlayerIconButton
 						label={m["audiobook.player_collapse"]()}
 						side="bottom"
@@ -247,7 +247,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 					</div>
 				</div>
 
-				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-5 py-4 md:px-8 md:py-6">
+				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-6 py-5 md:px-8 md:py-6">
 					{/* Below lg the chapter list takes the artwork's place inside the
 					    column, so the transport and the Chapters toggle stay reachable. */}
 					<div className="flex min-h-0 w-full min-w-0 max-w-md flex-col items-center justify-center gap-3 md:max-w-lg md:gap-4 xl:max-w-xl">

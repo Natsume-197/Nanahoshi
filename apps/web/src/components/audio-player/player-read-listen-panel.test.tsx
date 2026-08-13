@@ -1,11 +1,46 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import { useLayoutEffect, useRef } from "react";
 
 let ReadListenActiveCueFollower: typeof import("./read-listen-active-cue-follower").ReadListenActiveCueFollower;
+let PlayerReadListenPanel: typeof import("./player-read-listen-panel").PlayerReadListenPanel;
 
 const scrollToIndex = mock(() => {});
+const cue = {
+	id: "current",
+	text: {
+		kind: "text-quote" as const,
+		sectionRef: "chapter.xhtml",
+		exact: "Current sentence.",
+	},
+	audioFileIndex: 0,
+	startMs: 0,
+	endMs: 1_000,
+	globalStartMs: 0,
+	globalEndMs: 1_000,
+};
+
+mock.module(
+	"@/components/read-listen/use-read-listen-playback-session",
+	() => ({
+		useReadListenPlaybackSession: () => ({
+			status: "ready",
+			statusText: cue.text.exact,
+			details: null,
+			timeline: [cue],
+			activeCue: cue,
+			activeCueIndex: 0,
+			previousCue: undefined,
+			nextCue: undefined,
+			repeatCue: cue,
+			isAudiobookLoaded: true,
+			alignmentRevision: "test",
+			seekToCue: mock(() => {}),
+			retry: mock(() => {}),
+		}),
+	}),
+);
 
 beforeAll(async () => {
 	const dom = new JSDOM("<!doctype html><html><body></body></html>");
@@ -23,6 +58,7 @@ beforeAll(async () => {
 	({ ReadListenActiveCueFollower } = await import(
 		"./read-listen-active-cue-follower"
 	));
+	({ PlayerReadListenPanel } = await import("./player-read-listen-panel"));
 });
 
 afterEach(() => {
@@ -31,6 +67,34 @@ afterEach(() => {
 });
 
 describe("PlayerReadListenPanel following", () => {
+	test("offers to resume following after a touch scroll that starts on a cue", () => {
+		const view = render(
+			<PlayerReadListenPanel
+				pairings={[
+					{
+						id: "pair",
+						ebookUuid: "ebook",
+						ebookTitle: "Book",
+						ebookFilename: "book.epub",
+					},
+				]}
+				selectedPairingId="pair"
+				onPairingChange={() => {}}
+			/>,
+		);
+		const viewport = view.getByRole("region", {
+			name: /synchronized book text/i,
+		});
+		const cueSurface = document.createElement("button");
+		viewport.append(cueSurface);
+
+		fireEvent.touchMove(cueSurface);
+
+		expect(
+			view.getByRole("button", { name: /resume following/i }),
+		).toBeTruthy();
+	});
+
 	test("positions the active cue before the browser can paint the next sentence", () => {
 		let callsSeenDuringCommit = -1;
 		function CommitProbe() {

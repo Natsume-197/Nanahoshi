@@ -7,6 +7,14 @@ const playerBar = readFileSync(
 	new URL("./player-bar.tsx", import.meta.url),
 	"utf8",
 );
+const miniPlayer = readFileSync(
+	new URL("./mini-player.tsx", import.meta.url),
+	"utf8",
+);
+const expandedPlayer = readFileSync(
+	new URL("./expanded-player.tsx", import.meta.url),
+	"utf8",
+);
 
 describe("expanded player motion", () => {
 	it("keeps the miniplayer behind the panel until closing finishes", () => {
@@ -25,5 +33,17 @@ describe("expanded player motion", () => {
 
 	it("reopens on press without waiting for click release", () => {
 		expect(playerBar).toContain("onPointerDown={expand}");
+	});
+
+	it("disables pull-to-refresh only while the expanded player is open", () => {
+		expect(miniPlayer).toContain("{isExpanded && <DisablePullToRefresh />}");
+		expect(css).toContain("html.expanded-player-open body");
+		expect(css).toContain("overscroll-behavior-y: none");
+	});
+
+	it("adds a little more compact-screen breathing room", () => {
+		expect(expandedPlayer).toContain(
+			"overflow-hidden px-6 py-5 md:px-8 md:py-6",
+		);
 	});
 });

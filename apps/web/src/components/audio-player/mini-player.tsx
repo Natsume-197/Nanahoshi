@@ -53,6 +53,17 @@ function OnOpen({ run }: { run: () => void }) {
 	return null;
 }
 
+/** Stops the viewport overscroll gesture from reaching browser refresh. */
+function DisablePullToRefresh() {
+	useMountEffect(() => {
+		document.documentElement.classList.add("expanded-player-open");
+		return () => {
+			document.documentElement.classList.remove("expanded-player-open");
+		};
+	});
+	return null;
+}
+
 export const MiniPlayer = memo(function MiniPlayer({
 	placement = "dashboard",
 	readListen,
@@ -135,6 +146,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 	return (
 		<>
 			<PlayerShortcuts />
+			{isExpanded && <DisablePullToRefresh />}
 			<div
 				className={cn(
 					"fixed inset-x-0 text-sidebar-foreground md:bottom-0",

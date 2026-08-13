@@ -165,6 +165,7 @@ function PlayerReadListenSessionPanel({
 				tabIndex={0}
 				onKeyDown={handleManualScrollKey}
 				onWheel={() => setFollowText(false)}
+				onTouchMove={() => setFollowText(false)}
 				onPointerDown={(event) => {
 					if (
 						event.button === 0 &&
