@@ -1,6 +1,6 @@
 /** Below this, the slide draws more attention than the ellipsis it replaces. */
 export const MIN_OVERFLOW_PX = 8;
-const PX_PER_SECOND = 30;
+export const MARQUEE_PX_PER_SECOND = 27;
 export const MARQUEE_GAP_PX = 48;
 
 export function shouldLoop(overflow: number): boolean {
@@ -12,6 +12,6 @@ export function marqueeVars(contentWidth: number): Record<string, string> {
 	return {
 		"--marquee-shift": `-${distance}px`,
 		"--marquee-gap": `${MARQUEE_GAP_PX}px`,
-		"--marquee-duration": `${distance / PX_PER_SECOND}s`,
+		"--marquee-duration": `${distance / MARQUEE_PX_PER_SECOND}s`,
 	};
 }

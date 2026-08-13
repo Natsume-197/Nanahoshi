@@ -9,12 +9,17 @@ import { memo, useState } from "react";
 import { JumpSettings } from "@/components/audio-player/player-jump-settings";
 import { Button } from "@/components/ui/button";
 import {
+	Drawer,
+	DrawerContent,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
 	Tooltip,
 	TooltipContent,
@@ -26,7 +31,7 @@ import { m } from "@/paraglide/messages";
 
 const ROW_CLASS = "h-9 w-full justify-start gap-2 px-2 font-normal";
 
-/** Navigation and jump actions shared by the popover and the mobile sheet. */
+/** Navigation and jump actions shared by the popover and the mobile drawer. */
 function MoreActions({
 	uuid,
 	onOpenReadListenReader,
@@ -121,20 +126,25 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 		return (
 			<>
 				{trigger}
-				<Sheet open={open} onOpenChange={setOpen}>
-					<SheetContent
-						side="bottom"
-						showCloseButton={false}
-						className="gap-3 rounded-t-2xl p-4 pb-[calc(1rem+var(--safe-area-bottom))]"
-					>
-						<SheetTitle className="sr-only">{label}</SheetTitle>
-						<MoreActions
-							uuid={uuid}
-							onOpenReadListenReader={onOpenReadListenReader}
-							onDone={() => setOpen(false)}
-						/>
-					</SheetContent>
-				</Sheet>
+				<Drawer
+					open={open}
+					onOpenChange={setOpen}
+					overlayClassName="supports-backdrop-filter:backdrop-blur-none"
+					showSwipeHandle
+				>
+					<DrawerContent className="rounded-t-[1.75rem] rounded-b-none border-x-0 border-b-0 [--drawer-content-max-height:min(80dvh,40rem)] [--drawer-inset:0px]">
+						<DrawerHeader className="px-[max(1rem,var(--safe-area-left))] pt-2 pr-[max(1rem,var(--safe-area-right))] pb-2 text-start">
+							<DrawerTitle>{label}</DrawerTitle>
+						</DrawerHeader>
+						<div className="min-h-0 overflow-y-auto overscroll-contain px-[max(1rem,var(--safe-area-left))] pt-1 pr-[max(1rem,var(--safe-area-right))] pb-[max(1rem,var(--safe-area-bottom))]">
+							<MoreActions
+								uuid={uuid}
+								onOpenReadListenReader={onOpenReadListenReader}
+								onDone={() => setOpen(false)}
+							/>
+						</div>
+					</DrawerContent>
+				</Drawer>
 			</>
 		);
 	}

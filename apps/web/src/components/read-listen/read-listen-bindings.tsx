@@ -70,6 +70,14 @@ export function LoadReadListenAudiobook({
 	);
 }
 
+/** The paired audiobook belongs to this reader session, not to the next route. */
+export function StopReadListenPlaybackOnExit() {
+	const { stop } = useAudioPlayerActions();
+
+	useMountEffect(() => () => stop());
+	return null;
+}
+
 function LoadReadListenAudiobookOnMount({
 	details,
 }: {

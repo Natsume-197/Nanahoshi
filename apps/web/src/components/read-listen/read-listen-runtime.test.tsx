@@ -7,6 +7,7 @@ const seekTo = mock((time: number) => {
 	playerTime = time;
 });
 const scrollIntoView = mock(() => {});
+const stop = mock(() => {});
 let capturedReadListen:
 	| {
 			canSeekPreviousSentence: boolean;
@@ -86,6 +87,7 @@ mock.module("@/context/audio-player-context", () => ({
 		loadAudiobook: () => {},
 		seekTo,
 		setExpanded: () => {},
+		stop,
 	}),
 	useAudioPlayerBook: () => ({ uuid: "audio-1" }),
 	useAudioPlayerState: () => ({
@@ -128,6 +130,7 @@ afterEach(() => {
 	playerTime = 0;
 	seekTo.mockClear();
 	scrollIntoView.mockClear();
+	stop.mockClear();
 	capturedReadListen = undefined;
 });
 
@@ -247,5 +250,43 @@ describe("ReadListenRuntime", () => {
 		);
 
 		expect(scrollIntoView).toHaveBeenCalledTimes(2);
+	});
+
+	test("opens at the latest aligned sentence when paused in a narration gap", () => {
+		playerTime = 5;
+		document.body.innerHTML =
+			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>三。</p></section>';
+
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[]}
+				readerDomRevision="scroll-horizontal"
+			/>,
+		);
+
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+	});
+
+	test("stops the paired audiobook when leaving the reader", () => {
+		const view = render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[]}
+				readerDomRevision="scroll-horizontal"
+			/>,
+		);
+
+		view.unmount();
+
+		expect(stop).toHaveBeenCalledTimes(1);
 	});
 });

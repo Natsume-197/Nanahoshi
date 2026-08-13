@@ -6,6 +6,7 @@ import {
 	LoadReadListenAudiobook,
 	ReadListenSentenceSeeking,
 	SeekReadListenFromText,
+	StopReadListenPlaybackOnExit,
 } from "@/components/read-listen/read-listen-bindings";
 import { useReadListenPlaybackSession } from "@/components/read-listen/use-read-listen-playback-session";
 import type { BookReaderApi } from "@/components/reader/reader-shared-props";
@@ -91,9 +92,14 @@ export function ReadListenRuntime({
 		Boolean(initialSeekCue) &&
 		(!initialSeekCue?.playbackReachedCue ||
 			activeCue?.id === initialSeekCue?.cueId);
+	// A paused playhead can sit in a silence between aligned sentences. Keep the
+	// reader anchored to the latest cue (or the first upcoming one) so opening
+	// from the audiobook never falls back to an unrelated ebook bookmark.
+	const readerCue = activeCue ?? previousCue ?? nextCue;
 
 	return (
 		<>
+			<StopReadListenPlaybackOnExit />
 			{session.details && (
 				<LoadReadListenAudiobook
 					key={session.details.uuid}
@@ -121,13 +127,13 @@ export function ReadListenRuntime({
 						}}
 					/>
 				)}
-			{activeCue && !isInitialTextSeekPending && (
+			{readerCue && !isInitialTextSeekPending && (
 				<ActiveReadListenCue
-					key={`${alignmentRevision}:${sourceFormat}:${activeCue.id}:${followText}:${readerDomRevision}`}
-					cue={activeCue}
+					key={`${alignmentRevision}:${sourceFormat}:${readerCue.id}:${followText}:${readerDomRevision}`}
+					cue={readerCue}
 					sectionTargets={
 						targetsBySection.get(
-							toReaderSectionReference(activeCue.text.sectionRef, sourceFormat),
+							toReaderSectionReference(readerCue.text.sectionRef, sourceFormat),
 						) ?? []
 					}
 					followText={followText && !suppressInitialCueFollow}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	MARQUEE_GAP_PX,
+	MARQUEE_PX_PER_SECOND,
 	MIN_OVERFLOW_PX,
 	marqueeVars,
 	shouldLoop,
@@ -40,6 +41,10 @@ describe("marqueeVars", () => {
 			longDistance / shortDistance,
 			5,
 		);
+	});
+
+	it("uses the calmer expanded-player reading pace", () => {
+		expect(MARQUEE_PX_PER_SECOND).toBe(27);
 	});
 
 	it("exposes the gap the second copy is spaced by", () => {

@@ -44,10 +44,9 @@ const COVER_WIDTH = 1200;
 const SCENE_STYLE = {
 	// The popovers portal out to the app theme, so keep the app's radius.
 	"--radius": "inherit",
-	// Neutral like the app scale, but on its own darker ladder: the tint
-	// gradient falls from the cover colour to near-black, so this floor sits
-	// below --background on purpose.
-	"--background": "oklch(0.145 0 90)",
+	// Pin lightness and reduce chroma while preserving the extracted hue, so
+	// every cover gets its own dark floor without sacrificing text contrast.
+	"--background": "oklch(from var(--player-source) 0.18 calc(c * 0.2) h)",
 	"--player-source": "#625a78",
 	"--foreground": "oklch(0.985 0 0)",
 	"--reading": "oklch(0.985 0 0)",
@@ -179,6 +178,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 	const hasChapters = chapters.length > 0;
 	const chapter = chapters[activeChapterIndex];
 	const inlineSidePanel = sidePanel !== null && isBelowLg;
+	const splitLayout = sidePanel !== null && !inlineSidePanel;
 	const selectedReadListenPairing = readListenPairings.find(
 		(pairing) => pairing.id === selectedReadListenPairingId,
 	);
@@ -247,10 +247,21 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 					</div>
 				</div>
 
-				<div className="flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-6 py-5 md:px-8 md:py-6">
+				<div
+					className={cn(
+						"flex min-h-0 min-w-0 flex-1 justify-center gap-8 overflow-hidden px-6 py-5 md:px-8 md:py-6",
+						splitLayout &&
+							"lg:mx-auto lg:grid lg:w-full lg:max-w-[80rem] lg:grid-cols-[minmax(28rem,1.1fr)_minmax(24rem,0.9fr)] lg:gap-12 2xl:gap-16",
+					)}
+				>
 					{/* Below lg the chapter list takes the artwork's place inside the
 					    column, so the transport and the Chapters toggle stay reachable. */}
-					<div className="flex min-h-0 w-full min-w-0 max-w-md flex-col items-center justify-center gap-3 md:max-w-lg md:gap-4 xl:max-w-xl">
+					<div
+						className={cn(
+							"flex min-h-0 w-full min-w-0 max-w-md flex-col items-center justify-center gap-3 md:max-w-lg md:gap-4",
+							splitLayout ? "lg:max-w-2xl" : "xl:max-w-xl",
+						)}
+					>
 						{/* touch-none per surface, never on the column: the chapter list must
 						    not sit under an ancestor that forbids panning, and the page
 						    behind must not take the gesture mid-pull. */}
@@ -277,7 +288,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 									alt={title}
 									// max-* only: an explicit height outgrows a narrow cover and
 									// detaches the shadow from the art.
-									className="max-h-full max-w-[calc(100%+1rem)] rounded-[12px] object-contain shadow-[0_20px_50px_-20px_oklch(0_0_0/0.85)] outline outline-[var(--image-outline)] -outline-offset-1"
+									className="max-h-full max-w-[calc(100%+1rem)] rounded-[12px] object-contain shadow-[0_20px_50px_-20px_oklch(0_0_0/0.85)]"
 									decoding="async"
 								/>
 							) : (
@@ -348,7 +359,9 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 
 						<PlayerTransport size="expanded" />
 
-						<div className="flex w-full min-w-0 shrink-0 touch-none items-center justify-between gap-1">
+						{/* Match the header's optical inset: these controls have an invisible
+						    hit-area around their visible glyphs and labels. */}
+						<div className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 shrink-0 touch-none items-center justify-between gap-1">
 							<div className="flex min-w-0 items-center gap-1">
 								<SpeedButton />
 								<SleepButton />
@@ -409,7 +422,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 							readListenPairings={readListenPairings}
 							selectedReadListenPairingId={selectedReadListenPairingId}
 							onReadListenPairingChange={onReadListenPairingChange}
-							className="min-h-0 w-[min(30rem,38vw)] shrink-0"
+							className="min-h-0 w-full min-w-0"
 						/>
 					)}
 				</div>

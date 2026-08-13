@@ -6,7 +6,9 @@ import { useLayoutEffect, useRef } from "react";
 let ReadListenActiveCueFollower: typeof import("./read-listen-active-cue-follower").ReadListenActiveCueFollower;
 let PlayerReadListenPanel: typeof import("./player-read-listen-panel").PlayerReadListenPanel;
 
-const scrollToIndex = mock(() => {});
+const scrollToIndex = mock(
+	(_index: number, _options: { align: "center"; behavior: "auto" }) => {},
+);
 const cue = {
 	id: "current",
 	text: {

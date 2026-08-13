@@ -8,9 +8,12 @@ const source = readFileSync(
 const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 describe("expanded player ambient background", () => {
-	it("derives the complete low-chroma Now Brief field from the main color", () => {
+	it("builds multi-hue ambient light over a main-color dark scene", () => {
 		expect(source).toContain('"--player-source"');
 		expect(source).toContain('"--player-source": audiobook.mainColor');
+		expect(source).toContain(
+			'"oklch(from var(--player-source) 0.18 calc(c * 0.2) h)"',
+		);
 		expect(source).toContain('className="player-ambient-field');
 		expect(source).toContain('className="player-ambient-orbs"');
 		expect(source).not.toContain("getMutedAccentSurfaceColor");
@@ -18,22 +21,23 @@ describe("expanded player ambient background", () => {
 		expect(source).not.toContain("AMBIENT_COVER_WIDTH");
 		expect(css).toContain(".player-ambient-field {");
 		expect(css).toContain(".player-ambient-orbs {");
+		expect(css).toContain(
+			"--player-night-mid: oklch(from var(--player-source) 0.18 calc(c * 0.2) h)",
+		);
+		expect(css).not.toContain("--player-night-mid: #181321");
+		expect(css).toContain("--player-glow-violet");
+		expect(css).toContain("--player-glow-rose");
+		expect(css).toContain("--player-glow-blue");
+		expect(css).toContain("--player-glow-cover");
 		expect(css).toMatch(/oklch\(\s*from var\(--player-source\)/);
-		expect(css).not.toContain("calc(h + 6)");
-		expect(css).not.toContain("calc(h - 6)");
-		expect(css).not.toContain("calc(h + 24)");
-		expect(css).not.toContain("calc(h - 32)");
-		expect(css).toContain("inset: -10%");
-		expect(css).toContain("0.31 calc(c * 0.18) h");
-		expect(css).toContain("0.255 calc(c * 0.14) h");
-		expect(css).toContain("0.22 calc(c * 0.1) h");
-		expect(css).toContain("0.43 calc(c * 0.08) h");
-		expect(css).toContain("0.36 calc(c * 0.18) h");
-		expect(css).not.toContain("--player-edge-teal");
-		expect(css).not.toContain("--player-edge-blue");
+		expect(css).toContain("inset: -24%");
+		expect(css).toContain("ellipse 62% 72% at 66% 34%");
+		expect(css).toContain("ellipse 78% 56% at 52% 108%");
+		expect(css).toContain("ellipse 54% 68% at 108% 48%");
+		expect(css).toContain("ellipse 58% 72% at 14% 36%");
 	});
 
-	it("uses one filter-free ambient compositor layer", () => {
+	it("uses large gradient blobs instead of blurring the cover", () => {
 		expect(source).not.toContain("player-ambient-specks");
 		expect(source).not.toContain("player-ambient-bloom-primary");
 		expect(source).not.toContain("player-ambient-bloom-secondary");
@@ -47,10 +51,14 @@ describe("expanded player ambient background", () => {
 	it("keeps a dark contrast veil above the artwork", () => {
 		expect(source).toContain('className="player-ambient-veil"');
 		expect(css).toContain(".player-ambient-veil {");
-		expect(css).toContain("transparent 34%");
-		expect(css).toContain("oklch(0.055 0 0 / 18%) 66%");
-		expect(css).toContain("oklch(0.055 0 0 / 52%) 100%");
-		expect(css).toContain("transparent 62%");
+		expect(css).toContain("transparent 30%");
+		expect(css).toContain(
+			"oklch(from var(--player-source) 0.055 calc(c * 0.07) h / 7%) 64%",
+		);
+		expect(css).toContain(
+			"oklch(from var(--player-source) 0.04 calc(c * 0.05) h / 34%) 100%",
+		);
+		expect(css).toContain("transparent 64%");
 	});
 
 	it("falls back to the solid tinted scene when transparency is reduced", () => {
@@ -80,5 +88,11 @@ describe("expanded player ambient background", () => {
 
 	it("allows the artwork to use more space than the text column", () => {
 		expect(source).toContain("max-w-[calc(100%+1rem)]");
+		expect(source).not.toContain("xl:h-full xl:w-auto xl:max-w-full");
+	});
+
+	it("keeps the cover free of a background frame", () => {
+		expect(source).not.toContain("outline-[var(--image-outline)]");
+		expect(source).not.toContain("xl:h-full xl:w-auto xl:max-w-full");
 	});
 });

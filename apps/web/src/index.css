@@ -604,71 +604,84 @@ html.expanded-player-open body {
 	overscroll-behavior-y: none;
 }
 
-/* Now Brief's character comes from a quiet, low-chroma surface. Every tone is
-   derived from the cover's main colour; only its lightness and chroma change. */
+/* A near-black version of the extracted main colour gives the ambient light
+   somewhere to disappear into. The cover itself is never blurred. */
 .player-ambient-field {
-	--player-base-light: oklch(from var(--player-source) 0.31 calc(c * 0.18) h);
-	--player-base-mid: oklch(from var(--player-source) 0.255 calc(c * 0.14) h);
-	--player-base-deep: oklch(from var(--player-source) 0.22 calc(c * 0.1) h);
+	--player-night-light: oklch(from var(--player-source) 0.24 calc(c * 0.28) h);
+	--player-night-mid: oklch(from var(--player-source) 0.18 calc(c * 0.2) h);
+	--player-night-deep: oklch(from var(--player-source) 0.135 calc(c * 0.14) h);
 
 	background: linear-gradient(
-		160deg,
-		var(--player-base-light),
-		var(--player-base-mid) 56%,
-		var(--player-base-deep)
+		155deg,
+		var(--player-night-light),
+		var(--player-night-mid) 54%,
+		var(--player-night-deep) 100%
 	);
 }
 
 .player-ambient-orbs {
-	/* Multiplying the source chroma preserves its identity without allowing a
-	   saturated cover to turn the background into a bright colour wash. */
-	--player-cover-haze: oklch(from var(--player-source) 0.47 calc(c * 0.06) h);
-	--player-soft-mist: oklch(from var(--player-source) 0.43 calc(c * 0.08) h);
-	--player-edge-deep: oklch(from var(--player-source) 0.36 calc(c * 0.18) h);
-	--player-edge-muted: oklch(from var(--player-source) 0.34 calc(c * 0.11) h);
+	/* Three anchored hues keep the scene intentional. A small share of the
+	   extracted cover colour ties the light to the current audiobook. */
+	--player-glow-violet: color-mix(
+		in oklab,
+		oklch(0.52 0.105 305) 78%,
+		var(--player-source) 22%
+	);
+	--player-glow-rose: color-mix(
+		in oklab,
+		oklch(0.47 0.105 22) 82%,
+		var(--player-source) 18%
+	);
+	--player-glow-blue: color-mix(
+		in oklab,
+		oklch(0.44 0.085 265) 86%,
+		var(--player-source) 14%
+	);
+	--player-glow-cover: oklch(from var(--player-source) 0.46 calc(c * 0.36) h);
 
 	position: absolute;
-	inset: -10%;
+	inset: -24%;
 	backface-visibility: hidden;
 	background:
 		radial-gradient(
-			ellipse 118% 74% at -18% 20%,
-			color-mix(in oklab, var(--player-soft-mist) 20%, transparent) 0%,
-			color-mix(in oklab, var(--player-soft-mist) 11%, transparent) 42%,
-			color-mix(in oklab, var(--player-soft-mist) 4%, transparent) 66%,
-			transparent 86%
-		),
-		radial-gradient(
-			ellipse 92% 70% at 116% 94%,
-			color-mix(in oklab, var(--player-edge-deep) 22%, transparent) 0%,
-			color-mix(in oklab, var(--player-edge-deep) 12%, transparent) 44%,
-			color-mix(in oklab, var(--player-edge-deep) 4%, transparent) 68%,
+			ellipse 62% 72% at 66% 34%,
+			color-mix(in oklab, var(--player-glow-violet) 30%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-violet) 17%, transparent) 36%,
+			color-mix(in oklab, var(--player-glow-violet) 6%, transparent) 66%,
 			transparent 88%
 		),
 		radial-gradient(
-			ellipse 88% 66% at -20% 98%,
-			color-mix(in oklab, var(--player-edge-muted) 15%, transparent) 0%,
-			color-mix(in oklab, var(--player-edge-muted) 7%, transparent) 48%,
-			color-mix(in oklab, var(--player-edge-muted) 3%, transparent) 70%,
-			transparent 88%
+			ellipse 78% 56% at 52% 108%,
+			color-mix(in oklab, var(--player-glow-rose) 24%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-rose) 13%, transparent) 42%,
+			color-mix(in oklab, var(--player-glow-rose) 4%, transparent) 70%,
+			transparent 90%
 		),
 		radial-gradient(
-			ellipse 92% 58% at 88% -18%,
-			color-mix(in oklab, var(--player-cover-haze) 10%, transparent) 0%,
-			color-mix(in oklab, var(--player-cover-haze) 4%, transparent) 52%,
-			transparent 84%
+			ellipse 54% 68% at 108% 48%,
+			color-mix(in oklab, var(--player-glow-blue) 17%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-blue) 8%, transparent) 48%,
+			color-mix(in oklab, var(--player-glow-blue) 3%, transparent) 72%,
+			transparent 90%
+		),
+		radial-gradient(
+			ellipse 58% 72% at 14% 36%,
+			color-mix(in oklab, var(--player-glow-cover) 16%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-cover) 7%, transparent) 50%,
+			color-mix(in oklab, var(--player-glow-cover) 2%, transparent) 74%,
+			transparent 92%
 		);
 	contain: paint;
-	transform: translate3d(0, 0, 0) scale(1.04);
+	transform: translate3d(0, 0, 0) scale(1.03) rotate(-1deg);
 }
 
 @keyframes player-ambient-drift {
 	from {
-		transform: translate3d(-1%, 0.75%, 0) scale(1.04);
+		transform: translate3d(-1%, 0.75%, 0) scale(1.03) rotate(-1deg);
 	}
 
 	to {
-		transform: translate3d(1.25%, -1%, 0) scale(1.07);
+		transform: translate3d(1.25%, -1%, 0) scale(1.06) rotate(1deg);
 	}
 }
 
@@ -685,16 +698,16 @@ html.expanded-player-open body {
 	background:
 		linear-gradient(
 			to bottom,
-			transparent 34%,
-			oklch(0.055 0 0 / 6%) 48%,
-			oklch(0.055 0 0 / 18%) 66%,
-			oklch(0.055 0 0 / 34%) 84%,
-			oklch(0.055 0 0 / 52%) 100%
+			oklch(from var(--player-source) 0.08 calc(c * 0.08) h / 4%),
+			transparent 30%,
+			oklch(from var(--player-source) 0.055 calc(c * 0.07) h / 7%) 64%,
+			oklch(from var(--player-source) 0.045 calc(c * 0.06) h / 18%) 84%,
+			oklch(from var(--player-source) 0.04 calc(c * 0.05) h / 34%) 100%
 		),
 		radial-gradient(
 			ellipse 105% 84% at 50% 45%,
-			transparent 62%,
-			oklch(0.08 0 0 / 8%) 100%
+			transparent 64%,
+			oklch(from var(--player-source) 0.05 calc(c * 0.06) h / 12%) 100%
 		);
 }
 
