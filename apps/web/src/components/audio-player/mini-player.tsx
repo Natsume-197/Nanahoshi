@@ -13,6 +13,7 @@ import {
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
 import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -82,6 +83,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 		enabled: isExpanded,
 		onDismiss: () => setExpanded(false),
 	});
+	useOverlayBackDismiss(isExpanded, () => setExpanded(false));
 
 	// The panel stays mounted so the open transition has a painted start state;
 	// its contents don't, or they'd re-render on every playback tick unseen.

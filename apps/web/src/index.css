@@ -76,12 +76,12 @@
 	--page-slide-distance: 8px;
 	--page-blur: 3px;
 	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
-	--notification-sheet-open-dur: 280ms;
-	--notification-sheet-close-dur: 220ms;
-	--notification-sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
-	--expanded-player-open-dur: 280ms;
-	--expanded-player-close-dur: 220ms;
-	--expanded-player-ease: cubic-bezier(0.32, 0.72, 0, 1);
+	--notification-sheet-open-dur: 360ms;
+	--notification-sheet-close-dur: 300ms;
+	--notification-sheet-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+	--expanded-player-open-dur: 360ms;
+	--expanded-player-close-dur: 300ms;
+	--expanded-player-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;

@@ -192,6 +192,7 @@ export const PlayerBar = memo(function PlayerBar({
 					<button
 						type="button"
 						aria-label={m["audiobook.player_expand"]()}
+						onPointerDown={expand}
 						onClick={expand}
 						className="absolute inset-0"
 					/>

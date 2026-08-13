@@ -10,8 +10,8 @@ describe("mobile notification motion", () => {
 	});
 
 	it("uses interruptible transform transitions instead of sheet keyframes", () => {
-		expect(css).toContain("--notification-sheet-open-dur: 280ms");
-		expect(css).toContain("--notification-sheet-close-dur: 220ms");
+		expect(css).toContain("--notification-sheet-open-dur: 360ms");
+		expect(css).toContain("--notification-sheet-close-dur: 300ms");
 		expect(css).toContain("transition-property: transform, opacity");
 	});
 });

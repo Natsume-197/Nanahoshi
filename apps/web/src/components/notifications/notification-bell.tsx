@@ -36,6 +36,7 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -102,6 +103,7 @@ function NotificationTrigger({
 
 function MobileNotificationBell({ count }: { count: number }) {
 	const [open, setOpen] = useState(false);
+	useOverlayBackDismiss(open, () => setOpen(false));
 
 	return (
 		<Sheet open={open} onOpenChange={setOpen}>
