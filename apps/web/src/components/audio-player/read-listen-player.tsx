@@ -29,19 +29,28 @@ export function ReadListenOpenButton({
 	onOpen,
 	className,
 	side = "top",
+	label = m["read_listen.open_reader"](),
+	pressed,
 }: {
 	onOpen: () => void;
 	className?: string;
 	side?: "top" | "bottom";
+	label?: string;
+	pressed?: boolean;
 }) {
 	return (
 		<PlayerIconButton
-			label={m["read_listen.open_reader"]()}
+			label={label}
 			side={side}
+			pressed={pressed}
 			onClick={onOpen}
-			className={className}
+			className={cn(pressed && "bg-accent text-accent-foreground", className)}
 		>
-			<BookOpenText aria-hidden="true" className="size-5" />
+			<BookOpenText
+				aria-hidden="true"
+				className="size-5"
+				weight={pressed ? "fill" : "regular"}
+			/>
 		</PlayerIconButton>
 	);
 }

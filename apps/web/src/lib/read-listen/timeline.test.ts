@@ -4,6 +4,8 @@ import {
 	createReadListenTimeline,
 	findAdjacentReadListenCue,
 	findReadListenCue,
+	findReadListenCueIndex,
+	resolveReadListenTimelinePosition,
 	toReaderSectionReference,
 } from "./timeline";
 
@@ -48,6 +50,19 @@ describe("Read & Listen timeline", () => {
 		expect(findReadListenCue(timeline, 600)).toBeUndefined();
 	});
 
+	test("returns the active cue index without filling narration gaps", () => {
+		const timeline = createReadListenTimeline(cues, [
+			{ index: 0, duration: 10 },
+			{ index: 1, duration: 20 },
+		]);
+
+		expect(findReadListenCueIndex(timeline, 100)).toBe(0);
+		expect(findReadListenCueIndex(timeline, 499)).toBe(0);
+		expect(findReadListenCueIndex(timeline, 500)).toBe(-1);
+		expect(findReadListenCueIndex(timeline, 10_200)).toBe(1);
+		expect(findReadListenCueIndex(timeline, 10_700)).toBe(-1);
+	});
+
 	test("finds previous and next sentences from cues and narration gaps", () => {
 		const timeline = createReadListenTimeline(cues, [
 			{ index: 0, duration: 10 },
@@ -60,6 +75,26 @@ describe("Read & Listen timeline", () => {
 		expect(findAdjacentReadListenCue(timeline, 600, 1)?.id).toBe("second");
 		expect(findAdjacentReadListenCue(timeline, 10_300, -1)?.id).toBe("first");
 		expect(findAdjacentReadListenCue(timeline, 10_300, 1)).toBeUndefined();
+	});
+
+	test("resolves active and adjacent cues with one shared boundary decision", () => {
+		const timeline = createReadListenTimeline(cues, [
+			{ index: 0, duration: 10 },
+			{ index: 1, duration: 20 },
+		]);
+
+		expect(resolveReadListenTimelinePosition(timeline, 100)).toEqual({
+			activeIndex: 0,
+			activeCue: timeline[0],
+			previousCue: undefined,
+			nextCue: timeline[1],
+		});
+		expect(resolveReadListenTimelinePosition(timeline, 700)).toEqual({
+			activeIndex: -1,
+			activeCue: undefined,
+			previousCue: timeline[0],
+			nextCue: timeline[1],
+		});
 	});
 
 	test("maps Honomiya EPUB references to reader section ids", () => {

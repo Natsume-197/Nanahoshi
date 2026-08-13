@@ -1,9 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, memo, useRef, useState } from "react";
-import { ExpandedPlayer } from "@/components/audio-player/expanded-player";
+import {
+	ExpandedPlayer,
+	type PlayerSidePanelMode,
+} from "@/components/audio-player/expanded-player";
 import { miniPlayerBarLayer } from "@/components/audio-player/mini-player-motion";
 import { PlayerBar } from "@/components/audio-player/player-bar";
+import type { PlayerReadListenPairing } from "@/components/audio-player/player-read-listen-panel";
 import type { ReadListenPlayerContext } from "@/components/audio-player/read-listen-player";
 import { usePlayerShortcuts } from "@/components/audio-player/use-player-shortcuts";
 import { useSheetDrag } from "@/components/audio-player/use-sheet-drag";
@@ -14,7 +18,10 @@ import {
 } from "@/context/audio-player-context";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
-import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
+import {
+	findReadyReadListenPairings,
+	resolveReadListenPairingChoice,
+} from "@/lib/read-listen/pairing";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -57,6 +64,16 @@ export const MiniPlayer = memo(function MiniPlayer({
 	const isExpanded = useAudioPlayerExpanded();
 	const { setExpanded } = useAudioPlayerActions();
 	const navigate = useNavigate();
+	const [sidePanel, setSidePanel] = useState<PlayerSidePanelMode>(null);
+	const [selectedPairingId, setSelectedPairingId] = useState<string | null>(
+		null,
+	);
+	const sidePanelBookRef = useRef(audiobook?.uuid);
+	if (audiobook?.uuid !== sidePanelBookRef.current) {
+		sidePanelBookRef.current = audiobook?.uuid;
+		setSidePanel(null);
+		setSelectedPairingId(null);
+	}
 	const pairingsQuery = useQuery({
 		...orpc.readListen.getPairings.queryOptions({
 			input: {
@@ -66,17 +83,40 @@ export const MiniPlayer = memo(function MiniPlayer({
 		}),
 		enabled: Boolean(audiobook) && !readListen,
 	});
-	const readyPairing = findReadyReadListenPairing(pairingsQuery.data?.pairings);
-	const openReadListen = readyPairing
-		? () => {
-				setExpanded(false);
-				navigate({
-					to: "/reader/$uuid",
-					params: { uuid: readyPairing.ebook.uuid },
-					search: { pair: readyPairing.id },
-				});
-			}
-		: undefined;
+	const readyPairings = findReadyReadListenPairings(
+		pairingsQuery.data?.pairings,
+	);
+	const playerPairings: PlayerReadListenPairing[] = readyPairings.map(
+		(pairing) => ({
+			id: pairing.id,
+			ebookUuid: pairing.ebook.uuid,
+			ebookTitle: pairing.ebook.title,
+			ebookFilename: pairing.ebook.filename,
+		}),
+	);
+	const selectedPairing = resolveReadListenPairingChoice(
+		playerPairings,
+		selectedPairingId,
+	);
+	const resolvedSidePanel =
+		sidePanel === "read-listen" && playerPairings.length === 0
+			? null
+			: sidePanel;
+	const showReadListen =
+		playerPairings.length > 0
+			? () => {
+					setSidePanel("read-listen");
+					setExpanded(true);
+				}
+			: undefined;
+	const openReadListenReader = (pairing: PlayerReadListenPairing) => {
+		setExpanded(false);
+		void navigate({
+			to: "/reader/$uuid",
+			params: { uuid: pairing.ebookUuid },
+			search: { pair: pairing.id },
+		});
+	};
 	const panelRef = useRef<HTMLDivElement>(null);
 	const drag = useSheetDrag({
 		panelRef,
@@ -115,7 +155,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 			>
 				<PlayerBar
 					readListen={readListen}
-					onOpenReadListen={openReadListen}
+					onOpenReadListen={showReadListen}
 					showStopButton={placement !== "reader"}
 				/>
 			</div>
@@ -155,7 +195,12 @@ export const MiniPlayer = memo(function MiniPlayer({
 				{hasContent && (
 					<ExpandedPlayer
 						readListen={readListen}
-						onOpenReadListen={openReadListen}
+						readListenPairings={playerPairings}
+						selectedReadListenPairingId={selectedPairing?.id ?? null}
+						onReadListenPairingChange={setSelectedPairingId}
+						onOpenReadListenReader={openReadListenReader}
+						sidePanel={resolvedSidePanel}
+						onSidePanelChange={setSidePanel}
 					/>
 				)}
 			</div>

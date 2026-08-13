@@ -11,6 +11,13 @@ export type ReadListenAudioFile = {
 	duration: number;
 };
 
+export type ReadListenTimelinePosition = {
+	activeIndex: number;
+	activeCue: ReadListenTimelineCue | undefined;
+	previousCue: ReadListenTimelineCue | undefined;
+	nextCue: ReadListenTimelineCue | undefined;
+};
+
 /** Builds one global clock over a possibly multi-file audiobook. */
 export function createReadListenTimeline(
 	cues: ReadListenCue[],
@@ -38,34 +45,11 @@ export function createReadListenTimeline(
 	});
 }
 
-/** Finds the cue under the playhead in O(log n), leaving narration gaps empty. */
-export function findReadListenCue(
+/** Finds the cue index under the playhead in O(log n), leaving gaps empty. */
+export function resolveReadListenTimelinePosition(
 	timeline: ReadListenTimelineCue[],
 	globalTimeMs: number,
-): ReadListenTimelineCue | undefined {
-	let low = 0;
-	let high = timeline.length - 1;
-	let candidate = -1;
-	while (low <= high) {
-		const middle = Math.floor((low + high) / 2);
-		const cue = timeline[middle];
-		if (!cue || cue.globalStartMs > globalTimeMs) {
-			high = middle - 1;
-		} else {
-			candidate = middle;
-			low = middle + 1;
-		}
-	}
-	const cue = candidate >= 0 ? timeline[candidate] : undefined;
-	return cue && globalTimeMs < cue.globalEndMs ? cue : undefined;
-}
-
-/** Finds the sentence immediately before or after the playhead in O(log n). */
-export function findAdjacentReadListenCue(
-	timeline: ReadListenTimelineCue[],
-	globalTimeMs: number,
-	direction: -1 | 1,
-): ReadListenTimelineCue | undefined {
+): ReadListenTimelinePosition {
 	let low = 0;
 	let high = timeline.length;
 	while (low < high) {
@@ -75,20 +59,41 @@ export function findAdjacentReadListenCue(
 		else high = middle;
 	}
 	const nextIndex = low;
-	const currentOrPreviousIndex = nextIndex - 1;
-	const currentOrPrevious = timeline[currentOrPreviousIndex];
-	const isInsideCue = Boolean(
-		currentOrPrevious && globalTimeMs < currentOrPrevious.globalEndMs,
-	);
-	const targetIndex =
-		direction > 0
-			? isInsideCue
-				? currentOrPreviousIndex + 1
-				: nextIndex
-			: isInsideCue
-				? currentOrPreviousIndex - 1
-				: currentOrPreviousIndex;
-	return timeline[targetIndex];
+	const candidate = nextIndex - 1;
+	const cue = candidate >= 0 ? timeline[candidate] : undefined;
+	const activeIndex = cue && globalTimeMs < cue.globalEndMs ? candidate : -1;
+	return {
+		activeIndex,
+		activeCue: activeIndex >= 0 ? cue : undefined,
+		previousCue: timeline[activeIndex >= 0 ? activeIndex - 1 : candidate],
+		nextCue: timeline[activeIndex >= 0 ? activeIndex + 1 : nextIndex],
+	};
+}
+
+/** Finds the cue index under the playhead in O(log n), leaving gaps empty. */
+export function findReadListenCueIndex(
+	timeline: ReadListenTimelineCue[],
+	globalTimeMs: number,
+): number {
+	return resolveReadListenTimelinePosition(timeline, globalTimeMs).activeIndex;
+}
+
+/** Finds the cue under the playhead in O(log n), leaving narration gaps empty. */
+export function findReadListenCue(
+	timeline: ReadListenTimelineCue[],
+	globalTimeMs: number,
+): ReadListenTimelineCue | undefined {
+	return resolveReadListenTimelinePosition(timeline, globalTimeMs).activeCue;
+}
+
+/** Finds the sentence immediately before or after the playhead in O(log n). */
+export function findAdjacentReadListenCue(
+	timeline: ReadListenTimelineCue[],
+	globalTimeMs: number,
+	direction: -1 | 1,
+): ReadListenTimelineCue | undefined {
+	const position = resolveReadListenTimelinePosition(timeline, globalTimeMs);
+	return direction > 0 ? position.nextCue : position.previousCue;
 }
 
 export function toReaderSectionReference(

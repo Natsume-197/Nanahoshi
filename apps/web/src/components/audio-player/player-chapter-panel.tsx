@@ -10,6 +10,7 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 	activeIndex,
 	onSeekToChapter,
 	className,
+	showHeader = true,
 }: {
 	chapters: {
 		index: number;
@@ -21,6 +22,7 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 	activeIndex: number;
 	onSeekToChapter: (startTime: number) => void;
 	className?: string;
+	showHeader?: boolean;
 }) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -32,14 +34,16 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 
 	return (
 		<div className={cn("flex min-h-0 flex-col", className)}>
-			<div className="flex shrink-0 items-baseline justify-between gap-2 px-2 pb-2">
-				<p className="text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
-					{m["audiobook.player_chapters"]()}
-				</p>
-				<span className="text-[11px] text-muted-foreground tabular-nums">
-					{chapters.length}
-				</span>
-			</div>
+			{showHeader && (
+				<div className="flex shrink-0 items-baseline justify-between gap-2 px-2 pb-2">
+					<p className="text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+						{m["audiobook.player_chapters"]()}
+					</p>
+					<span className="text-[11px] text-muted-foreground tabular-nums">
+						{chapters.length}
+					</span>
+				</div>
+			)}
 			<div
 				ref={scrollRef}
 				data-sheet-ignore

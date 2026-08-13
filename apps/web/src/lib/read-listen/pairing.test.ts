@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { findReadyReadListenPairing } from "./pairing";
+import {
+	findReadyReadListenPairing,
+	findReadyReadListenPairings,
+	resolveReadListenPairingChoice,
+} from "./pairing";
 
 describe("findReadyReadListenPairing", () => {
 	test("returns the first pairing whose alignment can power the reader", () => {
@@ -21,5 +25,31 @@ describe("findReadyReadListenPairing", () => {
 				{ id: "stale", alignment: { status: "stale" } },
 			]),
 		).toBeUndefined();
+	});
+
+	test("preserves every ready ebook edition for an explicit choice", () => {
+		const first = { id: "first", alignment: { status: "ready" } };
+		const second = { id: "second", alignment: { status: "ready" } };
+
+		expect(
+			findReadyReadListenPairings([
+				first,
+				{ id: "stale", alignment: { status: "stale" } },
+				second,
+			]),
+		).toEqual([first, second]);
+	});
+
+	test("requires an explicit choice when several ready editions exist", () => {
+		const first = { id: "first" };
+		const second = { id: "second" };
+
+		expect(
+			resolveReadListenPairingChoice([first, second], null),
+		).toBeUndefined();
+		expect(resolveReadListenPairingChoice([first, second], "second")).toBe(
+			second,
+		);
+		expect(resolveReadListenPairingChoice([first], null)).toBe(first);
 	});
 });

@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Each piece of chrome collapses at the width where IT stops fitting, not at a
 // shared device preset: the sidebar's 17rem rail still leaves a workable panel
@@ -8,19 +7,20 @@ const MOBILE_BREAKPOINT = 768;
 const ACTIVITY_RAIL_BREAKPOINT = 1024;
 
 function useMediaQuery(query: string): boolean {
-	const [matches, setMatches] = useState<boolean | undefined>(undefined);
+	const subscribe = useCallback(
+		(onChange: () => void) => {
+			const mql = window.matchMedia(query);
+			mql.addEventListener("change", onChange);
+			return () => mql.removeEventListener("change", onChange);
+		},
+		[query],
+	);
+	const getSnapshot = useCallback(
+		() => window.matchMedia(query).matches,
+		[query],
+	);
 
-	// One-time external sync to a media query on mount — the sanctioned use of
-	// useMountEffect (see CLAUDE.md "No useEffect Rule").
-	useMountEffect(() => {
-		const mql = window.matchMedia(query);
-		const onChange = () => setMatches(mql.matches);
-		onChange();
-		mql.addEventListener("change", onChange);
-		return () => mql.removeEventListener("change", onChange);
-	});
-
-	return !!matches;
+	return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
 export function useIsMobile() {

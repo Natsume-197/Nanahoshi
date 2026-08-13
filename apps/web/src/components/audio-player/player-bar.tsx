@@ -220,6 +220,7 @@ export const PlayerBar = memo(function PlayerBar({
 						{!readListen && onOpenReadListen && (
 							<ReadListenOpenButton
 								onOpen={onOpenReadListen}
+								label={m["read_listen.open_in_player"]()}
 								className="size-8 text-foreground"
 							/>
 						)}
@@ -295,7 +296,10 @@ export const PlayerBar = memo(function PlayerBar({
 							/>
 						)}
 						{!readListen && onOpenReadListen && (
-							<ReadListenOpenButton onOpen={onOpenReadListen} />
+							<ReadListenOpenButton
+								onOpen={onOpenReadListen}
+								label={m["read_listen.open_in_player"]()}
+							/>
 						)}
 						<PlayerIconButton
 							label={m["audiobook.player_expand"]()}

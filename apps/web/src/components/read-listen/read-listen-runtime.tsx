@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { MiniPlayer } from "@/components/audio-player/mini-player";
@@ -8,23 +7,13 @@ import {
 	ReadListenSentenceSeeking,
 	SeekReadListenFromText,
 } from "@/components/read-listen/read-listen-bindings";
+import { useReadListenPlaybackSession } from "@/components/read-listen/use-read-listen-playback-session";
 import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 import {
-	useAudioPlayerActions,
-	useAudioPlayerState,
-} from "@/context/audio-player-context";
-import {
-	createReadListenTimeline,
-	findAdjacentReadListenCue,
-	findReadListenCue,
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
 import type { ReaderSourceFormat, Section } from "@/lib/reader/types";
-import { m } from "@/paraglide/messages";
-import { orpc } from "@/utils/orpc";
-
-const NIL_UUID = "00000000-0000-4000-8000-000000000000";
 
 export function ReadListenRuntime({
 	pairUuid,
@@ -53,32 +42,18 @@ export function ReadListenRuntime({
 	const [initialSeekCue, setInitialSeekCue] = useState<
 		{ cueId: string; playbackReachedCue: boolean } | undefined
 	>();
-	const player = useAudioPlayerState();
-	const { seekTo } = useAudioPlayerActions();
-	const sessionQuery = useQuery(
-		orpc.readListen.getSession.queryOptions({ input: { pairUuid, ebookUuid } }),
-	);
-	const audiobookUuid = sessionQuery.data?.pair.audiobookUuid;
-	const detailsQuery = useQuery({
-		...orpc.audiobooks.getDetails.queryOptions({
-			input: { uuid: audiobookUuid ?? NIL_UUID },
-		}),
-		enabled: Boolean(audiobookUuid),
-	});
-
-	const timeline = useMemo(() => {
-		const session = sessionQuery.data;
-		const details = detailsQuery.data;
-		if (!session || !details) return null;
-		try {
-			return createReadListenTimeline(
-				session.alignment.cues,
-				details.audioFiles ?? [],
-			);
-		} catch {
-			return null;
-		}
-	}, [detailsQuery.data, sessionQuery.data]);
+	const session = useReadListenPlaybackSession({ pairUuid, ebookUuid });
+	const {
+		timeline,
+		activeCue,
+		previousCue,
+		nextCue,
+		repeatCue,
+		isAudiobookLoaded,
+		alignmentRevision,
+		statusText: currentText,
+		seekToCue,
+	} = session;
 	const targetsBySection = useMemo(() => {
 		const sections = new Map<
 			string,
@@ -87,7 +62,7 @@ export function ReadListenRuntime({
 				value: ReadListenTimelineCue;
 			}>
 		>();
-		for (const cue of timeline ?? []) {
+		for (const cue of timeline) {
 			const sectionId = toReaderSectionReference(
 				cue.text.sectionRef,
 				sourceFormat,
@@ -98,26 +73,6 @@ export function ReadListenRuntime({
 		}
 		return sections;
 	}, [sourceFormat, timeline]);
-	const isAudiobookLoaded = player.audiobook?.uuid === audiobookUuid;
-	const activeCue =
-		isAudiobookLoaded && timeline
-			? findReadListenCue(timeline, player.globalCurrentTime * 1000)
-			: undefined;
-	const alignmentRevision = sessionQuery.data?.alignment.createdAt ?? "pending";
-	const previousCue =
-		isAudiobookLoaded && timeline
-			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, -1)
-			: undefined;
-	const nextCue =
-		isAudiobookLoaded && timeline
-			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, 1)
-			: undefined;
-	const repeatCue =
-		activeCue ??
-		(isAudiobookLoaded && timeline
-			? findAdjacentReadListenCue(timeline, player.globalCurrentTime * 1000, -1)
-			: undefined);
-
 	if (initialSeekCue && activeCue) {
 		if (
 			!initialSeekCue.playbackReachedCue &&
@@ -137,33 +92,19 @@ export function ReadListenRuntime({
 		(!initialSeekCue?.playbackReachedCue ||
 			activeCue?.id === initialSeekCue?.cueId);
 
-	const loading =
-		sessionQuery.isLoading ||
-		detailsQuery.isLoading ||
-		(Boolean(audiobookUuid) && !isAudiobookLoaded);
-	const unavailable =
-		sessionQuery.isError || detailsQuery.isError || (!loading && !timeline);
-	const currentText = unavailable
-		? m["read_listen.reader_unavailable"]()
-		: loading
-			? m["read_listen.reader_loading"]()
-			: activeCue?.text.kind === "text-quote"
-				? activeCue.text.exact
-				: m["read_listen.waiting_for_narration"]();
-
 	return (
 		<>
-			{detailsQuery.data && (
+			{session.details && (
 				<LoadReadListenAudiobook
-					key={detailsQuery.data.uuid}
-					details={detailsQuery.data}
+					key={session.details.uuid}
+					details={session.details}
 					isAudiobookLoaded={isAudiobookLoaded}
 				/>
 			)}
 			{initialTextPosition !== undefined &&
 				isInitialTextSeekPending &&
 				isAudiobookLoaded &&
-				timeline &&
+				timeline.length > 0 &&
 				targetsBySection.size > 0 && (
 					<SeekReadListenFromText
 						key={`${pairUuid}:${alignmentRevision}:${initialTextPosition}:${readerDomRevision}`}
@@ -209,15 +150,15 @@ export function ReadListenRuntime({
 							statusText: currentText,
 							canSeekPreviousSentence: Boolean(previousCue),
 							onSeekPreviousSentence: () => {
-								if (previousCue) seekTo(previousCue.globalStartMs / 1000);
+								if (previousCue) seekToCue(previousCue);
 							},
 							canSeekNextSentence: Boolean(nextCue),
 							onSeekNextSentence: () => {
-								if (nextCue) seekTo(nextCue.globalStartMs / 1000);
+								if (nextCue) seekToCue(nextCue);
 							},
 							canRepeatSentence: Boolean(repeatCue),
 							onRepeatSentence: () => {
-								if (repeatCue) seekTo(repeatCue.globalStartMs / 1000);
+								if (repeatCue) seekToCue(repeatCue);
 							},
 							followText,
 							onToggleFollowText: () => setFollowText((current) => !current),

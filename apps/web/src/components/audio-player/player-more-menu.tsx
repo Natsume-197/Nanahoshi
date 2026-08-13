@@ -1,4 +1,9 @@
-import { ArrowSquareOut, DotsThreeVertical, X } from "@phosphor-icons/react";
+import {
+	ArrowSquareOut,
+	BookOpenText,
+	DotsThreeVertical,
+	X,
+} from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
 import { JumpSettings } from "@/components/audio-player/player-jump-settings";
@@ -21,8 +26,16 @@ import { m } from "@/paraglide/messages";
 
 const ROW_CLASS = "h-9 w-full justify-start gap-2 px-2 font-normal";
 
-/** The two navigations plus the jump amounts, shared by the popover and the sheet. */
-function MoreActions({ uuid, onDone }: { uuid: string; onDone: () => void }) {
+/** Navigation and jump actions shared by the popover and the mobile sheet. */
+function MoreActions({
+	uuid,
+	onOpenReadListenReader,
+	onDone,
+}: {
+	uuid: string;
+	onOpenReadListenReader?: () => void;
+	onDone: () => void;
+}) {
 	const { stop, setExpanded } = useAudioPlayerActions();
 
 	return (
@@ -42,6 +55,20 @@ function MoreActions({ uuid, onDone }: { uuid: string; onDone: () => void }) {
 					{m["audiobook.player_view_details"]()}
 				</Link>
 			</Button>
+			{onOpenReadListenReader && (
+				<Button
+					variant="ghost"
+					size="sm"
+					className={ROW_CLASS}
+					onClick={() => {
+						onDone();
+						onOpenReadListenReader();
+					}}
+				>
+					<BookOpenText aria-hidden="true" className="size-4" />
+					{m["read_listen.open_full_reader"]()}
+				</Button>
+			)}
 			<Separator />
 			<JumpSettings />
 			<Separator />
@@ -69,8 +96,10 @@ function MoreActions({ uuid, onDone }: { uuid: string; onDone: () => void }) {
  */
 export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 	uuid,
+	onOpenReadListenReader,
 }: {
 	uuid: string;
+	onOpenReadListenReader?: () => void;
 }) {
 	const isMobile = useIsMobile();
 	const [open, setOpen] = useState(false);
@@ -99,7 +128,11 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 						className="gap-3 rounded-t-2xl p-4 pb-[calc(1rem+var(--safe-area-bottom))]"
 					>
 						<SheetTitle className="sr-only">{label}</SheetTitle>
-						<MoreActions uuid={uuid} onDone={() => setOpen(false)} />
+						<MoreActions
+							uuid={uuid}
+							onOpenReadListenReader={onOpenReadListenReader}
+							onDone={() => setOpen(false)}
+						/>
 					</SheetContent>
 				</Sheet>
 			</>
@@ -122,7 +155,11 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 				sideOffset={8}
 				className="w-64 rounded-xl p-3"
 			>
-				<MoreActions uuid={uuid} onDone={() => setOpen(false)} />
+				<MoreActions
+					uuid={uuid}
+					onOpenReadListenReader={onOpenReadListenReader}
+					onDone={() => setOpen(false)}
+				/>
 			</PopoverContent>
 		</Popover>
 	);
