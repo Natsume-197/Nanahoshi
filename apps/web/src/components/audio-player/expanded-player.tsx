@@ -29,7 +29,6 @@ import {
 import { useIsBelowLg } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getMutedAccentSurfaceColor } from "@/utils/color";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
 import { formatNames, formatTime } from "@/utils/format";
 
@@ -45,6 +44,7 @@ const SCENE_STYLE = {
 	// gradient falls from the cover colour to near-black, so this floor sits
 	// below --background on purpose.
 	"--background": "oklch(0.145 0 90)",
+	"--player-source": "#625a78",
 	"--foreground": "oklch(0.985 0 0)",
 	"--reading": "oklch(0.985 0 0)",
 	"--card": "oklch(0.235 0 90)",
@@ -67,10 +67,6 @@ const SCENE_STYLE = {
 	"--ring": "oklch(0.85 0 0)",
 	colorScheme: "dark",
 } as React.CSSProperties;
-
-/** One long fall from the cover's colour to near-black, never quite reaching it. */
-const TINT_GRADIENT =
-	"linear-gradient(to bottom, var(--player-tint), color-mix(in oklab, var(--player-tint) 55%, var(--background)) 42%, color-mix(in oklab, var(--player-tint) 12%, var(--background)))";
 
 const PILL_ACTIVE_CLASS = "bg-foreground/15 text-foreground";
 
@@ -102,13 +98,11 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 		return filename ? getCoverUrl(filename, COVER_WIDTH) : null;
 	}, [audiobook?.cover]);
 	const sceneStyle = useMemo(() => {
-		// The same muted surface the cards use, so one cover reads as one colour
-		// wherever it appears.
-		const tint = audiobook?.mainColor
-			? getMutedAccentSurfaceColor(audiobook.mainColor)
-			: null;
-		if (!tint) return SCENE_STYLE;
-		return { ...SCENE_STYLE, "--player-tint": tint } as React.CSSProperties;
+		if (!audiobook?.mainColor) return SCENE_STYLE;
+		return {
+			...SCENE_STYLE,
+			"--player-source": audiobook.mainColor,
+		} as React.CSSProperties;
 	}, [audiobook?.mainColor]);
 	// Audiobooks often ship narrators and no author; the line reads the same.
 	const authorText = useMemo(
@@ -134,13 +128,13 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 			className="dark relative flex h-full flex-col overflow-hidden bg-background text-foreground"
 			style={sceneStyle}
 		>
-			{audiobook.mainColor && (
-				<div
-					aria-hidden
-					className="pointer-events-none absolute inset-0"
-					style={{ backgroundImage: TINT_GRADIENT }}
-				/>
-			)}
+			<div
+				aria-hidden
+				className="player-ambient-field pointer-events-none absolute inset-0 overflow-hidden"
+			>
+				<div className="player-ambient-orbs" />
+				<div className="player-ambient-veil" />
+			</div>
 
 			{/* Insets here, not on the panel, so the scene still paints under the notch. */}
 			<div className="relative flex min-h-0 flex-1 flex-col pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)]">

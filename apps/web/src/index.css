@@ -599,6 +599,87 @@
 	transition-duration: var(--expanded-player-close-dur);
 }
 
+/* The reference is an ambient colour field, not blurred artwork: most blooms
+   continue well beyond the viewport, so no individual shape reads as an orb. */
+.player-ambient-field {
+	background: oklch(from var(--player-source) 0.21 calc(c * 0.26 + 0.006) h);
+}
+
+.player-ambient-orbs {
+	/* A tonal ramp of one hue: the higher the lightness, the lower the chroma.
+	   This creates cover-coloured light rather than three competing colours. */
+	--player-bloom-primary: oklch(
+		from var(--player-source) 0.55 calc(c * 0.14 + 0.009) h
+	);
+	--player-bloom-secondary: oklch(
+		from var(--player-source) 0.43 calc(c * 0.22 + 0.009) h
+	);
+	--player-bloom-accent: oklch(
+		from var(--player-source) 0.5 calc(c * 0.17 + 0.009) h
+	);
+
+	position: absolute;
+	inset: -10%;
+	background:
+		radial-gradient(
+			ellipse 78% 42% at 72% -6%,
+			color-mix(in oklab, var(--player-bloom-primary) 58%, transparent) 0%,
+			color-mix(in oklab, var(--player-bloom-primary) 34%, transparent) 40%,
+			transparent 76%
+		),
+		radial-gradient(
+			ellipse 64% 38% at -8% 46%,
+			color-mix(in oklab, var(--player-bloom-secondary) 54%, transparent) 0%,
+			color-mix(in oklab, var(--player-bloom-secondary) 30%, transparent) 42%,
+			transparent 78%
+		),
+		radial-gradient(
+			ellipse 82% 44% at 78% 106%,
+			color-mix(in oklab, var(--player-bloom-accent) 56%, transparent) 0%,
+			color-mix(in oklab, var(--player-bloom-accent) 32%, transparent) 40%,
+			transparent 78%
+		);
+	filter: blur(clamp(4rem, 8vw, 7rem));
+	transform: translate3d(0, 0, 0) scale(1.08);
+}
+
+.player-ambient-veil {
+	position: absolute;
+	inset: 0;
+	background:
+		linear-gradient(
+			to bottom,
+			oklch(0.08 0 0 / 5%),
+			oklch(0.08 0 0 / 10%) 58%,
+			oklch(0.08 0 0 / 22%)
+		),
+		radial-gradient(
+			ellipse 105% 84% at 50% 45%,
+			transparent 58%,
+			oklch(0.08 0 0 / 16%) 100%
+		);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.player-ambient-orbs {
+		opacity: 0;
+	}
+
+	.player-ambient-veil {
+		background: oklch(0.08 0 0 / 64%);
+	}
+}
+
+@media (prefers-contrast: more) {
+	.player-ambient-orbs {
+		opacity: 0.38;
+	}
+
+	.player-ambient-veil {
+		background: oklch(0.08 0 0 / 72%);
+	}
+}
+
 @keyframes mobile-page-exit-forward {
 	to {
 		transform: translateX(-22%);
