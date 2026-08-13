@@ -4,6 +4,11 @@ const SAMPLE_SIZE = 16;
 const BUCKET_COUNT = 16 * 16 * 16;
 const HUE_BUCKET_COUNT = 12;
 
+type ImageDimensions = {
+	width: number;
+	height: number;
+};
+
 function toHex(value: number): string {
 	return Math.round(value).toString(16).padStart(2, "0");
 }
@@ -34,8 +39,24 @@ function colorMetrics(r: number, g: number, b: number) {
  * Four-bit RGB buckets prevent a single vivid pixel from beating a color that
  * occupies a meaningful part of the cover.
  */
-export function selectCoverColor(data: Uint8Array): string | null {
+export function selectCoverColor(
+	data: Uint8Array,
+	dimensions?: ImageDimensions,
+): string | null {
 	if (data.length < 3) return null;
+	const hasDimensions =
+		dimensions !== undefined &&
+		Number.isInteger(dimensions.width) &&
+		Number.isInteger(dimensions.height) &&
+		dimensions.width > 0 &&
+		dimensions.height > 0 &&
+		dimensions.width * dimensions.height * 3 <= data.length;
+	// Cover art is commonly decorated with store badges, borders, or logos at
+	// its edges. Use the central artwork to choose the representative color so
+	// a small, highly saturated corner mark cannot tint the entire interface.
+	const inset = hasDimensions
+		? Math.floor(Math.min(dimensions.width, dimensions.height) * 0.2)
+		: 0;
 
 	const counts = new Uint16Array(BUCKET_COUNT);
 	const red = new Uint32Array(BUCKET_COUNT);
@@ -51,6 +72,19 @@ export function selectCoverColor(data: Uint8Array): string | null {
 	let pixels = 0;
 
 	for (let i = 0; i + 2 < data.length; i += 3) {
+		if (hasDimensions && inset > 0) {
+			const pixel = i / 3;
+			const x = pixel % dimensions.width;
+			const y = Math.floor(pixel / dimensions.width);
+			if (
+				x < inset ||
+				x >= dimensions.width - inset ||
+				y < inset ||
+				y >= dimensions.height - inset
+			) {
+				continue;
+			}
+		}
 		const r = data[i] ?? 0;
 		const g = data[i + 1] ?? 0;
 		const b = data[i + 2] ?? 0;
@@ -130,7 +164,7 @@ export function selectCoverColor(data: Uint8Array): string | null {
 export async function extractDominantColor(
 	filePath: string,
 ): Promise<string | null> {
-	const { data } = await sharp(filePath)
+	const { data, info } = await sharp(filePath)
 		.resize(SAMPLE_SIZE, SAMPLE_SIZE, {
 			fit: "inside",
 			withoutEnlargement: true,
@@ -139,5 +173,5 @@ export async function extractDominantColor(
 		.raw()
 		.toBuffer({ resolveWithObject: true });
 
-	return selectCoverColor(data);
+	return selectCoverColor(data, { width: info.width, height: info.height });
 }
