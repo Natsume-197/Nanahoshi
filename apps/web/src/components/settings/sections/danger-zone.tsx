@@ -68,6 +68,7 @@ export function DangerZone() {
 	const candidates = (org.members ?? []).filter(
 		(member) => member.userId !== session?.user.id,
 	);
+	const canTransferOwnership = candidates.length > 0;
 	const deleteConfirmed = nameConfirm.trim() === org.name;
 
 	return (
@@ -83,13 +84,18 @@ export function DangerZone() {
 								{m["settings.org.transfer_label"]()}
 							</h3>
 						}
-						description={m["settings.org.transfer_desc"]()}
+						description={
+							canTransferOwnership
+								? m["settings.org.transfer_desc"]()
+								: m["settings.org.transfer_no_members"]()
+						}
 					>
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
 							className="shrink-0 self-start sm:self-auto"
+							disabled={!canTransferOwnership}
 							onClick={() => {
 								setTargetUserId("");
 								setTransferOpen(true);

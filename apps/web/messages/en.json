@@ -150,6 +150,7 @@
 			"danger_zone": "Danger zone",
 			"transfer_label": "Transfer ownership",
 			"transfer_desc": "Hand this server to another member. You will lose owner control.",
+			"transfer_no_members": "Add at least one other member to the server before transferring ownership.",
 			"transfer_action": "Transfer",
 			"transfer_modal_desc": "The new owner gets full control of this server, including this danger zone. You will stay as a regular member.",
 			"transfer_select_placeholder": "Choose a member",

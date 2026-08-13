@@ -150,6 +150,7 @@
 			"danger_zone": "危険な操作",
 			"transfer_label": "所有権を譲渡",
 			"transfer_desc": "このサーバーを別のメンバーに譲渡します。所有者の権限を失います。",
+			"transfer_no_members": "所有権を譲渡する前に、サーバーに別のメンバーを1人以上追加してください。",
 			"transfer_action": "譲渡",
 			"transfer_modal_desc": "新しい所有者は、この危険な操作を含むサーバーの全権限を取得します。あなたは一般メンバーとして残ります。",
 			"transfer_select_placeholder": "メンバーを選択",

@@ -150,6 +150,7 @@
 			"danger_zone": "Zona de peligro",
 			"transfer_label": "Transferir propiedad",
 			"transfer_desc": "Cede este servidor a otro miembro. Dejarás de tener el control de propietario.",
+			"transfer_no_members": "Añade al menos otro miembro al servidor antes de transferir la propiedad.",
 			"transfer_action": "Transferir",
 			"transfer_modal_desc": "El nuevo propietario tendrá control total del servidor, incluida esta zona de peligro. Tú pasarás a ser un miembro normal.",
 			"transfer_select_placeholder": "Elige un miembro",
