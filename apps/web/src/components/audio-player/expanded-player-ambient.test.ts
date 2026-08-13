@@ -24,7 +24,21 @@ describe("expanded player ambient background", () => {
 		expect(css).not.toContain("calc(h - 32)");
 		expect(css).toContain("inset: -10%");
 		expect(css).toContain("ellipse 82% 44%");
-		expect(css).toContain("0.55 calc(c * 0.14 + 0.009) h");
+		expect(css).toContain("0.66 calc(c * 0.09 + 0.007) h");
+	});
+
+	it("drifts the large diffused blooms slowly when motion is allowed", () => {
+		expect(source).not.toContain("player-ambient-specks");
+		expect(source).toContain("player-ambient-bloom-primary");
+		expect(source).toContain("player-ambient-bloom-secondary");
+		expect(source).toContain("player-ambient-bloom-accent");
+		expect(css).toContain("@keyframes player-bloom-drift-primary");
+		expect(css).toContain("@keyframes player-bloom-drift-secondary");
+		expect(css).toContain("@keyframes player-bloom-drift-accent");
+		expect(css).toContain("player-bloom-drift-primary 32s");
+		expect(css).toContain("player-bloom-drift-secondary 40s");
+		expect(css).toContain("player-bloom-drift-accent 48s");
+		expect(css).toContain("@media (prefers-reduced-motion: no-preference)");
 	});
 
 	it("keeps a dark contrast veil above the artwork", () => {

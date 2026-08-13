@@ -132,7 +132,11 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 				aria-hidden
 				className="player-ambient-field pointer-events-none absolute inset-0 overflow-hidden"
 			>
-				<div className="player-ambient-orbs" />
+				<div className="player-ambient-orbs">
+					<div className="player-ambient-bloom player-ambient-bloom-primary" />
+					<div className="player-ambient-bloom player-ambient-bloom-secondary" />
+					<div className="player-ambient-bloom player-ambient-bloom-accent" />
+				</div>
 				<div className="player-ambient-veil" />
 			</div>
 
