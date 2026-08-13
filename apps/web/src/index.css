@@ -71,6 +71,11 @@
 	--duration-micro: 80ms;
 	--duration-quick: 150ms;
 	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-slide-dur: 250ms;
+	--page-fade-dur: 250ms;
+	--page-slide-distance: 8px;
+	--page-blur: 3px;
+	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
@@ -544,6 +549,44 @@
 
 @utility marquee-loop {
 	animation: marquee-loop var(--marquee-duration) linear infinite;
+}
+
+@keyframes mobile-page-exit-forward {
+	to {
+		transform: translateX(-22%);
+		opacity: 0.82;
+		filter: blur(var(--page-blur));
+	}
+}
+
+@keyframes mobile-page-enter-forward {
+	from {
+		transform: translateX(100%);
+		opacity: 0.96;
+		filter: blur(var(--page-blur));
+	}
+
+	to {
+		transform: translateX(0);
+		opacity: 1;
+		filter: blur(0);
+	}
+}
+
+@media (width < 48rem) {
+	html[data-mobile-navigation="forward"]::view-transition-old(root) {
+		animation: mobile-page-exit-forward var(--page-slide-dur)
+			var(--page-slide-ease) both;
+	}
+
+	html[data-mobile-navigation="forward"]::view-transition-new(root) {
+		animation: mobile-page-enter-forward var(--page-slide-dur)
+			var(--page-slide-ease) both;
+	}
+
+	html[data-mobile-navigation="forward"] .mobile-notifications-sheet {
+		visibility: hidden;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

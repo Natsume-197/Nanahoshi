@@ -782,11 +782,18 @@
 	},
 	"notifications": {
 		"title": "Notificaciones",
+		"description": "Actividad reciente y tareas en segundo plano.",
+		"unread_count": "{count} notificaciones sin leer",
+		"unread": "Sin leer",
+		"mark_read": "Marcar como leída: {title}",
+		"review_notification": "Revisar: {title}",
 		"mark_all_read": "Marcar todo como leído",
 		"delete": "Eliminar notificación",
+		"delete_named": "Eliminar: {title}",
 		"empty": "Estás al día",
-		"empty_desc": "Las actualizaciones de trabajos aparecerán aquí.",
+		"empty_desc": "Cuando termine una tarea, verás el resultado aquí.",
 		"in_progress": "En curso",
+		"recent": "Recientes",
 		"load_more": "Cargar más",
 		"task_library_scan": "Biblioteca actualizada",
 		"task_library_upload": "Subida completada",
@@ -807,7 +814,9 @@
 		"task_library_reprocess": "Reprocesado de biblioteca completado",
 		"task_library_regroup": "Grupos de ediciones reconstruidos",
 		"task_bookmeter_sync": "Sincronización con Bookmeter completada",
-		"task_bookmeter_secondary": "Tus estanterías se han actualizado desde tus listas de Bookmeter"
+		"task_bookmeter_secondary": "Tus estanterías se han actualizado desde tus listas de Bookmeter",
+		"task_cover_backfill": "Portadas reprocesadas",
+		"task_read_listen_generation": "Alineación de lectura y audio completada"
 	},
 	"status": {
 		"online": "Conectado",

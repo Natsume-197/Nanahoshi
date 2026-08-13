@@ -782,11 +782,18 @@
 	},
 	"notifications": {
 		"title": "通知",
+		"description": "最近のアクティビティとバックグラウンド処理です。",
+		"unread_count": "未読の通知が{count}件あります",
+		"unread": "未読",
+		"mark_read": "既読にする：{title}",
+		"review_notification": "確認する：{title}",
 		"mark_all_read": "すべて既読にする",
 		"delete": "通知を削除",
+		"delete_named": "削除する：{title}",
 		"empty": "新しい通知はありません",
-		"empty_desc": "ジョブの更新がここに表示されます。",
+		"empty_desc": "タスクが完了すると、結果がここに表示されます。",
 		"in_progress": "処理中",
+		"recent": "最近",
 		"load_more": "さらに読み込む",
 		"task_library_scan": "ライブラリを更新しました",
 		"task_library_upload": "アップロードが完了しました",
@@ -807,7 +814,9 @@
 		"task_library_reprocess": "ライブラリの再処理が完了しました",
 		"task_library_regroup": "版グループを再構築しました",
 		"task_bookmeter_sync": "Bookmeterとの同期が完了しました",
-		"task_bookmeter_secondary": "Bookmeterのリストから本棚を更新しました"
+		"task_bookmeter_secondary": "Bookmeterのリストから本棚を更新しました",
+		"task_cover_backfill": "表紙の再処理が完了しました",
+		"task_read_listen_generation": "読書と音声の同期処理が完了しました"
 	},
 	"status": {
 		"online": "オンライン",

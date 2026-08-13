@@ -782,11 +782,18 @@
 	},
 	"notifications": {
 		"title": "Notifications",
+		"description": "Recent activity and background tasks.",
+		"unread_count": "{count} unread notifications",
+		"unread": "Unread",
+		"mark_read": "Mark as read: {title}",
+		"review_notification": "Review: {title}",
 		"mark_all_read": "Mark all as read",
 		"delete": "Delete notification",
+		"delete_named": "Delete: {title}",
 		"empty": "You're all caught up",
-		"empty_desc": "Job updates will show up here.",
+		"empty_desc": "When a task finishes, you'll see the result here.",
 		"in_progress": "In progress",
+		"recent": "Recent",
 		"load_more": "Load more",
 		"task_library_scan": "Library updated",
 		"task_library_upload": "Upload finished",
@@ -807,7 +814,9 @@
 		"task_library_reprocess": "Library reprocess finished",
 		"task_library_regroup": "Edition groups rebuilt",
 		"task_bookmeter_sync": "Bookmeter sync finished",
-		"task_bookmeter_secondary": "Your shelves were updated from your Bookmeter lists"
+		"task_bookmeter_secondary": "Your shelves were updated from your Bookmeter lists",
+		"task_cover_backfill": "Cover art reprocessed",
+		"task_read_listen_generation": "Read and Listen alignment finished"
 	},
 	"status": {
 		"online": "Online",
