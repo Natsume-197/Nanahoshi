@@ -76,6 +76,9 @@
 	--page-slide-distance: 8px;
 	--page-blur: 3px;
 	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--notification-sheet-open-dur: 280ms;
+	--notification-sheet-close-dur: 220ms;
+	--notification-sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
@@ -551,6 +554,31 @@
 	animation: marquee-loop var(--marquee-duration) linear infinite;
 }
 
+/* Base UI keeps the popup mounted with starting/ending attributes. A CSS
+   transition follows the panel's current position when it is reversed, unlike
+   the generic Sheet keyframes, and lets close retrace the opening path. */
+.mobile-notifications-sheet {
+	animation: none;
+	transform: translate3d(0, 0, 0);
+	opacity: 1;
+	backface-visibility: hidden;
+	transition-duration: var(--notification-sheet-open-dur);
+	transition-property: transform, opacity;
+	transition-timing-function: var(--notification-sheet-ease);
+	will-change: transform, opacity;
+}
+
+.mobile-notifications-sheet[data-starting-style],
+.mobile-notifications-sheet[data-ending-style] {
+	transform: translate3d(100%, 0, 0);
+	opacity: 0.985;
+}
+
+.mobile-notifications-sheet[data-ending-style] {
+	pointer-events: none;
+	transition-duration: var(--notification-sheet-close-dur);
+}
+
 @keyframes mobile-page-exit-forward {
 	to {
 		transform: translateX(-22%);
@@ -597,6 +625,19 @@
 		animation-iteration-count: 1;
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
+	}
+
+	.mobile-notifications-sheet,
+	.mobile-notifications-sheet[data-starting-style],
+	.mobile-notifications-sheet[data-ending-style] {
+		transform: none;
+		transition-duration: var(--duration-quick);
+		transition-property: opacity;
+	}
+
+	.mobile-notifications-sheet[data-starting-style],
+	.mobile-notifications-sheet[data-ending-style] {
+		opacity: 0;
 	}
 }
 

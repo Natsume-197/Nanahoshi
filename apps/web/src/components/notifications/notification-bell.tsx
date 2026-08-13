@@ -112,7 +112,7 @@ function MobileNotificationBell({ count }: { count: number }) {
 				side="right"
 				showCloseButton={false}
 				overlayClassName="hidden"
-				className="mobile-notifications-sheet data-[side=right]:data-closed:slide-out-to-right-full data-[side=right]:data-open:slide-in-from-right-full inset-0 bg-background p-0 shadow-none duration-[var(--page-slide-dur)] ease-[var(--page-slide-ease)] data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 motion-reduce:animate-none data-[side=right]:sm:max-w-none"
+				className="mobile-notifications-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 			>
 				<NotificationPanel mode="screen" onNavigate={() => setOpen(false)} />
 			</SheetContent>
