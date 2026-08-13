@@ -361,13 +361,7 @@ function NotificationPanel({
 						</EmptyHeader>
 					</Empty>
 				) : (
-					<section aria-labelledby="recent-notifications">
-						<h3
-							id="recent-notifications"
-							className="px-3 pb-1.5 font-medium text-muted-foreground text-xs"
-						>
-							{m["notifications.recent"]()}
-						</h3>
+					<section aria-label={m["notifications.title"]()}>
 						<ul className="flex flex-col gap-1">
 							{notifications.map((notification) => (
 								<li key={notification.id}>

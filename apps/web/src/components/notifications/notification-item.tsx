@@ -14,11 +14,9 @@ import {
 	SendIcon,
 	SparklesIcon,
 	Trash2Icon,
-	TriangleAlertIcon,
 	UploadIcon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -92,29 +90,42 @@ function contentFor(data: NotificationData) {
 				? m["notifications.task_send_to_kindle_failed"]()
 				: (TASK_TITLES[data.taskType]?.() ??
 					m["notifications.task_finished"]()),
-		// The bookmeter task's single job would read "1 processed" — say what
-		// actually happened instead.
 		secondary:
 			data.taskType === "bookmeter-sync" && !failed
-				? m["notifications.task_bookmeter_secondary"]()
+				? notificationContextLabel(data.taskType, data.label)
 				: noChanges
-					? data.label
-					: `${data.label} · ${taskCounts(data)}`,
+					? notificationContextLabel(data.taskType, data.label)
+					: `${notificationContextLabel(data.taskType, data.label)} · ${taskCounts(data)}`,
 	};
 }
 
-function attentionSummary(data: NotificationData) {
-	if (!data.attention) return null;
-	return [
-		data.attention.noMatch > 0 &&
-			m["enrichment.notif_no_match"]({ count: data.attention.noMatch }),
-		data.attention.review > 0 &&
-			m["enrichment.notif_review"]({ count: data.attention.review }),
-		data.attention.failed > 0 &&
-			m["enrichment.notif_failed"]({ count: data.attention.failed }),
-	]
-		.filter(Boolean)
-		.join(" · ");
+function attentionCount(data: NotificationData) {
+	if (!data.attention) return 0;
+	return data.attention.noMatch + data.attention.review + data.attention.failed;
+}
+
+export function notificationContextLabel(taskType: string, label: string) {
+	const prefixByTask: Record<string, RegExp> = {
+		"library-scan": /^Scanning\s+/i,
+		"library-upload": /^Uploading to\s+/i,
+		"library-reprocess": /^Reprocessing\s+/i,
+		"library-regroup": /^Rebuilding edition groups for\s+/i,
+		"library-enrich": /^Refreshing metadata for\s+/i,
+		"send-to-kindle": /^Sending to\s+/i,
+	};
+	return label.replace(prefixByTask[taskType] ?? /$^/, "");
+}
+
+export function notificationRowClassName(
+	interactive: boolean,
+	unread: boolean,
+) {
+	return cn(
+		"flex w-full items-start gap-3 rounded-2xl p-3 pe-12 text-start transition-[background-color,box-shadow] hover:bg-muted/40",
+		interactive &&
+			"cursor-pointer outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30",
+		unread && "bg-muted/40",
+	);
 }
 
 export function NotificationItem({
@@ -131,14 +142,16 @@ export function NotificationItem({
 	const data = notification.payload as NotificationData;
 	const unread = notification.readAt === null;
 	const { Icon, failed, title, secondary } = contentFor(data);
-	const attention = attentionSummary(data);
+	const needsAttention = attentionCount(data);
+	const displayTitle = needsAttention
+		? m["notifications.attention_required"]({
+				status: title,
+				count: needsAttention,
+			})
+		: title;
+	const relativeTime = formatRelativeTime(notification.createdAt);
 	const interactive = unread || !!data.attention;
-	const rowClassName = cn(
-		"flex w-full items-start gap-3 rounded-2xl p-3 pe-12 text-start",
-		interactive &&
-			"cursor-pointer outline-none transition-[background-color,box-shadow] hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/30",
-		unread && "bg-muted/60",
-	);
+	const rowClassName = notificationRowClassName(interactive, unread);
 	const body = (
 		<>
 			<span
@@ -154,7 +167,7 @@ export function NotificationItem({
 			>
 				<Icon className="size-[1.125rem]" strokeWidth={1.75} />
 			</span>
-			<div className="min-w-0 flex-1">
+			<div className="min-w-0 flex-1 self-center">
 				<div className="flex items-start gap-2">
 					{unread && (
 						<span
@@ -164,34 +177,22 @@ export function NotificationItem({
 					)}
 					<p
 						className={cn(
-							"text-sm leading-snug",
+							"min-w-0 truncate text-sm leading-snug",
 							unread ? "font-semibold" : "font-medium",
 						)}
 					>
 						{unread && (
 							<span className="sr-only">{m["notifications.unread"]()}: </span>
 						)}
-						{title}
+						{displayTitle}
 					</p>
 				</div>
-				<p className="mt-1 line-clamp-2 break-words text-muted-foreground text-xs leading-relaxed">
-					{secondary}
+				<p className="mt-1 truncate text-muted-foreground text-xs leading-relaxed">
+					{secondary} ·{" "}
+					<time dateTime={new Date(notification.createdAt).toISOString()}>
+						{relativeTime}
+					</time>
 				</p>
-				{data.attention && (
-					<div className="mt-2 flex flex-wrap items-center gap-2">
-						<Badge variant="warning">
-							<TriangleAlertIcon data-icon="inline-start" />
-							{m["enrichment.notif_review_matches"]()}
-						</Badge>
-						<span className="text-muted-foreground text-xs">{attention}</span>
-					</div>
-				)}
-				<time
-					className="mt-1.5 block text-muted-foreground/80 text-xs leading-none"
-					dateTime={new Date(notification.createdAt).toISOString()}
-				>
-					{formatRelativeTime(notification.createdAt)}
-				</time>
 			</div>
 		</>
 	);
@@ -205,8 +206,10 @@ export function NotificationItem({
 					onClick={() => onSelect(notification)}
 					aria-label={
 						data.attention
-							? m["notifications.review_notification"]({ title })
-							: m["notifications.mark_read"]({ title })
+							? m["notifications.review_notification"]({
+									title: displayTitle,
+								})
+							: m["notifications.mark_read"]({ title: displayTitle })
 					}
 				>
 					{body}
@@ -218,12 +221,12 @@ export function NotificationItem({
 				type="button"
 				variant="ghost"
 				size="icon-lg"
-				aria-label={m["notifications.delete_named"]({ title })}
+				aria-label={m["notifications.delete_named"]({ title: displayTitle })}
 				title={m["notifications.delete"]()}
 				onClick={() => onDelete(notification)}
 				disabled={isDeleting}
 				aria-busy={isDeleting}
-				className="absolute end-1.5 top-1.5"
+				className="absolute end-1.5 top-1.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100"
 			>
 				{isDeleting ? (
 					<LoaderCircleIcon className="animate-spin" />
