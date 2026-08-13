@@ -1,25 +1,10 @@
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useRef } from "react";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 
 type ScrollToIndex = (
 	index: number,
 	options: { align: "center"; behavior: "auto" },
 ) => void;
-
-function PositionActiveCue({
-	index,
-	scrollToIndex,
-}: {
-	index: number;
-	scrollToIndex: ScrollToIndex;
-}) {
-	useMountEffect(() => {
-		scrollToIndex(index, {
-			align: "center",
-			behavior: "auto",
-		});
-	});
-	return null;
-}
 
 export function ReadListenActiveCueFollower({
 	active,
@@ -30,13 +15,17 @@ export function ReadListenActiveCueFollower({
 	layoutRevision: number;
 	scrollToIndex: ScrollToIndex;
 }) {
-	if (!active) return null;
+	const activeId = active?.id;
+	const activeIndex = active?.index;
+	const scrollToIndexRef = useRef(scrollToIndex);
+	scrollToIndexRef.current = scrollToIndex;
+	useIsomorphicLayoutEffect(() => {
+		if (activeIndex === undefined) return;
+		scrollToIndexRef.current(activeIndex, {
+			align: "center",
+			behavior: "auto",
+		});
+	}, [activeId, activeIndex, layoutRevision]);
 
-	return (
-		<PositionActiveCue
-			key={`${active.id}:${layoutRevision}`}
-			index={active.index}
-			scrollToIndex={scrollToIndex}
-		/>
-	);
+	return null;
 }
