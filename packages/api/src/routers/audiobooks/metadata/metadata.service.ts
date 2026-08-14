@@ -131,12 +131,33 @@ export class AudiobookMetadataService {
 			...input,
 			...(existingCover ? { cover: existingCover } : {}),
 		};
+		const state = await enrichmentStateRepository.get(bookId);
+		const manualMatch = state?.matched.find(
+			(match) => match.manual && match.providerId,
+		);
+		const manualProvider = manualMatch?.provider as
+			| AudiobookProviderName
+			| undefined;
+		if (
+			manualMatch?.providerId &&
+			(!manualProvider ||
+				!Object.hasOwn(AUDIOBOOK_PROVIDERS, manualProvider) ||
+				!routing.order.includes(manualProvider))
+		) {
+			return null;
+		}
 		const result = await runAudiobookCatalogEnrichment({
 			metadata: initialMetadata,
 			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
 			region,
 			protectedFields: protectedFields as (keyof EnrichInput)[],
 			routing,
+			requiredPrimaryMatch: manualMatch?.providerId
+				? {
+						provider: manualProvider as AudiobookProviderName,
+						providerId: manualMatch.providerId,
+					}
+				: undefined,
 		});
 		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
 			result.failures,
@@ -167,6 +188,7 @@ export class AudiobookMetadataService {
 			}
 			await enrichmentStateRepository.recordRun(bookId, {
 				status: "no_match",
+				decision: result.decision,
 				failures,
 			});
 			return null;
@@ -304,7 +326,7 @@ export class AudiobookMetadataService {
 
 		await enrichmentStateRepository.recordRun(bookId, {
 			status: "enriched",
-			matched: [{ provider: name, providerId }],
+			matched: [{ provider: name, providerId, manual: true }],
 		});
 		return saved;
 	}

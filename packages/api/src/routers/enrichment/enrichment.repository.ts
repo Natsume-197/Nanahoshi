@@ -1,6 +1,7 @@
 import { db } from "@nanahoshi-v2/db";
 import {
 	book,
+	type EnrichmentDecision,
 	type EnrichmentFailure,
 	type EnrichmentMatch,
 	type EnrichmentStatus,
@@ -53,6 +54,7 @@ export type TraySort = "recent" | "oldest" | "title";
 export type EnrichmentRun = {
 	status: EnrichmentStatus;
 	matched?: EnrichmentMatch[];
+	decision?: EnrichmentDecision | null;
 	failures?: EnrichmentFailure[];
 	nextRetryAt?: Date | null;
 };
@@ -70,6 +72,7 @@ export class EnrichmentStateRepository {
 			bookId,
 			status: run.status,
 			matched: run.matched ?? [],
+			decision: run.decision ?? null,
 			failures,
 			lastRunAt: sql`now()`,
 			providerAttempts: attemptDelta,
@@ -84,6 +87,7 @@ export class EnrichmentStateRepository {
 				set: {
 					status: values.status,
 					matched: values.matched,
+					decision: values.decision,
 					failures: values.failures,
 					lastRunAt: values.lastRunAt,
 					providerAttempts: retryable
@@ -118,6 +122,7 @@ export class EnrichmentStateRepository {
 				attempts: 1,
 				providerAttempts: attemptDelta,
 				matched,
+				decision: null,
 				failures,
 				lastRunAt: sql`now()`,
 				nextRetryAt,
@@ -129,6 +134,7 @@ export class EnrichmentStateRepository {
 					attempts: sql`${enrichmentState.attempts} + 1`,
 					providerAttempts: sql`${enrichmentState.providerAttempts} + ${attemptDelta}`,
 					matched,
+					decision: null,
 					failures,
 					lastRunAt: sql`now()`,
 					nextRetryAt: sql`CASE
@@ -150,6 +156,7 @@ export class EnrichmentStateRepository {
 			.values({
 				bookId,
 				status: "enriched",
+				decision: null,
 				lastRunAt: sql`now()`,
 				providerAttempts: 0,
 				nextRetryAt: null,
@@ -159,6 +166,7 @@ export class EnrichmentStateRepository {
 				target: enrichmentState.bookId,
 				set: {
 					status: "enriched",
+					decision: null,
 					lastRunAt: sql`now()`,
 					providerAttempts: 0,
 					nextRetryAt: null,
@@ -222,6 +230,18 @@ export class EnrichmentStateRepository {
 			.where(eq(enrichmentState.bookId, bookId))
 			.limit(1);
 		return row != null && TERMINAL_STATUSES.includes(row.status);
+	}
+
+	// A hidden copy may have no state because it was intentionally skipped. A
+	// previous no_match is also safe to retry once the copy becomes visible;
+	// confirmed, reviewed and partial identities remain untouched.
+	async shouldReopenAfterDuplicateRelease(bookId: number): Promise<boolean> {
+		const [row] = await db
+			.select({ status: enrichmentState.status })
+			.from(enrichmentState)
+			.where(eq(enrichmentState.bookId, bookId))
+			.limit(1);
+		return row == null || row.status === "no_match";
 	}
 
 	/**
@@ -288,6 +308,7 @@ export class EnrichmentStateRepository {
 			.update(enrichmentState)
 			.set({
 				status: "pending",
+				decision: null,
 				attempts: 0,
 				providerAttempts: 0,
 				nextRetryAt: null,
@@ -667,6 +688,7 @@ export class EnrichmentStateRepository {
 				l.name AS "libraryName",
 				es.status,
 				es.matched,
+				es.decision,
 				es.failures,
 				es.attempts,
 				es.provider_attempts AS "providerAttempts",
@@ -694,6 +716,7 @@ export class EnrichmentStateRepository {
 			libraryName: string | null;
 			status: EnrichmentStatus;
 			matched: EnrichmentMatch[];
+			decision: EnrichmentDecision | null;
 			failures: EnrichmentFailure[];
 			attempts: number;
 			providerAttempts: number;
@@ -769,6 +792,7 @@ export class EnrichmentStateRepository {
 				l.media_type AS "mediaType",
 				es.status,
 				es.matched,
+				es.decision,
 				es.failures,
 				es.attempts,
 				es.provider_attempts AS "providerAttempts",
@@ -793,6 +817,7 @@ export class EnrichmentStateRepository {
 			mediaType: "ebook" | "audiobook";
 			status: EnrichmentStatus | null;
 			matched: EnrichmentMatch[] | null;
+			decision: EnrichmentDecision | null;
 			failures: EnrichmentFailure[] | null;
 			attempts: number | null;
 			providerAttempts: number | null;

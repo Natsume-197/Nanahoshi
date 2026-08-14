@@ -79,6 +79,7 @@ export class AudiobookRepository {
 		const [row] = await db
 			.select({
 				id: book.id,
+				duplicateOfBookId: book.duplicateOfBookId,
 				uuid: book.uuid,
 				filename: book.filename,
 				filesizeKb: book.filesizeKb,
@@ -116,6 +117,7 @@ export class AudiobookRepository {
 		if (!row) return null;
 
 		const bookId = row.id;
+		const effectiveSeriesBookId = row.duplicateOfBookId ?? bookId;
 
 		// Load audio files, chapters, authors, narrators, series, genres, tags in parallel
 		const [audioFiles, chapters, authors, narrators, seriesInfo, genres, tags] =
@@ -156,7 +158,7 @@ export class AudiobookRepository {
 					})
 					.from(audiobookSeries)
 					.innerJoin(series, eq(series.id, audiobookSeries.seriesId))
-					.where(eq(audiobookSeries.bookId, bookId))
+					.where(eq(audiobookSeries.bookId, effectiveSeriesBookId))
 					.limit(1),
 				db
 					.select({ uuid: genre.uuid, name: genre.name })

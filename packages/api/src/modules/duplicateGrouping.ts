@@ -240,9 +240,11 @@ export async function groupAsEditions(
 
 	const selected = await bookRepository.listByIdsWithSize(unique);
 	if (selected.length < 2) return null;
+	if (new Set(selected.map((item) => item.mediaType)).size !== 1) return null;
 
 	const canonical = pickCanonical(selected);
 	const memberRows = await bookRepository.listGroupMemberIds(unique);
+	if (new Set(memberRows.map((item) => item.mediaType)).size !== 1) return null;
 	const hidden = memberRows
 		.map((r) => r.id)
 		.filter((id) => id !== canonical.id);
@@ -259,7 +261,10 @@ export async function ungroupEdition(bookId: number): Promise<void> {
 	await bookRepository.lockAsCanonical(bookId);
 
 	const uuid = await bookRepository.getUuid(bookId);
-	if (uuid && !(await enrichmentStateRepository.isTerminal(bookId))) {
+	if (
+		uuid &&
+		(await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(bookId))
+	) {
 		await enqueueBookEnrich(bookId, uuid).catch((err) =>
 			logger.error({ err }, `[Grouping] enrich enqueue failed for ${bookId}`),
 		);

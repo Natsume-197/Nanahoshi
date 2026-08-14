@@ -5,7 +5,7 @@ Nanahoshi organizes a shared digital library and reconciles catalog records from
 ## Language
 
 **Catalog Identity**:
-The domain decision that two records describe the same catalog entity. All remote book and audiobook providers use one discovery, ranking, preliminary assessment, hydration, final assessment, and merge pipeline. The record's media kind selects the rules inside `catalogIdentity`: written books compare their Logical Edition using explicit identity evidence, while audiobooks use Audiobook Quick Match with Audiobookshelf-compatible matching semantics rather than attempting to prove a distinct recording identity. Discovery, Candidate Ranking, canonical metadata selection, merging, and persistence remain outside the module.
+The domain decision that two records describe the same catalog entity at the requested identity level. All remote book and audiobook providers use one discovery, ranking, preliminary assessment, hydration, final assessment, and merge pipeline. The record's media kind selects the rules inside `catalogIdentity`: written books compare edition-level identity using explicit identity evidence, while audiobooks use Audiobook Quick Match with Audiobookshelf-compatible matching semantics. Discovery, Candidate Ranking, canonical metadata selection, merging, and persistence remain outside the module.
 _Avoid_: Search relevance, metadata similarity
 
 **Catalog Enrichment Pipeline**:
@@ -49,8 +49,16 @@ The Content Forms a provider actually catalogs, declared on its manifest. A prov
 _Avoid_: Provider filter, disabled provider, library-type restriction
 
 **Provisional Match**:
-An automatic enrichment whose Confirmed Catalog Identity Verdict rested on a judgement call: a Compatible Title that was strongly similar rather than equivalent, or a tie between candidates the Catalog Enrichment Pipeline could equally confirm. Its metadata applies immediately and awaits human confirmation, so it records supervision rather than a weaker verdict; Corroborating Evidence from a compatible author is never provisional on that account alone. An equivalent title corroborated by a compatible author settles the identity outright, and a rival candidate does not unsettle it — plainly numbered series make every sibling volume look like a rival, which would queue whole series over a numbering convention.
+An automatic enrichment whose single selected candidate received a Confirmed Catalog Identity Verdict from a Compatible Title that was strongly similar rather than equivalent. Its metadata applies immediately and awaits human confirmation, while a tie between viable candidates is an Unresolved Match and applies nothing; Corroborating Evidence from a compatible author is never provisional on that account alone.
 _Avoid_: Weak match, low-confidence match, title-only match
+
+**Unresolved Match**:
+A human-facing enrichment lifecycle where Bibliographic Evidence admits multiple equally strong viable interpretations and therefore confirms no candidate. It is stored safely as a no-match decision with explicit ambiguity detail, but it is never presented as “No match”. No candidate metadata is applied; up to two alternatives and their reasons are retained for a human decision, and automatic reconsideration requires changed evidence or Evidence Interpretation. A uniquely stronger Confirmed candidate—such as an equivalent title over a merely similar title—wins without creating an Unresolved Match.
+_Avoid_: Provisional Match, automatic best guess, provider failure
+
+**Manual Match Resolution**:
+The explicit human selection of one candidate from an Unresolved Match. It confirms and protects the selected catalog identity while allowing later enrichment to fill missing metadata without replacing that identity.
+_Avoid_: Automatic retry, provisional match, manual metadata edit
 
 **Deferred Enrichment Retry**:
 The non-terminal processing commitment for a catalog record whose Catalog Enrichment Pipeline was interrupted by temporary provider unavailability; its continuation is automatic and constrained by provider availability rather than user action. Only actual provider calls consume its three-attempt retry budget; exhaustion requires human attention.
@@ -60,12 +68,24 @@ _Avoid_: Failed match, manual retry, cooldown error
 The set of provider requests that consume the same externally enforced quota and therefore share provider availability and cooldown. It follows the effective credentials and quota-relevant configuration rather than catalog record or organization identity alone.
 _Avoid_: Global provider cooldown, per-book cooldown, tenant cooldown
 
-**Logical Edition**:
-The catalog identity shared by records representing the same book volume or supplemental release, even when they come from different files or sources. Different volumes, structural parts, fanbooks, short-story collections, side stories, and omnibuses are distinct Logical Editions.
-_Avoid_: Book identity, search match
+**Catalog Record**:
+A stored ebook or audiobook with its own media-specific metadata, relationships, files, and consumption state. An ebook and an audiobook remain distinct Catalog Records even when they contain the same volume.
+_Avoid_: Logical Edition, Publication, cross-media book
+
+**Duplicate Copy**:
+A Catalog Record judged substitutable with and represented through a canonical Catalog Record of the same media kind. It uses the canonical record's effective catalog relationships and is never grouped across ebook and audiobook media.
+_Avoid_: Logical Edition, cross-media duplicate, independent edition
+
+**Media Series**:
+An ordered catalog sequence for exactly one media kind whose boundary follows the authoritative provider or an explicit manual edit. Nanahoshi preserves provider umbrella groupings rather than deriving a different subseries from titles, while ebook and audiobook series remain distinct.
+_Avoid_: Cross-media series, locally inferred subseries, franchise
+
+**Series Membership**:
+The association of a canonical Catalog Record with a Media Series and optional position. Confirmed membership remains valid when its position is unknown; a Duplicate Copy uses its canonical record's effective membership, while ebook and audiobook memberships remain independent.
+_Avoid_: File series, provider series, cross-media membership
 
 **Read & Listen Pair**:
-A shared, human-confirmed relationship between one concrete ebook publication and one concrete audiobook publication whose source files are intended to be synchronized. It is independent of Logical Edition identity, and either publication may participate in more than one pair.
+A shared, human-confirmed relationship between one ebook Catalog Record and one audiobook Catalog Record whose source files are intended to be synchronized. It is independent of Catalog Identity, and either record may participate in more than one pair.
 _Avoid_: Same book, duplicate group, attached ebook, personal pairing
 
 **Read & Listen Session**:
@@ -89,7 +109,7 @@ The per-library ordered list of enabled remote metadata providers, controlling a
 _Avoid_: Hard-coded provider chain, identity priority
 
 **Provider Authority**:
-The per-library rule selecting the single primary provider that may finalize an automatic match and authoritative metadata fields. Other enabled providers may contribute only permitted supplemental fields and can never outrank the primary provider or an explicit manual edit.
+The per-library rule selecting the single primary provider that may finalize an automatic match and authoritative metadata fields, including Media Series boundaries. Other enabled providers may contribute only permitted supplemental fields and can never outrank the primary provider or an explicit manual edit.
 _Avoid_: Provider Order, fallback order, confidence score
 
 **Metadata Profile**:
@@ -97,15 +117,15 @@ A user-selected per-library preset for its primary provider, Provider Order, and
 _Avoid_: Library type, automatic content detection, hard-coded provider configuration
 
 **Edition Discriminator**:
-A typed volume number, numbered part or arc, Structural Part, or Supplemental Release kind that distinguishes related Logical Editions. A title may declare several Edition Discriminators simultaneously, and none is discarded to produce a single volume value. Conflicting discriminators of the same type are conclusive even when records share an external identifier.
+A typed volume number, numbered part or arc, Structural Part, or Supplemental Release kind that distinguishes related catalog entities. A title may declare several Edition Discriminators simultaneously, and none is discarded to produce a single volume value. Conflicting discriminators of the same type are conclusive even when records share an external identifier.
 _Avoid_: Title decoration, metadata noise
 
 **Unnumbered First Volume**:
-A Logical Edition whose title omits an explicit volume number or numbered-part value. It is equivalent to an explicit volume one or first numbered part when the base title agrees, Corroborating Evidence exists, and no other Edition Discriminator conflicts. This default does not apply to a missing Structural Part.
+A catalog entity whose title omits an explicit volume number or numbered-part value. It is equivalent to an explicit volume one or first numbered part when the base title agrees, Corroborating Evidence exists, and no other Edition Discriminator conflicts. This default does not apply to a missing Structural Part.
 _Avoid_: Unversioned book
 
 **Structural Part**:
-A complementary subdivision of a publication identified by a literal marker such as upper (`上`), middle (`中`), lower (`下`), first (`前`), or latter (`後`) part. Each distinct marker identifies a distinct Logical Edition rather than an alternate version; only graphical forms of the same marker, such as `上`, `上巻`, and `（上）`, are equivalent.
+A complementary subdivision of a catalog entity identified by a literal marker such as upper (`上`), middle (`中`), lower (`下`), first (`前`), or latter (`後`) part. Each distinct marker establishes a distinct identity; only graphical forms of the same marker, such as `上`, `上巻`, and `（上）`, are equivalent.
 _Avoid_: Version
 
 **Catalog Identity Verdict**:
@@ -113,15 +133,15 @@ The symmetric conclusion for one identity level: Confirmed when two records repr
 _Avoid_: Boolean match, similarity score
 
 **Supplemental Release**:
-A publication distinguished from a main volume as a fanbook, short-story collection, anthology, side story, drama CD, or omnibus. A Supplemental Release and a main volume, two different kinds of Supplemental Release, or two separately titled releases of the same kind are distinct Logical Editions.
+A catalog entity distinguished from a main volume as a fanbook, short-story collection, anthology, side story, drama CD, or omnibus. A Supplemental Release and a main volume, two different kinds of Supplemental Release, or two separately titled releases of the same kind have distinct identities.
 _Avoid_: Bonus version, alternate edition
 
 **Content Edition**:
-A publication explicitly identified as complete, revised, newly translated, or otherwise changed in textual content. A Content Edition and the corresponding original publication are distinct Logical Editions.
+A catalog entity explicitly identified as complete, revised, newly translated, or otherwise changed in textual content. A Content Edition and the corresponding original have distinct identities.
 _Avoid_: Packaging variant, store promotion
 
 **Packaging Variant**:
-A presentation of the same Logical Edition distinguished only by imprint text, store-exclusive extras, cover or binding presentation, limited/special packaging, or `新装版` without evidence of textual revision. Packaging Variants do not change identity; an explicit revised, expanded, or newly translated marker takes precedence and identifies a Content Edition.
+A presentation distinguished only by imprint text, store-exclusive extras, cover or binding presentation, limited/special packaging, or `新装版` without evidence of textual revision. Packaging Variants do not change edition-level Catalog Identity; an explicit revised, expanded, or newly translated marker takes precedence and identifies a Content Edition.
 _Avoid_: Content edition, supplemental release
 
 **Corroborating Evidence**:
@@ -133,7 +153,7 @@ Names explicitly identified as authors of a publication. Compatible Authorship E
 _Avoid_: Contributor match, untyped creator
 
 **Edition Language**:
-The language of a publication's content, independent of the script or language used to represent its title in metadata. Two known, different Edition Languages identify distinct Logical Editions.
+The language of a catalog record's content, independent of the script or language used to represent its title in metadata. Two known, different Edition Languages establish distinct edition-level identities.
 _Avoid_: Title language, title script
 
 **Compatible Title**:
@@ -144,9 +164,17 @@ _Avoid_: Fuzzy match as proof
 The ordering of possible catalog matches for discovery, metadata hydration, or manual review. In the unified remote-provider pipeline, a preliminary Catalog Identity Verdict may discard Rejected candidates while allowing viable candidates to be hydrated; a final verdict then determines whether the result may be merged or the caller should continue through Provider Order. Ranking never supplies a written-book identity verdict. Audiobook Quick Match uses title, author, and duration to order results under its Audiobookshelf-compatible policy without claiming proof of a distinct recording identity.
 _Avoid_: Identity confidence, match verdict
 
+**Discovery Projection**:
+The bounded, provider-independent search forms derived from Bibliographic Evidence through Evidence Interpretation. It keeps the raw form first, removes duplicates, and supplies at most four deterministic queries that providers execute without redefining catalog identity.
+_Avoid_: Provider cleanup, unbounded query expansion, identity verdict
+
 **Bibliographic Evidence**:
 The uninterpreted, role-preserving title forms, authors, external identifiers, and Edition Language available for a catalog record. The identity domain derives normalized forms and Edition Discriminators from this evidence; sources and callers do not decide their meaning independently. A discriminator declared by one title form and omitted by another remains usable, while contradictory explicit discriminators within one record make its identity evidence indeterminate.
 _Avoid_: Precomputed match flags, provider-specific identity
+
+**Evidence Interpretation**:
+The provider-independent derivation of normalized title and author forms and Edition Discriminators from Bibliographic Evidence inside Catalog Identity. It may derive slash-separated author forms and collapse exact title repetition or recognized packaging noise, but preserves raw source evidence, never removes identity discriminators, and does not reinterpret authoritative Media Series boundaries.
+_Avoid_: Provider cleanup, search-term normalization, repaired metadata
 
 **Identifier Evidence**:
 A valid identifier associated with a publication and compared only within its identifier scheme. A valid ISBN-10 and its calculated `978` ISBN-13 counterpart are the same Identifier Evidence; ISBNs with a `979` prefix have no ISBN-10 counterpart. Different identifiers are neutral rather than contradictory, and a matching identifier corroborates only a compatible title without an Edition Discriminator conflict.
@@ -155,7 +183,3 @@ _Avoid_: Cross-scheme identifier match, identifier veto
 **Qualified Embedded Identifier**:
 An opaque identifier extracted from a publication that becomes Identifier Evidence only after its format, placeholder patterns, scheme collisions, and reuse frequency within the library have been evaluated. The caller supplies observed library facts; the identity domain applies the qualification policy.
 _Avoid_: Raw EPUB UID, globally authoritative identifier
-
-**Consistent Edition Group**:
-A collection of records assigned to one Logical Edition. A record may join when at least one member yields a Confirmed Catalog Identity Verdict and no member yields Rejected; a single Rejected verdict vetoes the automatic merge, while only Indeterminate verdicts leave the record outside the group.
-_Avoid_: Transitive match chain, connected-component duplicate group

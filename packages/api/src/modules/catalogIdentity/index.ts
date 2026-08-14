@@ -1,6 +1,7 @@
 export {
 	assessCatalogIdentity,
 	assessGroupMembership,
+	buildDiscoveryProjection,
 	isSupplementalCatalogTitle,
 } from "./catalogIdentity";
 export {

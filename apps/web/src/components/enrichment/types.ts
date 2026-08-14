@@ -2,6 +2,20 @@ import type { EnrichmentLifecycle as Lifecycle } from "./filters";
 import type { EnrichmentStatus } from "./lifecycle";
 import type { resolveRetryView } from "./retry-view";
 
+export type MatchDecisionCandidate = {
+	provider: string;
+	providerId: string;
+	title?: string;
+	reasons?: string[];
+};
+
+export type MatchDecision = {
+	kind: "ambiguous";
+	candidates: (Omit<MatchDecisionCandidate, "providerId"> & {
+		providerId: string | null;
+	})[];
+};
+
 /** One row of the match manager list, as the tray query returns it. */
 export type MatchRow = {
 	bookUuid: string;
@@ -15,9 +29,11 @@ export type MatchRow = {
 	matched: {
 		provider: string;
 		providerId?: string | null;
+		manual?: boolean;
 		title?: string;
 		reasons?: string[];
 	}[];
+	decision: MatchDecision | null;
 	failures: { provider: string; code: string }[];
 	lastRunAt: string | null;
 	retry: Parameters<typeof resolveRetryView>[0];
@@ -33,4 +49,5 @@ export type RowActions = {
 	onArchive: () => void;
 	onUnarchive: () => void;
 	onFix: () => void;
+	onSelectCandidate: (candidate: MatchDecisionCandidate) => void;
 };

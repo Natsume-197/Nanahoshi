@@ -303,7 +303,7 @@ export class BookRepository {
 					SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name, 'position', bs.position)
 					FROM book_series bs
 					INNER JOIN series s ON s.id = bs.series_id
-					WHERE bs.book_id = b.id
+					WHERE bs.book_id = COALESCE(b.duplicate_of_book_id, b.id)
 					ORDER BY bs.position ASC NULLS LAST
 					LIMIT 1
 				) AS series,
@@ -1862,16 +1862,22 @@ export class BookRepository {
 
 	async listByIdsWithSize(ids: number[]) {
 		return db
-			.select({ id: book.id, filesizeKb: book.filesizeKb })
+			.select({
+				id: book.id,
+				filesizeKb: book.filesizeKb,
+				mediaType: library.mediaType,
+			})
 			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.where(inArray(book.id, ids));
 	}
 
 	/** Selected books plus any books already hidden behind them (avoids nested chains). */
 	async listGroupMemberIds(ids: number[]) {
 		return db
-			.select({ id: book.id })
+			.select({ id: book.id, mediaType: library.mediaType })
 			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
 			.where(or(inArray(book.id, ids), inArray(book.duplicateOfBookId, ids)));
 	}
 

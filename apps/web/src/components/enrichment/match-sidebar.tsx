@@ -57,7 +57,7 @@ const NAV_TREE: { bucket: Bucket; children: Lifecycle[] }[] = [
 	{ bucket: "in_progress", children: ["running", "scheduled"] },
 	{
 		bucket: "attention",
-		children: ["no_match", "review", "partial", "failed"],
+		children: ["unresolved", "no_match", "review", "partial", "failed"],
 	},
 	{ bucket: "stopped", children: [] },
 	{ bucket: "completed", children: [] },

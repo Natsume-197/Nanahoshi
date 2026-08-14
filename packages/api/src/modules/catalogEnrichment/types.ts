@@ -69,10 +69,16 @@ export type CatalogEnrichmentFailure<TProvider extends string> = {
 export type CatalogEnrichmentMatch<TProvider extends string> = {
 	provider: TProvider;
 	providerId: string;
+	manual?: boolean;
 	/** The candidate as the provider described it, for human review. */
 	title?: string;
 	/** Identity reasons behind the primary match; only set on the first entry. */
 	reasons?: string[];
+};
+
+export type CatalogEnrichmentDecision<TProvider extends string> = {
+	kind: "ambiguous";
+	candidates: CatalogEnrichmentMatch<TProvider>[];
 };
 
 export type CatalogEnrichmentResult<
@@ -98,6 +104,7 @@ export type CatalogEnrichmentResult<
 	  }
 	| {
 			status: "no_match";
+			decision?: CatalogEnrichmentDecision<TProvider>;
 			failures: CatalogEnrichmentFailure<TProvider>[];
 	  }
 	| {
@@ -118,6 +125,8 @@ export type CatalogEnrichmentInput<
 	 * providers are supplemental and run only after it confirms a match.
 	 */
 	requiredPrimaryProvider?: TProvider;
+	/** Exact human-selected record that may establish the primary identity. */
+	requiredPrimaryProviderId?: string;
 	protectedFields?: readonly (keyof TMetadata)[];
 	maxHydrationsPerProvider?: number;
 };

@@ -303,6 +303,93 @@ describe("Book Catalog Enrichment", () => {
 		});
 	});
 
+	test("refresh preserves a manually selected provider record", async () => {
+		const hydratedIds: string[] = [];
+		let discoveryCalls = 0;
+		const lockedProvider: IMetadataProvider = {
+			discoverCandidates: async () => {
+				discoveryCalls++;
+				return [{ providerId: "automatic-rival", identity, metadata: {} }];
+			},
+			hydrateCandidate: async (candidate) => {
+				hydratedIds.push(candidate.providerId);
+				return metadataProviderResult(
+					{ description: "Filled from the manual record" },
+					identity,
+				);
+			},
+		};
+
+		const result = await runBookCatalogEnrichment({
+			metadata: {
+				bookId: 1,
+				uuid: "book-1",
+				title: "Great Story 1",
+				authors: [{ name: "Known Author", role: "Author" }],
+			},
+			providers: [{ name: "ranobedb", provider: lockedProvider }],
+			refresh: true,
+			requiredPrimaryMatch: {
+				provider: "ranobedb",
+				providerId: "manual-choice",
+			},
+		});
+
+		expect(discoveryCalls).toBe(0);
+		expect(hydratedIds).toEqual(["manual-choice"]);
+		expect(result.status === "matched" ? result.primaryProviderId : null).toBe(
+			"manual-choice",
+		);
+		expect(result.status === "matched" ? result.matches[0]?.manual : null).toBe(
+			true,
+		);
+	});
+
+	test("uses the shared Discovery Projection when the raw title finds nothing", async () => {
+		const seenTitles: (string | null | undefined)[] = [];
+		const cleanTitle = "やはり俺の青春ラブコメはまちがっている。9";
+		const projectedIdentity: CatalogIdentityEvidence = {
+			kind: "book",
+			title: cleanTitle,
+			creators: [
+				{ name: "渡航", role: "Author" },
+				{ name: "ぽんかん⑧", role: "Author" },
+			],
+		};
+		const projectedProvider: IMetadataProvider = {
+			discoverCandidates: async (metadata) => {
+				seenTitles.push(metadata.title);
+				return metadata.title === cleanTitle
+					? [{ providerId: "oregairu-9", identity: projectedIdentity }]
+					: [];
+			},
+			hydrateCandidate: async () =>
+				metadataProviderResult(
+					{ description: "Matched through projected evidence" },
+					projectedIdentity,
+				),
+		};
+
+		const result = await runBookCatalogEnrichment({
+			metadata: {
+				bookId: 1,
+				uuid: "oregairu-9",
+				title:
+					"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
+				authors: [{ name: "渡航 / ぽんかん⑧", role: "Author" }],
+			},
+			providers: [{ name: "ranobedb", provider: projectedProvider }],
+		});
+
+		expect(result.status).toBe("matched");
+		expect(seenTitles).toEqual([
+			"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
+			cleanTitle,
+			"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
+			cleanTitle,
+		]);
+	});
+
 	describe("providers that expose their candidate list", () => {
 		const input = {
 			bookId: 1,
@@ -378,7 +465,7 @@ describe("Book Catalog Enrichment", () => {
 			expect(hydrated).toEqual(["right-volume"]);
 		});
 
-		test("reports a tie between two equally confirmable candidates", async () => {
+		test("keeps two equally confirmable candidates unresolved without metadata", async () => {
 			const result = await runBookCatalogEnrichment({
 				metadata: input,
 				providers: [
@@ -400,7 +487,25 @@ describe("Book Catalog Enrichment", () => {
 				],
 			});
 
-			expect(result.status === "matched" && result.primaryAmbiguous).toBe(true);
+			expect(result).toEqual({
+				status: "no_match",
+				decision: {
+					kind: "ambiguous",
+					candidates: [
+						{
+							provider: "ranobedb",
+							providerId: "edition-a",
+							reasons: ["title.match", "title.equivalent", "author.match"],
+						},
+						{
+							provider: "ranobedb",
+							providerId: "edition-b",
+							reasons: ["title.match", "title.equivalent", "author.match"],
+						},
+					],
+				},
+				failures: [],
+			});
 		});
 
 		test("a single candidate is not a tie", async () => {

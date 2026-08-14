@@ -209,12 +209,17 @@ export async function runAudiobookCatalogEnrichment({
 	region,
 	protectedFields = [],
 	routing,
+	requiredPrimaryMatch,
 }: {
 	metadata: AudiobookEnrichmentMetadata;
 	providers: readonly IAudiobookMetadataProvider[];
 	region: string;
 	protectedFields?: readonly (keyof AudiobookEnrichmentMetadata)[];
 	routing?: AudiobookRoutingPolicy;
+	requiredPrimaryMatch?: {
+		provider: AudiobookProviderName;
+		providerId: string;
+	};
 }): Promise<
 	CatalogEnrichmentResult<AudiobookProviderName, AudiobookEnrichmentMetadata>
 > {
@@ -237,6 +242,8 @@ export async function runAudiobookCatalogEnrichment({
 			}),
 		),
 		policy: audiobookPolicy(effectiveRouting),
+		requiredPrimaryProvider: requiredPrimaryMatch?.provider,
+		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,
 		protectedFields,
 	});
 }

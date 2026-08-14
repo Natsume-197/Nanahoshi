@@ -63,6 +63,8 @@ type RecordAnalysis = {
 const PACKAGING_NOISE =
 	/特装版|限定版|豪華版|愛蔵版|新装版|文庫版|単行本|kindle(?:限定)?|電子(?:書籍|版)|(?:店舗|購入|限定)?特典(?:あり|付き)?|paperback|hardcover|special edition|limited edition/giu;
 const ILLUSTRATION_PACKAGING_PAREN = /[(（][^)）]*イラスト完全版[^)）]*[)）]/gu;
+const BARE_IMPRINT_LABEL =
+	/(?:^|[\s　])[\p{L}\p{M}]{1,24}(?:文庫J?|ノベルズ?|ノベルス|ブックス)(?=[\s　]|$)/giu;
 const DECORATION =
 	/[\s「」『』【】［\]()（）{}〈〉<>:：・。、,.!?！？~〜～'"\-−–—―─]/gu;
 
@@ -84,6 +86,115 @@ function titlesOf(evidence: CatalogIdentityEvidence): CatalogTitle[] {
 		seen.add(key);
 		return true;
 	});
+}
+
+function collapseExactTitleRepetition(title: string): string {
+	const comparable = (value: string) =>
+		value.normalize("NFKC").toLowerCase().replace(DECORATION, "");
+	if (title.length % 2 === 0) {
+		const midpoint = title.length / 2;
+		if (title.slice(0, midpoint) === title.slice(midpoint)) {
+			return title.slice(0, midpoint).trim();
+		}
+	}
+	for (const match of title.matchAll(/[\s　]+/gu)) {
+		const splitAt = match.index;
+		const left = title.slice(0, splitAt).trim();
+		const right = title.slice(splitAt + match[0].length).trim();
+		if (left && right && comparable(left) === comparable(right)) return left;
+	}
+	return title;
+}
+
+function discoveryTitle(title: string): string {
+	return collapseExactTitleRepetition(
+		stripCatalogImprintParens(title.normalize("NFKC"))
+			.replace(/[「『][^」』]*[」』]シリーズ/gu, " ")
+			.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
+			.replace(PACKAGING_NOISE, " ")
+			.replace(BARE_IMPRINT_LABEL, " ")
+			.replace(/[【】［］]/gu, " ")
+			.replace(/\s+/g, " ")
+			.trim(),
+	);
+}
+
+function withDiscoveryTitles(
+	evidence: CatalogIdentityEvidence,
+): CatalogIdentityEvidence | null {
+	let changed = false;
+	const clean = (value: string | null | undefined) => {
+		if (!value) return value;
+		const next = discoveryTitle(value);
+		if (next && next !== value) changed = true;
+		return next || value;
+	};
+	const titles = evidence.titles?.map((title) => ({
+		...title,
+		value: clean(title.value) ?? title.value,
+	}));
+	const next = {
+		...evidence,
+		...(titles && { titles }),
+		title: clean(evidence.title),
+		titleRomaji: clean(evidence.titleRomaji),
+	};
+	return changed ? next : null;
+}
+
+function withSplitAuthors(
+	evidence: CatalogIdentityEvidence,
+): CatalogIdentityEvidence | null {
+	let changed = false;
+	const parts = (name: string) => {
+		const split = name
+			.split(/[/／]/u)
+			.map((part) => part.trim())
+			.filter(Boolean);
+		if (split.length < 2) return [name];
+		changed = true;
+		return split;
+	};
+	const authors = evidence.authors?.flatMap<string | { name: string }>(
+		(author) =>
+			typeof author === "string"
+				? parts(author)
+				: parts(author.name).map((name) => ({ name })),
+	);
+	const creators = evidence.creators?.flatMap((creator) =>
+		creator.role?.trim().toLowerCase() === "author"
+			? parts(creator.name).map((name) => ({ ...creator, name }))
+			: [creator],
+	);
+	return changed
+		? {
+				...evidence,
+				...(authors && { authors }),
+				...(creators && { creators }),
+			}
+		: null;
+}
+
+/** Raw evidence first, followed by at most three conservative search forms. */
+export function buildDiscoveryProjection(
+	evidence: CatalogIdentityEvidence,
+): CatalogIdentityEvidence[] {
+	const projected: CatalogIdentityEvidence[] = [];
+	const seen = new Set<string>();
+	const add = (value: CatalogIdentityEvidence | null) => {
+		if (!value || projected.length >= 4) return;
+		const key = JSON.stringify(value);
+		if (seen.has(key)) return;
+		seen.add(key);
+		projected.push(value);
+	};
+	const titles = withDiscoveryTitles(evidence);
+	const authors = withSplitAuthors(evidence);
+	add(evidence);
+	add(titles);
+	add(authors);
+	add(authors ? withDiscoveryTitles(authors) : null);
+	return projected;
 }
 
 function volumeNumber(title: string): number | null {
@@ -390,6 +501,7 @@ function authorNames(evidence: CatalogIdentityEvidence): string[] {
 		.map((creator) => creator.name);
 	return unique(
 		[...explicit, ...creators]
+			.flatMap((name) => [name, ...name.split(/[/／]/u)])
 			.map((name) =>
 				name.normalize("NFKC").toLowerCase().replace(DECORATION, ""),
 			)

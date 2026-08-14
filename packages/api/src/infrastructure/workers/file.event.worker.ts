@@ -388,7 +388,9 @@ async function handleFileEvent(job: Job) {
 				);
 				if (
 					serverId &&
-					!(await enrichmentStateRepository.isTerminal(promote.id))
+					(await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(
+						promote.id,
+					))
 				) {
 					await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
 						log.error(

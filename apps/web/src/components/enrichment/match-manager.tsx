@@ -69,7 +69,7 @@ import {
 	getCoverUrl,
 } from "@/utils/covers";
 import { formatRelativeTime } from "@/utils/format";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import {
 	ALL_BUCKETS,
 	ALL_LIBRARIES,
@@ -99,7 +99,7 @@ import {
 import { visiblePageNumbers } from "./pagination";
 import { IDLE_POLL_MS, resolvePollInterval } from "./poll";
 import { resolveRetryView } from "./retry-view";
-import type { MatchRow, RowActions } from "./types";
+import type { MatchDecisionCandidate, MatchRow, RowActions } from "./types";
 
 type FixTarget = {
 	bookUuid: string;
@@ -435,6 +435,40 @@ export function MatchManager() {
 			onError: (error) => toast.error(error.message),
 		}),
 	);
+	const selectCandidateMutation = useMutation({
+		mutationFn: async ({
+			item,
+			candidate,
+		}: {
+			item: MatchRow;
+			candidate: MatchDecisionCandidate;
+		}) => {
+			if (item.mediaType === "audiobook") {
+				const result = await client.audiobooks.applyMetadata({
+					uuid: item.bookUuid,
+					provider: candidate.provider as "audible" | "itunes",
+					providerId: candidate.providerId,
+				});
+				if (result == null) throw new Error(m["match.apply_failed"]());
+				return;
+			}
+			const result = await client.books.applyMetadata({
+				uuid: item.bookUuid,
+				provider: candidate.provider as Parameters<
+					typeof client.books.applyMetadata
+				>[0]["provider"],
+				providerId: candidate.providerId,
+			});
+			if (!result.success) throw new Error(m["match.apply_failed"]());
+		},
+		onSuccess: () => {
+			toast.success(m["match.applied"]());
+			setDetailUuid(null);
+			setDetailFallback(null);
+			invalidateAll();
+		},
+		onError: (error: Error) => toast.error(error.message),
+	});
 
 	const counts = data?.counts;
 	const items: MatchRow[] = data?.items ?? [];
@@ -470,7 +504,8 @@ export function MatchManager() {
 		cancelRetryMutation.isPending ||
 		stopMutation.isPending ||
 		archiveMutation.isPending ||
-		unarchiveMutation.isPending;
+		unarchiveMutation.isPending ||
+		selectCandidateMutation.isPending;
 
 	// The open row, preferring the live list entry so the pane follows the
 	// worker; the click-time snapshot keeps it from blanking when a refresh
@@ -624,6 +659,8 @@ export function MatchManager() {
 		onArchive: () => archiveWithUndo([item.bookUuid]),
 		onUnarchive: () => unarchiveOne(item.bookUuid),
 		onFix: () => openFix(item),
+		onSelectCandidate: (candidate) =>
+			selectCandidateMutation.mutate({ item, candidate }),
 	});
 
 	// ── Bulk actions ─────────────────────────────────────────────────────────

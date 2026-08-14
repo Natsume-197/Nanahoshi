@@ -1,4 +1,7 @@
-import type { EnrichmentStatus } from "@nanahoshi-v2/db/schema/general";
+import type {
+	EnrichmentDecision,
+	EnrichmentStatus,
+} from "@nanahoshi-v2/db/schema/general";
 import { type SQL, sql } from "drizzle-orm";
 import { MAX_PROVIDER_RETRY_ATTEMPTS } from "../metadataRetry/metadata-retry.policy";
 
@@ -13,6 +16,7 @@ export type EnrichmentLifecycle =
 	| "stopped"
 	| "scheduled"
 	| "review"
+	| "unresolved"
 	| "no_match"
 	| "partial"
 	| "failed"
@@ -32,6 +36,7 @@ export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
 	stopped: "stopped",
 	scheduled: "in_progress",
 	review: "attention",
+	unresolved: "attention",
 	no_match: "attention",
 	partial: "attention",
 	failed: "attention",
@@ -46,6 +51,7 @@ export type LifecycleRow = {
 	archivedAt: string | null;
 	providerAttempts: number;
 	hasFailures: boolean;
+	decision: EnrichmentDecision | null;
 };
 
 /**
@@ -81,6 +87,12 @@ const RULES: {
 		lifecycle: "review",
 		ts: (row) => row.status === "review",
 		sql: sql`es.status = 'review'`,
+	},
+	{
+		lifecycle: "unresolved",
+		ts: (row) =>
+			row.status === "no_match" && row.decision?.kind === "ambiguous",
+		sql: sql`es.status = 'no_match' AND es.decision->>'kind' = 'ambiguous'`,
 	},
 	{
 		lifecycle: "no_match",

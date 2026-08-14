@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
 	assessCatalogIdentity,
 	assessGroupMembership,
+	buildDiscoveryProjection,
 	type CatalogIdentityEvidence,
 	isSupplementalCatalogTitle,
 	CATALOG_IDENTITY_REASONS as R,
 } from ".";
+import { CATALOG_IDENTITY_REGRESSION_CORPUS } from "./regression-corpus";
 
 const book = (
 	title: string | null,
@@ -32,7 +34,7 @@ describe("catalogIdentity: written books", () => {
 		).toMatchObject({ status: "rejected" });
 	});
 
-	test("an unnumbered title and volume 1 can be the same Logical Edition", () => {
+	test("an unnumbered title and volume 1 can be the same catalog identity", () => {
 		expect(
 			assessCatalogIdentity(
 				book("Konosuba", { authors: ["Natsume Akatsuki"] }),
@@ -183,22 +185,6 @@ describe("catalogIdentity: written books", () => {
 		).toEqual({ status: "rejected", reasons: [R.SUPPLEMENT_CONFLICT] });
 	});
 
-	test.each([
-		["斜陽", "斜陽の国のルスダン", "太宰治", "並木陽"],
-		["青年", "家出青年、猫ホストになる", "森鴎外", "水月さなぎ"],
-		["オセロ", "オセロ", "藤原チコ", "別の著者"],
-	] as const)(
-		"rejects known automatic false positive %s → %s",
-		(leftTitle, rightTitle, leftAuthor, rightAuthor) => {
-			expect(
-				assessCatalogIdentity(
-					book(leftTitle, { authors: [leftAuthor] }),
-					book(rightTitle, { authors: [rightAuthor] }),
-				).status,
-			).toBe("rejected");
-		},
-	);
-
 	test("distinguishing Japanese subtitles beat shared packaging noise", () => {
 		const label = "「涼宮ハルヒ」シリーズ (角川スニーカー文庫)";
 		expect(
@@ -333,6 +319,15 @@ describe("catalogIdentity: written books", () => {
 	});
 });
 
+describe("catalogIdentity: production regression corpus", () => {
+	test.each(CATALOG_IDENTITY_REGRESSION_CORPUS)(
+		"keeps $name fixed",
+		({ left, right, expected }) => {
+			expect(assessCatalogIdentity(left, right).status).toBe(expected);
+		},
+	);
+});
+
 describe("catalogIdentity: audiobook quick match", () => {
 	test("title alone can confirm and duration differences only annotate", () => {
 		const verdict = assessCatalogIdentity(
@@ -370,5 +365,28 @@ describe("assessGroupMembership", () => {
 				book("Konosuba 2"),
 			]).status,
 		).toBe("rejected");
+	});
+});
+
+describe("buildDiscoveryProjection", () => {
+	test("keeps raw evidence first and derives bounded conservative search forms", () => {
+		const raw = book(
+			"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
+			{ authors: ["渡航 / ぽんかん⑧"] },
+		);
+
+		expect(buildDiscoveryProjection(raw)).toEqual([
+			raw,
+			book("やはり俺の青春ラブコメはまちがっている。9", {
+				authors: ["渡航 / ぽんかん⑧"],
+			}),
+			book(
+				"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",
+				{ authors: ["渡航", "ぽんかん⑧"] },
+			),
+			book("やはり俺の青春ラブコメはまちがっている。9", {
+				authors: ["渡航", "ぽんかん⑧"],
+			}),
+		]);
 	});
 });

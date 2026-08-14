@@ -194,6 +194,21 @@ export class BookMetadataService {
 		const protectedFields = await bookMetadataRepository.getLockedFields(
 			input.bookId,
 		);
+		const state = await enrichmentStateRepository.get(input.bookId);
+		const manualMatch = state?.matched.find(
+			(match) => match.manual && match.providerId,
+		);
+		const manualProvider = manualMatch?.provider as
+			| MetadataProviderName
+			| undefined;
+		if (
+			manualMatch?.providerId &&
+			(!manualProvider ||
+				!Object.hasOwn(BOOK_PROVIDERS, manualProvider) ||
+				!providerOrder.includes(manualProvider))
+		) {
+			return null;
+		}
 		const result = await runBookCatalogEnrichment({
 			metadata: { ...input, serverId, amazonDomain },
 			providers: providerOrder.map((name) => ({
@@ -203,6 +218,12 @@ export class BookMetadataService {
 			protectedFields: protectedFields as (keyof BookMetadata)[],
 			refresh: options?.refresh,
 			routing,
+			requiredPrimaryMatch: manualMatch?.providerId
+				? {
+						provider: manualProvider as MetadataProviderName,
+						providerId: manualMatch.providerId,
+					}
+				: undefined,
 		});
 
 		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
@@ -230,6 +251,7 @@ export class BookMetadataService {
 			}
 			await enrichmentStateRepository.recordRun(input.bookId, {
 				status: "no_match",
+				decision: result.decision,
 				failures,
 			});
 			return null;
@@ -550,7 +572,7 @@ export class BookMetadataService {
 		});
 		await enrichmentStateRepository.recordRun(input.bookId, {
 			status: "enriched",
-			matched: [{ provider: name, providerId: input.providerId }],
+			matched: [{ provider: name, providerId: input.providerId, manual: true }],
 		});
 		return saved;
 	}

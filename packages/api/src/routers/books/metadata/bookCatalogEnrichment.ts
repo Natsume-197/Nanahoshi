@@ -6,6 +6,7 @@ import {
 	runCatalogEnrichment,
 	withProviderGate,
 } from "../../../modules/catalogEnrichment";
+import { buildDiscoveryProjection } from "../../../modules/catalogIdentity";
 import {
 	type ProviderFieldPolicy,
 	providerFieldRank,
@@ -123,9 +124,29 @@ function bookAdapter(
 		BookEnrichmentMetadata
 	> = {
 		id: name,
-		async discover(_query, metadata) {
+		async discover(query, metadata) {
+			const projectedMetadata: BookEnrichmentMetadata = {
+				...metadata,
+				...(query.title !== undefined && { title: query.title }),
+				...(query.titleRomaji !== undefined && {
+					titleRomaji: query.titleRomaji,
+				}),
+				...(query.creators && {
+					authors: query.creators.map((creator) => ({
+						name: creator.name,
+						role: creator.role ?? undefined,
+					})),
+				}),
+				...(!query.creators &&
+					query.authors && {
+						authors: query.authors.map((author) => ({
+							name: typeof author === "string" ? author : author.name,
+							role: "Author",
+						})),
+					}),
+			};
 			const candidates = await callProvider(
-				() => provider.discoverCandidates(metadata),
+				() => provider.discoverCandidates(projectedMetadata),
 				[],
 			);
 			return candidates.map((candidate) => ({
@@ -231,7 +252,8 @@ function bookPolicy(
 	};
 
 	return {
-		discoveryQueries: (metadata) => [bookMetadataIdentityEvidence(metadata)],
+		discoveryQueries: (metadata) =>
+			buildDiscoveryProjection(bookMetadataIdentityEvidence(metadata)),
 		rank: () => 1,
 		describe: (metadata) => metadata.titleRomaji ?? metadata.title ?? undefined,
 		shouldRun: (provider, metadata) => {
@@ -261,6 +283,7 @@ export async function runBookCatalogEnrichment({
 	protectedFields = [],
 	refresh = false,
 	routing,
+	requiredPrimaryMatch,
 }: {
 	metadata: BookEnrichmentMetadata;
 	providers: readonly {
@@ -270,6 +293,10 @@ export async function runBookCatalogEnrichment({
 	protectedFields?: readonly (keyof BookMetadata)[];
 	refresh?: boolean;
 	routing?: BookRoutingPolicy;
+	requiredPrimaryMatch?: {
+		provider: MetadataProviderName;
+		providerId: string;
+	};
 }) {
 	const effectiveRouting: BookRoutingPolicy = routing ?? {
 		order: providers.map(({ name }) => name),
@@ -291,7 +318,9 @@ export async function runBookCatalogEnrichment({
 			bookAdapter(name, provider),
 		),
 		policy: bookPolicy(refresh, effectiveRouting, initialMetadata),
-		requiredPrimaryProvider: effectiveRouting.primary,
+		requiredPrimaryProvider:
+			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
+		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,
 		protectedFields,
 	});
 	if (result.status !== "matched") return result;

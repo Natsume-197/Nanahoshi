@@ -14,6 +14,7 @@ const base: LifecycleRow = {
 	archivedAt: null,
 	providerAttempts: 0,
 	hasFailures: false,
+	decision: null,
 };
 
 function row(overrides: Partial<LifecycleRow>): LifecycleRow {
@@ -35,6 +36,17 @@ describe("resolveLifecycle — one label per row", () => {
 
 	test("no_match needs attention", () => {
 		expect(resolveLifecycle(row({ status: "no_match" }))).toBe("no_match");
+	});
+
+	test("an ambiguous no-match is presented as unresolved", () => {
+		expect(
+			resolveLifecycle(
+				row({
+					status: "no_match",
+					decision: { kind: "ambiguous", candidates: [] },
+				}),
+			),
+		).toBe("unresolved");
 	});
 
 	test("partial match is its own attention state", () => {
@@ -141,6 +153,7 @@ describe("bucket mapping", () => {
 			"stopped",
 			"scheduled",
 			"review",
+			"unresolved",
 			"no_match",
 			"partial",
 			"failed",
@@ -154,6 +167,14 @@ describe("bucket mapping", () => {
 
 	test("resolveBucket routes attention states together", () => {
 		expect(resolveBucket(row({ status: "review" }))).toBe("attention");
+		expect(
+			resolveBucket(
+				row({
+					status: "no_match",
+					decision: { kind: "ambiguous", candidates: [] },
+				}),
+			),
+		).toBe("attention");
 		expect(resolveBucket(row({ status: "no_match" }))).toBe("attention");
 		expect(resolveBucket(row({ status: "partial" }))).toBe("attention");
 		expect(

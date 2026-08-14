@@ -4,10 +4,14 @@ import { PgDialect } from "drizzle-orm/pg-core";
 let conflictConfig: {
 	set?: Record<string, unknown>;
 } | null = null;
+let insertedValues: Record<string, unknown> | null = null;
 
 function insertChain() {
 	const chain = {
-		values: mock(() => chain),
+		values: mock((values: Record<string, unknown>) => {
+			insertedValues = values;
+			return chain;
+		}),
 		onConflictDoUpdate: mock((config: { set?: Record<string, unknown> }) => {
 			conflictConfig = config;
 			return Promise.resolve();
@@ -20,6 +24,7 @@ let updateSet: Record<string, unknown> | null = null;
 let updateWhere: unknown = null;
 let returningRows: { bookId: number }[] = [];
 let executedQuery: unknown = null;
+let selectedRows: Record<string, unknown>[] = [];
 
 function updateChain() {
 	const chain = {
@@ -36,10 +41,25 @@ function updateChain() {
 	return chain;
 }
 
+function selectChain() {
+	const chain = Promise.resolve().then(() => selectedRows) as Promise<
+		Record<string, unknown>[]
+	> & {
+		from: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
+		limit: ReturnType<typeof mock>;
+	};
+	chain.from = mock(() => chain);
+	chain.where = mock(() => chain);
+	chain.limit = mock(() => chain);
+	return chain;
+}
+
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
 		insert: mock(insertChain),
 		update: mock(updateChain),
+		select: mock(selectChain),
 		execute: mock((query: unknown) => {
 			executedQuery = query;
 			return Promise.resolve({ rows: [] });
@@ -72,6 +92,26 @@ function compiledExecutedSql() {
 }
 
 describe("EnrichmentStateRepository retry invariants", () => {
+	test("persists an ambiguous decision separately from failures", async () => {
+		const decision = {
+			kind: "ambiguous" as const,
+			candidates: [
+				{ provider: "ranobedb", providerId: "1" },
+				{ provider: "ranobedb", providerId: "2" },
+			],
+		};
+
+		await enrichmentStateRepository.recordRun(1126, {
+			status: "no_match",
+			decision,
+			failures: [],
+		});
+
+		expect(insertedValues?.decision).toEqual(decision);
+		expect(conflictConfig?.set?.decision).toEqual(decision);
+		expect(insertedValues?.failures).toEqual([]);
+	});
+
 	test("a failure over a terminal row cannot schedule an undispatchable retry", async () => {
 		await enrichmentStateRepository.recordFailures(
 			1126,
@@ -109,6 +149,34 @@ describe("EnrichmentStateRepository retry invariants", () => {
 		});
 
 		expect(compiledNextRetrySql()).toMatch(/ELSE \$\d+::timestamptz/);
+	});
+});
+
+describe("EnrichmentStateRepository decision projection", () => {
+	test("includes the decision in match detail", async () => {
+		await enrichmentStateRepository.detail("server-1", "book-1");
+		expect(compiledExecutedSql()).toContain("es.decision");
+	});
+});
+
+describe("EnrichmentStateRepository duplicate release", () => {
+	test("reopens only absent and no_match states", async () => {
+		selectedRows = [];
+		expect(
+			await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(1),
+		).toBe(true);
+
+		selectedRows = [{ status: "no_match" }];
+		expect(
+			await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(1),
+		).toBe(true);
+
+		for (const status of ["enriched", "review", "partial", "pending"]) {
+			selectedRows = [{ status }];
+			expect(
+				await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(1),
+			).toBe(false);
+		}
 	});
 });
 

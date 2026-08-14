@@ -15,6 +15,7 @@ export const EnrichmentLifecycleEnum = z.enum([
 	"stopped",
 	"scheduled",
 	"review",
+	"unresolved",
 	"no_match",
 	"partial",
 	"failed",

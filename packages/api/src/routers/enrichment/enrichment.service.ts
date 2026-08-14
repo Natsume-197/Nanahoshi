@@ -71,6 +71,7 @@ export class EnrichmentService {
 					archivedAt: item.archivedAt,
 					providerAttempts: item.providerAttempts,
 					hasFailures: item.failures.length > 0,
+					decision: item.decision,
 				}),
 				retry: metadataRetryProjection({
 					nextRetryAt: item.nextRetryAt,

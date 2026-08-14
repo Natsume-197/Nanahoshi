@@ -96,6 +96,10 @@ const mockRecordRun = spyOn(
 	enrichmentStateRepository,
 	"recordRun",
 ).mockImplementation(() => Promise.resolve());
+const mockGetEnrichmentState = spyOn(
+	enrichmentStateRepository,
+	"get",
+).mockImplementation(() => Promise.resolve(null));
 const mockRecordPartialMatch = spyOn(
 	enrichmentStateRepository,
 	"recordPartialMatch",
@@ -124,6 +128,7 @@ afterAll(() => {
 	audibleChaptersSpy.mockRestore();
 	itunesSearchSpy.mockRestore();
 	itunesGetByIdSpy.mockRestore();
+	mockGetEnrichmentState.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "Great Story" };
@@ -181,6 +186,8 @@ beforeEach(() => {
 	mockStateIsTerminal.mockReset();
 	mockStateIsTerminal.mockImplementation(() => Promise.resolve(false));
 	mockRecordRun.mockClear();
+	mockGetEnrichmentState.mockReset();
+	mockGetEnrichmentState.mockImplementation(() => Promise.resolve(null));
 	mockRecordPartialMatch.mockClear();
 	mockRecordFailures.mockClear();
 	mockMergeFieldSources.mockClear();
@@ -383,6 +390,40 @@ describe("quickMatch provider chain", () => {
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();
 	});
 
+	test("two valid audiobook candidates stay unresolved without metadata", async () => {
+		audibleSearchSpy.mockImplementation(async () => [
+			{ ...AUDIBLE_CANDIDATE, providerId: "B0FIRST001" },
+			{ ...AUDIBLE_CANDIDATE, providerId: "B0SECOND01" },
+		]);
+		audibleGetByIdSpy.mockImplementation(async (providerId) => ({
+			...AUDIBLE_FULL,
+			asin: providerId,
+		}));
+
+		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		expect(result).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockReplaceChapters).not.toHaveBeenCalled();
+		expect(mockRecordRun).toHaveBeenCalledWith(1, {
+			status: "no_match",
+			failures: [],
+			decision: {
+				kind: "ambiguous",
+				candidates: [
+					expect.objectContaining({
+						provider: "audible",
+						providerId: "B0FIRST001",
+					}),
+					expect.objectContaining({
+						provider: "audible",
+						providerId: "B0SECOND01",
+					}),
+				],
+			},
+		});
+	});
+
 	test("low-similarity candidates are rejected", async () => {
 		audibleSearchSpy.mockImplementation(async () => [
 			{ ...AUDIBLE_CANDIDATE, title: "Completely Different Book" },
@@ -514,6 +555,33 @@ describe("quickMatch provider chain", () => {
 		expect(result).toBeNull();
 		expect(audibleSearchSpy).not.toHaveBeenCalled();
 		expect(itunesSearchSpy).not.toHaveBeenCalled();
+	});
+
+	test("a refresh hydrates the manually selected audiobook identity only", async () => {
+		mockGetEnrichmentState.mockImplementation(async () =>
+			Promise.resolve({
+				matched: [
+					{
+						provider: "audible",
+						providerId: "B0MANUAL01",
+						manual: true,
+					},
+				],
+			} as Awaited<ReturnType<typeof enrichmentStateRepository.get>>),
+		);
+		audibleSearchSpy.mockImplementation(async () => [
+			{ ...AUDIBLE_CANDIDATE, providerId: "B0RIVAL001" },
+		]);
+		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
+
+		const result = await audiobookMetadataService.quickMatch({ ...BASE_INPUT });
+
+		expect(result).toEqual({ bookId: 1 });
+		expect(audibleSearchSpy).not.toHaveBeenCalled();
+		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0MANUAL01", {
+			region: "us",
+			bookUuid: "uuid-1",
+		});
 	});
 
 	test("tag ASIN goes straight to getById — no catalog search", async () => {

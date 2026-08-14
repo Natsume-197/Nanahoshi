@@ -34,6 +34,10 @@ const mockRecordRun = spyOn(
 	enrichmentStateRepository,
 	"recordRun",
 ).mockImplementation(() => Promise.resolve());
+const mockGetEnrichmentState = spyOn(
+	enrichmentStateRepository,
+	"get",
+).mockImplementation(() => Promise.resolve(null));
 const mockRecordFailures = spyOn(
 	enrichmentStateRepository,
 	"recordFailures",
@@ -149,6 +153,7 @@ const mockRemoveLockedFields = spyOn(
 
 const repoSpies = [
 	mockRecordRun,
+	mockGetEnrichmentState,
 	mockRecordFailures,
 	mockMarkCompleted,
 	mockStateResetForRetry,
@@ -241,20 +246,24 @@ function stubProvider(provider: IMetadataProvider) {
 	const answer = mock(
 		async (
 			_input: Parameters<IMetadataProvider["discoverCandidates"]>[0],
-		): Promise<MetadataProviderResult> => emptyMetadataProviderResult(),
+		): Promise<MetadataProviderResult | MetadataProviderResult[]> =>
+			emptyMetadataProviderResult(),
 	);
 	const discoverSpy = spyOn(provider, "discoverCandidates").mockImplementation(
 		async (input) => {
 			const result = await answer(input);
-			return result.identity
-				? [
-						{
-							providerId: "stub-candidate",
-							identity: result.identity,
-							metadata: result.metadata,
-						},
-					]
-				: [];
+			return (Array.isArray(result) ? result : [result]).flatMap(
+				(candidate, index) =>
+					candidate.identity
+						? [
+								{
+									providerId: `stub-candidate-${index + 1}`,
+									identity: candidate.identity,
+									metadata: candidate.metadata,
+								},
+							]
+						: [],
+			);
 		},
 	);
 	const hydrateSpy = spyOn(provider, "hydrateCandidate").mockImplementation(
@@ -354,6 +363,8 @@ beforeEach(() => {
 	ranobedbSpy.mockReset();
 	localSpy.mockReset();
 	mockRecordRun.mockClear();
+	mockGetEnrichmentState.mockReset();
+	mockGetEnrichmentState.mockImplementation(() => Promise.resolve(null));
 	mockRecordFailures.mockClear();
 	mockMarkCompleted.mockClear();
 	mockStateResetForRetry.mockClear();
@@ -702,6 +713,40 @@ describe("enrichFromProviders", () => {
 			1,
 			expect.objectContaining({ status: "no_match" }),
 		);
+	});
+
+	test("persists an ambiguous decision without saving either candidate", async () => {
+		ranobedbSpy.mockImplementation(async () => [
+			acceptedProviderResult({ description: "candidate one" }),
+			acceptedProviderResult({ description: "candidate two" }),
+		]);
+
+		const result = await bookMetadataService.enrichFromProviders(
+			{ ...BASE_INPUT },
+			["ranobedb"],
+		);
+
+		expect(result).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
+		expect(mockLinkBookSeries).not.toHaveBeenCalled();
+		expect(mockRecordRun).toHaveBeenCalledWith(1, {
+			status: "no_match",
+			failures: [],
+			decision: {
+				kind: "ambiguous",
+				candidates: [
+					expect.objectContaining({
+						provider: "ranobedb",
+						providerId: "stub-candidate-1",
+					}),
+					expect.objectContaining({
+						provider: "ranobedb",
+						providerId: "stub-candidate-2",
+					}),
+				],
+			},
+		});
 	});
 
 	test("persists per-field provenance for contributed fields only", async () => {
@@ -1667,7 +1712,7 @@ describe("applyFromProvider (manual fix-match)", () => {
 		expect(authorsCall?.[2]).toBe("RANOBEDB");
 		expect(mockRecordRun).toHaveBeenCalledWith(1, {
 			status: "enriched",
-			matched: [{ provider: "ranobedb", providerId: "4242" }],
+			matched: [{ provider: "ranobedb", providerId: "4242", manual: true }],
 		});
 	});
 

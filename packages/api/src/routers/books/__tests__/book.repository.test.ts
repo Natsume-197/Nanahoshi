@@ -91,11 +91,15 @@ function createSelectChain() {
 
 /** Rows an awaited `db.execute()` resolves to (raw-SQL queries). */
 let executeResult: Array<Record<string, unknown>> = [];
+let executedQuery: SQL | null = null;
 
 const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
 const mockDelete = mock(() => createDeleteChain());
-const mockExecute = mock(() => Promise.resolve({ rows: executeResult }));
+const mockExecute = mock((query: SQL) => {
+	executedQuery = query;
+	return Promise.resolve({ rows: executeResult });
+});
 
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
@@ -393,6 +397,11 @@ describe("BookRepository", () => {
 		expect(result?.canonicalUuid).toBe("book-uuid-10");
 		// The canonical is reachable via the banner, so it isn't repeated here.
 		expect(result?.otherCopies).toEqual([]);
+		expect(executedQuery).not.toBeNull();
+		const query = new PgDialect().sqlToQuery(executedQuery as SQL).sql;
+		expect(query).toContain(
+			"bs.book_id = COALESCE(b.duplicate_of_book_id, b.id)",
+		);
 	});
 
 	test("getWithMetadata() returns null when no row matches", async () => {

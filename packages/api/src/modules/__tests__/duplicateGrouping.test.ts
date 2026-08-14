@@ -4,8 +4,9 @@ const realSchema = await import("@nanahoshi-v2/db/schema/general");
 
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
 mock.module("@nanahoshi-v2/db/schema/general", () => ({ ...realSchema }));
+const metadataEnrichAddMock = mock(async () => {});
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
-	metadataEnrichQueue: { add: mock(async () => {}) },
+	metadataEnrichQueue: { add: metadataEnrichAddMock },
 }));
 const { bookMetadataRepository } = await import(
 	"../../routers/books/metadata/metadata.repository"
@@ -259,6 +260,90 @@ describe("regroupBookDuplicates via embedded uid", () => {
 			expect(methods.clearDuplicatePointerIfSet).toHaveBeenCalledWith(10);
 		} finally {
 			for (const [key, value] of originals) target[key] = value;
+		}
+	});
+});
+
+describe("manual edition grouping boundaries", () => {
+	test("rejects a group that mixes ebooks and audiobooks", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { groupAsEditions } = await import("../duplicateGrouping");
+		const target = bookRepository as unknown as Record<string, unknown>;
+		const methods = {
+			listByIdsWithSize: mock(async () => [
+				{ id: 1, filesizeKb: 2000, mediaType: "ebook" },
+				{ id: 2, filesizeKb: 1000, mediaType: "audiobook" },
+			]),
+			listGroupMemberIds: mock(async () => [{ id: 1 }, { id: 2 }]),
+			lockAsCanonical: mock(async () => {}),
+			lockAsHidden: mock(async () => {}),
+		};
+		const originals = Object.entries(methods).map(([key, value]) => {
+			const previous = target[key];
+			target[key] = value;
+			return [key, previous] as const;
+		});
+
+		try {
+			expect(await groupAsEditions([1, 2])).toBeNull();
+			expect(methods.lockAsCanonical).not.toHaveBeenCalled();
+			expect(methods.lockAsHidden).not.toHaveBeenCalled();
+		} finally {
+			for (const [key, value] of originals) target[key] = value;
+		}
+	});
+});
+
+describe("released duplicate enrichment", () => {
+	test("reopens absent/no_match copies but preserves completed identities", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { enrichmentStateRepository } = await import(
+			"../../routers/enrichment/enrichment.repository"
+		);
+		const { ungroupEdition } = await import("../duplicateGrouping");
+		const bookTarget = bookRepository as unknown as Record<string, unknown>;
+		const stateTarget = enrichmentStateRepository as unknown as Record<
+			string,
+			unknown
+		>;
+		const bookMethods = {
+			lockAsCanonical: mock(async () => {}),
+			getUuid: mock(async (id: number) => `book-${id}`),
+		};
+		let shouldReopen = true;
+		const stateMethods = {
+			shouldReopenAfterDuplicateRelease: mock(async () => shouldReopen),
+			isTerminal: mock(async () => false),
+		};
+		const bookOriginals = Object.entries(bookMethods).map(([key, value]) => {
+			const previous = bookTarget[key];
+			bookTarget[key] = value;
+			return [key, previous] as const;
+		});
+		const stateOriginals = Object.entries(stateMethods).map(([key, value]) => {
+			const previous = stateTarget[key];
+			stateTarget[key] = value;
+			return [key, previous] as const;
+		});
+
+		try {
+			metadataEnrichAddMock.mockClear();
+			await ungroupEdition(10);
+			expect(metadataEnrichAddMock).toHaveBeenCalledTimes(1);
+
+			shouldReopen = false;
+			await ungroupEdition(20);
+			expect(metadataEnrichAddMock).toHaveBeenCalledTimes(1);
+			expect(
+				stateMethods.shouldReopenAfterDuplicateRelease,
+			).toHaveBeenCalledTimes(2);
+		} finally {
+			for (const [key, value] of bookOriginals) bookTarget[key] = value;
+			for (const [key, value] of stateOriginals) stateTarget[key] = value;
 		}
 	});
 });

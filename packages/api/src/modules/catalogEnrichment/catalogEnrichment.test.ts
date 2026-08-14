@@ -20,6 +20,15 @@ const audiobookEvidence = (
 	extra: Partial<CatalogIdentityEvidence> = {},
 ): CatalogIdentityEvidence => ({ kind: "audiobook", title, ...extra });
 
+const bookEvidence = (
+	title: string,
+	author = "渡航",
+): CatalogIdentityEvidence => ({
+	kind: "book",
+	title,
+	authors: [author],
+});
+
 const policy: CatalogEnrichmentPolicy<TestMetadata> = {
 	discoveryQueries: (metadata) => [audiobookEvidence(metadata.title ?? "")],
 	rank: (_metadata, candidate) =>
@@ -314,7 +323,7 @@ describe("Catalog Enrichment Pipeline", () => {
 		expect(result.status).toBe("matched");
 	});
 
-	test("flags the primary match as ambiguous when a rival is equally confirmable", async () => {
+	test("keeps equally confirmable primary candidates unresolved", async () => {
 		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
 			id: "first",
 			discover: async () =>
@@ -336,7 +345,203 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy,
 		});
 
-		expect(result.status === "matched" && result.primaryAmbiguous).toBe(true);
+		expect(result).toEqual({
+			status: "no_match",
+			decision: {
+				kind: "ambiguous",
+				candidates: [
+					{
+						provider: "first",
+						providerId: "candidate-1",
+						reasons: ["audiobook.title_match"],
+					},
+					{
+						provider: "first",
+						providerId: "candidate-2",
+						reasons: ["audiobook.title_match"],
+					},
+				],
+			},
+			failures: [],
+		});
+	});
+
+	test.each([
+		{
+			localTitle: "やはり俺の青春ラブコメはまちがっている。",
+			exactProviderId: "7378",
+		},
+		{
+			localTitle: "やはり俺の青春ラブコメはまちがっている。結 1",
+			exactProviderId: "33224",
+		},
+	])(
+		"prefers the equivalent Oregairu title for $localTitle",
+		async ({ localTitle, exactProviderId }) => {
+			const candidates = [
+				{
+					providerId: "7378",
+					title: "やはり俺の青春ラブコメはまちがっている。",
+				},
+				{
+					providerId: "33224",
+					title: "やはり俺の青春ラブコメはまちがっている。結 1",
+				},
+			];
+			const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+				id: "first",
+				discover: async () =>
+					candidates.map(({ providerId, title }) => ({
+						providerId,
+						metadata: { title },
+						evidence: bookEvidence(title),
+					})),
+				hydrate: async (candidate) => ({
+					metadata: candidate.metadata,
+					evidence: candidate.evidence,
+				}),
+			};
+			const bookPolicy: CatalogEnrichmentPolicy<TestMetadata> = {
+				discoveryQueries: () => [bookEvidence(localTitle)],
+				rank: () => 0,
+				merge: (current, incoming) => ({ ...current, ...incoming }),
+			};
+
+			const result = await runCatalogEnrichment({
+				initialMetadata: { title: localTitle },
+				initialEvidence: bookEvidence(localTitle),
+				providers: [provider],
+				policy: bookPolicy,
+			});
+
+			expect(result.status).toBe("matched");
+			expect(result.status === "matched" && result.primaryProviderId).toBe(
+				exactProviderId,
+			);
+		},
+	);
+
+	test.each([
+		{
+			localTitle: "ようこそ実力至上主義の教室へ 9",
+			candidates: [
+				{
+					providerId: "24194",
+					title: "ようこそ実力至上主義の教室へ 9",
+				},
+				{
+					providerId: "37851",
+					title: "ようこそ実力至上主義の教室へ 2年生編9",
+				},
+			],
+			exactProviderId: "24194",
+		},
+		{
+			localTitle: "ようこそ実力至上主義の教室へ 2年生編9",
+			candidates: [
+				{
+					providerId: "24194",
+					title: "ようこそ実力至上主義の教室へ 9",
+				},
+				{
+					providerId: "37851",
+					title: "ようこそ実力至上主義の教室へ 2年生編9",
+				},
+			],
+			exactProviderId: "37851",
+		},
+		{
+			localTitle: "ようこそ実力至上主義の教室へ 3年生編2",
+			candidates: [
+				{
+					providerId: "15782",
+					title: "ようこそ実力至上主義の教室へ 2",
+				},
+				{
+					providerId: "29488",
+					title: "ようこそ実力至上主義の教室へ 2年生編2",
+				},
+				{
+					providerId: "47357",
+					title: "ようこそ実力至上主義の教室へ 3年生編2",
+				},
+			],
+			exactProviderId: "47357",
+		},
+	])(
+		"prefers the exact Classroom of the Elite arc for $localTitle",
+		async ({ localTitle, candidates, exactProviderId }) => {
+			const author = "衣笠彰梧";
+			const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+				id: "first",
+				discover: async () =>
+					candidates.map(({ providerId, title }) => ({
+						providerId,
+						metadata: { title },
+						evidence: bookEvidence(title, author),
+					})),
+				hydrate: async (candidate) => ({
+					metadata: candidate.metadata,
+					evidence: candidate.evidence,
+				}),
+			};
+			const bookPolicy: CatalogEnrichmentPolicy<TestMetadata> = {
+				discoveryQueries: () => [bookEvidence(localTitle, author)],
+				rank: () => 0,
+				merge: (current, incoming) => ({ ...current, ...incoming }),
+			};
+
+			const result = await runCatalogEnrichment({
+				initialMetadata: { title: localTitle },
+				initialEvidence: bookEvidence(localTitle, author),
+				providers: [provider],
+				policy: bookPolicy,
+			});
+
+			expect(result.status).toBe("matched");
+			expect(result.status === "matched" && result.primaryProviderId).toBe(
+				exactProviderId,
+			);
+		},
+	);
+
+	test("keeps candidates from different discovery projections unresolved", async () => {
+		const projectionPolicy: CatalogEnrichmentPolicy<TestMetadata> = {
+			...policy,
+			discoveryQueries: () => [
+				audiobookEvidence("raw title"),
+				audiobookEvidence("clean title"),
+			],
+		};
+		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+			id: "first",
+			discover: async (query) => [
+				{
+					providerId:
+						query.title === "raw title" ? "candidate-raw" : "candidate-clean",
+					metadata: { title: "Great Story" },
+					evidence: audiobookEvidence("Great Story"),
+				},
+			],
+			hydrate: async (candidate) => ({
+				metadata: { title: "Great Story" },
+				evidence: candidate.evidence,
+			}),
+		};
+
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Great Story" },
+			initialEvidence: audiobookEvidence("Great Story"),
+			providers: [provider],
+			policy: projectionPolicy,
+		});
+
+		expect(result.status).toBe("no_match");
+		expect(
+			result.status === "no_match"
+				? result.decision?.candidates.map(({ providerId }) => providerId)
+				: [],
+		).toEqual(["candidate-raw", "candidate-clean"]);
 	});
 
 	test("a rival the gate rejects does not make the match ambiguous", async () => {
@@ -368,6 +573,42 @@ describe("Catalog Enrichment Pipeline", () => {
 		});
 
 		expect(result.status === "matched" && result.primaryAmbiguous).toBe(false);
+	});
+
+	test("a manual primary identity hydrates only its exact provider record", async () => {
+		const hydratedIds: string[] = [];
+		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+			id: "first",
+			discover: async () => [
+				{
+					providerId: "automatic-rival",
+					metadata: { title: "Great Story" },
+					evidence: audiobookEvidence("Great Story"),
+				},
+			],
+			hydrate: async (candidate) => {
+				hydratedIds.push(candidate.providerId);
+				return {
+					metadata: { description: "Filled from the manual identity" },
+					evidence: audiobookEvidence("Great Story"),
+				};
+			},
+		};
+
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Great Story" },
+			initialEvidence: audiobookEvidence("Great Story"),
+			providers: [provider],
+			policy,
+			requiredPrimaryProvider: "first",
+			requiredPrimaryProviderId: "manual-choice",
+		});
+
+		expect(hydratedIds).toEqual(["manual-choice"]);
+		expect(result.status).toBe("matched");
+		expect(result.status === "matched" ? result.primaryProviderId : null).toBe(
+			"manual-choice",
+		);
 	});
 });
 

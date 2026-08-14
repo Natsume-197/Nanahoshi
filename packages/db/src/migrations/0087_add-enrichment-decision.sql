@@ -1,0 +1,1 @@
+ALTER TABLE "enrichment_state" ADD COLUMN "decision" jsonb;

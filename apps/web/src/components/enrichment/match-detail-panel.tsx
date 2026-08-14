@@ -26,6 +26,7 @@ import {
 } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
+import { resolveAmbiguousCandidates } from "./ambiguous-decision";
 import type { EnrichmentLifecycle as Lifecycle } from "./filters";
 import {
 	failureLabel,
@@ -100,6 +101,7 @@ function DetailActions({
 						{m["enrichment.approve"]()}
 					</Button>
 				);
+			case "unresolved":
 			case "no_match":
 			case "partial":
 				return (
@@ -164,7 +166,11 @@ function DetailActions({
 			onClick: actions.onFix,
 		});
 	}
-	if (lifecycle === "no_match" || lifecycle === "partial") {
+	if (
+		lifecycle === "unresolved" ||
+		lifecycle === "no_match" ||
+		lifecycle === "partial"
+	) {
 		secondary.push({
 			key: "retry",
 			label: m["enrichment.retry"](),
@@ -250,6 +256,10 @@ export function MatchDetailPanel({
 	const labels = detail?.providerLabels ?? providerLabels;
 	const templates = detail?.providerUrlTemplates ?? providerUrlTemplates;
 	const fieldSources = Object.entries(detail?.fieldSources ?? {});
+	const ambiguousCandidates = resolveAmbiguousCandidates(
+		item.decision,
+		detail?.decision,
+	);
 	const locked = new Set(detail?.lockedFields ?? []);
 	const coverFilename = getCoverFilename(item.cover);
 	const bookRoute =
@@ -349,6 +359,56 @@ export function MatchDetailPanel({
 					className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4"
 				>
 					<div className="flex flex-col gap-5">
+						{ambiguousCandidates.length > 0 && (
+							<section className="flex flex-col gap-2">
+								<p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">
+									{m["enrichment.ambiguous_hint"]()}
+								</p>
+								<SectionTitle>
+									{m["enrichment.candidates_title"]()}
+								</SectionTitle>
+								{ambiguousCandidates.map((candidate) => {
+									const url = providerRecordUrl(
+										templates,
+										candidate.provider,
+										candidate.providerId,
+									);
+									return (
+										<div
+											key={`${candidate.provider}-${candidate.providerId}`}
+											className="flex items-center gap-3 rounded-lg bg-card/60 px-3 py-2"
+										>
+											<div className="min-w-0 flex-1">
+												<p className="truncate font-medium text-sm">
+													{candidate.title ?? candidate.providerId}
+												</p>
+												<p className="truncate text-muted-foreground text-xs">
+													{labels[candidate.provider] ?? candidate.provider}
+												</p>
+											</div>
+											{url && (
+												<a
+													href={url}
+													target="_blank"
+													rel="noreferrer noopener"
+													aria-label={m["enrichment.open_provider_record"]()}
+													className="text-muted-foreground hover:text-foreground"
+												>
+													<ArrowSquareOut className="size-3.5" />
+												</a>
+											)}
+											<Button
+												size="sm"
+												onClick={() => actions.onSelectCandidate(candidate)}
+												disabled={busy}
+											>
+												{m["enrichment.select_candidate"]()}
+											</Button>
+										</div>
+									);
+								})}
+							</section>
+						)}
 						{item.lifecycle === "review" && (
 							<p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">
 								{m["enrichment.review_hint"]()}

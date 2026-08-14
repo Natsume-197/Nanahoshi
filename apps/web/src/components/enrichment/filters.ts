@@ -7,6 +7,7 @@ export type EnrichmentLifecycle =
 	| "stopped"
 	| "scheduled"
 	| "review"
+	| "unresolved"
 	| "no_match"
 	| "partial"
 	| "failed"
@@ -41,6 +42,7 @@ export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
 	stopped: "stopped",
 	scheduled: "in_progress",
 	review: "attention",
+	unresolved: "attention",
 	no_match: "attention",
 	partial: "attention",
 	failed: "attention",
@@ -53,7 +55,7 @@ export const BUCKET_LIFECYCLES: Partial<
 	Record<EnrichmentBucket, EnrichmentLifecycle[]>
 > = {
 	in_progress: ["running", "scheduled"],
-	attention: ["no_match", "review", "partial", "failed"],
+	attention: ["unresolved", "no_match", "review", "partial", "failed"],
 };
 
 export type TraySearch = {

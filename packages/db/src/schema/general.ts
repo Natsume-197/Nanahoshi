@@ -694,6 +694,8 @@ export type EnrichmentStatus =
 export type EnrichmentMatch = {
 	provider: string;
 	providerId: string | null;
+	/** The catalog identity was selected explicitly by a person. */
+	manual?: boolean;
 	/**
 	 * The candidate as the provider described it, captured at match time. The
 	 * book's own title is the merged result and may since have been edited or
@@ -708,6 +710,12 @@ export type EnrichmentMatch = {
 	 * the primary (first) entry.
 	 */
 	reasons?: string[];
+};
+
+export type EnrichmentDecision = {
+	kind: "ambiguous";
+	/** At most two viable candidates, bounded by Catalog Enrichment. */
+	candidates: EnrichmentMatch[];
 };
 
 export type EnrichmentFailure = {
@@ -738,6 +746,9 @@ export const enrichmentState = pgTable(
 			.$type<EnrichmentMatch[]>()
 			.notNull()
 			.default(sql`'[]'::jsonb`),
+		// A terminal no_match may still carry viable alternatives for a person
+		// to resolve. This is deliberately separate from provider failures.
+		decision: jsonb("decision").$type<EnrichmentDecision | null>(),
 		failures: jsonb("failures")
 			.$type<EnrichmentFailure[]>()
 			.notNull()
