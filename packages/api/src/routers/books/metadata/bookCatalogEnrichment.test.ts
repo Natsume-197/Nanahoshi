@@ -390,6 +390,194 @@ describe("Book Catalog Enrichment", () => {
 		]);
 	});
 
+	test("matches a numbered Oregairu title followed by a repeated series title", async () => {
+		const rawTitle =
+			"やはり俺の青春ラブコメはまちがっている。6 ガガガ文庫 やはり俺の青春ラブコメはまちがっている";
+		const cleanTitle = "やはり俺の青春ラブコメはまちがっている。6";
+		const seenTitles: (string | null | undefined)[] = [];
+		const hydratedIds: string[] = [];
+		const identities: Record<string, CatalogIdentityEvidence> = {
+			"9742": { kind: "book", title: cleanTitle, authors: ["渡航"] },
+			"10218": {
+				kind: "book",
+				title: "やはり俺の青春ラブコメはまちがっている。7",
+				authors: ["渡航"],
+			},
+		};
+		const projectedProvider: IMetadataProvider = {
+			discoverCandidates: async (metadata) => {
+				seenTitles.push(metadata.title);
+				return metadata.title === cleanTitle
+					? Object.entries(identities).map(
+							([providerId, candidateIdentity]) => ({
+								providerId,
+								identity: candidateIdentity,
+							}),
+						)
+					: [];
+			},
+			hydrateCandidate: async (candidate) => {
+				hydratedIds.push(candidate.providerId);
+				const candidateIdentity = identities[candidate.providerId];
+				return candidateIdentity
+					? metadataProviderResult(
+							{
+								description: `RanobeDB ${candidate.providerId}`,
+								series: {
+									name: "やはり俺の青春ラブコメはまちがっている。",
+									position: candidate.providerId === "9742" ? 6 : 7,
+								},
+							},
+							candidateIdentity,
+						)
+					: null;
+			},
+		};
+
+		const result = await runBookCatalogEnrichment({
+			metadata: {
+				bookId: 1,
+				uuid: "oregairu-6-repeated-title",
+				title: rawTitle,
+				authors: [{ name: "渡航", role: "Author" }],
+			},
+			providers: [{ name: "ranobedb", provider: projectedProvider }],
+		});
+
+		expect(seenTitles).toEqual([rawTitle, cleanTitle]);
+		expect(hydratedIds).toEqual(["9742"]);
+		expect(result.status).toBe("matched");
+		if (result.status !== "matched") return;
+		expect(result.primaryProviderId).toBe("9742");
+		expect(result.metadata).toMatchObject({
+			description: "RanobeDB 9742",
+			series: {
+				name: "やはり俺の青春ラブコメはまちがっている。",
+				position: 6,
+			},
+		});
+	});
+
+	test("uses broad discovery without losing a repeated Spanish edition discriminator", async () => {
+		const rawTitle = "La historia 6 La historia edición revisada";
+		const discoveryTitle = "La historia 6";
+		const seenTitles: (string | null | undefined)[] = [];
+		const hydratedIds: string[] = [];
+		const identities: Record<string, CatalogIdentityEvidence> = {
+			normal: {
+				kind: "book",
+				title: "La historia 6",
+				authors: ["Misma autora"],
+			},
+			revised: {
+				kind: "book",
+				title: "La historia 6 edición revisada",
+				authors: ["Misma autora"],
+			},
+		};
+		const provider: IMetadataProvider = {
+			discoverCandidates: async (metadata) => {
+				seenTitles.push(metadata.title);
+				return metadata.title === discoveryTitle
+					? Object.entries(identities).map(([providerId, identity]) => ({
+							providerId,
+							identity,
+						}))
+					: [];
+			},
+			hydrateCandidate: async (candidate) => {
+				hydratedIds.push(candidate.providerId);
+				const identity = identities[candidate.providerId];
+				return identity
+					? metadataProviderResult(
+							{ description: candidate.providerId },
+							identity,
+						)
+					: null;
+			},
+		};
+
+		const result = await runBookCatalogEnrichment({
+			metadata: {
+				bookId: 1,
+				uuid: "spanish-revised-repeated-title",
+				title: rawTitle,
+				authors: [{ name: "Misma autora", role: "Author" }],
+			},
+			providers: [{ name: "ranobedb", provider }],
+		});
+
+		expect(seenTitles).toEqual([rawTitle, discoveryTitle]);
+		expect(hydratedIds).toEqual(["revised"]);
+		expect(result.status).toBe("matched");
+		expect(result.status === "matched" && result.primaryProviderId).toBe(
+			"revised",
+		);
+	});
+
+	test.each([
+		{
+			providerId: "28756",
+			rawTitle:
+				"やはり俺の青春ラブコメはまちがっている。アンソロジー１　雪乃ｓｉｄｅ",
+			cleanTitle:
+				"やはり俺の青春ラブコメはまちがっている。アンソロジー 1 雪乃side",
+			authors: "石川博品／さがら総／天津向／水沢夢／裕時悠示／渡航",
+		},
+		{
+			providerId: "29087",
+			rawTitle:
+				"やはり俺の青春ラブコメはまちがっている。アンソロジー４　オールスターズ",
+			cleanTitle:
+				"やはり俺の青春ラブコメはまちがっている。アンソロジー 4 オールスターズ",
+			authors: "石川博品／王雀孫／川岸殴魚／境田吉孝／さがら総／天津向／渡航",
+		},
+	])(
+		"matches Oregairu anthology $providerId across an omitted number boundary",
+		async ({ providerId, rawTitle, cleanTitle, authors }) => {
+			const seenTitles: (string | null | undefined)[] = [];
+			const candidateIdentity: CatalogIdentityEvidence = {
+				kind: "book",
+				title: cleanTitle,
+				authors: ["渡航"],
+			};
+			const projectedProvider: IMetadataProvider = {
+				discoverCandidates: async (metadata) => {
+					seenTitles.push(metadata.title);
+					return metadata.title === cleanTitle
+						? [{ providerId, identity: candidateIdentity }]
+						: [];
+				},
+				hydrateCandidate: async () =>
+					metadataProviderResult(
+						{
+							description: `RanobeDB ${providerId}`,
+							series: {
+								name: "やはり俺の青春ラブコメはまちがっている。アンソロジー",
+							},
+						},
+						candidateIdentity,
+					),
+			};
+
+			const result = await runBookCatalogEnrichment({
+				metadata: {
+					bookId: 1,
+					uuid: `oregairu-anthology-${providerId}`,
+					title: rawTitle,
+					authors: [{ name: authors, role: "Author" }],
+				},
+				providers: [{ name: "ranobedb", provider: projectedProvider }],
+			});
+
+			expect(seenTitles).toEqual([rawTitle, cleanTitle, rawTitle, cleanTitle]);
+			expect(result.status).toBe("matched");
+			expect(result.status === "matched" && result.primaryProviderId).toBe(
+				providerId,
+			);
+		},
+	);
+
 	describe("providers that expose their candidate list", () => {
 		const input = {
 			bookId: 1,

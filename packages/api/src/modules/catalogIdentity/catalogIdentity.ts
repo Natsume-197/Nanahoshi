@@ -20,6 +20,11 @@ import {
 	normalizeIsbn,
 } from "../identifiers";
 import {
+	type ContentEditionKind,
+	interpretLexicalTitle,
+	type SupplementKind,
+} from "./titleEvidenceLexicon";
+import {
 	type CatalogIdentityEvidence,
 	type CatalogIdentityReason,
 	type CatalogIdentityVerdict,
@@ -29,22 +34,10 @@ import {
 
 const EMBEDDED_UID_REUSE_CAP = 8;
 
-type SupplementKind =
-	| "fanbook"
-	| "short_stories"
-	| "anthology"
-	| "side_story"
-	| "drama_cd"
-	| "omnibus";
-type ContentEditionKind =
-	| "complete"
-	| "revised"
-	| "expanded"
-	| "new_translation";
-
 type TitleAnalysis = {
 	value: string;
 	role: CatalogTitle["role"];
+	equivalentKey: string;
 	base: string;
 	volume: number | null;
 	numberedPart: number | null;
@@ -88,34 +81,61 @@ function titlesOf(evidence: CatalogIdentityEvidence): CatalogTitle[] {
 	});
 }
 
-function collapseExactTitleRepetition(title: string): string {
+function cleanIdentityTitle(title: string): string {
+	return stripCatalogImprintParens(title.normalize("NFKC"))
+		.replace(/[「『][^」』]*[」』]シリーズ/gu, " ")
+		.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
+		.replace(PACKAGING_NOISE, " ")
+		.replace(BARE_IMPRINT_LABEL, " ")
+		.replace(/[【】［］]/gu, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function repeatedTitleForms(title: string): string[] {
 	const comparable = (value: string) =>
 		value.normalize("NFKC").toLowerCase().replace(DECORATION, "");
 	if (title.length % 2 === 0) {
 		const midpoint = title.length / 2;
 		if (title.slice(0, midpoint) === title.slice(midpoint)) {
-			return title.slice(0, midpoint).trim();
+			return [title.slice(0, midpoint).trim()];
 		}
 	}
 	for (const match of title.matchAll(/[\s　]+/gu)) {
 		const splitAt = match.index;
 		const left = title.slice(0, splitAt).trim();
 		const right = title.slice(splitAt + match[0].length).trim();
-		if (left && right && comparable(left) === comparable(right)) return left;
+		if (!left || !right) continue;
+		if (comparable(left) === comparable(right)) return [left];
+		if (stripDiscriminators(left) !== stripDiscriminators(right)) continue;
+		const carriesDiscriminator = (value: string) =>
+			volumeNumber(value) !== null ||
+			numberedPart(value) !== null ||
+			partMarker(value) !== null ||
+			supplementKind(value) !== null ||
+			contentEditionKind(value) !== null;
+		if (carriesDiscriminator(left) || carriesDiscriminator(right)) {
+			return [left, right];
+		}
 	}
-	return title;
+	return [title];
 }
 
 function discoveryTitle(title: string): string {
-	return collapseExactTitleRepetition(
-		stripCatalogImprintParens(title.normalize("NFKC"))
-			.replace(/[「『][^」』]*[」』]シリーズ/gu, " ")
-			.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
-			.replace(PACKAGING_NOISE, " ")
-			.replace(BARE_IMPRINT_LABEL, " ")
-			.replace(/[【】［］]/gu, " ")
+	const forms = repeatedTitleForms(cleanIdentityTitle(title));
+	const retained =
+		forms.find(
+			(value) => volumeNumber(value) !== null || numberedPart(value) !== null,
+		) ?? forms[0];
+	return (
+		(retained ?? title)
+			// A missing typographic boundary ("Anthology1") and an explicit one
+			// ("Anthology 1") are the same discovery form. This belongs to query
+			// construction, not to the evidence used for the identity verdict.
+			.replace(/([\p{L}\p{M}])(?=\d)/gu, "$1 ")
+			.replace(/(\d)(?=[\p{L}\p{M}])/gu, "$1 ")
 			.replace(/\s+/g, " ")
-			.trim(),
+			.trim()
 	);
 }
 
@@ -198,14 +218,16 @@ export function buildDiscoveryProjection(
 }
 
 function volumeNumber(title: string): number | null {
-	const normalized = stripCatalogImprintParens(title.normalize("NFKC"))
+	const cleaned = stripCatalogImprintParens(title.normalize("NFKC"))
 		.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
 		.replace(/【[^】]*】/gu, " ")
-		.replace(PACKAGING_NOISE, " ")
-		.trim();
+		.replace(PACKAGING_NOISE, " ");
+	const lexical = interpretLexicalTitle(cleaned);
+	const normalized = lexical.withoutDiscriminators.trim();
 	const marked = normalized.match(/第([一二三四五六七八九十百千]+)巻/);
 	if (marked?.[1]) return parseCatalogKanjiNumber(marked[1]);
-	if (/(?:part|book)\s*\d+(?:\.\d+)?\s*$/i.test(normalized)) return null;
+	if (lexical.labeledVolume !== null) return lexical.labeledVolume;
+	if (lexical.numberedPart !== null) return null;
 	const arabic = normalized.match(
 		/(\d+(?:\.\d+)?)[「」『』【】[\]()（）]*\s*$/,
 	);
@@ -220,8 +242,7 @@ function numberedPart(title: string): number | null {
 	const normalized = title.normalize("NFKC");
 	const kanji = normalized.match(/第([一二三四五六七八九十百千]+)部/);
 	if (kanji?.[1]) return parseCatalogKanjiNumber(kanji[1]);
-	const arabic = normalized.match(/\b(?:part|book)\s*(\d+(?:\.\d+)?)/i);
-	return arabic?.[1] ? Number.parseFloat(arabic[1]) : null;
+	return interpretLexicalTitle(normalized).numberedPart;
 }
 
 function partMarker(title: string): string | null {
@@ -235,44 +256,22 @@ function partMarker(title: string): string | null {
 }
 
 function supplementKind(title: string): SupplementKind | null {
-	const normalized = title.normalize("NFKC").toLowerCase();
-	if (
-		/合本版|合本|全巻セット|まとめ買い|全[一二三四五六七八九十\d]+[巻冊]|omnibus|box\s*set/.test(
-			normalized,
-		)
-	)
-		return "omnibus";
-	if (/ふぁんぶっく|ファンブック|fan\s*book/.test(normalized)) {
-		return "fanbook";
-	}
-	if (
-		/短編集|ショートストーリー|よりみち|short\s*stor(?:y|ies)/.test(normalized)
-	) {
-		return "short_stories";
-	}
-	if (/アンソロジー|anthology/.test(normalized)) return "anthology";
-	if (/ドラマ\s*cd/.test(normalized)) return "drama_cd";
-	if (
-		/番外編|外伝|特別編|side\s*story/.test(normalized) ||
-		/(?:^|[^a-z])ss(?:[^a-z]|$)/.test(normalized)
-	)
-		return "side_story";
-	return null;
+	return interpretLexicalTitle(title).supplement;
 }
 
 // Supplemental releases need their own title identity in addition to their
 // broad kind. Strip edition numbering only after it has been compared as a
-// discriminator, but retain words such as アンソロジー, よりみち and 紅Aka so
-// two different supplements from one franchise cannot collapse to that shared
-// franchise name merely because an author also agrees.
+// discriminator. The typed kind remains in the key while words such as
+// 雪乃side or 紅Aka retain a release's specific identity.
 function supplementIdentityKey(title: string): string {
-	return stripCatalogImprintParens(title.normalize("NFKC"))
+	const cleaned = stripCatalogImprintParens(title.normalize("NFKC"))
 		.toLowerCase()
 		.replace(/「[^」]*」シリーズ/gu, " ")
 		.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
-		.replace(PACKAGING_NOISE, " ")
+		.replace(PACKAGING_NOISE, " ");
+	const lexical = interpretLexicalTitle(cleaned);
+	const normalized = lexical.withoutDiscriminators
 		.replace(/第[一二三四五六七八九十百千]+[部巻]/gu, " ")
-		.replace(/\b(?:part|book)\s*\d+(?:\.\d+)?\b/giu, " ")
 		.replace(/([前後上中下])(?:編|巻)/gu, " ")
 		.replace(/[（(〈]([前後上中下])[）)〉]/gu, " ")
 		.replace(/[\s　:：]([前後上中下])(?=[\s　(（]|$)/gu, " ")
@@ -281,6 +280,7 @@ function supplementIdentityKey(title: string): string {
 			" ",
 		)
 		.replace(DECORATION, "");
+	return `${lexical.supplement ?? ""}${normalized}`;
 }
 
 function supplementIdentityKeyWithoutTagline(title: string): string | null {
@@ -297,33 +297,18 @@ export function isSupplementalCatalogTitle(title: string): boolean {
 }
 
 function contentEditionKind(title: string): ContentEditionKind | null {
-	const normalized = title.normalize("NFKC").toLowerCase();
-	if (/(?<!イラスト)完全版|complete edition/.test(normalized))
-		return "complete";
-	if (/改訂(?:新版)?|revised edition/.test(normalized)) return "revised";
-	if (/増補(?:版)?|expanded edition/.test(normalized)) return "expanded";
-	if (/新訳|new translation/.test(normalized)) return "new_translation";
-	return null;
+	return interpretLexicalTitle(title).contentEdition;
 }
 
 function stripDiscriminators(title: string): string {
-	return stripCatalogImprintParens(title.normalize("NFKC"))
+	const cleaned = stripCatalogImprintParens(title.normalize("NFKC"))
 		.toLowerCase()
 		.replace(/「[^」]*」シリーズ/gu, " ")
 		.replace(/【[^】]*】/gu, " ")
 		.replace(ILLUSTRATION_PACKAGING_PAREN, " ")
-		.replace(PACKAGING_NOISE, " ")
-		.replace(
-			/完全版|改訂(?:新版)?|増補(?:版)?|新訳|complete edition|revised edition|expanded edition|new translation/giu,
-			" ",
-		)
-		.replace(
-			/ふぁんぶっく|ファンブック|fan\s*book|短編集|ショートストーリー|short\s*stor(?:y|ies)|番外編|外伝|特別編|よりみち|アンソロジー|anthology|ドラマ\s*cd|side\s*story|合本版|合本|omnibus|box\s*set/giu,
-			" ",
-		)
-		.replace(/(?:^|[^a-z])ss(?:[^a-z]|$)/giu, " ")
-		.replace(/第[一二三四五六七八九十百千]+[部巻]/gu, " ")
-		.replace(/\b(?:part|book)\s*\d+(?:\.\d+)?\b/giu, " ")
+		.replace(PACKAGING_NOISE, " ");
+	return interpretLexicalTitle(cleaned)
+		.withoutDiscriminators.replace(/第[一二三四五六七八九十百千]+[部巻]/gu, " ")
 		.replace(/([前後上中下])(?:編|巻)/gu, " ")
 		.replace(/[（(〈]([前後上中下])[）)〉]/gu, " ")
 		.replace(/[\s　:：]([前後上中下])(?=[\s　(（]|$)/gu, " ")
@@ -334,19 +319,29 @@ function stripDiscriminators(title: string): string {
 		.replace(DECORATION, "");
 }
 
-function analyzeTitles(evidence: CatalogIdentityEvidence): RecordAnalysis {
-	const titles = titlesOf(evidence).map(({ role, value }) => ({
-		role,
-		value,
-		base: stripDiscriminators(value),
-		volume: volumeNumber(value),
-		numberedPart: numberedPart(value),
-		part: partMarker(value),
-		supplement: supplementKind(value),
-		supplementKey: supplementIdentityKey(value),
-		supplementKeyWithoutTagline: supplementIdentityKeyWithoutTagline(value),
-		contentEdition: contentEditionKind(value),
-	}));
+function analyzeTitles(
+	evidence: CatalogIdentityEvidence,
+	{ expandRepeated = false }: { expandRepeated?: boolean } = {},
+): RecordAnalysis {
+	const titles = titlesOf(evidence).flatMap(({ role, value }) => {
+		const interpreted = cleanIdentityTitle(value);
+		const forms = expandRepeated
+			? repeatedTitleForms(interpreted)
+			: [interpreted];
+		return forms.map((form) => ({
+			role,
+			value,
+			equivalentKey: form.toLowerCase().replace(DECORATION, ""),
+			base: stripDiscriminators(form),
+			volume: volumeNumber(form),
+			numberedPart: numberedPart(form),
+			part: partMarker(form),
+			supplement: supplementKind(form),
+			supplementKey: supplementIdentityKey(form),
+			supplementKeyWithoutTagline: supplementIdentityKeyWithoutTagline(form),
+			contentEdition: contentEditionKind(form),
+		}));
+	});
 	const hasConflict = <T>(values: (T | null)[]) =>
 		unique(values.filter((value): value is T => value !== null)).length > 1;
 	return {
@@ -580,8 +575,8 @@ function assessBookIdentity(
 	leftEvidence: CatalogIdentityEvidence,
 	rightEvidence: CatalogIdentityEvidence,
 ): CatalogIdentityVerdict {
-	const left = analyzeTitles(leftEvidence);
-	const right = analyzeTitles(rightEvidence);
+	const left = analyzeTitles(leftEvidence, { expandRepeated: true });
+	const right = analyzeTitles(rightEvidence, { expandRepeated: true });
 	// A record with no title form declares no discriminator either. The
 	// unnumbered-first-volume default reads an omitted volume off a title that
 	// exists; with no title, absent evidence would masquerade as volume one and
@@ -597,6 +592,7 @@ function assessBookIdentity(
 	const pairs = comparablePairs(left.titles, right.titles);
 	const titleMatches = pairs.some(
 		([a, b]) =>
+			(a.equivalentKey.length > 0 && a.equivalentKey === b.equivalentKey) ||
 			basesCompatible(a.base, b.base) ||
 			(a.supplement !== null &&
 				a.supplement === b.supplement &&
@@ -607,7 +603,9 @@ function assessBookIdentity(
 	// strongly similar (the substring/bigram fallbacks, which can bridge two
 	// different works). Callers need to tell them apart.
 	const titleEquivalent = pairs.some(
-		([a, b]) => a.base.length > 0 && a.base === b.base,
+		([a, b]) =>
+			(a.equivalentKey.length > 0 && a.equivalentKey === b.equivalentKey) ||
+			(a.base.length > 0 && a.base === b.base),
 	);
 
 	const leftAuthors = authorNames(leftEvidence);

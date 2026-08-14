@@ -241,6 +241,24 @@ describe("catalogIdentity: written books", () => {
 		).toBe("confirmed");
 	});
 
+	test("an exact numeric title remains a title rather than an empty volume base", () => {
+		expect(
+			assessCatalogIdentity(
+				book("1984", { authors: ["George Orwell"] }),
+				book("1984", { authors: ["George Orwell"] }),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+		expect(
+			assessCatalogIdentity(
+				book("1984", { authors: ["George Orwell"] }),
+				book("1985", { authors: ["George Orwell"] }),
+			),
+		).toEqual({ status: "rejected", reasons: [R.VOLUME_CONFLICT] });
+	});
+
 	test("illustrators and unknown creator roles do not establish authorship", () => {
 		expect(
 			assessCatalogIdentity(
@@ -317,6 +335,169 @@ describe("catalogIdentity: written books", () => {
 		const b = book("Konosuba 1", { authors: ["Natsume Akatsuki"] });
 		expect(assessCatalogIdentity(a, b)).toEqual(assessCatalogIdentity(b, a));
 	});
+
+	test("a repeated unnumbered title never erases the retained volume", () => {
+		expect(
+			assessCatalogIdentity(
+				book(
+					"やはり俺の青春ラブコメはまちがっている。6 ガガガ文庫 やはり俺の青春ラブコメはまちがっている",
+					{ authors: ["渡航"] },
+				),
+				book("やはり俺の青春ラブコメはまちがっている。7", {
+					authors: ["渡航"],
+				}),
+			),
+		).toEqual({ status: "rejected", reasons: [R.VOLUME_CONFLICT] });
+	});
+
+	test.each(["新訳", "上巻", "ふぁんぶっく"])(
+		"discovery cleanup never erases the %s identity discriminator",
+		(discriminator) => {
+			const local = book(`作品 6 作品 ${discriminator}`, {
+				authors: ["著者"],
+			});
+			const candidate = book("作品 6", { authors: ["著者"] });
+
+			expect(assessCatalogIdentity(local, candidate).status).not.toBe(
+				"confirmed",
+			);
+			expect(buildDiscoveryProjection(local)[0]).toEqual(local);
+		},
+	);
+
+	test("combines a volume and content edition carried by repeated English title forms", () => {
+		const repeated = book("The Story 6 The Story Revised Edition", {
+			authors: ["Same Author"],
+		});
+		expect(
+			assessCatalogIdentity(
+				repeated,
+				book("The Story 6 Revised Edition", { authors: ["Same Author"] }),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+		expect(
+			assessCatalogIdentity(
+				repeated,
+				book("The Story 6", {
+					authors: ["Same Author"],
+				}),
+			),
+		).toEqual({
+			status: "rejected",
+			reasons: [R.CONTENT_EDITION_CONFLICT],
+		});
+	});
+
+	test("interprets repeated Spanish content-edition evidence", () => {
+		const repeated = book("La historia 6 La historia edición revisada", {
+			authors: ["Misma autora"],
+		});
+		expect(
+			assessCatalogIdentity(
+				repeated,
+				book("La historia 6 edición revisada", {
+					authors: ["Misma autora"],
+				}),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+		expect(
+			assessCatalogIdentity(
+				repeated,
+				book("La historia 6", {
+					authors: ["Misma autora"],
+				}),
+			),
+		).toEqual({
+			status: "rejected",
+			reasons: [R.CONTENT_EDITION_CONFLICT],
+		});
+	});
+
+	test.each(["edición completa", "edición ampliada", "nueva traducción"])(
+		"interprets the Spanish content edition %s",
+		(edition) => {
+			expect(
+				assessCatalogIdentity(
+					book(`La historia 6 La historia ${edition}`, {
+						authors: ["Misma autora"],
+					}),
+					book(`La historia 6 ${edition}`, { authors: ["Misma autora"] }),
+				),
+			).toEqual({
+				status: "confirmed",
+				reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+			});
+		},
+	);
+
+	test.each([
+		["English volume", "The Story Volume 6 The Story", "The Story Volume 6"],
+		[
+			"Spanish volume",
+			"La historia volumen 6 La historia",
+			"La historia volumen 6",
+		],
+		["Spanish tome", "La historia tomo 6 La historia", "La historia tomo 6"],
+	])("interprets a repeated %s marker", (_label, repeated, canonical) => {
+		expect(
+			assessCatalogIdentity(
+				book(repeated, { authors: ["Same Author"] }),
+				book(canonical, { authors: ["Same Author"] }),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+	});
+
+	test.each([
+		["English part", "The Story Part 6 The Story", "The Story Part 6"],
+		["English book", "The Story Book 6 The Story", "The Story Book 6"],
+		["Spanish part", "La historia parte 6 La historia", "La historia parte 6"],
+		["Spanish book", "La historia libro 6 La historia", "La historia libro 6"],
+	])("interprets a repeated %s marker", (_label, repeated, canonical) => {
+		expect(
+			assessCatalogIdentity(
+				book(repeated, { authors: ["Misma autora"] }),
+				book(canonical, { authors: ["Misma autora"] }),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+	});
+
+	test("interprets a repeated Spanish supplemental release", () => {
+		const anthology = book("La historia 1 La historia antología", {
+			authors: ["Misma autora"],
+		});
+		expect(
+			assessCatalogIdentity(
+				anthology,
+				book("La historia 1 antología", { authors: ["Misma autora"] }),
+			),
+		).toEqual({
+			status: "confirmed",
+			reasons: [R.TITLE_MATCH, R.TITLE_EQUIVALENT, R.AUTHOR_MATCH],
+		});
+		expect(
+			assessCatalogIdentity(
+				anthology,
+				book("La historia 1", {
+					authors: ["Misma autora"],
+				}),
+			),
+		).toEqual({
+			status: "rejected",
+			reasons: [R.SUPPLEMENT_CONFLICT],
+		});
+	});
 });
 
 describe("catalogIdentity: production regression corpus", () => {
@@ -369,6 +550,20 @@ describe("assessGroupMembership", () => {
 });
 
 describe("buildDiscoveryProjection", () => {
+	const discoveryRegressions = CATALOG_IDENTITY_REGRESSION_CORPUS.filter(
+		(entry): entry is typeof entry & { expectedDiscoveryTitle: string } =>
+			"expectedDiscoveryTitle" in entry,
+	);
+
+	test.each(discoveryRegressions)(
+		"derives the clean title for $name",
+		({ left, expectedDiscoveryTitle }) => {
+			expect(
+				buildDiscoveryProjection(left).map(({ title }) => title),
+			).toContain(expectedDiscoveryTitle);
+		},
+	);
+
 	test("keeps raw evidence first and derives bounded conservative search forms", () => {
 		const raw = book(
 			"ガガガ文庫 やはり俺の青春ラブコメはまちがっている。9（イラスト完全版）",

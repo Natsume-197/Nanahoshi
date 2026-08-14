@@ -173,7 +173,7 @@ The uninterpreted, role-preserving title forms, authors, external identifiers, a
 _Avoid_: Precomputed match flags, provider-specific identity
 
 **Evidence Interpretation**:
-The provider-independent derivation of normalized title and author forms and Edition Discriminators from Bibliographic Evidence inside Catalog Identity. It may derive slash-separated author forms and collapse exact title repetition or recognized packaging noise, but preserves raw source evidence, never removes identity discriminators, and does not reinterpret authoritative Media Series boundaries.
+The provider-independent derivation of normalized title and author forms and Edition Discriminators from Bibliographic Evidence inside Catalog Identity. It may derive slash-separated authors and query-only typographic boundaries, discard recognized packaging noise, and treat repeated title forms as cumulative evidence so no discriminator is lost; it preserves raw source evidence and never reinterprets authoritative Media Series boundaries.
 _Avoid_: Provider cleanup, search-term normalization, repaired metadata
 
 **Identifier Evidence**:
