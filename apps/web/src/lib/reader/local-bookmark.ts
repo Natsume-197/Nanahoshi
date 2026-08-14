@@ -1,8 +1,7 @@
 import { READER_POSITION_VERSION, type ReaderBookmark } from "./types";
 
-// The manual bookmark is the single source of truth for the saved reading
-// position — there is deliberately no separate "last position" record saved on
-// exit.
+// The manual marker is independent from the automatic last-reading position;
+// changing resume behavior must never move or overwrite this marker.
 const keyFor = (uuid: string) => `nanahoshi-reader-bookmark:${uuid}`;
 
 export function loadLocalBookmark(uuid: string): ReaderBookmark | undefined {
@@ -15,16 +14,23 @@ export function loadLocalBookmark(uuid: string): ReaderBookmark | undefined {
 	}
 }
 
-export function saveLocalBookmark(uuid: string, bookmark: ReaderBookmark) {
+export function saveLocalBookmark(
+	uuid: string,
+	bookmark: ReaderBookmark,
+): ReaderBookmark {
+	const previous = loadLocalBookmark(uuid);
+	const savedBookmark = {
+		...bookmark,
+		lastBookmarkModified: Math.max(
+			bookmark.lastBookmarkModified,
+			(previous?.lastBookmarkModified ?? -1) + 1,
+		),
+		positionVersion: READER_POSITION_VERSION,
+	};
 	try {
-		window.localStorage.setItem(
-			keyFor(uuid),
-			JSON.stringify({
-				...bookmark,
-				positionVersion: READER_POSITION_VERSION,
-			}),
-		);
+		window.localStorage.setItem(keyFor(uuid), JSON.stringify(savedBookmark));
 	} catch {
 		// no-op
 	}
+	return savedBookmark;
 }

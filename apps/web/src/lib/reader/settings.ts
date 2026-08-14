@@ -9,6 +9,7 @@ export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
+export type ReadingPositionMode = "automatic" | "bookmark";
 export type ReaderThemeId =
 	| "nanahoshi-theme"
 	| "attribute-theme"
@@ -169,6 +170,8 @@ export interface ReaderSettings {
 	/** Reader left/right margin (vertical) / top/bottom margin (horizontal). */
 	firstDimensionMargin: number;
 	autoPositionOnResize: boolean;
+	/** Whether reopening resumes from the live position or the manual marker. */
+	readingPositionMode: ReadingPositionMode;
 	disableWheelNavigation: boolean;
 	showCharacterCounter: boolean;
 	showPercentage: boolean;
@@ -206,6 +209,7 @@ export const defaultReaderSettings: ReaderSettings = {
 	secondDimensionMaxValue: 0,
 	firstDimensionMargin: 0,
 	autoPositionOnResize: true,
+	readingPositionMode: "bookmark",
 	disableWheelNavigation: false,
 	showCharacterCounter: true,
 	showPercentage: true,
@@ -270,6 +274,12 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		stored.verticalTextOrientation === "upright"
 	)
 		next.verticalTextOrientation = stored.verticalTextOrientation;
+	if (
+		stored.readingPositionMode === "automatic" ||
+		stored.readingPositionMode === "bookmark"
+	) {
+		next.readingPositionMode = stored.readingPositionMode;
+	}
 	if (
 		stored.furiganaStyle === "Hide" ||
 		stored.furiganaStyle === "Partial" ||

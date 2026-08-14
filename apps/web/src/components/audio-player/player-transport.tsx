@@ -161,17 +161,20 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 	);
 });
 
-/** Transport cluster; the chapter buttons hide when the book has no chapters. */
+/** Transport cluster; chapter buttons can stay visible for fixed reader layouts. */
 export const PlayerTransport = memo(function PlayerTransport({
 	size = "bar",
+	alwaysShowChapterControls = false,
 }: {
 	size?: TransportSize;
+	alwaysShowChapterControls?: boolean;
 }) {
 	const { audiobook, activeChapterIndex, jumpBack, jumpForward } =
 		useAudioPlayerState();
 	const { seekRelative, skipChapter } = useAudioPlayerActions();
 
 	const chapterCount = audiobook?.chapters.length ?? 0;
+	const showChapterControls = alwaysShowChapterControls || chapterCount > 0;
 	const hasNextChapter =
 		activeChapterIndex >= 0 && activeChapterIndex < chapterCount - 1;
 
@@ -193,10 +196,11 @@ export const PlayerTransport = memo(function PlayerTransport({
 				isExpanded ? "w-full justify-center" : "gap-0.5",
 			)}
 		>
-			{chapterCount > 0 && (
+			{showChapterControls && (
 				<>
 					<PlayerIconButton
 						label={m["audiobook.player_prev_chapter"]()}
+						disabled={chapterCount === 0}
 						onClick={() => skipChapter(-1)}
 						className={buttonClass}
 					>
@@ -224,7 +228,7 @@ export const PlayerTransport = memo(function PlayerTransport({
 			>
 				<JumpIcon seconds={jumpForward} direction="forward" size={size} />
 			</PlayerIconButton>
-			{chapterCount > 0 && (
+			{showChapterControls && (
 				<>
 					{gap}
 					<PlayerIconButton

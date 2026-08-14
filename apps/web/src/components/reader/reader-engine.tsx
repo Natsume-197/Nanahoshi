@@ -29,6 +29,7 @@ interface ReaderEngineProps {
 	onToggleChrome: () => void;
 	onExitFocus: () => void;
 	navigationBlocked: boolean;
+	reservePlayerSpace: boolean;
 	controllerRef: (controller: BookReaderApi | null) => void;
 	pdfSource?: PdfReaderSource;
 	onPdfDocumentReady?: (pageCount: number) => void;
@@ -54,6 +55,7 @@ export function ReaderEngine({
 	onToggleChrome,
 	onExitFocus,
 	navigationBlocked,
+	reservePlayerSpace,
 	controllerRef,
 	pdfSource,
 	onPdfDocumentReady,
@@ -135,6 +137,7 @@ export function ReaderEngine({
 				{...sharedProps}
 				avoidPageBreak={readerSettings.avoidPageBreak}
 				pageColumns={readerSettings.pageColumns}
+				reservePlayerSpace={reservePlayerSpace}
 			/>
 		);
 	}
@@ -154,6 +157,7 @@ export function ReaderEngine({
 			{...sharedProps}
 			autoPositionOnResize={readerSettings.autoPositionOnResize}
 			autoScrollMultiplier={readerSettings.autoScrollMultiplier}
+			reservePlayerSpace={reservePlayerSpace}
 			onAutoScrollChange={() => {}}
 		/>
 	);

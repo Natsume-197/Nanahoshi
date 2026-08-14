@@ -67,16 +67,31 @@ describe("reader settings normalization", () => {
 	test("rejects corrupted enum and boolean values from storage", () => {
 		const normalized = normalizeReaderSettings({
 			writingMode: "diagonal",
+			readingPositionMode: "sometimes",
 			textMarginMode: "huge",
 			hideFurigana: "yes",
 			fontWeight: -10,
 		});
 
 		expect(normalized.writingMode).toBe(defaultReaderSettings.writingMode);
+		expect(normalized.readingPositionMode).toBe(
+			defaultReaderSettings.readingPositionMode,
+		);
 		expect(normalized.textMarginMode).toBe(
 			defaultReaderSettings.textMarginMode,
 		);
 		expect(normalized.hideFurigana).toBe(defaultReaderSettings.hideFurigana);
 		expect(normalized.fontWeight).toBe(100);
+	});
+
+	test("keeps automatic and bookmark resume modes explicit", () => {
+		expect(
+			normalizeReaderSettings({ readingPositionMode: "automatic" })
+				.readingPositionMode,
+		).toBe("automatic");
+		expect(
+			normalizeReaderSettings({ readingPositionMode: "bookmark" })
+				.readingPositionMode,
+		).toBe("bookmark");
 	});
 });

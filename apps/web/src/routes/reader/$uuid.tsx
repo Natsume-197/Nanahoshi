@@ -57,6 +57,7 @@ import {
 } from "@/lib/read-listen/reader-session";
 import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
+import { saveLocalReadingPosition } from "@/lib/reader/local-reading-position";
 import { resolveMangaReadingDirection } from "@/lib/reader/manga-pagination";
 import {
 	loadMangaReaderSettings,
@@ -310,6 +311,7 @@ function ReaderPage() {
 	// -1 = no report from the reader yet (0 is a real position: book start).
 	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
+	const positionClockRef = useRef(0);
 	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
 	bookmarkRef.current = bookmark;
 	// Read by the async profile-sync callback, which outlives a render.
@@ -444,11 +446,22 @@ function ReaderPage() {
 		sourceFormat: bookSourceFormat,
 		language: book?.languageCode,
 		contentForm: book?.contentForm,
-		onLoaded: ({ data, bookmark: initial }) => {
+		readerSettings: settings,
+		onLoaded: ({
+			data,
+			position,
+			bookmark: initialBookmark,
+			positionClockAt,
+		}) => {
 			bookCharCountRef.current = data.characters;
-			// The restored bookmark is also the displayed marker.
-			setBookmark(initial);
-			livePositionRef.current = initial;
+			positionClockRef.current = positionClockAt;
+			setBookmark(
+				initialBookmark ? saveLocalBookmark(uuid, initialBookmark) : undefined,
+			);
+			livePositionRef.current =
+				position && settingsRef.current.readingPositionMode === "automatic"
+					? saveLocalReadingPosition(uuid, position)
+					: position;
 		},
 	});
 
@@ -459,19 +472,44 @@ function ReaderPage() {
 		);
 	}, []);
 
-	// The bookmark is the source of truth for the position: the server sync
-	// carries the bookmark's char count (not the live scroll position), so
-	// other devices restore to the bookmark too.
-	const getCharCounts = useCallback(
-		() => ({
+	const getCharCounts = useCallback(() => {
+		if (settingsRef.current.readingPositionMode === "automatic") {
+			const measuredPosition = apiRef.current?.getBookmark();
+			let position = livePositionRef.current;
+			if (
+				measuredPosition &&
+				measuredPosition.exploredCharCount !== position?.exploredCharCount
+			) {
+				position = measuredPosition;
+			}
+			if (position) {
+				position = saveLocalReadingPosition(uuid, position);
+				livePositionRef.current = position;
+				positionClockRef.current = Math.max(
+					positionClockRef.current,
+					position.lastBookmarkModified,
+				);
+			}
+			return {
+				exploredCharCount: position?.exploredCharCount,
+				bookCharCount: bookCharCountRef.current,
+				positionMode: position ? ("automatic" as const) : undefined,
+				positionIntentAt: position?.lastBookmarkModified,
+			};
+		}
+
+		return {
 			exploredCharCount: bookmarkRef.current?.exploredCharCount,
 			bookCharCount: bookCharCountRef.current,
-		}),
-		[],
-	);
+			positionMode: bookmarkRef.current ? ("bookmark" as const) : undefined,
+			positionIntentAt: bookmarkRef.current?.lastBookmarkModified,
+		};
+	}, [uuid]);
 
-	useReaderSync({
+	const { syncNow } = useReaderSync({
 		bookUuid: uuid,
+		activePositionMode: settings.readingPositionMode,
+		positionClockAt: positionClockRef.current,
 		enabled:
 			loadState.phase === "ready" &&
 			(!isPdfBook || pdfDocumentPageCount !== null) &&
@@ -483,20 +521,39 @@ function ReaderPage() {
 		// Count 0 (the very start of the book) is a valid bookmark position.
 		const data = apiRef.current?.getBookmark();
 		if (!data) return;
-		setBookmark(data);
-		saveLocalBookmark(uuid, data);
-		apiRef.current?.showBookmarkMarker(data);
+		const savedBookmark = saveLocalBookmark(uuid, {
+			...data,
+			lastBookmarkModified: Math.max(
+				data.lastBookmarkModified,
+				positionClockRef.current + 1,
+			),
+		});
+		positionClockRef.current = Math.max(
+			positionClockRef.current,
+			savedBookmark.lastBookmarkModified,
+		);
+		setBookmark(savedBookmark);
+		apiRef.current?.showBookmarkMarker(savedBookmark);
 		setIsBookmarkScreen(true);
 	}, [uuid]);
 
 	const handleExploredChange = (count: number) => {
 		if (count === exploredRef.current) return;
 		exploredRef.current = count;
-		livePositionRef.current = {
+		const position = {
 			exploredCharCount: count,
 			progress: bookCharCountRef.current ? count / bookCharCountRef.current : 0,
-			lastBookmarkModified: Date.now(),
+			lastBookmarkModified: Math.max(Date.now(), positionClockRef.current + 1),
 		};
+		positionClockRef.current = Math.max(
+			positionClockRef.current,
+			position.lastBookmarkModified,
+		);
+		livePositionRef.current = position;
+		// Quick Settings is deliberately non-modal so the navbar remains usable.
+		// If the reader is also moved behind the sheet, that genuine reading input
+		// becomes the new reflow anchor instead of snapping to the opening point.
+		if (quickSettingsOpen) overlayEntryPositionRef.current = position;
 		setExploredCharCount(count);
 		setIsBookmarkScreen(
 			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
@@ -516,12 +573,16 @@ function ReaderPage() {
 	// (autoscroll speed) — these never touch the book layout.
 	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
 		const next = { ...settings, ...patch };
+		const resumeModeChanged =
+			next.readingPositionMode !== settings.readingPositionMode;
+		settingsRef.current = next;
 		setSettings(next);
 		setProfilesStore(
 			commitProfilesStore(
 				setProfileSettings(profilesStore, activeProfileId, next),
 			),
 		);
+		if (resumeModeChanged) void syncNow();
 	};
 
 	const handleCustomThemesChange = (next: CustomReaderThemes) => {
@@ -538,7 +599,9 @@ function ReaderPage() {
 		const layoutChanged = Object.keys(patch).some((key) =>
 			LAYOUT_SETTING_KEYS.has(key),
 		);
-		const position = layoutChanged ? captureReaderPosition() : undefined;
+		const position = layoutChanged
+			? (overlayEntryPositionRef.current ?? captureReaderPosition())
+			: undefined;
 		handleSettingsChange(patch);
 		if (patch.theme) {
 			applyReaderBackground(
@@ -618,10 +681,11 @@ function ReaderPage() {
 	const closeQuickSettings = () => {
 		setQuickSettingsOpen(false);
 		restoreDocumentScrollbar(settings.theme);
+		overlayEntryPositionRef.current = undefined;
 	};
 
 	const openSettings = () => {
-		overlayEntryPositionRef.current = captureReaderPosition();
+		overlayEntryPositionRef.current ??= captureReaderPosition();
 		hideDocumentScrollbar();
 		setDraftSettings(settings);
 	};
@@ -652,7 +716,10 @@ function ReaderPage() {
 		setDraftSettings(null);
 		if (!next) return;
 
+		const resumeModeChanged =
+			next.readingPositionMode !== settings.readingPositionMode;
 		restoreDocumentScrollbar(next.theme);
+		settingsRef.current = next;
 		setSettings(next);
 		setProfilesStore(
 			commitProfilesStore(
@@ -662,6 +729,7 @@ function ReaderPage() {
 		if (position) livePositionRef.current = position;
 		applyCommittedSettings(next, settings, position);
 		overlayEntryPositionRef.current = undefined;
+		if (resumeModeChanged) void syncNow();
 	};
 
 	// Swaps the live settings for another profile's (overlay closed): restyles
@@ -669,6 +737,7 @@ function ReaderPage() {
 	const applyProfileSettings = (next: ReaderSettings) => {
 		const prev = settingsRef.current;
 		const position = captureReaderPosition();
+		settingsRef.current = next;
 		setSettings(next);
 		const nextTheme = getReaderTheme(next.theme, customThemesRef.current);
 		applyReaderBackground(nextTheme.backgroundColor);
@@ -677,6 +746,7 @@ function ReaderPage() {
 			`${getReaderScrollbarColor(nextTheme)} ${getReaderScrollbarTrackColor(nextTheme)}`,
 		);
 		applyCommittedSettings(next, prev, position);
+		if (next.readingPositionMode !== prev.readingPositionMode) void syncNow();
 	};
 
 	// Switch while the overlay is open: the draft is saved into the outgoing
@@ -927,9 +997,9 @@ function ReaderPage() {
 			? {
 					exploredCharCount: exploredRef.current,
 					progress: data.characters ? exploredRef.current / data.characters : 0,
-					lastBookmarkModified: Date.now(),
+					lastBookmarkModified: positionClockRef.current || Date.now(),
 				}
-			: loadState.bookmark);
+			: loadState.position);
 
 	// Only truly structural settings remount the reader (different component /
 	// different scroll axis). Everything else — fonts, sizes, margins, furigana,
@@ -941,6 +1011,10 @@ function ReaderPage() {
 		presentation.engine,
 		settings.writingMode,
 		isComic ? presentation.comicLayout : "",
+		(presentation.engine === "text-paginated" ||
+			(presentation.engine === "text-scroll" &&
+				settings.writingMode === "vertical-rl")) &&
+			Boolean(audioPlayerBook),
 	].join("|");
 	let currentComicPage = 1;
 	for (let index = 0; index < data.sections.length; index += 1) {
@@ -986,44 +1060,50 @@ function ReaderPage() {
 				/>
 			)}
 
-			<ReaderEngine
-				key={readerKey}
-				bookUuid={uuid}
-				presentation={presentation}
-				book={data}
-				htmlContent={html}
-				theme={theme}
-				readerSettings={settings}
-				mangaSettings={mangaSettings}
-				initialPosition={initialPosition}
-				initialBookmark={bookmark}
-				onExploredCharCountChange={handleExploredChange}
-				onSectionProgressChange={setSectionProgress}
-				onToggleChrome={() => setShowHeader((open) => !open)}
-				onExitFocus={() =>
-					handlePresentationChange({ type: "text-layout", value: "scroll" })
-				}
-				navigationBlocked={
-					settingsOpen ||
-					quickSettingsOpen ||
-					tocOpen ||
-					galleryOpen ||
-					(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
-				}
-				controllerRef={(controller: BookReaderApi | null) => {
-					apiRef.current = controller;
-					if (controller) {
-						setReaderApiRevision((revision) => revision + 1);
-						// A flow/orientation switch can replace the controller while an
-						// overlay is still open; keep its modal lock gutter-free.
-						if (quickSettingsOpen || settingsOpen || galleryOpen) {
-							controller.setScrollbarHidden?.(true);
-						}
+			<div
+				className="contents"
+				inert={settingsOpen || quickSettingsOpen || tocOpen || galleryOpen}
+			>
+				<ReaderEngine
+					key={readerKey}
+					bookUuid={uuid}
+					presentation={presentation}
+					book={data}
+					htmlContent={html}
+					theme={theme}
+					readerSettings={settings}
+					mangaSettings={mangaSettings}
+					initialPosition={initialPosition}
+					initialBookmark={bookmark}
+					onExploredCharCountChange={handleExploredChange}
+					onSectionProgressChange={setSectionProgress}
+					onToggleChrome={() => setShowHeader((open) => !open)}
+					onExitFocus={() =>
+						handlePresentationChange({ type: "text-layout", value: "scroll" })
 					}
-				}}
-				pdfSource={loadState.pdfSource}
-				onPdfDocumentReady={handlePdfDocumentReady}
-			/>
+					navigationBlocked={
+						settingsOpen ||
+						quickSettingsOpen ||
+						tocOpen ||
+						galleryOpen ||
+						(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
+					}
+					reservePlayerSpace={Boolean(audioPlayerBook)}
+					controllerRef={(controller: BookReaderApi | null) => {
+						apiRef.current = controller;
+						if (controller) {
+							setReaderApiRevision((revision) => revision + 1);
+							// A flow/orientation switch can replace the controller while an
+							// overlay is still open; keep its modal lock gutter-free.
+							if (quickSettingsOpen || settingsOpen || galleryOpen) {
+								controller.setScrollbarHidden?.(true);
+							}
+						}
+					}}
+					pdfSource={loadState.pdfSource}
+					onPdfDocumentReady={handlePdfDocumentReady}
+				/>
+			</div>
 
 			{readListenPairUuid &&
 				data.sourceFormat &&
@@ -1103,7 +1183,7 @@ function ReaderPage() {
 					apiRef.current?.openSearch?.();
 				}}
 				onQuickSettingsClick={() => {
-					setShowHeader(false);
+					overlayEntryPositionRef.current = captureReaderPosition();
 					hideDocumentScrollbar();
 					setQuickSettingsOpen(true);
 				}}
@@ -1156,24 +1236,23 @@ function ReaderPage() {
 				/>
 			)}
 
-			{quickSettingsOpen && (
-				<ReaderQuickSettings
-					presentation={presentation}
-					mangaSettings={mangaSettings}
-					settings={settings}
-					theme={theme}
-					customThemes={customThemes}
-					isMobile={isMobile}
-					onChange={handleQuickSettingsChange}
-					onMangaSettingsChange={handleMangaSettingsChange}
-					onPresentationChange={handlePresentationChange}
-					onOpenSettings={() => {
-						setQuickSettingsOpen(false);
-						openSettings();
-					}}
-					onClose={closeQuickSettings}
-				/>
-			)}
+			<ReaderQuickSettings
+				open={quickSettingsOpen}
+				presentation={presentation}
+				mangaSettings={mangaSettings}
+				settings={settings}
+				theme={theme}
+				customThemes={customThemes}
+				isMobile={isMobile}
+				onChange={handleQuickSettingsChange}
+				onMangaSettingsChange={handleMangaSettingsChange}
+				onPresentationChange={handlePresentationChange}
+				onOpenSettings={() => {
+					setQuickSettingsOpen(false);
+					openSettings();
+				}}
+				onClose={closeQuickSettings}
+			/>
 
 			{draftSettings && (
 				<ReaderSettingsOverlay

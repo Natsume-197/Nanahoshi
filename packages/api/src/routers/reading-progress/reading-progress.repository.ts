@@ -4,8 +4,9 @@ import {
 	bookMetadata,
 	library,
 	readingProgress,
+	readingProgressSyncOperation,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
@@ -14,6 +15,11 @@ import {
 } from "../_shared/library-scope";
 import type { ReadingProgress } from "./reading-progress.model";
 
+const MAX_CLIENT_CLOCK_SKEW_MS = 5_000;
+const SYNC_OPERATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+const SYNC_OPERATION_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000;
+let nextSyncOperationCleanupAt = 0;
+
 export class ReadingProgressRepository {
 	async upsert(
 		userId: string,
@@ -21,45 +27,131 @@ export class ReadingProgressRepository {
 		data: {
 			exploredCharCount?: number;
 			bookCharCount?: number;
+			positionMode?: "automatic" | "bookmark";
+			positionIntentAt?: number;
+			syncOperationId?: string;
 			readingTimeSeconds?: number;
 			status?: string;
 		},
-	): Promise<ReadingProgress> {
-		const now = new Date().toISOString();
-		const rows = await db
-			.insert(readingProgress)
-			.values({
-				userId,
-				bookId,
-				exploredCharCount: data.exploredCharCount ?? 0,
-				bookCharCount: data.bookCharCount ?? 0,
-				readingTimeSeconds: data.readingTimeSeconds ?? 0,
-				status: data.status ?? READING_STATUSES.READING,
-				startedAt: now,
-				lastReadAt: now,
-			})
-			.onConflictDoUpdate({
-				target: [readingProgress.userId, readingProgress.bookId],
-				set: {
-					...(data.exploredCharCount !== undefined && {
-						exploredCharCount: data.exploredCharCount,
-					}),
-					...(data.bookCharCount !== undefined && {
-						bookCharCount: data.bookCharCount,
-					}),
-					...(data.readingTimeSeconds !== undefined && {
-						readingTimeSeconds: sql`${readingProgress.readingTimeSeconds} + ${data.readingTimeSeconds}`,
-					}),
-					...(data.status !== undefined && { status: data.status }),
+	): Promise<{ progress: ReadingProgress; positionAccepted: boolean }> {
+		const serverNowMs = Date.now();
+		const now = new Date(serverNowMs).toISOString();
+		const hasPosition = data.exploredCharCount !== undefined;
+		const normalizedPositionIntentAt =
+			data.positionIntentAt !== undefined
+				? data.positionIntentAt > serverNowMs + MAX_CLIENT_CLOCK_SKEW_MS
+					? serverNowMs
+					: data.positionIntentAt
+				: undefined;
+		// Once a row has ordered writes, legacy clients may still add reading time
+		// but cannot replace its position. Future-skewed clocks are capped so one
+		// bad device cannot lock every other client out of the book.
+		const acceptsPosition = hasPosition
+			? normalizedPositionIntentAt !== undefined
+				? sql<boolean>`(
+						${readingProgress.positionIntentAt} IS NULL
+						OR ${readingProgress.positionIntentAt} < ${normalizedPositionIntentAt}
+					)`
+				: sql<boolean>`${readingProgress.positionIntentAt} IS NULL`
+			: undefined;
+
+		return db.transaction(async (tx) => {
+			if (data.syncOperationId) {
+				const insertedOperation = await tx
+					.insert(readingProgressSyncOperation)
+					.values({ id: data.syncOperationId, userId, bookId })
+					.onConflictDoNothing()
+					.returning({ id: readingProgressSyncOperation.id });
+				if (insertedOperation.length === 0) {
+					const [progress] = await tx
+						.select()
+						.from(readingProgress)
+						.where(
+							and(
+								eq(readingProgress.userId, userId),
+								eq(readingProgress.bookId, bookId),
+							),
+						);
+					if (!progress)
+						throw new Error("Progress operation has no progress row");
+					return { progress, positionAccepted: false };
+				}
+				if (serverNowMs >= nextSyncOperationCleanupAt) {
+					nextSyncOperationCleanupAt =
+						serverNowMs + SYNC_OPERATION_CLEANUP_INTERVAL_MS;
+					await tx
+						.delete(readingProgressSyncOperation)
+						.where(
+							lt(
+								readingProgressSyncOperation.createdAt,
+								new Date(
+									serverNowMs - SYNC_OPERATION_RETENTION_MS,
+								).toISOString(),
+							),
+						);
+				}
+			}
+
+			const [progress] = await tx
+				.insert(readingProgress)
+				.values({
+					userId,
+					bookId,
+					exploredCharCount: data.exploredCharCount ?? 0,
+					bookCharCount: data.bookCharCount ?? 0,
+					positionMode: data.positionMode,
+					positionIntentAt: normalizedPositionIntentAt,
+					positionOperationId: hasPosition ? data.syncOperationId : undefined,
+					positionUpdatedAt: hasPosition ? now : undefined,
+					readingTimeSeconds: data.readingTimeSeconds ?? 0,
+					status: data.status ?? READING_STATUSES.READING,
+					startedAt: now,
 					lastReadAt: now,
-					...(data.status !== undefined && {
-						completedAt:
-							data.status === READING_STATUSES.COMPLETED ? now : null,
-					}),
-				},
-			})
-			.returning();
-		return rows[0] as ReadingProgress;
+				})
+				.onConflictDoUpdate({
+					target: [readingProgress.userId, readingProgress.bookId],
+					set: {
+						...(data.exploredCharCount !== undefined && {
+							exploredCharCount: sql`CASE WHEN ${acceptsPosition} THEN ${data.exploredCharCount} ELSE ${readingProgress.exploredCharCount} END`,
+							positionUpdatedAt: sql`CASE WHEN ${acceptsPosition} THEN ${now} ELSE ${readingProgress.positionUpdatedAt} END`,
+						}),
+						...(data.bookCharCount !== undefined && {
+							bookCharCount: hasPosition
+								? sql`CASE WHEN ${acceptsPosition} THEN ${data.bookCharCount} ELSE ${readingProgress.bookCharCount} END`
+								: data.bookCharCount,
+						}),
+						...(data.positionMode !== undefined && {
+							positionMode: sql`CASE WHEN ${acceptsPosition} THEN ${data.positionMode} ELSE ${readingProgress.positionMode} END`,
+						}),
+						...(normalizedPositionIntentAt !== undefined && {
+							positionIntentAt: sql`CASE WHEN ${acceptsPosition} THEN ${normalizedPositionIntentAt} ELSE ${readingProgress.positionIntentAt} END`,
+							positionOperationId: sql`CASE WHEN ${acceptsPosition} THEN ${data.syncOperationId} ELSE ${readingProgress.positionOperationId} END`,
+						}),
+						...(data.readingTimeSeconds !== undefined && {
+							readingTimeSeconds: sql`${readingProgress.readingTimeSeconds} + ${data.readingTimeSeconds}`,
+						}),
+						...(data.status !== undefined && {
+							status: hasPosition
+								? sql`CASE WHEN ${acceptsPosition} THEN ${data.status} ELSE ${readingProgress.status} END`
+								: data.status,
+							completedAt: hasPosition
+								? sql`CASE WHEN ${acceptsPosition} THEN ${data.status === READING_STATUSES.COMPLETED ? now : null} ELSE ${readingProgress.completedAt} END`
+								: data.status === READING_STATUSES.COMPLETED
+									? now
+									: null,
+						}),
+						lastReadAt: now,
+					},
+				})
+				.returning();
+			if (!progress) throw new Error("Reading progress upsert returned no row");
+			const positionAccepted =
+				!hasPosition ||
+				(data.syncOperationId !== undefined
+					? progress.positionOperationId === data.syncOperationId
+					: progress.positionIntentAt === normalizedPositionIntentAt);
+			return { progress, positionAccepted };
+		});
 	}
 
 	async getByUserAndBook(

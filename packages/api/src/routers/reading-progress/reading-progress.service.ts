@@ -14,6 +14,9 @@ export const saveProgress = async (
 	data: {
 		exploredCharCount?: number;
 		bookCharCount?: number;
+		positionMode?: "automatic" | "bookmark";
+		positionIntentAt?: number;
+		syncOperationId?: string;
 		readingTimeSeconds?: number;
 		status?: string;
 	},
@@ -35,23 +38,24 @@ export const saveProgress = async (
 	);
 	const previousStatus = existing?.status;
 
-	const result = await readingProgressRepository.upsert(userId, bookId, data);
+	const { progress: result, positionAccepted } =
+		await readingProgressRepository.upsert(userId, bookId, data);
 
-	if (data.status === READING_STATUSES.READING) {
+	if (positionAccepted && data.status === READING_STATUSES.READING) {
 		await markBookActivity(userId, bookId, bookUuid, "reading");
 	}
 
 	// recommendation signals: completion (either direction) or crossing 50%
 	const completionChanged =
-		(data.status === READING_STATUSES.COMPLETED) !==
+		(result.status === READING_STATUSES.COMPLETED) !==
 		(previousStatus === READING_STATUSES.COMPLETED);
 	const prevRatio =
 		existing?.bookCharCount && existing.bookCharCount > 0
 			? (existing.exploredCharCount ?? 0) / existing.bookCharCount
 			: 0;
 	const newRatio =
-		data.bookCharCount && data.bookCharCount > 0
-			? (data.exploredCharCount ?? 0) / data.bookCharCount
+		result.bookCharCount && result.bookCharCount > 0
+			? (result.exploredCharCount ?? 0) / result.bookCharCount
 			: prevRatio;
 	if (completionChanged || (prevRatio < 0.5 && newRatio >= 0.5)) {
 		await enqueueUserRefresh(serverId, userId);

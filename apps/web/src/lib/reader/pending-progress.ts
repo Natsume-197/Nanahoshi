@@ -1,25 +1,38 @@
 import { client } from "@/utils/orpc";
+import {
+	enqueuePendingProgress,
+	type PendingProgress,
+	type PendingProgressEntry,
+	type PendingQueue,
+} from "./pending-progress-queue";
+
+export type { PendingProgress } from "./pending-progress-queue";
 
 // Offline queue for failed progress syncs. Each reading-time slice lives in
 // exactly one place — a delivered sync or a queue entry — so no double count.
 
 const PENDING_KEY = "nanahoshi-pending-progress";
-
-export interface PendingProgress {
-	bookUuid: string;
-	exploredCharCount?: number;
-	bookCharCount: number;
-	readingTimeSeconds: number;
-	status: "reading" | "completed";
-	savedAt: number;
-}
-
-type PendingQueue = Record<string, PendingProgress>;
+const PENDING_RETENTION_MS = 29 * 24 * 60 * 60 * 1_000;
 
 function readQueue(): PendingQueue {
 	try {
 		const raw = window.localStorage.getItem(PENDING_KEY);
-		return raw ? JSON.parse(raw) : {};
+		if (!raw) return {};
+		const stored = JSON.parse(raw) as Record<
+			string,
+			Omit<PendingProgress, "syncOperationId"> & { syncOperationId?: string }
+		>;
+		const queue = Object.fromEntries(
+			Object.entries(stored).flatMap(([legacyKey, entry]) => {
+				if (entry.savedAt < Date.now() - PENDING_RETENTION_MS) return [];
+				const syncOperationId = entry.syncOperationId ?? legacyKey;
+				return [[syncOperationId, { ...entry, syncOperationId }]];
+			}),
+		);
+		if (Object.keys(queue).length !== Object.keys(stored).length) {
+			writeQueue(queue);
+		}
+		return queue;
 	} catch {
 		return {};
 	}
@@ -37,25 +50,14 @@ function writeQueue(queue: PendingQueue) {
 	}
 }
 
-/** Reading time accumulates across failures; position/status take the latest. */
-export function markPendingProgress(
-	entry: Omit<PendingProgress, "savedAt">,
-): void {
-	const queue = readQueue();
-	const existing = queue[entry.bookUuid];
-	queue[entry.bookUuid] = {
-		...entry,
-		readingTimeSeconds:
-			entry.readingTimeSeconds + (existing?.readingTimeSeconds ?? 0),
-		savedAt: Date.now(),
-	};
-	writeQueue(queue);
+export function markPendingProgress(entry: PendingProgressEntry): void {
+	writeQueue(enqueuePendingProgress(readQueue(), entry));
 }
 
-export function clearPendingProgress(bookUuid: string): void {
+export function clearPendingProgress(syncOperationId: string): void {
 	const queue = readQueue();
-	if (!(bookUuid in queue)) return;
-	delete queue[bookUuid];
+	if (!(syncOperationId in queue)) return;
+	delete queue[syncOperationId];
 	writeQueue(queue);
 }
 
@@ -70,14 +72,21 @@ export async function flushPendingProgress(): Promise<void> {
 			try {
 				await client.readingProgress.saveProgress({
 					bookUuid: entry.bookUuid,
+					syncOperationId: entry.syncOperationId,
 					...(entry.exploredCharCount !== undefined && {
 						exploredCharCount: entry.exploredCharCount,
+					}),
+					...(entry.positionMode !== undefined && {
+						positionMode: entry.positionMode,
+					}),
+					...(entry.positionIntentAt !== undefined && {
+						positionIntentAt: entry.positionIntentAt,
 					}),
 					bookCharCount: entry.bookCharCount,
 					readingTimeSeconds: entry.readingTimeSeconds,
 					status: entry.status,
 				});
-				clearPendingProgress(entry.bookUuid);
+				clearPendingProgress(entry.syncOperationId);
 			} catch {
 				// keep for the next flush
 			}

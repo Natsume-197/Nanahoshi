@@ -222,16 +222,8 @@ export const PlayerBar = memo(function PlayerBar({
 						/>
 					</div>
 					{readListen ? (
-						<div className="relative grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center">
-							<ReadListenSentenceControls
-								context={readListen}
-								className="justify-self-start"
-							/>
-							<PlayPauseButton variant="strip" className="size-10" />
-							<ReadListenSentenceSeekButton
-								context={readListen}
-								className="size-10 justify-self-end text-foreground"
-							/>
+						<div className="relative flex w-full items-center justify-center">
+							<PlayerTransport alwaysShowChapterControls />
 						</div>
 					) : (
 						<div className="relative flex shrink-0 items-center">
@@ -316,7 +308,9 @@ export const PlayerBar = memo(function PlayerBar({
 						)}
 					>
 						<div className="flex max-w-full items-center justify-center">
-							<PlayerTransport />
+							<PlayerTransport
+								alwaysShowChapterControls={Boolean(readListen)}
+							/>
 						</div>
 						<PlayerSeekBar className="w-full" />
 					</div>

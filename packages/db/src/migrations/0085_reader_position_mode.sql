@@ -1,0 +1,1 @@
+ALTER TABLE "reading_progress" ADD COLUMN "position_mode" varchar(20);

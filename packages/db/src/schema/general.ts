@@ -1145,6 +1145,16 @@ export const readingProgress = pgTable(
 			mode: "number",
 		}).default(0),
 		bookCharCount: bigint("book_char_count", { mode: "number" }).default(0),
+		/** Source of exploredCharCount. Null rows predate automatic resume and are
+		 *  therefore legacy manual-bookmark progress. */
+		positionMode: varchar("position_mode", { length: 20 }),
+		/** Client intent time for bounded last-intent-wins ordering. */
+		positionIntentAt: bigint("position_intent_at", { mode: "number" }),
+		positionOperationId: varchar("position_operation_id", { length: 36 }),
+		positionUpdatedAt: timestamp("position_updated_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
 		readingTimeSeconds: integer("reading_time_seconds").default(0),
 		status: varchar({ length: 20 }).default("unread"),
 		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
@@ -1175,6 +1185,33 @@ export const readingProgress = pgTable(
 		index("reading_progress_user_idx").on(table.userId),
 		index("reading_progress_user_status_idx").on(table.userId, table.status),
 		index("reading_progress_book_status_idx").on(table.bookId, table.status),
+	],
+);
+
+/** Idempotency ledger for progress syncs. Each entry represents one claimed
+ * reading-time slice and prevents retries from counting it twice. */
+export const readingProgressSyncOperation = pgTable(
+	"reading_progress_sync_operation",
+	{
+		id: uuid("id").primaryKey(),
+		userId: text("user_id").notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "reading_progress_sync_operation_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "reading_progress_sync_operation_book_id_fkey",
+		}).onDelete("cascade"),
+		index("reading_progress_sync_operation_created_at_idx").on(table.createdAt),
 	],
 );
 

@@ -5,12 +5,16 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { fetchAndCacheBook } from "@/lib/reader/download-book";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
 import { loadLocalBookmark } from "@/lib/reader/local-bookmark";
+import { loadLocalReadingPosition } from "@/lib/reader/local-reading-position";
 import {
 	createPdfSections,
 	type PdfReaderSource,
 } from "@/lib/reader/pdf-source";
-import { resolveInitialBookmark } from "@/lib/reader/resolve-bookmark";
-import { loadReaderSettings } from "@/lib/reader/settings";
+import { resolveReaderResumePosition } from "@/lib/reader/resolve-bookmark";
+import type {
+	ReaderSettings,
+	ReadingPositionMode,
+} from "@/lib/reader/settings";
 import type {
 	ReaderBookData,
 	ReaderBookmark,
@@ -19,6 +23,14 @@ import type {
 import { readerColumnHeight } from "@/lib/reader/viewport";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
 import { client } from "@/utils/orpc";
+
+function normalizeReadingPositionMode(
+	value: unknown,
+): ReadingPositionMode | undefined {
+	if (value === "automatic") return "automatic";
+	if (value === "bookmark") return "bookmark";
+	return undefined;
+}
 
 export type LoadState =
 	| { phase: "loading" | "parsing" }
@@ -29,6 +41,7 @@ export type LoadState =
 			phase: "ready";
 			data: ReaderBookData;
 			html: string;
+			position: ReaderBookmark | undefined;
 			bookmark: ReaderBookmark | undefined;
 			pdfSource?: PdfReaderSource;
 	  };
@@ -48,18 +61,25 @@ interface UseBookLoaderArgs {
 	sourceFormat?: ReaderSourceFormat;
 	language?: string | null;
 	contentForm?: "text" | "images" | null;
+	readerSettings: Pick<
+		ReaderSettings,
+		"readingPositionMode" | "writingMode" | "secondDimensionMaxValue"
+	>;
 	/** Called once the book is parsed and the restore position is resolved,
 	 *  before the reader renders. */
 	onLoaded: (result: {
 		data: ReaderBookData;
+		position: ReaderBookmark | undefined;
 		bookmark: ReaderBookmark | undefined;
+		positionClockAt: number;
 	}) => void;
 }
 
 /**
  * Loads a book for the reader: reads the IndexedDB cache, otherwise downloads
  * and parses the EPUB and caches it, formats the HTML, and resolves the reading
- * position from the local bookmark + server progress (fetched in parallel).
+ * manual marker and automatic position independently, then resolves the active
+ * profile's resume source against server progress (fetched in parallel).
  */
 export function useBookLoader({
 	uuid,
@@ -72,6 +92,7 @@ export function useBookLoader({
 	sourceFormat,
 	language,
 	contentForm,
+	readerSettings,
 	onLoaded,
 }: UseBookLoaderArgs): LoadState {
 	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
@@ -85,21 +106,32 @@ export function useBookLoader({
 
 		(async () => {
 			try {
+				const manualBookmark = loadLocalBookmark(uuid);
+				const automaticPosition = loadLocalReadingPosition(uuid);
 				// Server progress is fetched in parallel with the (potentially
 				// heavy) cache read / download+parse.
 				const serverProgressPromise = client.readingProgress
 					.getProgress({ bookUuid: uuid })
-					.then((progress) => ({
-						exploredCharCount: progress?.exploredCharCount ?? 0,
-						bookCharCount: progress?.bookCharCount ?? 0,
-						modifiedAt: progress?.lastReadAt
-							? new Date(progress.lastReadAt).getTime()
-							: 0,
-					}))
+					.then((progress) => {
+						const positionMode = normalizeReadingPositionMode(
+							progress?.positionMode,
+						);
+						return {
+							exploredCharCount: progress?.exploredCharCount ?? 0,
+							bookCharCount: progress?.bookCharCount ?? 0,
+							modifiedAt: progress?.positionUpdatedAt
+								? new Date(progress.positionUpdatedAt).getTime()
+								: progress?.lastReadAt
+									? new Date(progress.lastReadAt).getTime()
+									: 0,
+							positionMode,
+						};
+					})
 					.catch(() => ({
 						exploredCharCount: 0,
 						bookCharCount: 0,
 						modifiedAt: 0,
+						positionMode: undefined,
 					}));
 
 				if (sourceFormat === "pdf") {
@@ -110,11 +142,21 @@ export function useBookLoader({
 					if (cancelled) return;
 					const serverProgress = await serverProgressPromise;
 					if (cancelled) return;
-					const initial = resolveInitialBookmark(
-						loadLocalBookmark(uuid),
-						serverProgress,
-					);
 					const expectedPageCount = Math.max(1, pageCount ?? 1);
+					const bookmark = resolveReaderResumePosition({
+						mode: "bookmark",
+						manualBookmark,
+						automaticPosition: undefined,
+						serverProgress,
+						currentBookCharCount: expectedPageCount,
+					});
+					const position = resolveReaderResumePosition({
+						mode: readerSettings.readingPositionMode,
+						manualBookmark,
+						automaticPosition,
+						serverProgress,
+						currentBookCharCount: expectedPageCount,
+					});
 					const sections = createPdfSections(expectedPageCount);
 					const data: ReaderBookData = {
 						uuid,
@@ -131,12 +173,22 @@ export function useBookLoader({
 						sections,
 						storedAt: Date.now(),
 					};
-					onLoadedRef.current({ data, bookmark: initial });
+					onLoadedRef.current({
+						data,
+						position,
+						bookmark,
+						positionClockAt: Math.max(
+							serverProgress.modifiedAt,
+							manualBookmark?.lastBookmarkModified ?? 0,
+							automaticPosition?.lastBookmarkModified ?? 0,
+						),
+					});
 					setLoadState({
 						phase: "ready",
 						data,
 						html: "",
-						bookmark: initial,
+						position,
+						bookmark,
 						pdfSource: {
 							url,
 							name: fileName ?? `${bookTitle}.pdf`,
@@ -170,18 +222,25 @@ export function useBookLoader({
 				if (cancelled || !data) return;
 
 				const serverProgress = await serverProgressPromise;
-				const initial = resolveInitialBookmark(
-					loadLocalBookmark(uuid),
+				const bookmark = resolveReaderResumePosition({
+					mode: "bookmark",
+					manualBookmark,
+					automaticPosition: undefined,
 					serverProgress,
-					data.characters,
-				);
-
-				const currentSettings = loadReaderSettings();
+					currentBookCharCount: data.characters,
+				});
+				const position = resolveReaderResumePosition({
+					mode: readerSettings.readingPositionMode,
+					manualBookmark,
+					automaticPosition,
+					serverProgress,
+					currentBookCharCount: data.characters,
+				});
 				// Mirrors the max-height caps in reader.css (100vh, and
 				// --book-content-child-height in vertical mode).
 				const imageFitHeight = readerColumnHeight(
-					currentSettings.writingMode === "vertical-rl",
-					currentSettings.secondDimensionMaxValue,
+					readerSettings.writingMode === "vertical-rl",
+					readerSettings.secondDimensionMaxValue,
 				);
 				const formatted = await formatBookDataHtml(
 					data,
@@ -197,12 +256,22 @@ export function useBookLoader({
 					return;
 				}
 
-				onLoadedRef.current({ data: renderedData, bookmark: initial });
+				onLoadedRef.current({
+					data: renderedData,
+					position,
+					bookmark,
+					positionClockAt: Math.max(
+						serverProgress.modifiedAt,
+						manualBookmark?.lastBookmarkModified ?? 0,
+						automaticPosition?.lastBookmarkModified ?? 0,
+					),
+				});
 				setLoadState({
 					phase: "ready",
 					data: renderedData,
 					html: formatted.elementHtml,
-					bookmark: initial,
+					position,
+					bookmark,
 				});
 			} catch (error) {
 				if (!cancelled) {

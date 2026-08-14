@@ -15,6 +15,25 @@
 	contain: layout style paint;
 }
 
+/* One responsive reserve for engines whose viewport must end above the
+   persistent player. The route supplies zero/safe-area values when no player
+   is mounted, and the actual mobile/desktop dock size when it is. */
+.reader-route-content {
+	--reader-player-reserve-current: var(
+		--reader-player-reserve-mobile,
+		var(--safe-area-bottom)
+	);
+}
+
+@media (min-width: 48rem) {
+	.reader-route-content {
+		--reader-player-reserve-current: var(
+			--reader-player-reserve-desktop,
+			var(--safe-area-bottom)
+		);
+	}
+}
+
 .book-content {
 	font-family: var(--font-family-serif, "Noto Serif JP", serif);
 }

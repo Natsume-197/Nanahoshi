@@ -117,14 +117,17 @@ export function Toggle({
 	theme,
 	value,
 	onChange,
+	ariaLabel,
 }: {
 	theme: ReaderTheme;
 	value: boolean;
 	onChange: (next: boolean) => void;
+	ariaLabel?: string;
 }) {
 	return (
 		<Segmented
 			theme={theme}
+			ariaLabel={ariaLabel}
 			options={[
 				{ id: false, text: "Off" },
 				{ id: true, text: "On" },

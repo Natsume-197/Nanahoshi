@@ -41,6 +41,7 @@ import {
 import { viewportHeight, viewportWidth } from "@/lib/reader/viewport";
 
 interface ReaderQuickSettingsProps {
+	open: boolean;
 	presentation: ReaderPresentation;
 	mangaSettings: MangaReaderSettings;
 	settings: ReaderSettings;
@@ -90,6 +91,7 @@ function QuickSettingsRow({
 }
 
 export function ReaderQuickSettings({
+	open,
 	presentation,
 	mangaSettings,
 	settings,
@@ -441,6 +443,38 @@ export function ReaderQuickSettings({
 			</QuickSettingsSection>
 
 			<Separator style={{ backgroundColor: mix(14) }} />
+			<QuickSettingsSection title="Behaviour">
+				<QuickSettingsRow label="Save reading position">
+					<div className="w-52 max-w-full">
+						<Segmented
+							theme={theme}
+							ariaLabel="Save reading position"
+							options={[
+								{ id: "automatic", text: "Automatic" },
+								{ id: "bookmark", text: "Bookmark" },
+							]}
+							selected={settings.readingPositionMode}
+							onSelect={(readingPositionMode) =>
+								onChange({ readingPositionMode })
+							}
+						/>
+					</div>
+				</QuickSettingsRow>
+				{presentation.engine === "text-scroll" && (
+					<QuickSettingsRow label="Keep position on resize">
+						<Toggle
+							theme={theme}
+							ariaLabel="Keep position on resize"
+							value={settings.autoPositionOnResize}
+							onChange={(autoPositionOnResize) =>
+								onChange({ autoPositionOnResize })
+							}
+						/>
+					</QuickSettingsRow>
+				)}
+			</QuickSettingsSection>
+
+			<Separator style={{ backgroundColor: mix(14) }} />
 			<button
 				type="button"
 				className="my-2 flex min-h-14 w-full cursor-pointer items-center gap-3 px-1 text-start outline-none transition-[opacity,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
@@ -458,19 +492,23 @@ export function ReaderQuickSettings({
 	if (isMobile) {
 		return (
 			<Drawer
-				open
+				open={open}
+				modal={false}
 				onOpenChange={(open) => !open && onClose()}
-				overlayClassName="bg-black/15 supports-backdrop-filter:backdrop-blur-none"
 				showSwipeHandle
 			>
 				<DrawerContent
-					className="writing-horizontal-tb rounded-t-[1.75rem] rounded-b-none border-x-0 border-b-0 [--drawer-content-max-height:min(64dvh,40rem)] [--drawer-inset:0px] [&_[data-slot=drawer-swipe-handle]:after]:bg-current [&_[data-slot=drawer-swipe-handle]:after]:opacity-30"
-					style={{
-						...readerThemeStyle,
-						color: theme.fontColor,
-						backgroundColor: theme.backgroundColor,
-						borderColor: mix(20),
-					}}
+					className="reader-quick-settings-sheet writing-horizontal-tb rounded-t-[1.75rem] rounded-b-none border-x-0 border-b-0 [--drawer-inset:0px] [&_[data-slot=drawer-swipe-handle]:after]:bg-current [&_[data-slot=drawer-swipe-handle]:after]:opacity-30"
+					style={
+						{
+							...readerThemeStyle,
+							"--drawer-content-height": "60dvh",
+							"--drawer-content-max-height": "60dvh",
+							color: theme.fontColor,
+							backgroundColor: theme.backgroundColor,
+							borderColor: mix(20),
+						} as CSSProperties
+					}
 				>
 					<DrawerHeader className="px-[max(1rem,var(--safe-area-left))] pt-2 pr-[max(1rem,var(--safe-area-right))] pb-3 text-start">
 						<DrawerTitle
@@ -494,13 +532,13 @@ export function ReaderQuickSettings({
 
 	return (
 		<DialogPrimitive.Root
-			open
+			open={open}
+			modal={false}
 			onOpenChange={(open) => {
 				if (!open) onClose();
 			}}
 		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Backdrop className="fixed inset-0 z-[59] bg-transparent" />
 				<DialogPrimitive.Popup
 					data-reader-overlay
 					className="fade-in slide-in-from-top-2 writing-horizontal-tb fixed top-[max(0.75rem,var(--safe-area-top))] right-[max(0.75rem,var(--safe-area-right))] z-[60] flex max-h-[min(calc(100dvh-1.5rem-var(--safe-area-top)-var(--safe-area-bottom)),48rem)] w-[min(24rem,calc(100vw-1.5rem))] animate-in flex-col overflow-hidden rounded-2xl border shadow-xl duration-200 ease-out motion-reduce:animate-none"

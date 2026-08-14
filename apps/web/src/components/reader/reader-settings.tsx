@@ -11,6 +11,7 @@ import {
 	BookOpenText,
 	Check,
 	Copy,
+	CursorClick,
 	HardDrive,
 	Palette,
 	Pen,
@@ -80,6 +81,7 @@ type SettingsCategory =
 	| "layout"
 	| "text"
 	| "reading"
+	| "behaviour"
 	| "storage";
 
 const CATEGORIES: {
@@ -117,6 +119,12 @@ const CATEGORIES: {
 		label: "Reading",
 		desc: "Progress display, images and furigana.",
 		icon: BookOpenText,
+	},
+	{
+		key: "behaviour",
+		label: "Behaviour",
+		desc: "How the reader remembers your place and reacts to changes.",
+		icon: CursorClick,
 	},
 	{
 		key: "storage",
@@ -653,10 +661,9 @@ export function ReaderSettingsOverlay({
 								/>,
 								{ hint: "Keep paragraphs whole on each page" },
 							)}
-						{isPaginated &&
-							!verticalMode &&
+						{!verticalMode &&
 							row(
-								"Page columns",
+								"Columns",
 								<Segmented
 									theme={theme}
 									options={[
@@ -667,6 +674,7 @@ export function ReaderSettingsOverlay({
 									selected={Math.min(settings.pageColumns, 2)}
 									onSelect={(pageColumns) => onChange({ pageColumns })}
 								/>,
+								{ hint: "Automatic, one or two columns in paginated layout" },
 							)}
 					</>
 				)}
@@ -936,9 +944,34 @@ export function ReaderSettingsOverlay({
 						)}
 					</>
 				)}
+			</div>
+		),
+
+		behaviour: (
+			<div className="flex flex-col">
+				{row(
+					"Save reading position",
+					<Segmented
+						theme={theme}
+						options={[
+							{ id: "automatic", text: "Automatic" },
+							{ id: "bookmark", text: "Bookmark" },
+						]}
+						selected={settings.readingPositionMode}
+						onSelect={(readingPositionMode) =>
+							onChange({ readingPositionMode })
+						}
+					/>,
+					{
+						hint:
+							settings.readingPositionMode === "automatic"
+								? "Resume from where you last stopped reading"
+								: "Resume from the marker you place manually",
+					},
+				)}
 				{presentation.engine === "text-scroll" &&
 					row(
-						"Auto position on resize",
+						"Keep position on resize",
 						<Toggle
 							theme={theme}
 							value={settings.autoPositionOnResize}
@@ -946,7 +979,7 @@ export function ReaderSettingsOverlay({
 								onChange({ autoPositionOnResize })
 							}
 						/>,
-						{ hint: "Keep your place when the window changes" },
+						{ hint: "Keep the same text at the reading edge" },
 					)}
 			</div>
 		),

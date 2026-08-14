@@ -602,6 +602,19 @@
 	transition-duration: var(--expanded-player-close-dur);
 }
 
+/* The reader drawer uses the same physical timing as the miniplayer sheet.
+   Base UI leaves the popup mounted during data-ending-style, so closing can
+   follow the current transform even when the gesture is interrupted. */
+.reader-quick-settings-sheet {
+	transition-duration: var(--expanded-player-open-dur);
+	transition-timing-function: var(--expanded-player-ease);
+}
+
+.reader-quick-settings-sheet[data-ending-style] {
+	pointer-events: none;
+	transition-duration: var(--expanded-player-close-dur);
+}
+
 html.expanded-player-open,
 html.expanded-player-open body {
 	overscroll-behavior-y: none;
@@ -897,6 +910,19 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 	}
 
 	.expanded-player-sheet[data-expanded="false"] {
+		opacity: 0;
+	}
+
+	.reader-quick-settings-sheet,
+	.reader-quick-settings-sheet[data-starting-style],
+	.reader-quick-settings-sheet[data-ending-style] {
+		transform: none;
+		transition-duration: var(--duration-quick);
+		transition-property: opacity;
+	}
+
+	.reader-quick-settings-sheet[data-starting-style],
+	.reader-quick-settings-sheet[data-ending-style] {
 		opacity: 0;
 	}
 

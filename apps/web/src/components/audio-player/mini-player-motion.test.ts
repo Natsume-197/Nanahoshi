@@ -7,6 +7,10 @@ const playerBar = readFileSync(
 	new URL("./player-bar.tsx", import.meta.url),
 	"utf8",
 );
+const playerTransport = readFileSync(
+	new URL("./player-transport.tsx", import.meta.url),
+	"utf8",
+);
 const miniPlayer = readFileSync(
 	new URL("./mini-player.tsx", import.meta.url),
 	"utf8",
@@ -91,9 +95,14 @@ describe("expanded player motion", () => {
 		);
 		expect(playerBar).toContain('compactControlClass = "max-[30rem]:size-10"');
 		expect(playerBar).toContain(
-			'"relative grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"',
+			"<PlayerTransport alwaysShowChapterControls />",
 		);
-		expect(playerBar).toContain("<ReadListenSentenceSeekButton");
+		expect(playerBar).toContain(
+			"alwaysShowChapterControls={Boolean(readListen)}",
+		);
+		expect(playerTransport).toContain(
+			"alwaysShowChapterControls || chapterCount > 0",
+		);
 		expect(playerBar).not.toContain("<ReadListenModeControls");
 	});
 
@@ -135,7 +144,7 @@ describe("expanded player motion", () => {
 	it("keeps playback centered independently from synchronized controls", () => {
 		expect(playerBar).toContain('readListen ? "w-[42%]" : "w-1/2"');
 		expect(playerBar).toContain(
-			'<PlayPauseButton variant="strip" className="size-10"',
+			'<div className="relative flex w-full items-center justify-center">',
 		);
 		expect(playerBar).toContain(
 			'<div className="flex max-w-full items-center justify-center">',

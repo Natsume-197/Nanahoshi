@@ -9,6 +9,9 @@ export const SaveProgressInput = z.object({
 	bookUuid: z.string(),
 	exploredCharCount: z.number().int().min(0).optional(),
 	bookCharCount: z.number().int().min(0).optional(),
+	positionMode: z.enum(["automatic", "bookmark"]).optional(),
+	positionIntentAt: z.number().int().min(0).optional(),
+	syncOperationId: z.string().uuid().optional(),
 	readingTimeSeconds: z.number().int().min(0).optional(),
 	status: z
 		.enum([

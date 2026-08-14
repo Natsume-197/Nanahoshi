@@ -2,11 +2,19 @@ import {
 	READER_POSITION_VERSION,
 	type ReaderBookmark,
 } from "@/lib/reader/types";
+import type { ReadingPositionMode } from "./settings";
+
+interface ServerReadingPosition {
+	exploredCharCount: number;
+	bookCharCount?: number;
+	modifiedAt: number;
+	positionMode?: ReadingPositionMode | null;
+}
 
 /**
- * Pick the reading position to restore from the locally saved bookmark and the
- * server-synced progress. The bookmark is the single source of truth; the
- * server copy only carries the char count for cross-device restore.
+ * Pick the freshest position from one local source and server-synced progress.
+ * The caller decides whether that source is a manual marker or automatic
+ * reading position before invoking this coordinate migration helper.
  *
  * At equal char counts the local copy wins: it also carries the pixel-exact
  * scroll offset, while the server stores the count alone (restoring by count
@@ -15,11 +23,7 @@ import {
  */
 export function resolveInitialBookmark(
 	localBookmark: ReaderBookmark | undefined,
-	serverProgress: {
-		exploredCharCount: number;
-		bookCharCount?: number;
-		modifiedAt: number;
-	},
+	serverProgress: ServerReadingPosition,
 	currentBookCharCount?: number,
 ): ReaderBookmark | undefined {
 	const migrateCount = (count: number, previousTotal?: number) =>
@@ -65,4 +69,35 @@ export function resolveInitialBookmark(
 		(migratedLocal.lastBookmarkModified ?? 0) >
 			serverBookmark.lastBookmarkModified;
 	return preferLocal ? migratedLocal : serverBookmark;
+}
+
+/** Selects the independent resume source without conflating it with a marker. */
+export function resolveReaderResumePosition({
+	mode,
+	manualBookmark,
+	automaticPosition,
+	serverProgress,
+	currentBookCharCount,
+}: {
+	mode: ReadingPositionMode;
+	manualBookmark: ReaderBookmark | undefined;
+	automaticPosition: ReaderBookmark | undefined;
+	serverProgress: ServerReadingPosition;
+	currentBookCharCount?: number;
+}): ReaderBookmark | undefined {
+	// Null is legacy progress from before automatic resume existed, when the
+	// server only stored manual markers. Each mode consumes only its own source.
+	const serverMatchesMode =
+		mode === "bookmark"
+			? serverProgress.positionMode !== "automatic"
+			: serverProgress.positionMode === "automatic";
+	const matchingServerProgress = serverMatchesMode
+		? serverProgress
+		: { exploredCharCount: 0, bookCharCount: 0, modifiedAt: 0 };
+
+	return resolveInitialBookmark(
+		mode === "bookmark" ? manualBookmark : automaticPosition,
+		matchingServerProgress,
+		currentBookCharCount,
+	);
 }
