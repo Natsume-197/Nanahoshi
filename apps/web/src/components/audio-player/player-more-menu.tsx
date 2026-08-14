@@ -35,10 +35,14 @@ const ROW_CLASS = "h-9 w-full justify-start gap-2 px-2 font-normal";
 function MoreActions({
 	uuid,
 	onOpenReadListenReader,
+	onReadListenIntent,
+	onReadListenCommitIntent,
 	onDone,
 }: {
 	uuid: string;
 	onOpenReadListenReader?: () => void;
+	onReadListenIntent?: () => void;
+	onReadListenCommitIntent?: () => void;
 	onDone: () => void;
 }) {
 	const { stop, setExpanded } = useAudioPlayerActions();
@@ -65,6 +69,9 @@ function MoreActions({
 					variant="ghost"
 					size="sm"
 					className={ROW_CLASS}
+					onPointerEnter={onReadListenIntent}
+					onFocus={onReadListenCommitIntent}
+					onPointerDown={onReadListenCommitIntent}
 					onClick={() => {
 						onDone();
 						onOpenReadListenReader();
@@ -102,9 +109,13 @@ function MoreActions({
 export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 	uuid,
 	onOpenReadListenReader,
+	onReadListenIntent,
+	onReadListenCommitIntent,
 }: {
 	uuid: string;
 	onOpenReadListenReader?: () => void;
+	onReadListenIntent?: () => void;
+	onReadListenCommitIntent?: () => void;
 }) {
 	const isMobile = useIsMobile();
 	const [open, setOpen] = useState(false);
@@ -140,6 +151,8 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 							<MoreActions
 								uuid={uuid}
 								onOpenReadListenReader={onOpenReadListenReader}
+								onReadListenIntent={onReadListenIntent}
+								onReadListenCommitIntent={onReadListenCommitIntent}
 								onDone={() => setOpen(false)}
 							/>
 						</div>
@@ -168,6 +181,8 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 				<MoreActions
 					uuid={uuid}
 					onOpenReadListenReader={onOpenReadListenReader}
+					onReadListenIntent={onReadListenIntent}
+					onReadListenCommitIntent={onReadListenCommitIntent}
 					onDone={() => setOpen(false)}
 				/>
 			</PopoverContent>

@@ -22,6 +22,9 @@ export function PlayerIconButton({
 	disabled,
 	pressed,
 	onClick,
+	onFocus,
+	onPointerDown,
+	onPointerEnter,
 	children,
 }: {
 	label: string;
@@ -30,6 +33,9 @@ export function PlayerIconButton({
 	disabled?: boolean;
 	pressed?: boolean;
 	onClick: () => void;
+	onFocus?: () => void;
+	onPointerDown?: () => void;
+	onPointerEnter?: () => void;
 	children: ReactNode;
 }) {
 	return (
@@ -42,6 +48,9 @@ export function PlayerIconButton({
 					aria-pressed={pressed}
 					disabled={disabled}
 					onClick={onClick}
+					onFocus={onFocus}
+					onPointerDown={onPointerDown}
+					onPointerEnter={onPointerEnter}
 					className={cn("size-8 text-muted-foreground", className)}
 				>
 					{children}

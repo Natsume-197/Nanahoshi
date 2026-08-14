@@ -353,6 +353,14 @@ export function getReadListenPositionIndex<T>(
 	return index;
 }
 
+/** Drops one immutable index when a virtualized section fills in asynchronously. */
+export function invalidateReadListenPositionIndex(
+	section: Element,
+	targets: readonly ReadListenAnchorTarget<unknown>[],
+): void {
+	positionIndexCache.get(section)?.delete(targets);
+}
+
 /** Resolves a DOM caret back to an aligned cue without rewriting book markup. */
 export function findReadListenTargetAtPosition<T>(
 	section: Element,

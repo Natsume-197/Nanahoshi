@@ -73,9 +73,12 @@
 	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
 	--page-slide-dur: 250ms;
 	--page-fade-dur: 250ms;
-	--page-slide-distance: 8px;
 	--page-blur: 3px;
 	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-fade-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--read-listen-route-dur: 250ms;
+	--read-listen-route-distance: 0.5rem;
+	--read-listen-route-scale: 0.996;
 	--notification-sheet-open-dur: 360ms;
 	--notification-sheet-close-dur: 300ms;
 	--notification-sheet-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
@@ -604,6 +607,93 @@ html.expanded-player-open body {
 	overscroll-behavior-y: none;
 }
 
+/* The reader replaces the routed surface while the player stays mounted above
+   it. Keep this opacity-only: a transform here would make the route the
+   containing block for the reader's fixed header, settings and navigation. */
+.reader-route-content {
+	opacity: 1;
+	transition-duration: var(--page-fade-dur);
+	transition-property: opacity;
+	transition-timing-function: var(--page-fade-ease);
+}
+
+@starting-style {
+	.reader-route-content {
+		opacity: 0.96;
+	}
+}
+
+/* The route changes around one persistent player. Naming only the dock removes
+   it from the page snapshots, so it can keep its geometry and controls while
+   the dashboard and reader softly exchange places behind it. */
+html[data-read-listen-navigation]
+.read-listen-player-dock[data-player-expanded="false"] {
+	view-transition-name: read-listen-player;
+}
+
+html[data-read-listen-navigation]::view-transition-old(root),
+html[data-read-listen-navigation]::view-transition-new(root),
+html[data-read-listen-navigation]::view-transition-old(read-listen-player),
+html[data-read-listen-navigation]::view-transition-new(read-listen-player) {
+	mix-blend-mode: normal;
+}
+
+html[data-read-listen-navigation]::view-transition-group(read-listen-player) {
+	z-index: 50;
+	animation-duration: var(--read-listen-route-dur);
+	animation-timing-function: var(--ease-smooth-out);
+}
+
+@keyframes read-listen-route-recede {
+	to {
+		opacity: 0.82;
+		transform: scale(var(--read-listen-route-scale));
+	}
+}
+
+@keyframes read-listen-route-arrive {
+	from {
+		opacity: 0.72;
+		transform: translateY(var(--read-listen-route-distance))
+			scale(var(--read-listen-route-scale));
+	}
+}
+
+@keyframes read-listen-route-leave {
+	to {
+		opacity: 0.72;
+		transform: translateY(var(--read-listen-route-distance))
+			scale(var(--read-listen-route-scale));
+	}
+}
+
+@keyframes read-listen-route-return {
+	from {
+		opacity: 0.82;
+		transform: scale(var(--read-listen-route-scale));
+	}
+}
+
+html[data-read-listen-navigation="enter"]::view-transition-old(root) {
+	animation: read-listen-route-recede var(--read-listen-route-dur)
+		var(--ease-smooth-out) both;
+}
+
+html[data-read-listen-navigation="enter"]::view-transition-new(root) {
+	animation: read-listen-route-arrive var(--read-listen-route-dur)
+		var(--ease-smooth-out) both;
+}
+
+html[data-read-listen-navigation="exit"]::view-transition-old(root) {
+	animation: read-listen-route-leave var(--read-listen-route-dur)
+		var(--ease-smooth-out) both;
+}
+
+html[data-read-listen-navigation="exit"]::view-transition-new(root) {
+	animation: read-listen-route-return var(--read-listen-route-dur)
+		var(--ease-smooth-out) both;
+}
+
 /* A near-black version of the extracted main colour gives the ambient light
    somewhere to disappear into. The cover itself is never blurred. */
 .player-ambient-field {
@@ -711,25 +801,6 @@ html.expanded-player-open body {
 		);
 }
 
-/* The synchronized text reads as one continuous lyric surface. Edge cues stay
-   discoverable while the center retains full contrast for the active line. */
-.read-listen-lyrics-viewport {
-	-webkit-mask-image: linear-gradient(
-		to bottom,
-		transparent,
-		black 11%,
-		black 84%,
-		transparent
-	);
-	mask-image: linear-gradient(
-		to bottom,
-		transparent,
-		black 11%,
-		black 84%,
-		transparent
-	);
-}
-
 @media (prefers-reduced-transparency: reduce) {
 	.player-ambient-orbs {
 		opacity: 0;
@@ -737,11 +808,6 @@ html.expanded-player-open body {
 
 	.player-ambient-veil {
 		background: oklch(0.08 0 0 / 64%);
-	}
-
-	.read-listen-lyrics-viewport {
-		-webkit-mask-image: none;
-		mask-image: none;
 	}
 }
 
@@ -751,10 +817,6 @@ html.expanded-player-open body {
 	}
 	.player-ambient-veil {
 		background: oklch(0.08 0 0 / 72%);
-	}
-	.read-listen-lyrics-viewport {
-		-webkit-mask-image: none;
-		mask-image: none;
 	}
 }
 
@@ -797,6 +859,14 @@ html.expanded-player-open body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+	html[data-read-listen-navigation]::view-transition-old(root),
+	html[data-read-listen-navigation]::view-transition-new(root),
+	html[data-read-listen-navigation]::view-transition-group(read-listen-player),
+	html[data-read-listen-navigation]::view-transition-old(read-listen-player),
+	html[data-read-listen-navigation]::view-transition-new(read-listen-player) {
+		animation-duration: 0.01ms;
+	}
+
 	*,
 	*::before,
 	*::after {
@@ -828,6 +898,17 @@ html.expanded-player-open body {
 
 	.expanded-player-sheet[data-expanded="false"] {
 		opacity: 0;
+	}
+
+	.reader-route-content {
+		transition-duration: var(--duration-quick);
+		transition-property: opacity;
+	}
+
+	@starting-style {
+		.reader-route-content {
+			opacity: 0;
+		}
 	}
 }
 

@@ -25,12 +25,14 @@ export type ReadListenPlaybackSession = {
 	nextCue: ReadListenTimelineCue | undefined;
 	repeatCue: ReadListenTimelineCue | undefined;
 	isAudiobookLoaded: boolean;
+	isPlaying: boolean;
+	globalCurrentTime: number;
 	alignmentRevision: string;
 	seekToCue: (cue: ReadListenTimelineCue) => void;
 	retry: () => void;
 };
 
-/** Playback-facing seam shared by the reader DOM and synchronized-text views. */
+/** Playback-facing seam for the synchronized reader experience. */
 export function useReadListenPlaybackSession({
 	pairUuid,
 	ebookUuid,
@@ -129,6 +131,8 @@ export function useReadListenPlaybackSession({
 		nextCue,
 		repeatCue,
 		isAudiobookLoaded,
+		isPlaying: player.isPlaying,
+		globalCurrentTime: player.globalCurrentTime,
 		alignmentRevision: sessionQuery.data?.alignment.createdAt ?? "pending",
 		seekToCue,
 		retry,

@@ -79,6 +79,7 @@ import {
 	fetchAndCacheBook,
 	isBookLoadPending,
 } from "@/lib/reader/download-book";
+import { shouldSkipReaderPrefetch } from "@/lib/reader/prefetch";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -126,24 +127,6 @@ const SendToKindleDialog = lazy(async () => {
 
 function preloadSendToKindleDialog() {
 	void import("@/components/books/send-to-kindle-dialog");
-}
-
-/**
- * Books are tens of MB, so never prefetch one against the user's wishes: honour
- * Data Saver, and skip on connections where the download would be a burden
- * rather than a head start (it still downloads on demand when they open it).
- */
-function shouldSkipPrefetch(): boolean {
-	const connection = (
-		navigator as Navigator & {
-			connection?: { saveData?: boolean; effectiveType?: string };
-		}
-	).connection;
-	if (!connection) return false;
-	if (connection.saveData) return true;
-	return (
-		connection.effectiveType === "slow-2g" || connection.effectiveType === "2g"
-	);
 }
 
 /** Genres arrive linked ({uuid, name}) after enrichment, or as bare strings
@@ -518,7 +501,7 @@ function HeroActions({
 	const startPrefetch = () => {
 		if (isPdf) return;
 		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
-		if (shouldSkipPrefetch()) return;
+		if (shouldSkipReaderPrefetch()) return;
 		void fetchAndCacheBook(
 			bookUuid,
 			bookTitle,

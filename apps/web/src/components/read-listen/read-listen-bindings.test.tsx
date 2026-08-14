@@ -276,6 +276,142 @@ describe("Read & Listen player bindings", () => {
 		});
 	});
 
+	test("keeps trying a forced return until the narrated sentence finishes rendering", () => {
+		document.body.innerHTML =
+			'<section id="ttu-epub-chapter-2-xhtml"></section>';
+		const cue = {
+			id: "cue-late-render",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter-2.xhtml",
+				exact: "Second chapter.",
+			},
+			audioFileIndex: 0,
+			startMs: 2_000,
+			endMs: 3_000,
+			globalStartMs: 2_000,
+			globalEndMs: 3_000,
+		};
+		const pendingFrames: FrameRequestCallback[] = [];
+		const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = (callback) => {
+			pendingFrames.push(callback);
+			return pendingFrames.length;
+		};
+
+		try {
+			render(
+				<ActiveReadListenCue
+					cue={cue}
+					sectionTargets={[{ anchor: cue.text, value: cue }]}
+					followText
+					forceFollow
+					sourceFormat="epub"
+					readerApiRef={{ current: null }}
+				/>,
+			);
+			expect(pendingFrames).toHaveLength(1);
+			const section = document.getElementById("ttu-epub-chapter-2-xhtml");
+			if (!section) throw new Error("Missing late-render section fixture");
+			section.innerHTML = "<p>Second chapter.</p>";
+			pendingFrames.shift()?.(0);
+
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		} finally {
+			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+		}
+	});
+
+	test("does not move a cue that is already inside the reading comfort zone", () => {
+		document.body.innerHTML =
+			'<section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
+		const paragraph = document.querySelector("p");
+		Object.defineProperty(paragraph, "getBoundingClientRect", {
+			configurable: true,
+			value: () => ({
+				top: 300,
+				bottom: 340,
+				left: 120,
+				right: 360,
+				width: 240,
+				height: 40,
+				x: 120,
+				y: 300,
+				toJSON: () => ({}),
+			}),
+		});
+		const cue = {
+			id: "cue-comfortable",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter-2.xhtml",
+				exact: "Second chapter.",
+			},
+			audioFileIndex: 0,
+			startMs: 2_000,
+			endMs: 3_000,
+			globalStartMs: 2_000,
+			globalEndMs: 3_000,
+		};
+
+		render(
+			<ActiveReadListenCue
+				cue={cue}
+				sectionTargets={[{ anchor: cue.text, value: cue }]}
+				followText
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+			/>,
+		);
+
+		expect(scrollIntoView).not.toHaveBeenCalled();
+	});
+
+	test("does not recenter a visible sentence within a paginated spread", () => {
+		document.body.innerHTML =
+			'<main class="book-content book-content--paginated"><section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section></main>';
+		const paragraph = document.querySelector("p");
+		Object.defineProperty(paragraph, "getBoundingClientRect", {
+			configurable: true,
+			value: () => ({
+				top: 280,
+				bottom: 330,
+				left: 780,
+				right: 920,
+				width: 140,
+				height: 50,
+				x: 780,
+				y: 280,
+				toJSON: () => ({}),
+			}),
+		});
+		const cue = {
+			id: "cue-paginated",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter-2.xhtml",
+				exact: "Second chapter.",
+			},
+			audioFileIndex: 0,
+			startMs: 2_000,
+			endMs: 3_000,
+			globalStartMs: 2_000,
+			globalEndMs: 3_000,
+		};
+
+		render(
+			<ActiveReadListenCue
+				cue={cue}
+				sectionTargets={[{ anchor: cue.text, value: cue }]}
+				followText
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+			/>,
+		);
+
+		expect(scrollIntoView).not.toHaveBeenCalled();
+	});
+
 	test("follows active cues without motion when reduced motion is enabled", () => {
 		setReducedMotion(true);
 		document.body.innerHTML =

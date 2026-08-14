@@ -1,20 +1,39 @@
-import { type RefObject, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { MiniPlayer } from "@/components/audio-player/mini-player";
+import { Crosshair } from "@phosphor-icons/react";
+import {
+	type CSSProperties,
+	type RefObject,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { PlayerHostReadListenBridge } from "@/components/audio-player/player-host";
 import {
 	ActiveReadListenCue,
 	LoadReadListenAudiobook,
+	ReadListenManualFollowPause,
 	ReadListenSentenceSeeking,
 	SeekReadListenFromText,
-	StopReadListenPlaybackOnExit,
 } from "@/components/read-listen/read-listen-bindings";
 import { useReadListenPlaybackSession } from "@/components/read-listen/use-read-listen-playback-session";
 import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 import {
+	loadReadListenReaderSession,
+	resolveReadListenReaderPosition,
+} from "@/lib/read-listen/reader-session";
+import {
+	nextSentenceRepeatMode,
+	resolveSentenceRepeatBoundary,
+	type SentenceRepeatMode,
+} from "@/lib/read-listen/sentence-repeat";
+import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
+import type { ReaderTheme } from "@/lib/reader/settings";
 import type { ReaderSourceFormat, Section } from "@/lib/reader/types";
+import { m } from "@/paraglide/messages";
 
 export function ReadListenRuntime({
 	pairUuid,
@@ -25,6 +44,9 @@ export function ReadListenRuntime({
 	sections,
 	initialTextPosition,
 	readerDomRevision,
+	playheadRef,
+	onExitReadListen,
+	theme,
 }: {
 	pairUuid: string;
 	ebookUuid: string;
@@ -34,11 +56,26 @@ export function ReadListenRuntime({
 	sections: Section[];
 	initialTextPosition?: number;
 	readerDomRevision: string;
+	playheadRef?: RefObject<number | undefined>;
+	onExitReadListen: () => void;
+	theme?: ReaderTheme;
 }) {
+	const storedReaderSession = useMemo(
+		() => loadReadListenReaderSession({ pairUuid }),
+		[pairUuid],
+	);
 	const [followText, setFollowText] = useState(true);
+	const [manualFollowSuspended, setManualFollowSuspended] = useState(false);
+	const [forceFollowCueId, setForceFollowCueId] = useState<string>();
 	const [seekFromText, setSeekFromText] = useState(false);
+	const [sentenceRepeatMode, setSentenceRepeatMode] =
+		useState<SentenceRepeatMode>("off");
+	const [sentenceRepeatCue, setSentenceRepeatCue] =
+		useState<ReadListenTimelineCue>();
+	const loopSeekPendingRef = useRef(false);
 	const [isInitialTextSeekPending, setIsInitialTextSeekPending] = useState(
-		initialTextPosition !== undefined,
+		initialTextPosition !== undefined ||
+			storedReaderSession?.position !== undefined,
 	);
 	const [initialSeekCue, setInitialSeekCue] = useState<
 		{ cueId: string; playbackReachedCue: boolean } | undefined
@@ -51,10 +88,33 @@ export function ReadListenRuntime({
 		nextCue,
 		repeatCue,
 		isAudiobookLoaded,
+		isPlaying,
+		globalCurrentTime,
 		alignmentRevision,
 		statusText: currentText,
 		seekToCue,
 	} = session;
+	if (playheadRef) playheadRef.current = globalCurrentTime;
+	const restoredPosition = isAudiobookLoaded
+		? resolveReadListenReaderPosition({
+				livePosition: undefined,
+				exploredCharCount: -1,
+				rememberedPosition: storedReaderSession?.position,
+				rememberedPlayheadSeconds: storedReaderSession?.positionPlayheadSeconds,
+				currentPlayheadSeconds: globalCurrentTime,
+				savedBookmark: undefined,
+				bookCharCount: 0,
+			})
+		: undefined;
+	const entryTextPosition =
+		initialTextPosition ?? restoredPosition?.exploredCharCount;
+	if (
+		isInitialTextSeekPending &&
+		isAudiobookLoaded &&
+		entryTextPosition === undefined
+	) {
+		setIsInitialTextSeekPending(false);
+	}
 	const targetsBySection = useMemo(() => {
 		const sections = new Map<
 			string,
@@ -96,10 +156,154 @@ export function ReadListenRuntime({
 	// reader anchored to the latest cue (or the first upcoming one) so opening
 	// from the audiobook never falls back to an unrelated ebook bookmark.
 	const readerCue = activeCue ?? previousCue ?? nextCue;
+	useEffect(() => {
+		if (sentenceRepeatMode === "off" || !sentenceRepeatCue || !isPlaying) {
+			return;
+		}
+		const playheadMs = globalCurrentTime * 1000;
+		if (playheadMs < sentenceRepeatCue.globalEndMs) {
+			loopSeekPendingRef.current = false;
+		}
+		const boundary = resolveSentenceRepeatBoundary({
+			mode: sentenceRepeatMode,
+			playheadMs,
+			cueEndMs: sentenceRepeatCue.globalEndMs,
+			loopSeekPending: loopSeekPendingRef.current,
+		});
+		if (boundary === "finish") {
+			setSentenceRepeatMode("off");
+			setSentenceRepeatCue(undefined);
+			return;
+		}
+		if (boundary === "loop") {
+			loopSeekPendingRef.current = true;
+			seekToCue(sentenceRepeatCue);
+		}
+	}, [
+		globalCurrentTime,
+		isPlaying,
+		seekToCue,
+		sentenceRepeatCue,
+		sentenceRepeatMode,
+	]);
+	const stopSentenceRepeat = useCallback(() => {
+		loopSeekPendingRef.current = false;
+		setSentenceRepeatMode("off");
+		setSentenceRepeatCue(undefined);
+	}, []);
+	const cycleSentenceRepeatMode = useCallback(() => {
+		const nextMode = nextSentenceRepeatMode(sentenceRepeatMode);
+		if (nextMode === "off") {
+			stopSentenceRepeat();
+			return;
+		}
+		if (sentenceRepeatMode === "off") {
+			if (!repeatCue) return;
+			loopSeekPendingRef.current = false;
+			setSentenceRepeatCue(repeatCue);
+			seekToCue(repeatCue);
+		}
+		setSentenceRepeatMode(nextMode);
+	}, [repeatCue, seekToCue, sentenceRepeatMode, stopSentenceRepeat]);
+	const resumeTextFollowing = useCallback(() => {
+		setManualFollowSuspended(false);
+		setForceFollowCueId(readerCue?.id);
+		setFollowText(true);
+	}, [readerCue?.id]);
+	const toggleTextFollowing = useCallback(() => {
+		if (followText) {
+			setManualFollowSuspended(false);
+			setFollowText(false);
+			return;
+		}
+		resumeTextFollowing();
+	}, [followText, resumeTextFollowing]);
+	const suspendTextFollowing = useCallback(() => {
+		setManualFollowSuspended(true);
+		setFollowText(false);
+	}, []);
+	const settleForcedFollow = useCallback(() => {
+		setForceFollowCueId(undefined);
+	}, []);
+	const playerContext = useMemo(
+		() => ({
+			readerTheme: theme,
+			statusText: currentText,
+			onExitReadListen,
+			canSeekPreviousSentence: Boolean(previousCue),
+			onSeekPreviousSentence: () => {
+				if (previousCue) {
+					stopSentenceRepeat();
+					seekToCue(previousCue);
+				}
+			},
+			canSeekNextSentence: Boolean(nextCue),
+			onSeekNextSentence: () => {
+				if (nextCue) {
+					stopSentenceRepeat();
+					seekToCue(nextCue);
+				}
+			},
+			canRepeatSentence: Boolean(repeatCue || sentenceRepeatCue),
+			sentenceRepeatMode,
+			onCycleSentenceRepeatMode: cycleSentenceRepeatMode,
+			followText,
+			onToggleFollowText: toggleTextFollowing,
+			seekFromText,
+			onToggleSeekFromText: () => setSeekFromText((current) => !current),
+		}),
+		[
+			currentText,
+			cycleSentenceRepeatMode,
+			followText,
+			nextCue,
+			onExitReadListen,
+			previousCue,
+			repeatCue,
+			sentenceRepeatCue,
+			sentenceRepeatMode,
+			seekFromText,
+			seekToCue,
+			stopSentenceRepeat,
+			theme,
+			toggleTextFollowing,
+		],
+	);
 
 	return (
 		<>
-			<StopReadListenPlaybackOnExit />
+			<PlayerHostReadListenBridge context={playerContext} />
+			<div className="sr-only" role="status" aria-live="polite">
+				{manualFollowSuspended ? m["read_listen.following_paused"]() : ""}
+			</div>
+			{manualFollowSuspended && readerCue && (
+				<button
+					type="button"
+					onClick={resumeTextFollowing}
+					className="reader-ui-contain fixed inset-x-0 bottom-[calc(var(--reader-player-reserve-mobile)+0.75rem)] z-20 mx-auto flex h-11 w-fit max-w-[calc(100%-2rem)] items-center gap-2 rounded-full bg-[var(--read-listen-resume-surface)] px-4 font-medium text-[var(--read-listen-resume-foreground)] text-sm shadow-[var(--read-listen-resume-shadow)] transition-[background-color,transform] duration-150 hover:bg-[var(--read-listen-resume-hover)] focus-visible:outline-2 focus-visible:outline-[var(--read-listen-resume-focus)] focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100 md:bottom-[calc(var(--reader-player-reserve-desktop)+0.75rem)]"
+					style={
+						{
+							"--read-listen-resume-surface": theme
+								? `color-mix(in oklab, ${theme.fontColor} 8%, ${theme.backgroundColor})`
+								: "var(--background)",
+							"--read-listen-resume-hover": theme
+								? `color-mix(in oklab, ${theme.fontColor} 12%, ${theme.backgroundColor})`
+								: "var(--accent)",
+							"--read-listen-resume-foreground":
+								theme?.fontColor ?? "var(--foreground)",
+							"--read-listen-resume-focus": theme?.fontColor ?? "var(--ring)",
+							"--read-listen-resume-shadow": theme
+								? `0 0 0 1px color-mix(in oklab, ${theme.fontColor} 16%, ${theme.backgroundColor}), 0 8px 24px oklch(0 0 0 / 18%)`
+								: "var(--elevation-dropdown)",
+						} as CSSProperties
+					}
+				>
+					<Crosshair aria-hidden="true" className="size-5" weight="fill" />
+					<span className="truncate">
+						{m["read_listen.return_to_narration"]()}
+					</span>
+				</button>
+			)}
 			{session.details && (
 				<LoadReadListenAudiobook
 					key={session.details.uuid}
@@ -107,14 +311,14 @@ export function ReadListenRuntime({
 					isAudiobookLoaded={isAudiobookLoaded}
 				/>
 			)}
-			{initialTextPosition !== undefined &&
+			{entryTextPosition !== undefined &&
 				isInitialTextSeekPending &&
 				isAudiobookLoaded &&
 				timeline.length > 0 &&
 				targetsBySection.size > 0 && (
 					<SeekReadListenFromText
-						key={`${pairUuid}:${alignmentRevision}:${initialTextPosition}:${readerDomRevision}`}
-						targetCharacter={initialTextPosition}
+						key={`${pairUuid}:${alignmentRevision}:${entryTextPosition}:${readerDomRevision}`}
+						targetCharacter={entryTextPosition}
 						sections={sections}
 						targetsBySection={targetsBySection}
 						readerApiRef={readerApiRef}
@@ -137,8 +341,16 @@ export function ReadListenRuntime({
 						) ?? []
 					}
 					followText={followText && !suppressInitialCueFollow}
+					forceFollow={readerCue.id === forceFollowCueId}
+					onFollowSettled={settleForcedFollow}
 					sourceFormat={sourceFormat}
 					readerApiRef={readerApiRef}
+				/>
+			)}
+			{followText && !isInitialTextSeekPending && (
+				<ReadListenManualFollowPause
+					surfaceRef={readerSurfaceRef}
+					onPause={suspendTextFollowing}
 				/>
 			)}
 			{seekFromText && isAudiobookLoaded && (
@@ -148,33 +360,6 @@ export function ReadListenRuntime({
 					targetsBySection={targetsBySection}
 				/>
 			)}
-			{typeof document !== "undefined" &&
-				createPortal(
-					<MiniPlayer
-						placement="reader"
-						readListen={{
-							statusText: currentText,
-							canSeekPreviousSentence: Boolean(previousCue),
-							onSeekPreviousSentence: () => {
-								if (previousCue) seekToCue(previousCue);
-							},
-							canSeekNextSentence: Boolean(nextCue),
-							onSeekNextSentence: () => {
-								if (nextCue) seekToCue(nextCue);
-							},
-							canRepeatSentence: Boolean(repeatCue),
-							onRepeatSentence: () => {
-								if (repeatCue) seekToCue(repeatCue);
-							},
-							followText,
-							onToggleFollowText: () => setFollowText((current) => !current),
-							seekFromText,
-							onToggleSeekFromText: () =>
-								setSeekFromText((current) => !current),
-						}}
-					/>,
-					document.body,
-				)}
 		</>
 	);
 }

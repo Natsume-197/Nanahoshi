@@ -1,21 +1,28 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
+import {
+	rememberReadListenReaderEntry,
+	rememberReadListenReaderPosition,
+} from "@/lib/read-listen/reader-session";
 
 let playerTime = 0;
 const seekTo = mock((time: number) => {
 	playerTime = time;
 });
 const scrollIntoView = mock(() => {});
-const stop = mock(() => {});
 let capturedReadListen:
 	| {
+			onExitReadListen: () => void;
 			canSeekPreviousSentence: boolean;
 			canSeekNextSentence: boolean;
 			canRepeatSentence: boolean;
 			onSeekPreviousSentence: () => void;
 			onSeekNextSentence: () => void;
-			onRepeatSentence: () => void;
+			sentenceRepeatMode: "off" | "once" | "loop";
+			onCycleSentenceRepeatMode: () => void;
+			followText: boolean;
+			onToggleFollowText: () => void;
 	  }
 	| undefined;
 
@@ -87,18 +94,22 @@ mock.module("@/context/audio-player-context", () => ({
 		loadAudiobook: () => {},
 		seekTo,
 		setExpanded: () => {},
-		stop,
 	}),
 	useAudioPlayerBook: () => ({ uuid: "audio-1" }),
 	useAudioPlayerState: () => ({
 		audiobook: { uuid: "audio-1" },
 		globalCurrentTime: playerTime,
+		isPlaying: true,
 	}),
 }));
 
-mock.module("@/components/audio-player/mini-player", () => ({
-	MiniPlayer: ({ readListen }: { readListen?: typeof capturedReadListen }) => {
-		capturedReadListen = readListen;
+mock.module("@/components/audio-player/player-host", () => ({
+	PlayerHostReadListenBridge: ({
+		context,
+	}: {
+		context: typeof capturedReadListen;
+	}) => {
+		capturedReadListen = context;
 		return null;
 	},
 }));
@@ -106,11 +117,14 @@ mock.module("@/components/audio-player/mini-player", () => ({
 const { ReadListenRuntime } = await import("./read-listen-runtime");
 
 beforeAll(() => {
-	const dom = new JSDOM("<!doctype html><html><body></body></html>");
+	const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+		url: "https://nanahoshi.test",
+	});
 	Object.assign(globalThis, {
 		window: dom.window,
 		document: dom.window.document,
 		HTMLElement: dom.window.HTMLElement,
+		Element: dom.window.Element,
 		HTMLImageElement: dom.window.HTMLImageElement,
 		Node: dom.window.Node,
 		requestAnimationFrame: (callback: FrameRequestCallback) => {
@@ -130,8 +144,8 @@ afterEach(() => {
 	playerTime = 0;
 	seekTo.mockClear();
 	scrollIntoView.mockClear();
-	stop.mockClear();
 	capturedReadListen = undefined;
+	window.sessionStorage.clear();
 });
 
 describe("ReadListenRuntime", () => {
@@ -156,6 +170,7 @@ describe("ReadListenRuntime", () => {
 				]}
 				initialTextPosition={4}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 
@@ -172,6 +187,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 
@@ -189,6 +205,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[]}
 				readerDomRevision="pages-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 		expect(capturedReadListen?.canSeekPreviousSentence).toBe(true);
@@ -197,9 +214,9 @@ describe("ReadListenRuntime", () => {
 		expect(seekTo).toHaveBeenLastCalledWith(0);
 	});
 
-	test("repeats the active aligned sentence from its beginning", () => {
+	test("cycles sentence repetition from once to a continuous loop", () => {
 		playerTime = 0.5;
-		render(
+		const runtime = () => (
 			<ReadListenRuntime
 				pairUuid="pair-1"
 				ebookUuid="ebook-1"
@@ -208,12 +225,71 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
+			/>
+		);
+		const view = render(runtime());
+
+		expect(capturedReadListen?.canRepeatSentence).toBe(true);
+		expect(capturedReadListen?.sentenceRepeatMode).toBe("off");
+		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
+		expect(seekTo).toHaveBeenLastCalledWith(0);
+		expect(capturedReadListen?.sentenceRepeatMode).toBe("once");
+
+		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
+		expect(capturedReadListen?.sentenceRepeatMode).toBe("loop");
+		playerTime = 1.1;
+		view.rerender(runtime());
+		expect(seekTo).toHaveBeenCalledTimes(2);
+		expect(seekTo).toHaveBeenLastCalledWith(0);
+
+		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
+		expect(capturedReadListen?.sentenceRepeatMode).toBe("off");
+	});
+
+	test("pauses following on manual reading and returns to narration on request", () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><div class="book-content"><section id="ttu-epub-chapter-xhtml"><p>一。</p></section></div></main>';
+		const readerSurface = document.getElementById("reader-fixture");
+		const paragraph = document.querySelector("p");
+		Object.defineProperty(paragraph, "getBoundingClientRect", {
+			configurable: true,
+			value: () => ({
+				top: 300,
+				bottom: 340,
+				left: 120,
+				right: 360,
+				width: 240,
+				height: 40,
+				x: 120,
+				y: 300,
+				toJSON: () => ({}),
+			}),
+		});
+
+		const view = render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: readerSurface }}
+				sections={[]}
+				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 
-		expect(capturedReadListen?.canRepeatSentence).toBe(true);
-		capturedReadListen?.onRepeatSentence();
-		expect(seekTo).toHaveBeenLastCalledWith(0);
+		expect(capturedReadListen?.followText).toBe(true);
+		expect(scrollIntoView).not.toHaveBeenCalled();
+		const bookContent = document.querySelector(".book-content");
+		if (!bookContent) throw new Error("Missing reader content fixture");
+		fireEvent.wheel(bookContent);
+		expect(capturedReadListen?.followText).toBe(false);
+
+		fireEvent.click(view.getByRole("button", { name: "Return to narration" }));
+		expect(capturedReadListen?.followText).toBe(true);
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
 
 	test("rebinds the active cue after the reader replaces its document", () => {
@@ -229,6 +305,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: readerSurface }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
@@ -246,6 +323,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: readerSurface }}
 				sections={[]}
 				readerDomRevision="pages-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 
@@ -266,13 +344,60 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
 			/>,
 		);
 
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
 
-	test("stops the paired audiobook when leaving the reader", () => {
+	test("restores the exact synchronized text after a reload when playback has not moved", () => {
+		playerTime = 9;
+		rememberReadListenReaderEntry({
+			pairUuid: "pair-1",
+			ebookUuid: "ebook-1",
+			audiobookUuid: "audio-1",
+			originHref: "/dashboard/search?q=fixture",
+			originHistoryIndex: 3,
+			playheadSeconds: 9,
+		});
+		rememberReadListenReaderPosition({
+			pairUuid: "pair-1",
+			position: {
+				exploredCharCount: 4,
+				progress: 2 / 3,
+				lastBookmarkModified: 1,
+			},
+			playheadSeconds: 9,
+		});
+		document.body.innerHTML =
+			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
+
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: document.body }}
+				sections={[
+					{
+						reference: "ttu-epub-chapter-xhtml",
+						charactersWeight: 1,
+						startCharacter: 0,
+						characters: 6,
+					},
+				]}
+				readerDomRevision="scroll-horizontal"
+				onExitReadListen={() => {}}
+			/>,
+		);
+
+		expect(seekTo).toHaveBeenLastCalledWith(9);
+	});
+
+	test("keeps playback alive when leaving the synchronized reader", () => {
+		const onExitReadListen = mock(() => {});
 		const view = render(
 			<ReadListenRuntime
 				pairUuid="pair-1"
@@ -282,11 +407,13 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
+				onExitReadListen={onExitReadListen}
 			/>,
 		);
 
-		view.unmount();
+		capturedReadListen?.onExitReadListen();
+		expect(onExitReadListen).toHaveBeenCalledTimes(1);
 
-		expect(stop).toHaveBeenCalledTimes(1);
+		view.unmount();
 	});
 });

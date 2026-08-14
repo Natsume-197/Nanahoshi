@@ -7,6 +7,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
+import { PlayerHostProvider } from "@/components/audio-player/player-host";
 import { SettingsModalHost } from "@/components/layout/settings-modal-host";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -207,9 +208,11 @@ function RootDocument() {
 						<SettingsModalHost>
 							{session && <AuthenticatedSessionLifecycle />}
 							<AudioPlayerProvider>
-								{/* key={locale} remounts the routed tree on a language
-								    switch so memo'd components re-run their m.*() calls. */}
-								<Outlet key={locale} />
+								<PlayerHostProvider>
+									{/* key={locale} remounts the routed tree on a language
+									    switch so memo'd components re-run their m.*() calls. */}
+									<Outlet key={locale} />
+								</PlayerHostProvider>
 							</AudioPlayerProvider>
 						</SettingsModalHost>
 					</TooltipProvider>

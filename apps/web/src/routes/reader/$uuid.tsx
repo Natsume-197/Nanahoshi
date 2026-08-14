@@ -8,6 +8,7 @@ import {
 	redirect,
 	useLoaderData,
 	useNavigate,
+	useRouter,
 } from "@tanstack/react-router";
 import {
 	type CSSProperties,
@@ -16,9 +17,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { z } from "zod";
-import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { ReadListenRuntime } from "@/components/read-listen/read-listen-runtime";
 import { ReaderEngine } from "@/components/reader/reader-engine";
 import { ReaderFooter } from "@/components/reader/reader-footer";
@@ -50,9 +49,13 @@ import {
 import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
 import {
 	disableReadListenReader,
+	loadReadListenReaderSession,
 	navigateReadListenReaderMode,
+	planReadListenReaderExit,
+	rememberReadListenReaderPosition,
 	resolveReadListenReaderPosition,
 } from "@/lib/read-listen/reader-session";
+import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
 import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import { resolveMangaReadingDirection } from "@/lib/reader/manga-pagination";
 import {
@@ -107,6 +110,9 @@ import "@fontsource/noto-sans-jp/japanese-700.css";
 
 export const Route = createFileRoute("/reader/$uuid")({
 	component: ReaderPage,
+	pendingComponent: ReaderRoutePending,
+	pendingMs: 0,
+	pendingMinMs: 0,
 	validateSearch: z.object({
 		pair: z.string().uuid().optional(),
 	}),
@@ -129,6 +135,17 @@ export const Route = createFileRoute("/reader/$uuid")({
 		}
 	},
 });
+
+function ReaderRoutePending() {
+	const audioPlayerBook = useAudioPlayerBook();
+	return (
+		<ReaderLoadingScreen
+			state={{ phase: "loading" }}
+			entering
+			reservePlayerSpace={Boolean(audioPlayerBook)}
+		/>
+	);
+}
 
 /** Settings that change the book layout but apply live (no remount). */
 const LAYOUT_SETTING_KEYS = new Set<string>([
@@ -177,6 +194,20 @@ function RestoreReadListenPosition({
 	return null;
 }
 
+function PersistReadListenPositionOnExit({
+	getCurrentPosition,
+	rememberPosition,
+}: {
+	getCurrentPosition: () => ReaderBookmark | undefined;
+	rememberPosition: (position: ReaderBookmark) => void;
+}) {
+	useMountEffect(() => () => {
+		const position = getCurrentPosition();
+		if (position) rememberPosition(position);
+	});
+	return null;
+}
+
 function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
@@ -189,6 +220,7 @@ function ReaderPage() {
 	const audioPlayerBook = useAudioPlayerBook();
 	const { stop } = useAudioPlayerActions();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const isMobile = useIsMobile();
 	const pairingsQuery = useQuery(
 		orpc.readListen.getPairings.queryOptions({
@@ -256,7 +288,25 @@ function ReaderPage() {
 	const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
 	const livePositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	const overlayEntryPositionRef = useRef<ReaderBookmark | undefined>(undefined);
+	const initialReadListenSession = readListenPairUuid
+		? loadReadListenReaderSession({ pairUuid: readListenPairUuid })
+		: undefined;
 	const readListenPositionRef = useRef<ReaderBookmark | undefined>(undefined);
+	const readListenPlayheadRef = useRef<number | undefined>(
+		initialReadListenSession?.positionPlayheadSeconds,
+	);
+	const loadedReadListenPairRef = useRef(readListenPairUuid);
+	if (
+		readListenPairUuid &&
+		readListenPairUuid !== loadedReadListenPairRef.current
+	) {
+		loadedReadListenPairRef.current = readListenPairUuid;
+		const session = loadReadListenReaderSession({
+			pairUuid: readListenPairUuid,
+		});
+		readListenPositionRef.current = undefined;
+		readListenPlayheadRef.current = session?.positionPlayheadSeconds;
+	}
 	// -1 = no report from the reader yet (0 is a real position: book start).
 	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
@@ -274,7 +324,24 @@ function ReaderPage() {
 		setPdfDocumentPageCount(null);
 		livePositionRef.current = undefined;
 		overlayEntryPositionRef.current = undefined;
+		readListenPositionRef.current = undefined;
+		readListenPlayheadRef.current = undefined;
 	}
+
+	const rememberReadListenPosition = useCallback(
+		(position: ReaderBookmark) => {
+			readListenPositionRef.current = position;
+			exploredRef.current = position.exploredCharCount;
+			if (readListenPairUuid && readListenPlayheadRef.current !== undefined) {
+				rememberReadListenReaderPosition({
+					pairUuid: readListenPairUuid,
+					position,
+					playheadSeconds: readListenPlayheadRef.current,
+				});
+			}
+		},
+		[readListenPairUuid],
+	);
 
 	const toggleReadListen = () => {
 		if (readListenPairUuid) {
@@ -287,10 +354,7 @@ function ReaderPage() {
 						savedBookmark: bookmarkRef.current,
 						bookCharCount: bookCharCountRef.current,
 					}),
-				rememberPosition: (position) => {
-					readListenPositionRef.current = position;
-					exploredRef.current = position.exploredCharCount;
-				},
+				rememberPosition: rememberReadListenPosition,
 				leaveMode: async () => {
 					await navigateReadListenReaderMode({
 						navigate: (options) => navigate(options),
@@ -317,6 +381,52 @@ function ReaderPage() {
 			pairUuid: readyReadListenPairing.id,
 		});
 	};
+	const exitReadListen = useCallback(() => {
+		void disableReadListenReader({
+			getCurrentPosition: () =>
+				resolveReadListenReaderPosition({
+					livePosition: apiRef.current?.getBookmark(),
+					exploredCharCount: exploredRef.current,
+					rememberedPosition: readListenPositionRef.current,
+					savedBookmark: bookmarkRef.current,
+					bookCharCount: bookCharCountRef.current,
+				}),
+			rememberPosition: rememberReadListenPosition,
+			leaveMode: () =>
+				transitionReadListenNavigation({
+					direction: "exit",
+					update: async () => {
+						const exit = planReadListenReaderExit({
+							session: readListenPairUuid
+								? loadReadListenReaderSession({ pairUuid: readListenPairUuid })
+								: undefined,
+							currentHistoryIndex:
+								router.latestLocation.state.__TSR_index ??
+								router.history.location.state.__TSR_index,
+							fallbackAudiobookUuid: audioPlayerBook?.uuid,
+							fallbackEbookUuid: uuid,
+						});
+						if (exit.type === "back") {
+							await new Promise<void>((resolve) => {
+								const unsubscribe = router.subscribe("onResolved", () => {
+									unsubscribe();
+									resolve();
+								});
+								router.history.back();
+							});
+							return;
+						}
+						await router.navigate({ href: exit.href });
+					},
+				}),
+		});
+	}, [
+		audioPlayerBook,
+		readListenPairUuid,
+		rememberReadListenPosition,
+		router,
+		uuid,
+	]);
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
 	const { data: activeOrg } = authClient.useActiveOrganization();
@@ -790,7 +900,12 @@ function ReaderPage() {
 	}
 
 	if (loadState.phase !== "ready") {
-		return <ReaderLoadingScreen state={loadState} />;
+		return (
+			<ReaderLoadingScreen
+				state={loadState}
+				reservePlayerSpace={Boolean(audioPlayerBook)}
+			/>
+		);
 	}
 
 	const { data: loadedData, html } = loadState;
@@ -837,8 +952,9 @@ function ReaderPage() {
 	return (
 		<div
 			ref={readerSurfaceRef}
+			data-read-listen-active={Boolean(readListenPairUuid)}
 			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
-			className="font-reader-sans"
+			className="reader-route-content font-reader-sans"
 			style={
 				{
 					backgroundColor: theme.backgroundColor,
@@ -912,22 +1028,36 @@ function ReaderPage() {
 			{readListenPairUuid &&
 				data.sourceFormat &&
 				data.sourceFormat !== "pdf" && (
-					<ReadListenRuntime
-						key={`${readListenPairUuid}:${readListenEntryCharacter ?? "audio"}`}
-						pairUuid={readListenPairUuid}
-						ebookUuid={uuid}
-						sourceFormat={data.sourceFormat}
-						readerApiRef={apiRef}
-						readerSurfaceRef={readerSurfaceRef}
-						sections={data.sections}
-						initialTextPosition={readListenEntryCharacter}
-						readerDomRevision={`${readerKey}:${readerApiRevision}`}
-					/>
+					<>
+						<ReadListenRuntime
+							key={`${readListenPairUuid}:${readListenEntryCharacter ?? "audio"}`}
+							pairUuid={readListenPairUuid}
+							ebookUuid={uuid}
+							sourceFormat={data.sourceFormat}
+							readerApiRef={apiRef}
+							readerSurfaceRef={readerSurfaceRef}
+							sections={data.sections}
+							initialTextPosition={readListenEntryCharacter}
+							readerDomRevision={`${readerKey}:${readerApiRevision}`}
+							playheadRef={readListenPlayheadRef}
+							theme={theme}
+							onExitReadListen={exitReadListen}
+						/>
+						<PersistReadListenPositionOnExit
+							key={`persist:${readListenPairUuid}`}
+							getCurrentPosition={() =>
+								resolveReadListenReaderPosition({
+									livePosition: apiRef.current?.getBookmark(),
+									exploredCharCount: exploredRef.current,
+									rememberedPosition: readListenPositionRef.current,
+									savedBookmark: bookmarkRef.current,
+									bookCharCount: bookCharCountRef.current,
+								})
+							}
+							rememberPosition={rememberReadListenPosition}
+						/>
+					</>
 				)}
-			{!readListenPairUuid &&
-				typeof document !== "undefined" &&
-				createPortal(<MiniPlayer placement="reader" />, document.body)}
-
 			{showHeader && (
 				<button
 					type="button"
@@ -980,9 +1110,18 @@ function ReaderPage() {
 				readListenAvailable={readListenAvailable}
 				readListenActive={Boolean(readListenPairUuid)}
 				onReadListenClick={toggleReadListen}
-				onExitClick={() =>
-					navigate({ to: "/dashboard/books/$uuid", params: { uuid } })
-				}
+				onExitClick={() => {
+					const exit = () =>
+						navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
+					if (!readListenPairUuid) {
+						void exit();
+						return;
+					}
+					void transitionReadListenNavigation({
+						direction: "exit",
+						update: exit,
+					});
+				}}
 			/>
 
 			<ReaderFooter

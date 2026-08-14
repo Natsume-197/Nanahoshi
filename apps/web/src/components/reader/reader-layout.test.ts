@@ -4,8 +4,27 @@ import { JSDOM } from "jsdom";
 const readerCss = await Bun.file(
 	new URL("./reader.css", import.meta.url),
 ).text();
+const readerRoute = await Bun.file(
+	new URL("../../routes/reader/$uuid.tsx", import.meta.url),
+).text();
 
 describe("continuous reader layout", () => {
+	test("gives synchronized narration a themed, non-color-only text treatment", () => {
+		expect(readerCss).toContain(
+			"var(--book-content-selection-background-color)",
+		);
+		expect(readerCss).toContain("text-decoration-line: underline");
+		expect(readerCss).toContain("@media (forced-colors: active)");
+	});
+
+	test("keeps the end of a synchronized book clear of the persistent player", () => {
+		expect(readerRoute).toContain(
+			"data-read-listen-active={Boolean(readListenPairUuid)}",
+		);
+		expect(readerCss).toContain("var(--reader-player-reserve-mobile)");
+		expect(readerCss).toContain("var(--reader-player-reserve-desktop)");
+	});
+
 	test("generated text wrappers fill the reading area despite EPUB page sizing", () => {
 		const dom = new JSDOM(`
 			<style>${readerCss}</style>

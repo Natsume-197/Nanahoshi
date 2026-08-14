@@ -7,7 +7,6 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
-import { MiniPlayer } from "@/components/audio-player/mini-player";
 import { CreateMenu } from "@/components/dashboard/create-menu";
 import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
@@ -469,10 +468,6 @@ export function DashboardLayout() {
 				<div inert={playerExpanded}>
 					<MobileBottomNav onReselectActiveTab={handleReselectActiveTab} />
 				</div>
-
-				{/* Full-width transport row: sits below the sidebar+content flex so it
-				    spans the entire viewport, not just the content column. */}
-				<MiniPlayer />
 			</div>
 		</ScrollContainerProvider>
 	);

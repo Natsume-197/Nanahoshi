@@ -290,6 +290,22 @@
 	margin-bottom: 6rem;
 }
 
+/* The persistent player is part of the synchronized reading surface. Give the
+   final chapter enough runway to clear it instead of ending underneath it. */
+.reader-route-content[data-read-listen-active="true"]
+	.book-content--continuous.book-content--writing-horizontal-tb
+	> :last-child {
+	margin-bottom: calc(6rem + var(--reader-player-reserve-mobile));
+}
+
+@media (min-width: 48rem) {
+	.reader-route-content[data-read-listen-active="true"]
+		.book-content--continuous.book-content--writing-horizontal-tb
+		> :last-child {
+		margin-bottom: calc(6rem + var(--reader-player-reserve-desktop));
+	}
+}
+
 /* Paginated mode: fixed-size scroll element with CSS columns */
 
 .book-content--paginated {
@@ -568,8 +584,16 @@
 	background-color: var(--book-content-selection-background-color);
 }
 ::highlight(read-listen-active) {
-	background-color: color-mix(in oklab, currentColor 18%, transparent);
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 42%,
+		transparent
+	);
 	color: inherit;
+	text-decoration-line: underline;
+	text-decoration-color: color-mix(in oklab, currentColor 42%, transparent);
+	text-decoration-thickness: 0.08em;
+	text-underline-offset: 0.16em;
 }
 
 [data-read-listen-sentence-hit] {
@@ -583,10 +607,23 @@
 
 @media (prefers-contrast: more) {
 	::highlight(read-listen-active) {
-		background-color: color-mix(in oklab, currentColor 32%, transparent);
+		background-color: color-mix(
+			in oklab,
+			var(--book-content-selection-background-color) 64%,
+			transparent
+		);
+		text-decoration-color: currentColor;
 	}
 
 	::highlight(read-listen-hover) {
 		background-color: color-mix(in oklab, currentColor 24%, transparent);
+	}
+}
+
+@media (forced-colors: active) {
+	::highlight(read-listen-active) {
+		background-color: Highlight;
+		color: HighlightText;
+		text-decoration-color: HighlightText;
 	}
 }

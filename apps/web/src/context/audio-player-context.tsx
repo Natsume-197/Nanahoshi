@@ -120,6 +120,8 @@ interface AudioPlayerActions {
 	togglePlay: () => void;
 	seekTo: (time: number) => void;
 	seekRelative: (seconds: number) => void;
+	/** Imperative snapshot for navigation flows that must not subscribe to ticks. */
+	getGlobalCurrentTime: () => number;
 	setSpeed: (speed: number) => void;
 	setVolume: (volume: number) => void;
 	stop: () => void;
@@ -292,6 +294,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				: totalDurationRef.current,
 		};
 	}, []);
+	const getGlobalCurrentTime = useCallback(
+		() => getPlaybackState().currentTime,
+		[getPlaybackState],
+	);
 
 	usePlayerSync({
 		bookUuid: audiobook?.uuid ?? "",
@@ -880,6 +886,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			togglePlay,
 			seekTo,
 			seekRelative,
+			getGlobalCurrentTime,
 			setSpeed,
 			setVolume,
 			stop,
@@ -898,6 +905,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			togglePlay,
 			seekTo,
 			seekRelative,
+			getGlobalCurrentTime,
 			setSpeed,
 			setVolume,
 			stop,

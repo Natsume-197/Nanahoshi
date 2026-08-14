@@ -19,6 +19,30 @@ const playerMoreMenu = readFileSync(
 	new URL("./player-more-menu.tsx", import.meta.url),
 	"utf8",
 );
+const readerRoute = readFileSync(
+	new URL("../../routes/reader/$uuid.tsx", import.meta.url),
+	"utf8",
+);
+const rootRoute = readFileSync(
+	new URL("../../routes/__root.tsx", import.meta.url),
+	"utf8",
+);
+const playerHost = readFileSync(
+	new URL("./player-host.tsx", import.meta.url),
+	"utf8",
+);
+const dashboardLayout = readFileSync(
+	new URL("../layout/dashboard-layout.tsx", import.meta.url),
+	"utf8",
+);
+const readListenRuntime = readFileSync(
+	new URL("../read-listen/read-listen-runtime.tsx", import.meta.url),
+	"utf8",
+);
+const readListenPlayer = readFileSync(
+	new URL("./read-listen-player.tsx", import.meta.url),
+	"utf8",
+);
 
 describe("expanded player motion", () => {
 	it("keeps the miniplayer behind the panel until closing finishes", () => {
@@ -37,6 +61,96 @@ describe("expanded player motion", () => {
 
 	it("reopens on press without waiting for click release", () => {
 		expect(playerBar).toContain("onPointerDown={expand}");
+	});
+
+	it("opens Read & Listen in the reader instead of a player side panel", () => {
+		expect(miniPlayer).toContain("navigateToReadListenReader");
+		expect(miniPlayer).toContain("useReadListenReaderPrefetch");
+		expect(miniPlayer).toContain("readerPrefetch.prepare();");
+		expect(miniPlayer).not.toContain('setSidePanel("read-listen")');
+		expect(expandedPlayer).not.toContain("PlayerReadListenPanel");
+		expect(expandedPlayer).not.toContain("PlayerModeSelector");
+	});
+
+	it("keeps one player instance alive across dashboard and reader routes", () => {
+		expect(rootRoute).toContain("<PlayerHostProvider>");
+		expect(playerHost.match(/<MiniPlayer\b/g)).toHaveLength(1);
+		expect(miniPlayer).toContain('"--player-reserve":');
+		expect(dashboardLayout).not.toContain("<MiniPlayer");
+		expect(readerRoute).not.toContain("<MiniPlayer");
+		expect(readListenRuntime).not.toContain("<MiniPlayer");
+		expect(readListenRuntime).toContain("<PlayerHostReadListenBridge");
+	});
+
+	it("adopts the reader theme and prioritizes controls on narrow screens", () => {
+		expect(readListenRuntime).toContain("readerTheme: theme");
+		expect(miniPlayer).toContain('"--sidebar": readerTheme.backgroundColor');
+		expect(playerBar).toContain('? "hidden"');
+		expect(playerBar).toContain(
+			'"pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5"',
+		);
+		expect(playerBar).toContain('compactControlClass = "max-[30rem]:size-10"');
+		expect(playerBar).toContain(
+			'"relative grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"',
+		);
+		expect(playerBar).toContain("<ReadListenSentenceSeekButton");
+		expect(playerBar).not.toContain("<ReadListenModeControls");
+	});
+
+	it("keeps the return-to-narration action centered above the player", () => {
+		expect(readListenRuntime).toContain(
+			"fixed inset-x-0 bottom-[calc(var(--reader-player-reserve-mobile)+0.75rem)]",
+		);
+		expect(readListenRuntime).not.toContain(
+			"md:right-[max(1rem,var(--safe-area-right))]",
+		);
+	});
+
+	it("keeps the reader scrollbar usable while the dock paints full-bleed", () => {
+		expect(miniPlayer).toContain("fixed inset-x-0");
+		expect(miniPlayer).toContain('placement === "reader"');
+		expect(miniPlayer).toContain("after:left-full after:w-8 after:bg-sidebar");
+		expect(miniPlayer).not.toContain("w-screen");
+		expect(readerRoute).not.toContain("playerDockVisible");
+	});
+
+	it("makes sentence navigation a distinct primary control group", () => {
+		expect(readListenPlayer).toContain(
+			"export function ReadListenSentenceControls",
+		);
+		expect(readListenPlayer).toContain(
+			"export function ReadListenModeControls",
+		);
+		expect(readListenPlayer).toContain("<ArrowLeft");
+		expect(readListenPlayer).toContain("<ArrowRight");
+		expect(readListenPlayer).not.toContain("<SkipBack");
+		expect(readListenPlayer).not.toContain("<SkipForward");
+		expect(readListenPlayer).toContain(
+			'"flex min-w-0 items-center gap-0.5 rounded-full bg-foreground/[0.06] p-0.5"',
+		);
+		expect(playerBar).toContain("<ReadListenSentenceControls");
+		expect(expandedPlayer).toContain("<ReadListenSentenceControls");
+	});
+
+	it("keeps playback centered independently from synchronized controls", () => {
+		expect(playerBar).toContain('readListen ? "w-[42%]" : "w-1/2"');
+		expect(playerBar).toContain(
+			'<PlayPauseButton variant="strip" className="size-10"',
+		);
+		expect(playerBar).toContain(
+			'<div className="flex max-w-full items-center justify-center">',
+		);
+	});
+
+	it("keeps the persistent dock above the shared reader transition", () => {
+		expect(miniPlayer).toContain("read-listen-player-dock fixed");
+		expect(miniPlayer).toContain("data-player-expanded={isExpanded}");
+		expect(miniPlayer).toContain("transitionReadListenNavigation");
+		expect(css).toContain(
+			'.read-listen-player-dock[data-player-expanded="false"]',
+		);
+		expect(css).toContain("view-transition-name: read-listen-player");
+		expect(css).toContain("::view-transition-group(read-listen-player)");
 	});
 
 	it("disables pull-to-refresh only while the expanded player is open", () => {

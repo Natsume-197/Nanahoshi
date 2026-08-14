@@ -169,6 +169,7 @@ export function ReaderHeader({
 				/>
 			)}
 			<div
+				data-reader-header
 				inert={!open}
 				className={`writing-horizontal-tb fixed top-0 right-0 left-0 z-10 transition-transform duration-300 ease-out motion-reduce:transition-none ${
 					open ? "translate-y-0" : "-translate-y-full"

@@ -11,20 +11,16 @@ import { MarqueeText } from "@/components/audio-player/marquee-text";
 import { PlayerChapterPanel } from "@/components/audio-player/player-chapter-panel";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
-import { PlayerModeSelector } from "@/components/audio-player/player-mode-selector";
 import { PlayerMoreMenu } from "@/components/audio-player/player-more-menu";
-import {
-	type PlayerReadListenPairing,
-	PlayerReadListenPanel,
-} from "@/components/audio-player/player-read-listen-panel";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { SleepButton } from "@/components/audio-player/player-sleep-control";
 import { SpeedButton } from "@/components/audio-player/player-speed-control";
 import { PlayerTransport } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import {
-	ReadListenControlsGroup,
+	ReadListenModeControls,
 	type ReadListenPlayerContext,
+	ReadListenSentenceControls,
 } from "@/components/audio-player/read-listen-player";
 import {
 	useAudioPlayerActions,
@@ -73,19 +69,14 @@ const SCENE_STYLE = {
 
 const PILL_ACTIVE_CLASS = "bg-foreground/15 text-foreground";
 
-export type PlayerSidePanelMode = "chapters" | "read-listen" | null;
+export type PlayerSidePanelMode = "chapters" | null;
 
 function PlayerSidePanel({
-	mode,
 	chapters,
 	activeChapterIndex,
 	onSeekToChapter,
-	readListenPairings,
-	selectedReadListenPairingId,
-	onReadListenPairingChange,
 	className,
 }: {
-	mode: Exclude<PlayerSidePanelMode, null>;
 	chapters: {
 		index: number;
 		title: string | null;
@@ -94,48 +85,32 @@ function PlayerSidePanel({
 	}[];
 	activeChapterIndex: number;
 	onSeekToChapter: (startTime: number) => void;
-	readListenPairings: PlayerReadListenPairing[];
-	selectedReadListenPairingId: string | null;
-	onReadListenPairingChange: (pairingId: string) => void;
 	className?: string;
 }) {
 	return (
 		<div className={cn("flex min-h-0 flex-col", className)}>
-			{mode === "chapters" ? (
-				<PlayerChapterPanel
-					chapters={chapters}
-					activeIndex={activeChapterIndex}
-					onSeekToChapter={onSeekToChapter}
-					className="h-full px-1 pb-1"
-				/>
-			) : (
-				readListenPairings.length > 0 && (
-					<PlayerReadListenPanel
-						pairings={readListenPairings}
-						selectedPairingId={selectedReadListenPairingId}
-						onPairingChange={onReadListenPairingChange}
-						className="h-full"
-					/>
-				)
-			)}
+			<PlayerChapterPanel
+				chapters={chapters}
+				activeIndex={activeChapterIndex}
+				onSeekToChapter={onSeekToChapter}
+				className="h-full px-1 pb-1"
+			/>
 		</div>
 	);
 }
 
 export const ExpandedPlayer = memo(function ExpandedPlayer({
 	readListen,
-	readListenPairings,
-	selectedReadListenPairingId,
-	onReadListenPairingChange,
 	onOpenReadListenReader,
+	onReadListenIntent,
+	onReadListenCommitIntent,
 	sidePanel,
 	onSidePanelChange,
 }: {
 	readListen?: ReadListenPlayerContext;
-	readListenPairings: PlayerReadListenPairing[];
-	selectedReadListenPairingId: string | null;
-	onReadListenPairingChange: (pairingId: string) => void;
-	onOpenReadListenReader: (pairing: PlayerReadListenPairing) => void;
+	onOpenReadListenReader?: () => void;
+	onReadListenIntent?: () => void;
+	onReadListenCommitIntent?: () => void;
 	sidePanel: PlayerSidePanelMode;
 	onSidePanelChange: (mode: PlayerSidePanelMode) => void;
 }) {
@@ -179,9 +154,6 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 	const chapter = chapters[activeChapterIndex];
 	const inlineSidePanel = sidePanel !== null && isBelowLg;
 	const splitLayout = sidePanel !== null && !inlineSidePanel;
-	const selectedReadListenPairing = readListenPairings.find(
-		(pairing) => pairing.id === selectedReadListenPairingId,
-	);
 	// Remaining wall-clock time at the current rate, not remaining book seconds.
 	const timeLeft = formatTime(
 		realTimeAt(Math.max(0, totalDuration - globalCurrentTime), speed),
@@ -214,22 +186,9 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 						<CaretDown className="size-5" />
 					</PlayerIconButton>
 
-					{!readListen && readListenPairings.length > 0 && (
-						<div className="pointer-events-none col-start-2 row-start-1 flex min-w-0 justify-center max-[22rem]:col-span-2 max-[22rem]:col-start-1 max-[22rem]:row-start-2">
-							<PlayerModeSelector
-								mode={sidePanel === "read-listen" ? "read-listen" : "listen"}
-								onModeChange={(mode) =>
-									onSidePanelChange(
-										mode === "read-listen" ? "read-listen" : null,
-									)
-								}
-							/>
-						</div>
-					)}
-
 					<div className="col-start-3 row-start-1 flex items-center gap-1 justify-self-end max-[22rem]:col-start-2">
 						{readListen && (
-							<ReadListenControlsGroup
+							<ReadListenModeControls
 								context={readListen}
 								side="bottom"
 								className="gap-1"
@@ -238,10 +197,10 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 						)}
 						<PlayerMoreMenu
 							uuid={audiobook.uuid}
+							onReadListenIntent={onReadListenIntent}
+							onReadListenCommitIntent={onReadListenCommitIntent}
 							onOpenReadListenReader={
-								selectedReadListenPairing
-									? () => onOpenReadListenReader(selectedReadListenPairing)
-									: undefined
+								readListen ? undefined : onOpenReadListenReader
 							}
 						/>
 					</div>
@@ -273,13 +232,9 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 						>
 							{inlineSidePanel ? (
 								<PlayerSidePanel
-									mode={sidePanel}
 									chapters={chapters}
 									activeChapterIndex={activeChapterIndex}
 									onSeekToChapter={seekTo}
-									readListenPairings={readListenPairings}
-									selectedReadListenPairingId={selectedReadListenPairingId}
-									onReadListenPairingChange={onReadListenPairingChange}
 									className="h-full w-full"
 								/>
 							) : coverUrl ? (
@@ -357,6 +312,15 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 							)}
 						</div>
 
+						{readListen && (
+							<ReadListenSentenceControls
+								context={readListen}
+								side="top"
+								showStepLabels
+								buttonClassName="size-11"
+							/>
+						)}
+
 						<PlayerTransport size="expanded" />
 
 						{/* Match the header's optical inset: these controls have an invisible
@@ -415,13 +379,9 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 
 					{sidePanel && !inlineSidePanel && (
 						<PlayerSidePanel
-							mode={sidePanel}
 							chapters={chapters}
 							activeChapterIndex={activeChapterIndex}
 							onSeekToChapter={seekTo}
-							readListenPairings={readListenPairings}
-							selectedReadListenPairingId={selectedReadListenPairingId}
-							onReadListenPairingChange={onReadListenPairingChange}
 							className="min-h-0 w-full min-w-0"
 						/>
 					)}

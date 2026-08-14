@@ -12,9 +12,10 @@ import {
 } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import {
-	ReadListenControlsGroup,
 	ReadListenOpenButton,
 	type ReadListenPlayerContext,
+	ReadListenSentenceControls,
+	ReadListenSentenceSeekButton,
 } from "@/components/audio-player/read-listen-player";
 import {
 	Tooltip,
@@ -25,6 +26,7 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatChapterLabel, getChapterMarkerPercents } from "@/utils/chapters";
 import {
@@ -121,10 +123,14 @@ const ChapterMarkers = memo(function ChapterMarkers({
 export const PlayerBar = memo(function PlayerBar({
 	readListen,
 	onOpenReadListen,
+	onReadListenIntent,
+	onReadListenCommitIntent,
 	showStopButton = true,
 }: {
 	readListen?: ReadListenPlayerContext;
 	onOpenReadListen?: () => void;
+	onReadListenIntent?: () => void;
+	onReadListenCommitIntent?: () => void;
 	showStopButton?: boolean;
 }) {
 	const {
@@ -164,6 +170,7 @@ export const PlayerBar = memo(function PlayerBar({
 			: null;
 
 	const progress = totalDuration > 0 ? globalCurrentTime / totalDuration : 0;
+	const compactControlClass = "max-[30rem]:size-10";
 
 	const artwork = cover ? (
 		<img
@@ -196,7 +203,13 @@ export const PlayerBar = memo(function PlayerBar({
 						onClick={expand}
 						className="absolute inset-0"
 					/>
-					<div className="pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5">
+					<div
+						className={
+							readListen
+								? "hidden"
+								: "pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5"
+						}
+					>
 						<div className="size-11 shrink-0 overflow-hidden rounded bg-muted">
 							{artwork}
 						</div>
@@ -208,32 +221,45 @@ export const PlayerBar = memo(function PlayerBar({
 							secondaryTabular={Boolean(readListen)}
 						/>
 					</div>
-					<div className="relative flex shrink-0 items-center">
-						<JumpBackButton />
-						<PlayPauseButton variant="strip" />
-						{readListen && (
-							<ReadListenControlsGroup
+					{readListen ? (
+						<div className="relative grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center">
+							<ReadListenSentenceControls
 								context={readListen}
-								buttonClassName="size-10 text-foreground"
+								className="justify-self-start"
 							/>
-						)}
-						{!readListen && onOpenReadListen && (
-							<ReadListenOpenButton
-								onOpen={onOpenReadListen}
-								label={m["read_listen.open_in_player"]()}
-								className="size-8 text-foreground"
+							<PlayPauseButton variant="strip" className="size-10" />
+							<ReadListenSentenceSeekButton
+								context={readListen}
+								className="size-10 justify-self-end text-foreground"
 							/>
-						)}
-						{showStopButton && (
-							<PlayerIconButton
-								label={m["audiobook.player_stop"]()}
-								onClick={stop}
-								className="size-7"
-							>
-								<X className="size-4" />
-							</PlayerIconButton>
-						)}
-					</div>
+						</div>
+					) : (
+						<div className="relative flex shrink-0 items-center">
+							<JumpBackButton className={compactControlClass} />
+							<PlayPauseButton
+								variant="strip"
+								className={compactControlClass}
+							/>
+							{onOpenReadListen && (
+								<ReadListenOpenButton
+									onOpen={onOpenReadListen}
+									onIntent={onReadListenIntent}
+									onCommitIntent={onReadListenCommitIntent}
+									label={m["read_listen.open_reader"]()}
+									className="size-8 text-foreground"
+								/>
+							)}
+							{showStopButton && (
+								<PlayerIconButton
+									label={m["audiobook.player_stop"]()}
+									onClick={stop}
+									className="size-7"
+								>
+									<X className="size-4" />
+								</PlayerIconButton>
+							)}
+						</div>
+					)}
 				</div>
 				{/* scaleX so the 4×/s update composites instead of relaying out the markers. */}
 				<div className="relative h-0.5 overflow-hidden bg-foreground/20">
@@ -283,22 +309,34 @@ export const PlayerBar = memo(function PlayerBar({
 						/>
 					</div>
 
-					<div className="flex w-1/2 max-w-3xl shrink-0 flex-col items-center gap-1">
-						<PlayerTransport />
+					<div
+						className={cn(
+							"flex max-w-3xl shrink-0 flex-col items-center gap-1",
+							readListen ? "w-[42%]" : "w-1/2",
+						)}
+					>
+						<div className="flex max-w-full items-center justify-center">
+							<PlayerTransport />
+						</div>
 						<PlayerSeekBar className="w-full" />
 					</div>
 
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 						{readListen && (
-							<ReadListenControlsGroup
-								context={readListen}
-								className="gap-0.5"
-							/>
+							<>
+								<ReadListenSentenceControls context={readListen} />
+								<ReadListenSentenceSeekButton
+									context={readListen}
+									className="hidden lg:inline-flex"
+								/>
+							</>
 						)}
 						{!readListen && onOpenReadListen && (
 							<ReadListenOpenButton
 								onOpen={onOpenReadListen}
-								label={m["read_listen.open_in_player"]()}
+								onIntent={onReadListenIntent}
+								onCommitIntent={onReadListenCommitIntent}
+								label={m["read_listen.open_reader"]()}
 							/>
 						)}
 						<PlayerIconButton
@@ -307,7 +345,9 @@ export const PlayerBar = memo(function PlayerBar({
 						>
 							<CaretUp className="size-4" />
 						</PlayerIconButton>
-						<PlayerVolumeControl />
+						<div className={cn(readListen && "hidden lg:block")}>
+							<PlayerVolumeControl />
+						</div>
 						<PlayerSettings />
 						{showStopButton && (
 							<PlayerIconButton

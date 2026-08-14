@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, memo, useRef, useState } from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { type CSSProperties, memo, useMemo, useRef, useState } from "react";
 import {
 	ExpandedPlayer,
 	type PlayerSidePanelMode,
 } from "@/components/audio-player/expanded-player";
 import { miniPlayerBarLayer } from "@/components/audio-player/mini-player-motion";
 import { PlayerBar } from "@/components/audio-player/player-bar";
-import type { PlayerReadListenPairing } from "@/components/audio-player/player-read-listen-panel";
 import type { ReadListenPlayerContext } from "@/components/audio-player/read-listen-player";
 import { usePlayerShortcuts } from "@/components/audio-player/use-player-shortcuts";
+import { useReadListenReaderPrefetch } from "@/components/audio-player/use-read-listen-reader-prefetch";
 import { useSheetDrag } from "@/components/audio-player/use-sheet-drag";
 import {
 	useAudioPlayerActions,
@@ -18,10 +18,12 @@ import {
 } from "@/context/audio-player-context";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
+import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
 import {
-	findReadyReadListenPairings,
-	resolveReadListenPairingChoice,
-} from "@/lib/read-listen/pairing";
+	navigateToReadListenReader,
+	rememberReadListenReaderEntry,
+} from "@/lib/read-listen/reader-session";
+import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -64,6 +66,30 @@ function DisablePullToRefresh() {
 	return null;
 }
 
+function readerPlayerThemeStyle(
+	readListen: ReadListenPlayerContext | undefined,
+): CSSProperties {
+	const readerTheme = readListen?.readerTheme;
+	if (!readerTheme) return {};
+	const mix = (percentage: number) =>
+		`color-mix(in oklab, ${readerTheme.fontColor} ${percentage}%, ${readerTheme.backgroundColor})`;
+	return {
+		"--background": readerTheme.backgroundColor,
+		"--foreground": readerTheme.fontColor,
+		"--card": readerTheme.backgroundColor,
+		"--card-foreground": readerTheme.fontColor,
+		"--muted": mix(8),
+		"--muted-foreground": mix(62),
+		"--accent": mix(10),
+		"--accent-foreground": readerTheme.fontColor,
+		"--border": mix(14),
+		"--ring": mix(55),
+		"--sidebar": readerTheme.backgroundColor,
+		"--sidebar-foreground": readerTheme.fontColor,
+		"--sidebar-border": mix(14),
+	} as CSSProperties;
+}
+
 export const MiniPlayer = memo(function MiniPlayer({
 	placement = "dashboard",
 	readListen,
@@ -73,17 +99,14 @@ export const MiniPlayer = memo(function MiniPlayer({
 }) {
 	const audiobook = useAudioPlayerBook();
 	const isExpanded = useAudioPlayerExpanded();
-	const { setExpanded } = useAudioPlayerActions();
+	const { getGlobalCurrentTime, setExpanded } = useAudioPlayerActions();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const [sidePanel, setSidePanel] = useState<PlayerSidePanelMode>(null);
-	const [selectedPairingId, setSelectedPairingId] = useState<string | null>(
-		null,
-	);
 	const sidePanelBookRef = useRef(audiobook?.uuid);
 	if (audiobook?.uuid !== sidePanelBookRef.current) {
 		sidePanelBookRef.current = audiobook?.uuid;
 		setSidePanel(null);
-		setSelectedPairingId(null);
 	}
 	const pairingsQuery = useQuery({
 		...orpc.readListen.getPairings.queryOptions({
@@ -94,40 +117,45 @@ export const MiniPlayer = memo(function MiniPlayer({
 		}),
 		enabled: Boolean(audiobook) && !readListen,
 	});
-	const readyPairings = findReadyReadListenPairings(
-		pairingsQuery.data?.pairings,
+	const readyPairing = findReadyReadListenPairing(pairingsQuery.data?.pairings);
+	const readerTarget = useMemo(
+		() =>
+			readyPairing
+				? {
+						ebookUuid: readyPairing.ebook.uuid,
+						pairUuid: readyPairing.id,
+					}
+				: undefined,
+		[readyPairing],
 	);
-	const playerPairings: PlayerReadListenPairing[] = readyPairings.map(
-		(pairing) => ({
-			id: pairing.id,
-			ebookUuid: pairing.ebook.uuid,
-			ebookTitle: pairing.ebook.title,
-			ebookFilename: pairing.ebook.filename,
-		}),
-	);
-	const selectedPairing = resolveReadListenPairingChoice(
-		playerPairings,
-		selectedPairingId,
-	);
-	const resolvedSidePanel =
-		sidePanel === "read-listen" && playerPairings.length === 0
-			? null
-			: sidePanel;
-	const showReadListen =
-		playerPairings.length > 0
+	const readerPrefetch = useReadListenReaderPrefetch(readerTarget);
+	const openReadListenReader =
+		readyPairing && audiobook
 			? () => {
-					setSidePanel("read-listen");
-					setExpanded(true);
+					readerPrefetch.prepare();
+					rememberReadListenReaderEntry({
+						pairUuid: readyPairing.id,
+						ebookUuid: readyPairing.ebook.uuid,
+						audiobookUuid: audiobook.uuid,
+						originHref: router.latestLocation.href,
+						originHistoryIndex:
+							router.latestLocation.state.__TSR_index ??
+							router.history.location.state.__TSR_index,
+						playheadSeconds: getGlobalCurrentTime(),
+					});
+					void transitionReadListenNavigation({
+						direction: "enter",
+						update: async () => {
+							setExpanded(false);
+							await navigateToReadListenReader({
+								navigate: (options) => navigate(options),
+								ebookUuid: readyPairing.ebook.uuid,
+								pairUuid: readyPairing.id,
+							});
+						},
+					});
 				}
 			: undefined;
-	const openReadListenReader = (pairing: PlayerReadListenPairing) => {
-		setExpanded(false);
-		void navigate({
-			to: "/reader/$uuid",
-			params: { uuid: pairing.ebookUuid },
-			search: { pair: pairing.id },
-		});
-	};
 	const panelRef = useRef<HTMLDivElement>(null);
 	const drag = useSheetDrag({
 		panelRef,
@@ -148,26 +176,28 @@ export const MiniPlayer = memo(function MiniPlayer({
 			<PlayerShortcuts />
 			{isExpanded && <DisablePullToRefresh />}
 			<div
+				data-player-expanded={isExpanded}
 				className={cn(
-					"fixed inset-x-0 text-sidebar-foreground md:bottom-0",
+					"read-listen-player-dock fixed inset-x-0 text-sidebar-foreground md:bottom-0",
 					miniPlayerBarLayer(isExpanded, hasContent),
 					placement === "reader"
-						? "bottom-[var(--safe-area-bottom)]"
+						? "bottom-[var(--safe-area-bottom)] after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-sidebar after:content-[''] md:after:bg-card"
 						: "bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))]",
 				)}
 				style={
-					placement === "reader"
-						? ({
-								"--player-height": "88px",
-								"--player-reserve":
-									"calc(var(--player-height) + var(--safe-area-bottom))",
-							} as CSSProperties)
-						: undefined
+					{
+						...readerPlayerThemeStyle(readListen),
+						"--player-height": "88px",
+						"--player-reserve":
+							"calc(var(--player-height) + var(--safe-area-bottom))",
+					} as CSSProperties
 				}
 			>
 				<PlayerBar
 					readListen={readListen}
-					onOpenReadListen={showReadListen}
+					onOpenReadListen={openReadListenReader}
+					onReadListenIntent={readerPrefetch.warm}
+					onReadListenCommitIntent={readerPrefetch.prepare}
 					showStopButton={placement !== "reader"}
 				/>
 			</div>
@@ -207,11 +237,10 @@ export const MiniPlayer = memo(function MiniPlayer({
 				{hasContent && (
 					<ExpandedPlayer
 						readListen={readListen}
-						readListenPairings={playerPairings}
-						selectedReadListenPairingId={selectedPairing?.id ?? null}
-						onReadListenPairingChange={setSelectedPairingId}
 						onOpenReadListenReader={openReadListenReader}
-						sidePanel={resolvedSidePanel}
+						onReadListenIntent={readerPrefetch.warm}
+						onReadListenCommitIntent={readerPrefetch.prepare}
+						sidePanel={sidePanel}
 						onSidePanelChange={setSidePanel}
 					/>
 				)}

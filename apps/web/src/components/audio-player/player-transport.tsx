@@ -48,7 +48,11 @@ function JumpIcon({
 }
 
 /** Jump back on its own, for the mobile bar's two slots beside the artwork. */
-export const JumpBackButton = memo(function JumpBackButton() {
+export const JumpBackButton = memo(function JumpBackButton({
+	className,
+}: {
+	className?: string;
+}) {
 	const { jumpBack } = useAudioPlayerState();
 	const { seekRelative } = useAudioPlayerActions();
 
@@ -56,7 +60,7 @@ export const JumpBackButton = memo(function JumpBackButton() {
 		<PlayerIconButton
 			label={m["audiobook.player_back_seconds"]({ seconds: jumpBack })}
 			onClick={() => seekRelative(-jumpBack)}
-			className="size-8 text-foreground"
+			className={cn("size-8 text-foreground", className)}
 		>
 			<span className="relative flex items-center justify-center">
 				<ArrowCounterClockwise className="size-5" />
@@ -71,9 +75,11 @@ export const JumpBackButton = memo(function JumpBackButton() {
 /** Play/pause in all three sizes, owning the loading, stalled and error states. */
 export const PlayPauseButton = memo(function PlayPauseButton({
 	variant,
+	className,
 }: {
 	/** `strip` is the mobile bar's plain ghost button; the others are filled. */
 	variant: "strip" | "bar" | "expanded";
+	className?: string;
 }) {
 	const { isPlaying, isLoading, showError, showBuffering } =
 		useAudioPlayerState();
@@ -108,7 +114,7 @@ export const PlayPauseButton = memo(function PlayPauseButton({
 				aria-label={label}
 				aria-busy={isLoading || showBuffering}
 				onClick={showError ? retry : togglePlay}
-				className={cn("size-8", showError && "text-destructive")}
+				className={cn("size-8", showError && "text-destructive", className)}
 			>
 				{icon}
 			</Button>

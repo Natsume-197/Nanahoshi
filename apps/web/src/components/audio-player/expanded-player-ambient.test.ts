@@ -67,9 +67,10 @@ describe("expanded player ambient background", () => {
 		expect(css).toContain("opacity: 0");
 	});
 
-	it("reserves header space for the mode selector instead of overlaying controls", () => {
+	it("keeps a balanced single-row header without the mode selector", () => {
 		expect(source).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
-		expect(source).toContain("max-[22rem]:row-start-2");
+		expect(source).not.toContain("PlayerModeSelector");
+		expect(source).not.toContain("max-[22rem]:row-start-2");
 		expect(source).not.toContain("absolute left-1/2 -translate-x-1/2");
 	});
 
