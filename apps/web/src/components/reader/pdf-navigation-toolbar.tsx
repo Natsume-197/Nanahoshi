@@ -2,14 +2,14 @@ import { usePan } from "@embedpdf/plugin-pan/react";
 import { useRotate } from "@embedpdf/plugin-rotate/react";
 import { useZoom, ZoomMode } from "@embedpdf/plugin-zoom/react";
 import {
-	Columns2,
+	ArrowClockwise,
+	Columns,
 	File,
 	Hand,
 	Minus,
 	Plus,
-	RotateCw,
-	Rows3,
-} from "lucide-react";
+	Rows,
+} from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -114,14 +114,14 @@ export function PdfNavigationToolbar({
 					aria-label="Continuous pages"
 					title="Continuous pages"
 				>
-					<Rows3 aria-hidden="true" />
+					<Rows aria-hidden="true" />
 				</ToggleGroupItem>
 				<ToggleGroupItem
 					value="spread"
 					aria-label="Two-page spread"
 					title="Two-page spread"
 				>
-					<Columns2 aria-hidden="true" />
+					<Columns aria-hidden="true" />
 				</ToggleGroupItem>
 			</ToggleGroup>
 
@@ -133,7 +133,7 @@ export function PdfNavigationToolbar({
 				disabled={!rotate}
 				onClick={() => rotate?.rotateForward()}
 			>
-				<RotateCw aria-hidden="true" />
+				<ArrowClockwise aria-hidden="true" />
 			</Button>
 			<Button
 				variant="ghost"
@@ -144,7 +144,7 @@ export function PdfNavigationToolbar({
 				disabled={!pan}
 				onClick={() => pan?.togglePan()}
 			>
-				<Hand aria-hidden="true" fill={isPanning ? "currentColor" : "none"} />
+				<Hand aria-hidden="true" weight={isPanning ? "fill" : "regular"} />
 			</Button>
 
 			<span

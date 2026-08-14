@@ -1,22 +1,21 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
 import {
-	BookOpenCheckIcon,
-	CircleCheckIcon,
-	CircleXIcon,
-	DatabaseIcon,
-	ImageIcon,
-	Layers3Icon,
-	LibraryIcon,
-	ListRestartIcon,
-	LoaderCircleIcon,
-	type LucideIcon,
-	RefreshCwIcon,
-	SendIcon,
-	SparklesIcon,
-	Trash2Icon,
-	UploadIcon,
-	WandSparklesIcon,
-} from "lucide-react";
+	ArrowsClockwise,
+	BookOpen,
+	Books,
+	CheckCircle,
+	CircleNotch,
+	Database,
+	type Icon,
+	Image,
+	MagicWand,
+	PaperPlaneTilt,
+	Sparkle,
+	Stack,
+	Trash,
+	Upload,
+	XCircle,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -47,23 +46,23 @@ const TASK_TITLES: Record<string, () => string> = {
 	"read-listen-generation": m["notifications.task_read_listen_generation"],
 };
 
-const TASK_ICONS: Record<string, LucideIcon> = {
-	"library-scan": LibraryIcon,
-	"library-upload": UploadIcon,
-	"library-reprocess": RefreshCwIcon,
-	"library-regroup": Layers3Icon,
-	"library-enrich": SparklesIcon,
-	"send-to-kindle": SendIcon,
-	"ranobedb-import": DatabaseIcon,
-	"metadata-enrich": WandSparklesIcon,
-	"metadata-enrich-retry": ListRestartIcon,
-	"metadata-enrich-auto": SparklesIcon,
-	"recommendations-rebuild": RefreshCwIcon,
-	"recommendations-rebuild-global": RefreshCwIcon,
-	"recommendations-feeds": RefreshCwIcon,
-	"bookmeter-sync": BookOpenCheckIcon,
-	"cover-backfill": ImageIcon,
-	"read-listen-generation": BookOpenCheckIcon,
+const TASK_ICONS: Record<string, Icon> = {
+	"library-scan": Books,
+	"library-upload": Upload,
+	"library-reprocess": ArrowsClockwise,
+	"library-regroup": Stack,
+	"library-enrich": Sparkle,
+	"send-to-kindle": PaperPlaneTilt,
+	"ranobedb-import": Database,
+	"metadata-enrich": MagicWand,
+	"metadata-enrich-retry": ArrowsClockwise,
+	"metadata-enrich-auto": Sparkle,
+	"recommendations-rebuild": ArrowsClockwise,
+	"recommendations-rebuild-global": ArrowsClockwise,
+	"recommendations-feeds": ArrowsClockwise,
+	"bookmeter-sync": BookOpen,
+	"cover-backfill": Image,
+	"read-listen-generation": BookOpen,
 };
 
 function taskCounts(data: NotificationData) {
@@ -82,7 +81,7 @@ function contentFor(data: NotificationData) {
 		data.totalJobs === 0 &&
 		(data.taskType === "library-scan" || data.taskType === "library-upload");
 	return {
-		Icon: failed ? CircleXIcon : (TASK_ICONS[data.taskType] ?? CircleCheckIcon),
+		Icon: failed ? XCircle : (TASK_ICONS[data.taskType] ?? CheckCircle),
 		failed,
 		title: noChanges
 			? m["notifications.task_no_changes"]()
@@ -228,11 +227,7 @@ export function NotificationItem({
 				aria-busy={isDeleting}
 				className="absolute end-1.5 top-1.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100"
 			>
-				{isDeleting ? (
-					<LoaderCircleIcon className="animate-spin" />
-				) : (
-					<Trash2Icon />
-				)}
+				{isDeleting ? <CircleNotch className="animate-spin" /> : <Trash />}
 			</Button>
 		</div>
 	);

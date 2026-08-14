@@ -1,6 +1,12 @@
 import { MatchFlag, PdfErrorCode, TaskStage } from "@embedpdf/models";
 import { useSearch } from "@embedpdf/plugin-search/react";
-import { ChevronDown, ChevronUp, LoaderCircle, Search, X } from "lucide-react";
+import {
+	CaretDown,
+	CaretUp,
+	CircleNotch,
+	MagnifyingGlass,
+	X,
+} from "@phosphor-icons/react";
 import {
 	type CSSProperties,
 	type KeyboardEvent,
@@ -153,7 +159,10 @@ export function PdfSearchPanel({
 			}
 		>
 			<header className="flex items-center gap-2 px-3 pt-3 pb-2">
-				<Search aria-hidden="true" className="size-5 shrink-0 opacity-55" />
+				<MagnifyingGlass
+					aria-hidden="true"
+					className="size-5 shrink-0 opacity-55"
+				/>
 				<h2 className="min-w-0 flex-1 font-medium text-sm">Search this PDF</h2>
 				<Button
 					variant="ghost"
@@ -181,7 +190,7 @@ export function PdfSearchPanel({
 					/>
 					{searchState.loading && (
 						<InputGroupAddon align="inline-end">
-							<LoaderCircle
+							<CircleNotch
 								aria-label="Searching"
 								className="animate-spin motion-reduce:animate-none"
 							/>
@@ -247,7 +256,7 @@ export function PdfSearchPanel({
 							aria-label="Previous search result"
 							onClick={() => move(-1)}
 						>
-							<ChevronUp aria-hidden="true" />
+							<CaretUp aria-hidden="true" />
 						</Button>
 						<Button
 							variant="ghost"
@@ -255,7 +264,7 @@ export function PdfSearchPanel({
 							aria-label="Next search result"
 							onClick={() => move(1)}
 						>
-							<ChevronDown aria-hidden="true" />
+							<CaretDown aria-hidden="true" />
 						</Button>
 					</>
 				)}

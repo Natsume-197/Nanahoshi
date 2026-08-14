@@ -1,4 +1,4 @@
-import { ChevronLeftIcon } from "lucide-react";
+import { CaretLeft } from "@phosphor-icons/react";
 import { MembersList } from "@/components/shared/members-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,7 +80,7 @@ export function ActivityRail({
 								onClick={onClose}
 								className="size-11 rounded-full"
 							>
-								<ChevronLeftIcon />
+								<CaretLeft />
 							</Button>
 							<div className="min-w-0">
 								<SheetTitle className="truncate font-semibold text-lg">

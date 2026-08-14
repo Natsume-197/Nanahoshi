@@ -24,7 +24,7 @@ import {
 	ZoomGestureWrapper,
 	ZoomMode,
 } from "@embedpdf/plugin-zoom/react";
-import { Bookmark, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bookmark, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
@@ -424,7 +424,7 @@ function PdfDocumentViewport({
 						disabled={currentPage <= 1}
 						onClick={() => turnPage(-1)}
 					>
-						<ChevronLeft aria-hidden="true" />
+						<CaretLeft aria-hidden="true" />
 					</Button>
 					<Button
 						variant="secondary"
@@ -434,7 +434,7 @@ function PdfDocumentViewport({
 						disabled={currentPage >= pageCount}
 						onClick={() => turnPage(1)}
 					>
-						<ChevronRight aria-hidden="true" />
+						<CaretRight aria-hidden="true" />
 					</Button>
 				</>
 			)}

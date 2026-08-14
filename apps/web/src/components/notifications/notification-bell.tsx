@@ -1,13 +1,13 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
+import {
+	Bell,
+	CaretLeft,
+	Checks,
+	CircleNotch,
+	Tray,
+} from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import {
-	BellIcon,
-	CheckCheckIcon,
-	ChevronLeftIcon,
-	InboxIcon,
-	LoaderCircleIcon,
-} from "lucide-react";
 import { type ComponentProps, useState } from "react";
 import { flushSync } from "react-dom";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +88,7 @@ function NotificationTrigger({
 			title={m["notifications.title"]()}
 			className={cn("relative rounded-full", className)}
 		>
-			<BellIcon />
+			<Bell />
 			{count > 0 && (
 				<Badge
 					className="absolute -end-1 -top-1 min-w-5 px-1 tabular-nums"
@@ -260,7 +260,7 @@ function NotificationPanel({
 						onClick={onNavigate}
 						className="size-11 rounded-full"
 					>
-						<ChevronLeftIcon />
+						<CaretLeft />
 					</Button>
 					<div className="min-w-0">
 						<SheetTitle className="truncate font-semibold text-lg">
@@ -282,9 +282,9 @@ function NotificationPanel({
 							className="size-11 rounded-full"
 						>
 							{markAllRead.isPending ? (
-								<LoaderCircleIcon className="animate-spin" />
+								<CircleNotch className="animate-spin" />
 							) : (
-								<CheckCheckIcon />
+								<Checks />
 							)}
 						</Button>
 					) : (
@@ -304,12 +304,12 @@ function NotificationPanel({
 								disabled={markAllRead.isPending}
 							>
 								{markAllRead.isPending ? (
-									<LoaderCircleIcon
+									<CircleNotch
 										data-icon="inline-start"
 										className="animate-spin"
 									/>
 								) : (
-									<CheckCheckIcon data-icon="inline-start" />
+									<Checks data-icon="inline-start" />
 								)}
 								{m["notifications.mark_all_read"]()}
 							</Button>
@@ -354,7 +354,7 @@ function NotificationPanel({
 					<Empty className="min-h-64 p-8">
 						<EmptyHeader>
 							<EmptyMedia variant="icon">
-								<InboxIcon />
+								<Tray />
 							</EmptyMedia>
 							<EmptyTitle>{m["notifications.empty"]()}</EmptyTitle>
 							<EmptyDescription>
@@ -389,7 +389,7 @@ function NotificationPanel({
 								disabled={isFetchingNextPage}
 							>
 								{isFetchingNextPage ? (
-									<LoaderCircleIcon
+									<CircleNotch
 										data-icon="inline-start"
 										className="animate-spin"
 									/>
@@ -417,7 +417,7 @@ function TaskProgressRow({
 	return (
 		<div className="flex items-center gap-3 rounded-xl bg-background/70 p-2.5">
 			<span className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground">
-				<LoaderCircleIcon
+				<CircleNotch
 					className="size-4 animate-spin motion-reduce:animate-none"
 					aria-hidden="true"
 				/>
