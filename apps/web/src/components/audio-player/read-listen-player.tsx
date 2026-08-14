@@ -79,7 +79,11 @@ export function ReadListenFollowButton({
 }) {
 	return (
 		<PlayerIconButton
-			label={m["read_listen.follow_text"]()}
+			label={
+				context.followText
+					? m["read_listen.follow_text"]()
+					: m["read_listen.return_to_narration"]()
+			}
 			side={side}
 			pressed={context.followText}
 			onClick={context.onToggleFollowText}

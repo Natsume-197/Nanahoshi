@@ -18,17 +18,22 @@ Object.defineProperty(window, "innerHeight", {
 });
 Object.defineProperty(window.Range.prototype, "getBoundingClientRect", {
 	configurable: true,
-	value: () => ({
-		top: 0,
-		right: 0,
-		bottom: 0,
-		left: 0,
-		width: 0,
-		height: 0,
-		x: 0,
-		y: 0,
-		toJSON: () => ({}),
-	}),
+	value: function getBoundingClientRect(this: Range) {
+		const isSecondPageAnchor = this.toString() === "対";
+		const left = isSecondPageAnchor ? 976 : 0;
+		const width = isSecondPageAnchor ? 10 : 0;
+		return {
+			top: 0,
+			right: left + width,
+			bottom: 0,
+			left,
+			width,
+			height: 0,
+			x: left,
+			y: 0,
+			toJSON: () => ({}),
+		};
+	},
 });
 
 const originalScrollTo = HTMLElement.prototype.scrollTo;
@@ -118,9 +123,14 @@ describe("BookReaderPaginated image section navigation", () => {
 				const hasSvgArtwork = Boolean(
 					this.querySelector(".book-content-container svg image"),
 				);
+				const hasSecondPageAnchor = Boolean(
+					this.querySelector(".book-content-container #anchor-target"),
+				);
 				return hasSvgArtwork && svgArtworkReady
 					? viewportWidth * 2 + 40
-					: viewportWidth;
+					: hasSecondPageAnchor
+						? viewportWidth * 2 + 40
+						: viewportWidth;
 			},
 		});
 
@@ -136,7 +146,7 @@ describe("BookReaderPaginated image section navigation", () => {
 						<div class="ttu-no-text"><svg width="1127" height="1600"><image width="1127" height="1600" href="blob:illustration-2" /></svg></div>
 					</div>
 					<div id="ttu-epub-p-001"><div><p>プロローグ</p></div></div>
-					<div id="ttu-epub-p-002"><div><p>次章</p></div></div>
+					<div id="ttu-epub-p-002"><div><p>次章</p><p id="anchor-target">対象</p></div></div>
 				`}
 				language="ja"
 				verticalMode={false}
@@ -200,9 +210,9 @@ describe("BookReaderPaginated image section navigation", () => {
 					},
 					{
 						reference: "ttu-epub-p-002",
-						charactersWeight: 2,
+						charactersWeight: 4,
 						startCharacter: 8,
-						characters: 2,
+						characters: 4,
 					},
 				]}
 				initialPosition={{
@@ -234,6 +244,17 @@ describe("BookReaderPaginated image section navigation", () => {
 			expect(decodedSvgResources).toBe(2);
 			expect(scrollElement.scrollLeft).toBe(976);
 			expect(exposedUnpositionedImageSection).toBe(false);
+		});
+
+		expect(readerApi?.navigateToTextAnchor).toBeFunction();
+		readerApi?.navigateToTextAnchor?.({
+			kind: "text-quote",
+			sectionReference: "ttu-epub-p-002",
+			exact: "対象",
+		});
+		await waitFor(() => {
+			expect(scrollElement.querySelector("#anchor-target")).not.toBeNull();
+			expect(scrollElement.scrollLeft).toBe(976);
 		});
 	});
 });

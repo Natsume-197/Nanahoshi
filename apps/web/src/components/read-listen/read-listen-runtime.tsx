@@ -1,6 +1,4 @@
-import { Crosshair } from "@phosphor-icons/react";
 import {
-	type CSSProperties,
 	type RefObject,
 	useCallback,
 	useEffect,
@@ -276,34 +274,6 @@ export function ReadListenRuntime({
 			<div className="sr-only" role="status" aria-live="polite">
 				{manualFollowSuspended ? m["read_listen.following_paused"]() : ""}
 			</div>
-			{manualFollowSuspended && readerCue && (
-				<button
-					type="button"
-					onClick={resumeTextFollowing}
-					className="reader-ui-contain fixed inset-x-0 bottom-[calc(var(--reader-player-reserve-mobile)+0.75rem)] z-20 mx-auto flex h-11 w-fit max-w-[calc(100%-2rem)] items-center gap-2 rounded-full bg-[var(--read-listen-resume-surface)] px-4 font-medium text-[var(--read-listen-resume-foreground)] text-sm shadow-[var(--read-listen-resume-shadow)] transition-[background-color,transform] duration-150 hover:bg-[var(--read-listen-resume-hover)] focus-visible:outline-2 focus-visible:outline-[var(--read-listen-resume-focus)] focus-visible:outline-offset-2 active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100 md:bottom-[calc(var(--reader-player-reserve-desktop)+0.75rem)]"
-					style={
-						{
-							"--read-listen-resume-surface": theme
-								? `color-mix(in oklab, ${theme.fontColor} 8%, ${theme.backgroundColor})`
-								: "var(--background)",
-							"--read-listen-resume-hover": theme
-								? `color-mix(in oklab, ${theme.fontColor} 12%, ${theme.backgroundColor})`
-								: "var(--accent)",
-							"--read-listen-resume-foreground":
-								theme?.fontColor ?? "var(--foreground)",
-							"--read-listen-resume-focus": theme?.fontColor ?? "var(--ring)",
-							"--read-listen-resume-shadow": theme
-								? `0 0 0 1px color-mix(in oklab, ${theme.fontColor} 16%, ${theme.backgroundColor}), 0 8px 24px oklch(0 0 0 / 18%)`
-								: "var(--elevation-dropdown)",
-						} as CSSProperties
-					}
-				>
-					<Crosshair aria-hidden="true" className="size-5" weight="fill" />
-					<span className="truncate">
-						{m["read_listen.return_to_narration"]()}
-					</span>
-				</button>
-			)}
 			{session.details && (
 				<LoadReadListenAudiobook
 					key={session.details.uuid}

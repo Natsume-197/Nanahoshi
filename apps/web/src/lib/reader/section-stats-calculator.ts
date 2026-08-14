@@ -84,6 +84,10 @@ export class SectionCharacterStatsCalculator {
 		return binarySearchNoNegative(this.sectionAccCharCounts, charCount) + 1;
 	}
 
+	getSectionStartCharCount(sectionIndex: number) {
+		return this.sectionAccCharCounts[sectionIndex - 1] || 0;
+	}
+
 	getScrollPosByCharCount(charCount: number) {
 		if (!this.calculator) return -1;
 		const startCount = this.getSectionStartCount();
@@ -152,7 +156,7 @@ export class SectionCharacterStatsCalculator {
 	}
 
 	private getSectionStartCount() {
-		return this.sectionAccCharCounts[this.sectionIndex - 1] || 0;
+		return this.getSectionStartCharCount(this.sectionIndex);
 	}
 
 	private get screenSize() {

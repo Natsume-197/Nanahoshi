@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
+import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 import {
 	rememberReadListenReaderEntry,
 	rememberReadListenReaderPosition,
@@ -267,7 +268,7 @@ describe("ReadListenRuntime", () => {
 			}),
 		});
 
-		const view = render(
+		render(
 			<ReadListenRuntime
 				pairUuid="pair-1"
 				ebookUuid="ebook-1"
@@ -287,7 +288,7 @@ describe("ReadListenRuntime", () => {
 		fireEvent.wheel(bookContent);
 		expect(capturedReadListen?.followText).toBe(false);
 
-		fireEvent.click(view.getByRole("button", { name: "Return to narration" }));
+		act(() => capturedReadListen?.onToggleFollowText());
 		expect(capturedReadListen?.followText).toBe(true);
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
@@ -296,12 +297,19 @@ describe("ReadListenRuntime", () => {
 		document.body.innerHTML =
 			'<main id="reader-fixture"><section id="ttu-epub-chapter-xhtml"><p>一。</p></section></main>';
 		const readerSurface = document.getElementById("reader-fixture");
+		const continuousNavigateToTextAnchor = mock(() => {});
+		const paginatedNavigateToTextAnchor = mock(() => {});
+		const readerApiRef = {
+			current: {
+				navigateToTextAnchor: continuousNavigateToTextAnchor,
+			} as unknown as BookReaderApi,
+		};
 		const view = render(
 			<ReadListenRuntime
 				pairUuid="pair-1"
 				ebookUuid="ebook-1"
 				sourceFormat="epub"
-				readerApiRef={{ current: null }}
+				readerApiRef={readerApiRef}
 				readerSurfaceRef={{ current: readerSurface }}
 				sections={[]}
 				readerDomRevision="scroll-horizontal"
@@ -309,17 +317,21 @@ describe("ReadListenRuntime", () => {
 			/>,
 		);
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		expect(continuousNavigateToTextAnchor).toHaveBeenCalledTimes(1);
 
 		const replacement = document.createElement("section");
 		replacement.id = "ttu-epub-chapter-xhtml";
 		replacement.innerHTML = "<p>一。</p>";
 		document.getElementById("ttu-epub-chapter-xhtml")?.replaceWith(replacement);
+		readerApiRef.current = {
+			navigateToTextAnchor: paginatedNavigateToTextAnchor,
+		} as unknown as BookReaderApi;
 		view.rerender(
 			<ReadListenRuntime
 				pairUuid="pair-1"
 				ebookUuid="ebook-1"
 				sourceFormat="epub"
-				readerApiRef={{ current: null }}
+				readerApiRef={readerApiRef}
 				readerSurfaceRef={{ current: readerSurface }}
 				sections={[]}
 				readerDomRevision="pages-horizontal"
@@ -328,6 +340,7 @@ describe("ReadListenRuntime", () => {
 		);
 
 		expect(scrollIntoView).toHaveBeenCalledTimes(2);
+		expect(paginatedNavigateToTextAnchor).toHaveBeenCalledTimes(1);
 	});
 
 	test("opens at the latest aligned sentence when paused in a narration gap", () => {

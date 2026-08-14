@@ -12,6 +12,7 @@ import {
 } from "@/components/audio-player/player-transport";
 import { PlayerVolumeControl } from "@/components/audio-player/player-volume-control";
 import {
+	ReadListenFollowButton,
 	ReadListenOpenButton,
 	type ReadListenPlayerContext,
 	ReadListenSentenceControls,
@@ -203,13 +204,7 @@ export const PlayerBar = memo(function PlayerBar({
 						onClick={expand}
 						className="absolute inset-0"
 					/>
-					<div
-						className={
-							readListen
-								? "hidden"
-								: "pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5"
-						}
-					>
+					<div className="pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5">
 						<div className="size-11 shrink-0 overflow-hidden rounded bg-muted">
 							{artwork}
 						</div>
@@ -222,8 +217,14 @@ export const PlayerBar = memo(function PlayerBar({
 						/>
 					</div>
 					{readListen ? (
-						<div className="relative flex w-full items-center justify-center">
+						<div className="relative flex shrink-0 items-center justify-center">
 							<PlayerTransport alwaysShowChapterControls />
+							{!readListen.followText && (
+								<ReadListenFollowButton
+									context={readListen}
+									className="size-8 text-foreground"
+								/>
+							)}
 						</div>
 					) : (
 						<div className="relative flex shrink-0 items-center">
@@ -319,6 +320,9 @@ export const PlayerBar = memo(function PlayerBar({
 						{readListen && (
 							<>
 								<ReadListenSentenceControls context={readListen} />
+								{!readListen.followText && (
+									<ReadListenFollowButton context={readListen} />
+								)}
 								<ReadListenSentenceSeekButton
 									context={readListen}
 									className="hidden lg:inline-flex"

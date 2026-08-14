@@ -86,13 +86,13 @@ describe("expanded player motion", () => {
 		expect(readListenRuntime).toContain("<PlayerHostReadListenBridge");
 	});
 
-	it("adopts the reader theme and prioritizes controls on narrow screens", () => {
+	it("keeps reader metadata and transport controls visible on narrow screens", () => {
 		expect(readListenRuntime).toContain("readerTheme: theme");
 		expect(miniPlayer).toContain('"--sidebar": readerTheme.backgroundColor');
-		expect(playerBar).toContain('? "hidden"');
 		expect(playerBar).toContain(
 			'"pointer-events-none relative flex min-w-0 flex-1 items-center gap-2.5"',
 		);
+		expect(playerBar).not.toMatch(/className=\{\s*readListen\s*\?\s*"hidden"/);
 		expect(playerBar).toContain('compactControlClass = "max-[30rem]:size-10"');
 		expect(playerBar).toContain(
 			"<PlayerTransport alwaysShowChapterControls />",
@@ -106,13 +106,12 @@ describe("expanded player motion", () => {
 		expect(playerBar).not.toContain("<ReadListenModeControls");
 	});
 
-	it("keeps the return-to-narration action centered above the player", () => {
-		expect(readListenRuntime).toContain(
+	it("keeps the return-to-narration action inside the mobile player", () => {
+		expect(readListenRuntime).not.toContain(
 			"fixed inset-x-0 bottom-[calc(var(--reader-player-reserve-mobile)+0.75rem)]",
 		);
-		expect(readListenRuntime).not.toContain(
-			"md:right-[max(1rem,var(--safe-area-right))]",
-		);
+		expect(playerBar).toContain("!readListen.followText");
+		expect(playerBar).toContain("<ReadListenFollowButton");
 	});
 
 	it("keeps the reader scrollbar usable while the dock paints full-bleed", () => {
@@ -141,10 +140,10 @@ describe("expanded player motion", () => {
 		expect(expandedPlayer).toContain("<ReadListenSentenceControls");
 	});
 
-	it("keeps playback centered independently from synchronized controls", () => {
+	it("keeps desktop playback centered and mobile transport compact", () => {
 		expect(playerBar).toContain('readListen ? "w-[42%]" : "w-1/2"');
 		expect(playerBar).toContain(
-			'<div className="relative flex w-full items-center justify-center">',
+			'<div className="relative flex shrink-0 items-center justify-center">',
 		);
 		expect(playerBar).toContain(
 			'<div className="flex max-w-full items-center justify-center">',

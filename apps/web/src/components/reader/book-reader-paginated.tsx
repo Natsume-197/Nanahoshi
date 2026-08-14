@@ -17,8 +17,10 @@ import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
+import { resolveReaderTextAnchorOffset } from "@/lib/reader/text-anchor";
 import {
 	type ReaderBookmark,
+	type ReaderTextAnchor,
 	SECTION_REFERENCE_PREFIX,
 } from "@/lib/reader/types";
 import {
@@ -454,18 +456,56 @@ export function BookReaderPaginated({
 		});
 	};
 
-	const navigateToSection = (reference: string) => {
-		const s = internalsRef.current;
-		const targetIndex = s.sectionEls.findIndex(
+	const findSectionIndex = (reference: string) =>
+		internalsRef.current.sectionEls.findIndex(
 			(section) =>
 				section.id === reference ||
 				section.querySelector(`[id="${reference}"]`),
 		);
+
+	const navigateToSection = (reference: string) => {
+		const s = internalsRef.current;
+		const targetIndex = findSectionIndex(reference);
 		if (targetIndex === -1) return;
 
 		renderSection(targetIndex, () => {
 			s.pageManager?.scrollTo(0, true);
 		});
+	};
+
+	const resolveTextAnchor = (anchor: ReaderTextAnchor) => {
+		const s = internalsRef.current;
+		const sectionIndex = findSectionIndex(anchor.sectionReference);
+		const section = s.sectionEls[sectionIndex];
+		if (sectionIndex < 0 || !section || !s.calculator) return undefined;
+		const sectionOffset = resolveReaderTextAnchorOffset(section, anchor);
+		return sectionOffset === undefined
+			? undefined
+			: s.calculator.getSectionStartCharCount(sectionIndex) + sectionOffset;
+	};
+
+	const navigateToTextAnchor = (anchor: ReaderTextAnchor) => {
+		const s = internalsRef.current;
+		const sectionIndex = findSectionIndex(anchor.sectionReference);
+		const targetCharacter = resolveTextAnchor(anchor);
+		if (sectionIndex < 0 || targetCharacter === undefined) {
+			navigateToSection(anchor.sectionReference);
+			return;
+		}
+
+		const scrollToAnchor = () => {
+			const position = s.calculator?.getScrollPosByCharCount(targetCharacter);
+			if (position === undefined || position < 0) return;
+			s.previousIntendedCount = targetCharacter;
+			s.pageManager?.scrollTo(position, false);
+			reportExplored(targetCharacter);
+			updateBookmarkScreen();
+		};
+		if (s.sectionIndex === sectionIndex) {
+			scrollToAnchor();
+		} else {
+			renderSection(sectionIndex, scrollToAnchor);
+		}
 	};
 
 	useMountEffect(() => {
@@ -674,6 +714,8 @@ export function BookReaderPaginated({
 			nextPage: () => pageManager.flipPage(1),
 			prevPage: () => pageManager.flipPage(-1),
 			navigateToSection,
+			navigateToTextAnchor,
+			resolveTextAnchor,
 			// Paginated mode never shows a document scrollbar (body is
 			// overflow-hidden), so there is nothing to hide.
 			getBookmark: () => {
