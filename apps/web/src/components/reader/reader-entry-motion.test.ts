@@ -28,9 +28,8 @@ describe("reader entry motion", () => {
 	});
 
 	it("fades the routed surface without containing its fixed reader chrome", () => {
-		expect(readerRoute).toContain(
-			'className="reader-route-content font-reader-sans"',
-		);
+		expect(readerRoute).toContain('className="reader-route-content ');
+		expect(readerRoute).toContain("font-reader-sans");
 		expect(readerEntryCss).toContain(".reader-route-content");
 		expect(readerEntryCss).toContain("transition-property: opacity;");
 		expect(readerEntryCss).not.toContain("transform: translate3d(0, 0, 0)");

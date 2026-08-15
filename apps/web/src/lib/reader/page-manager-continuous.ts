@@ -4,13 +4,11 @@
  * All rights reserved.
  */
 
-import { viewportHeight, viewportWidth } from "./viewport";
-
 export class PageManagerContinuous {
 	constructor(
 		private verticalMode: boolean,
 		private firstDimensionMargin: number,
-		private window: Window,
+		private scrollEl: HTMLElement,
 	) {}
 
 	nextPage() {
@@ -22,23 +20,23 @@ export class PageManagerContinuous {
 	}
 
 	scrollTo(pos: number) {
-		this.window.scrollTo({
+		this.scrollEl.scrollTo({
 			[this.verticalMode ? "left" : "top"]: pos,
 		});
 	}
 
 	private scrollByPercent(value: number) {
-		let windowSize = viewportHeight(this.window);
+		let viewportSize = this.scrollEl.clientHeight;
 		let scrollSide: "left" | "top" = "top";
 		let scale = 1;
 
 		if (this.verticalMode) {
-			windowSize = viewportWidth(this.window);
+			viewportSize = this.scrollEl.clientWidth;
 			scrollSide = "left";
 			scale = -1;
 		}
-		const pageSize = windowSize - this.firstDimensionMargin * 2;
-		this.window.scrollBy({
+		const pageSize = viewportSize - this.firstDimensionMargin * 2;
+		this.scrollEl.scrollBy({
 			[scrollSide]: pageSize * value * scale,
 			behavior: "smooth",
 		});

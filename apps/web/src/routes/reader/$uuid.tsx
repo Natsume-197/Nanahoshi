@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-router";
 import {
 	type CSSProperties,
+	type RefObject,
 	useCallback,
 	useMemo,
 	useRef,
@@ -209,6 +210,17 @@ function PersistReadListenPositionOnExit({
 	return null;
 }
 
+function FocusReaderScrollContainer({
+	containerRef,
+}: {
+	containerRef: RefObject<HTMLElement | null>;
+}) {
+	useMountEffect(() => {
+		containerRef.current?.focus({ preventScroll: true });
+	});
+	return null;
+}
+
 function ReaderPage() {
 	const { book, switchedOrgId } = useLoaderData({ from: "/reader/$uuid" });
 	const { uuid } = Route.useParams();
@@ -286,7 +298,7 @@ function ReaderPage() {
 	>(null);
 	const [readerApiRevision, setReaderApiRevision] = useState(0);
 	const apiRef = useRef<BookReaderApi | null>(null);
-	const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
+	const readerSurfaceRef = useRef<HTMLMainElement | null>(null);
 	const livePositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	const overlayEntryPositionRef = useRef<ReaderBookmark | undefined>(undefined);
 	const initialReadListenSession = readListenPairUuid
@@ -1013,11 +1025,13 @@ function ReaderPage() {
 	}
 
 	return (
-		<div
+		<main
 			ref={readerSurfaceRef}
 			data-read-listen-active={Boolean(readListenPairUuid)}
 			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
-			className="reader-route-content font-reader-sans"
+			aria-label={bookTitle}
+			tabIndex={-1}
+			className="reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] overflow-auto overscroll-none font-reader-sans"
 			style={
 				{
 					backgroundColor: theme.backgroundColor,
@@ -1033,6 +1047,10 @@ function ReaderPage() {
 				} as CSSProperties
 			}
 		>
+			<FocusReaderScrollContainer
+				key={readListenPairUuid ?? "reader"}
+				containerRef={readerSurfaceRef}
+			/>
 			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: book stylesheet sanitized by formatStyleSheet */}
 			<style dangerouslySetInnerHTML={styleSheetHtml} />
 			{!readListenPairUuid && readListenPositionRef.current && (
@@ -1078,6 +1096,7 @@ function ReaderPage() {
 						(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
 					}
 					reservePlayerSpace={Boolean(audioPlayerBook)}
+					scrollContainerRef={readerSurfaceRef}
 					controllerRef={(controller: BookReaderApi | null) => {
 						apiRef.current = controller;
 						if (controller) {
@@ -1273,6 +1292,6 @@ function ReaderPage() {
 					}}
 				/>
 			)}
-		</div>
+		</main>
 	);
 }

@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import type { MangaReaderSettings } from "@/lib/reader/manga-settings";
 import type { PdfReaderSource } from "@/lib/reader/pdf-source";
 import type { ReaderPresentation } from "@/lib/reader/reader-presentation";
@@ -30,6 +31,7 @@ interface ReaderEngineProps {
 	onExitFocus: () => void;
 	navigationBlocked: boolean;
 	reservePlayerSpace: boolean;
+	scrollContainerRef: RefObject<HTMLElement | null>;
 	controllerRef: (controller: BookReaderApi | null) => void;
 	pdfSource?: PdfReaderSource;
 	onPdfDocumentReady?: (pageCount: number) => void;
@@ -56,6 +58,7 @@ export function ReaderEngine({
 	onExitFocus,
 	navigationBlocked,
 	reservePlayerSpace,
+	scrollContainerRef,
 	controllerRef,
 	pdfSource,
 	onPdfDocumentReady,
@@ -158,6 +161,7 @@ export function ReaderEngine({
 			autoPositionOnResize={readerSettings.autoPositionOnResize}
 			autoScrollMultiplier={readerSettings.autoScrollMultiplier}
 			reservePlayerSpace={reservePlayerSpace}
+			scrollContainerRef={scrollContainerRef}
 			onAutoScrollChange={() => {}}
 		/>
 	);

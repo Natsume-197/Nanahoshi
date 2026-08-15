@@ -41,20 +41,8 @@
 .focus-reader-surface {
 	padding-top: max(1.5rem, var(--safe-area-top));
 	padding-right: calc(var(--safe-area-right) + 3.5rem);
-	padding-bottom: max(
-		1.5rem,
-		var(--reader-player-reserve-mobile, var(--safe-area-bottom))
-	);
+	padding-bottom: max(1.5rem, var(--safe-area-bottom));
 	padding-left: calc(var(--safe-area-left) + 3.5rem);
-}
-
-@media (min-width: 48rem) {
-	.focus-reader-surface {
-		padding-bottom: max(
-			1.5rem,
-			var(--reader-player-reserve-desktop, var(--safe-area-bottom))
-		);
-	}
 }
 
 /* Focus mode: one sentence is rendered at a time, independently of the
@@ -280,7 +268,7 @@
 	   scrollbar that drags the page up on mobile). `clip` (not `hidden`) is
 	   required: with the horizontal reading overflow it leaves overflow-x as
 	   `visible` instead of computing it to `auto`, which would turn this element
-	   into the scroll container and break the document-level reading scroll. */
+	   into a nested scroll container and break the reader-surface scroll. */
 	overflow-x: visible;
 	overflow-y: clip;
 }
@@ -307,22 +295,6 @@
 
 .book-content--continuous.book-content--writing-horizontal-tb > * {
 	margin-bottom: 6rem;
-}
-
-/* The persistent player is part of the synchronized reading surface. Give the
-   final chapter enough runway to clear it instead of ending underneath it. */
-.reader-route-content[data-read-listen-active="true"]
-	.book-content--continuous.book-content--writing-horizontal-tb
-	> :last-child {
-	margin-bottom: calc(6rem + var(--reader-player-reserve-mobile));
-}
-
-@media (min-width: 48rem) {
-	.reader-route-content[data-read-listen-active="true"]
-		.book-content--continuous.book-content--writing-horizontal-tb
-		> :last-child {
-		margin-bottom: calc(6rem + var(--reader-player-reserve-desktop));
-	}
 }
 
 /* Paginated mode: fixed-size scroll element with CSS columns */

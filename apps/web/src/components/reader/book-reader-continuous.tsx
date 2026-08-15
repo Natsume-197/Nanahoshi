@@ -9,7 +9,7 @@
  */
 
 import { BookmarkSimple } from "@phosphor-icons/react";
-import { type CSSProperties, useRef, useState } from "react";
+import { type CSSProperties, type RefObject, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { AutoScrollerContinuous } from "@/lib/reader/auto-scroller";
@@ -40,12 +40,7 @@ import {
 	SECTION_REFERENCE_PREFIX,
 	type SectionWithProgress,
 } from "@/lib/reader/types";
-import {
-	readerColumnHeight,
-	readerColumnHeightCss,
-	viewportHeight,
-	viewportWidth,
-} from "@/lib/reader/viewport";
+import { readerColumnHeightCss } from "@/lib/reader/viewport";
 import { ReaderLoadingOverlay } from "./reader-loading-overlay";
 import type { BaseReaderProps } from "./reader-shared-props";
 
@@ -56,6 +51,7 @@ interface BookReaderContinuousProps extends BaseReaderProps {
 	autoPositionOnResize: boolean;
 	autoScrollMultiplier: number;
 	reservePlayerSpace: boolean;
+	scrollContainerRef: RefObject<HTMLElement | null>;
 	onAutoScrollChange: (enabled: boolean) => void;
 }
 
@@ -123,6 +119,7 @@ export function BookReaderContinuous({
 	autoPositionOnResize,
 	autoScrollMultiplier,
 	reservePlayerSpace,
+	scrollContainerRef,
 	sections,
 	initialPosition,
 	initialBookmark,
@@ -151,6 +148,14 @@ export function BookReaderContinuous({
 	const [bookmarkPos, setBookmarkPos] = useState<BookmarkPosData | undefined>(
 		undefined,
 	);
+	const getScrollContainer = () =>
+		scrollContainerRef.current ?? document.documentElement;
+	const getViewportWidth = () => getScrollContainer().clientWidth;
+	const getViewportHeight = () => getScrollContainer().clientHeight;
+	const getColumnHeight = (maxHeight: number) => {
+		const viewport = getViewportHeight();
+		return verticalMode && maxHeight ? Math.min(maxHeight, viewport) : viewport;
+	};
 
 	const onExploredChangeRef = useRef(onExploredCharCountChange);
 	onExploredChangeRef.current = onExploredCharCountChange;
@@ -182,7 +187,7 @@ export function BookReaderContinuous({
 	};
 
 	// Live layout props reflow the book on React commit, before the parent
-	// gets to call relayout(); mark the window so reflow-induced scroll events
+	// gets to call relayout(); mark the viewport so reflow-induced scroll events
 	// don't overwrite the intended reading position. (Render-phase ref
 	// tracking, see the no-useEffect rule.)
 	const layoutSignature = [
@@ -262,7 +267,7 @@ export function BookReaderContinuous({
 			const margin = livePropsRef.current.firstDimensionMargin || 0;
 			entry.progress = verticalMode
 				? (Math.min(
-						Math.max(rect.right + margin - viewportWidth(), 0),
+						Math.max(rect.right + margin - getViewportWidth(), 0),
 						rect.width,
 					) /
 						(rect.width || 1)) *
@@ -285,20 +290,14 @@ export function BookReaderContinuous({
 		if (!contentEl) return;
 		const height = verticalMode
 			? contentEl.clientHeight ||
-				readerColumnHeight(
-					verticalMode,
-					livePropsRef.current.secondDimensionMaxValue,
-				)
-			: readerColumnHeight(
-					verticalMode,
-					livePropsRef.current.secondDimensionMaxValue,
-				);
+				getColumnHeight(livePropsRef.current.secondDimensionMaxValue)
+			: getColumnHeight(livePropsRef.current.secondDimensionMaxValue);
 		refitImageWidths(contentEl, height);
 	};
 
 	// Vertical mode: pin the reading strip to the measured reading area so it
 	// fills the player-safe viewport — no hidden text below, no clipped top
-	// line. `viewportHeight()` (documentElement.clientHeight) already excludes a
+	// line. The reader scroll container's clientHeight already excludes a
 	// classic horizontal scrollbar and is reliable CSS px on HiDPI, unlike the
 	// `100dvh` unit + scrollbar probe it replaces. Read after layout (finishInit
 	// / resize) when the horizontal scrollbar is present; the CSS `height:100dvh`
@@ -312,9 +311,9 @@ export function BookReaderContinuous({
 		// (which would overflow it and let the page scroll on Y). Stays correct
 		// across the mobile dynamic viewport, unlike the value baked at render.
 		const column = readerColumnHeightCss(
-			viewportHeight(),
+			getViewportHeight(),
 			livePropsRef.current.secondDimensionMaxValue,
-			livePropsRef.current.reservePlayerSpace,
+			false,
 		);
 		contentEl.style.height = column;
 		contentEl.style.setProperty("--book-content-child-height", column);
@@ -324,8 +323,9 @@ export function BookReaderContinuous({
 		// mode's vertical reading scroll, which (clamped to any stray vertical
 		// overflow) shifts every column up and clips the top line. Reset it
 		// without touching the horizontal reading scroll.
-		if (window.scrollY !== 0) {
-			window.scrollTo({ top: 0, left: window.scrollX });
+		const scrollEl = getScrollContainer();
+		if (scrollEl.scrollTop !== 0) {
+			scrollEl.scrollTo({ top: 0, left: scrollEl.scrollLeft });
 		}
 	};
 
@@ -352,14 +352,15 @@ export function BookReaderContinuous({
 
 		const rect = targetElement.getBoundingClientRect();
 		const margin = livePropsRef.current.firstDimensionMargin || 0;
+		const scrollEl = getScrollContainer();
 
 		if (verticalMode) {
-			window.scrollBy(
-				-(viewportWidth() - rect.right - margin - s.scrollAdjustment),
+			scrollEl.scrollBy(
+				-(getViewportWidth() - rect.right - margin - s.scrollAdjustment),
 				0,
 			);
 		} else {
-			window.scrollBy(0, rect.top - margin - s.scrollAdjustment);
+			scrollEl.scrollBy(0, rect.top - margin - s.scrollAdjustment);
 		}
 	};
 
@@ -384,7 +385,7 @@ export function BookReaderContinuous({
 		const exact = s.bookmarkManager?.getExactScroll(bookmark);
 		if (exact) {
 			s.isProgrammaticScroll = true;
-			window.scrollTo(exact);
+			getScrollContainer().scrollTo(exact);
 			return;
 		}
 
@@ -399,6 +400,7 @@ export function BookReaderContinuous({
 	useMountEffect(() => {
 		const contentEl = contentElRef.current;
 		if (!contentEl) return;
+		const scrollEl = getScrollContainer();
 
 		// Set the book HTML imperatively, outside React reconciliation: with
 		// dangerouslySetInnerHTML React 19 re-sets innerHTML when the {__html}
@@ -407,8 +409,8 @@ export function BookReaderContinuous({
 		contentEl.innerHTML = htmlContent;
 
 		const s = internalsRef.current;
-		s.settledInnerWidth = window.innerWidth;
-		s.settledInnerHeight = window.innerHeight;
+		s.settledInnerWidth = scrollEl.clientWidth;
+		s.settledInnerHeight = scrollEl.clientHeight;
 		let cancelled = false;
 
 		// Global document chrome (writing-mode, overflow locks, themed scrollbar,
@@ -428,23 +430,23 @@ export function BookReaderContinuous({
 			contentEl,
 			verticalMode ? "vertical" : "horizontal",
 			verticalMode ? "rtl" : "ltr",
-			document.documentElement,
+			scrollEl,
 			document,
 		);
 		const bookmarkManager = new BookmarkManagerContinuous(
 			calculator,
-			window,
+			scrollEl,
 			firstDimensionMargin || 0,
 		);
 		const pageManager = new PageManagerContinuous(
 			verticalMode,
 			firstDimensionMargin || 0,
-			window,
+			scrollEl,
 		);
 		const autoScroller = new AutoScrollerContinuous(
 			autoScrollMultiplier,
 			verticalMode,
-			document,
+			scrollEl,
 		);
 		autoScroller.setToggleListener((enabled) =>
 			onAutoScrollChangeRef.current(enabled),
@@ -491,11 +493,7 @@ export function BookReaderContinuous({
 		contentEl.addEventListener("load", handleResourceLoad, true);
 
 		// Vertical mode: translate vertical wheel into horizontal page scroll
-		const scrollFn = horizontalMouseWheel(
-			4,
-			document.documentElement,
-			requestAnimationFrame,
-		);
+		const scrollFn = horizontalMouseWheel(4, scrollEl, requestAnimationFrame);
 		const handleWheel = (ev: WheelEvent) => {
 			if (navigationBlockedRef.current) return;
 			markUserInputPending();
@@ -504,7 +502,7 @@ export function BookReaderContinuous({
 				!disableWheelNavigationRef.current &&
 				contentEl.contains(ev.target as Node)
 			) {
-				scrollFn(ev, livePropsRef.current.fontSize, viewportWidth());
+				scrollFn(ev, livePropsRef.current.fontSize, getViewportWidth());
 			}
 		};
 		document.body.addEventListener("wheel", handleWheel, { passive: false });
@@ -573,7 +571,7 @@ export function BookReaderContinuous({
 				// them as layout-induced so they don't overwrite the intended
 				// position (the recalc on un-hide clears the flag).
 				s.layoutDirty = true;
-				document.documentElement.style.setProperty(
+				scrollEl.style.setProperty(
 					"scrollbar-width",
 					hidden ? "none" : getReaderScrollbarWidth(),
 				);
@@ -597,13 +595,13 @@ export function BookReaderContinuous({
 							const margin = livePropsRef.current.firstDimensionMargin || 0;
 							s.bookmarkManager = new BookmarkManagerContinuous(
 								calculator,
-								window,
+								scrollEl,
 								margin,
 							);
 							s.pageManager = new PageManagerContinuous(
 								verticalMode,
 								margin,
-								window,
+								scrollEl,
 							);
 							refitImages();
 							s.isProgrammaticScroll = true;
@@ -658,10 +656,12 @@ export function BookReaderContinuous({
 		const target = event.target;
 		if (
 			!navigationBlockedRef.current &&
-			(target === document.body || target === document.documentElement)
+			(target === getScrollContainer() ||
+				target === document.body ||
+				target === document.documentElement)
 		) {
-			// Native scrollbar drags and middle-click autoscroll target the document,
-			// not the publication element, but still represent reading navigation.
+			// Native scrollbar drags and middle-click autoscroll target the scroll
+			// container rather than the publication, but still represent navigation.
 			markUserInputPending();
 		}
 	});
@@ -685,15 +685,16 @@ export function BookReaderContinuous({
 		}
 	});
 
-	useWindowEvent("scroll", () => {
+	const handleScroll = () => {
 		const s = internalsRef.current;
+		const scrollEl = getScrollContainer();
 		// Chromium may dispatch the scroll caused by viewport reflow before the
 		// window resize event. Detect the dimension change here as well, otherwise
 		// that first scroll frame can replace the semantic anchor with transient
 		// geometry before the resize handler marks it dirty.
 		const viewportChanged =
-			window.innerWidth !== s.settledInnerWidth ||
-			window.innerHeight !== s.settledInnerHeight;
+			scrollEl.clientWidth !== s.settledInnerWidth ||
+			scrollEl.clientHeight !== s.settledInnerHeight;
 		if (viewportChanged) {
 			s.layoutDirty = true;
 		}
@@ -756,18 +757,25 @@ export function BookReaderContinuous({
 				onExploredChangeRef.current(precise);
 			}, 120);
 		}
+	};
+
+	useMountEffect(() => {
+		const scrollEl = getScrollContainer();
+		scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+		return () => scrollEl.removeEventListener("scroll", handleScroll);
 	});
 
 	useWindowEvent("resize", () => {
 		const s = internalsRef.current;
+		const scrollEl = getScrollContainer();
 		clearTimeout(s.preciseScrollTimer);
 		// The resize event fires after the browser has started reflowing, so live
 		// geometry is already unsafe to sample here. Preserve the last settled
 		// character anchor and ignore reflow-induced scroll events until the new
 		// measurement restores it.
 		s.layoutDirty = true;
-		s.settledInnerWidth = window.innerWidth;
-		s.settledInnerHeight = window.innerHeight;
+		s.settledInnerWidth = scrollEl.clientWidth;
+		s.settledInnerHeight = scrollEl.clientHeight;
 		clearTimeout(s.resizeTimer);
 		s.resizeTimer = setTimeout(() => {
 			requestAnimationFrame(() => {
@@ -786,11 +794,11 @@ export function BookReaderContinuous({
 			? "0px"
 			: verticalMode
 				? readerColumnHeightCss(
-						viewportHeight(),
+						getViewportHeight(),
 						secondDimensionMaxValue,
-						reservePlayerSpace,
+						false,
 					)
-				: `${readerColumnHeight(verticalMode, secondDimensionMaxValue)}px`;
+				: `${getColumnHeight(secondDimensionMaxValue)}px`;
 
 	const containerStyle: CSSProperties = {
 		...buildReaderStyle({

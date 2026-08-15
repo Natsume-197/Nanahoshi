@@ -18,7 +18,7 @@ export interface BookmarkPosData {
 export class BookmarkManagerContinuous {
 	constructor(
 		private calculator: CharacterStatsCalculator,
-		private window: Window,
+		private scrollEl: HTMLElement,
 		private firstDimensionMargin: number,
 	) {}
 
@@ -29,11 +29,14 @@ export class BookmarkManagerContinuous {
 
 		const { verticalMode } = this.calculator;
 		const scrollAxis = verticalMode ? "scrollX" : "scrollY";
+		const scrollPosition = verticalMode
+			? this.scrollEl.scrollLeft
+			: this.scrollEl.scrollTop;
 
 		return {
 			exploredCharCount,
 			progress: bookCharCount ? exploredCharCount / bookCharCount : 0,
-			[scrollAxis]: this.window[scrollAxis],
+			[scrollAxis]: scrollPosition,
 			lastBookmarkModified: Date.now(),
 		};
 	}

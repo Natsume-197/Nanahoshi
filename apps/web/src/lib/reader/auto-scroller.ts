@@ -21,7 +21,7 @@ export class AutoScrollerContinuous {
 	constructor(
 		public multiplier: number,
 		public verticalMode: boolean,
-		private document: Document,
+		private scrollEl: HTMLElement,
 	) {}
 
 	setToggleListener(listener: (enabled: boolean) => void) {
@@ -68,7 +68,7 @@ export class AutoScrollerContinuous {
 			const scrollDirection: "left" | "top" = this.verticalMode
 				? "left"
 				: "top";
-			this.document.documentElement.scrollBy({ [scrollDirection]: intX });
+			this.scrollEl.scrollBy({ [scrollDirection]: intX });
 		}
 
 		this.rafId = requestAnimationFrame(this.tick);

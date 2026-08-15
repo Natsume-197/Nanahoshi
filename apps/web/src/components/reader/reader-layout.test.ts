@@ -41,8 +41,17 @@ describe("reader layout", () => {
 		expect(readerRoute).toContain(
 			"data-read-listen-active={Boolean(readListenPairUuid)}",
 		);
-		expect(readerCss).toContain("var(--reader-player-reserve-mobile)");
-		expect(readerCss).toContain("var(--reader-player-reserve-desktop)");
+		expect(readerRoute).toContain(
+			"h-[calc(100dvh-var(--reader-player-reserve-current))]",
+		);
+		expect(readerRoute).toContain("overflow-auto overscroll-none");
+		expect(readerRoute).toContain("scrollContainerRef={readerSurfaceRef}");
+		expect(readerRoute).toContain(
+			'"--reader-player-reserve-mobile": audioPlayerBook',
+		);
+		expect(readerRoute).toContain(
+			'"--reader-player-reserve-desktop": audioPlayerBook',
+		);
 	});
 
 	test("generated text wrappers fill the reading area despite EPUB page sizing", () => {
@@ -303,7 +312,7 @@ describe("reader layout", () => {
 				"calcPreciseExploredCharCount",
 			);
 			expect(source).toContain("formatBookmarkData(s.prevIntendedCharCount)");
-			expect(source).toContain("window.innerWidth !== s.settledInnerWidth");
+			expect(source).toContain("scrollEl.clientWidth !== s.settledInnerWidth");
 			expect(source).toContain("s.scheduleRecalc?.(false)");
 			expect(source).toContain("uncommittedUserPosition");
 			expect(source).toContain(
