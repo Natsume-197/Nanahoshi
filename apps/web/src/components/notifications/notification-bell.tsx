@@ -1,14 +1,8 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
-import {
-	Bell,
-	CaretLeft,
-	Checks,
-	CircleNotch,
-	Tray,
-} from "@phosphor-icons/react";
+import { Bell, CaretLeft, Checks, CircleNotch } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { type ComponentProps, useState } from "react";
+import type { ComponentProps } from "react";
 import { flushSync } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,27 +10,19 @@ import {
 	Empty,
 	EmptyDescription,
 	EmptyHeader,
-	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import {
-	Popover,
-	PopoverContent,
-	PopoverDescription,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-	SheetTrigger,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useActivityRailIsSheet } from "@/hooks/use-mobile";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -49,22 +35,27 @@ const PAGE_SIZE = 20;
 const unreadCountKey = orpc.notifications.unreadCount.queryOptions().queryKey;
 const listKey = orpc.notifications.list.key();
 
-/** Notifications: unread badge in the top bar, panel on click. */
-export function NotificationBell() {
+interface NotificationBellProps {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}
+
+/** Notifications unread badge and controlled trigger in the top bar. */
+export function NotificationBell({
+	open,
+	onOpenChange,
+}: NotificationBellProps) {
 	const { data: unread } = useQuery(
 		orpc.notifications.unreadCount.queryOptions(),
 	);
 	const count = unread?.count ?? 0;
 
 	return (
-		<>
-			<div className="md:hidden">
-				<MobileNotificationBell count={count} />
-			</div>
-			<div className="hidden md:block">
-				<DesktopNotificationBell count={count} />
-			</div>
-		</>
+		<NotificationTrigger
+			count={count}
+			aria-expanded={open}
+			onClick={() => onOpenChange(!open)}
+		/>
 	);
 }
 
@@ -101,51 +92,71 @@ function NotificationTrigger({
 	);
 }
 
-function MobileNotificationBell({ count }: { count: number }) {
-	const [open, setOpen] = useState(false);
-	useOverlayBackDismiss(open, () => setOpen(false));
-
-	return (
-		<Sheet open={open} onOpenChange={setOpen}>
-			<SheetTrigger asChild>
-				<NotificationTrigger count={count} />
-			</SheetTrigger>
-			<SheetContent
-				side="right"
-				showCloseButton={false}
-				overlayClassName="hidden"
-				className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
-			>
-				<NotificationPanel mode="screen" onNavigate={() => setOpen(false)} />
-			</SheetContent>
-		</Sheet>
-	);
+interface NotificationRailProps {
+	open: boolean;
+	onClose: () => void;
 }
 
-function DesktopNotificationBell({ count }: { count: number }) {
-	const [open, setOpen] = useState(false);
+/**
+ * Below `lg`, notifications use the established full-screen mobile sheet.
+ * From `lg` up, they share the same non-modal overlay rail as server members:
+ * the workspace never reflows and remains interactive behind the panel.
+ */
+export function NotificationRail({ open, onClose }: NotificationRailProps) {
+	const isSheet = useActivityRailIsSheet();
+	useOverlayBackDismiss(open && isSheet, onClose);
+
+	useWindowEvent("keydown", (event) => {
+		if (event.key !== "Escape" || !open || isSheet) return;
+		if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+		onClose();
+	});
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<NotificationTrigger count={count} />
-			</PopoverTrigger>
-			{/* Closed content is unmounted, so the panel queries only run while open */}
-			<PopoverContent
-				align="end"
-				className="w-[26rem] max-w-[calc(100vw-1rem)] gap-0 p-0"
+		<>
+			<aside
+				aria-label={m["notifications.title"]()}
+				aria-hidden={!open}
+				inert={!open}
+				className={cn(
+					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[26rem] max-w-full flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					open
+						? "pointer-events-auto translate-x-0"
+						: "pointer-events-none translate-x-full",
+				)}
 			>
-				<NotificationPanel mode="popover" onNavigate={() => setOpen(false)} />
-			</PopoverContent>
-		</Popover>
+				{!isSheet && (
+					<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
+				)}
+			</aside>
+
+			{isSheet && (
+				<Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+					<SheetContent
+						side="right"
+						showCloseButton={false}
+						overlayClassName="hidden"
+						className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
+					>
+						<NotificationPanel
+							active={open}
+							mode="screen"
+							onNavigate={onClose}
+						/>
+					</SheetContent>
+				</Sheet>
+			)}
+		</>
 	);
 }
 
 function NotificationPanel({
+	active,
 	mode,
 	onNavigate,
 }: {
-	mode: "popover" | "screen";
+	active: boolean;
+	mode: "rail" | "screen";
 	onNavigate: () => void;
 }) {
 	const router = useRouter();
@@ -154,12 +165,12 @@ function NotificationPanel({
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const { data: activeTasks } = useQuery({
 		...orpc.tasks.getActiveTasks.queryOptions(),
-		enabled: !!activeOrg,
+		enabled: active && !!activeOrg,
 	});
 
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
-		useInfiniteQuery(
-			orpc.notifications.list.infiniteOptions({
+		useInfiniteQuery({
+			...orpc.notifications.list.infiniteOptions({
 				input: (pageParam: number | undefined) => ({
 					limit: PAGE_SIZE,
 					cursor: pageParam,
@@ -168,7 +179,8 @@ function NotificationPanel({
 					lastPage.length === PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
 				initialPageParam: undefined as number | undefined,
 			}),
-		);
+			enabled: active,
+		});
 	const notifications = data?.pages.flat() ?? [];
 
 	const invalidateAll = () => {
@@ -241,14 +253,7 @@ function NotificationPanel({
 	const hasUnread = notifications.some((n) => n.readAt === null);
 
 	return (
-		<div
-			className={cn(
-				"flex flex-col",
-				mode === "screen"
-					? "h-full min-h-0"
-					: "max-h-[min(36rem,calc(100vh-2rem))]",
-			)}
-		>
+		<div className="flex h-full min-h-0 flex-col">
 			{mode === "screen" ? (
 				<SheetHeader className="grid shrink-0 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 border-b ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-[calc(var(--safe-area-top)+0.5rem)] pb-2 text-center">
 					<Button
@@ -291,42 +296,33 @@ function NotificationPanel({
 						<span aria-hidden="true" />
 					)}
 				</SheetHeader>
-			) : (
-				<PopoverHeader className="shrink-0 px-4 pt-4 pb-3">
-					<div className="flex items-center justify-between gap-3">
-						<PopoverTitle>{m["notifications.title"]()}</PopoverTitle>
-						{hasUnread && (
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								onClick={() => markAllRead.mutate()}
-								disabled={markAllRead.isPending}
-							>
-								{markAllRead.isPending ? (
-									<CircleNotch
-										data-icon="inline-start"
-										className="animate-spin"
-									/>
-								) : (
-									<Checks data-icon="inline-start" />
-								)}
-								{m["notifications.mark_all_read"]()}
-							</Button>
+			) : hasUnread ? (
+				<div className="flex shrink-0 justify-end px-3 pt-3">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-lg"
+						onClick={() => markAllRead.mutate()}
+						disabled={markAllRead.isPending}
+						aria-label={m["notifications.mark_all_read"]()}
+						title={m["notifications.mark_all_read"]()}
+						className="rounded-full"
+					>
+						{markAllRead.isPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<Checks />
 						)}
-					</div>
-					<PopoverDescription>
-						{m["notifications.description"]()}
-					</PopoverDescription>
-				</PopoverHeader>
-			)}
+					</Button>
+				</div>
+			) : null}
 
 			<div
 				className={cn(
 					"min-h-0 flex-1 overflow-y-auto overscroll-contain",
 					mode === "screen"
 						? "ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
-						: "px-2 pb-2",
+						: "px-3 py-3",
 				)}
 			>
 				{activeTasks && activeTasks.length > 0 && (
@@ -353,9 +349,6 @@ function NotificationPanel({
 				) : notifications.length === 0 ? (
 					<Empty className="min-h-64 p-8">
 						<EmptyHeader>
-							<EmptyMedia variant="icon">
-								<Tray />
-							</EmptyMedia>
 							<EmptyTitle>{m["notifications.empty"]()}</EmptyTitle>
 							<EmptyDescription>
 								{m["notifications.empty_desc"]()}

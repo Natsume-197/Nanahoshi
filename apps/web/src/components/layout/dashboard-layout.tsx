@@ -6,7 +6,13 @@ import {
 	useRouter,
 	useRouterState,
 } from "@tanstack/react-router";
-import { type CSSProperties, type RefObject, useCallback, useRef } from "react";
+import {
+	type CSSProperties,
+	type RefObject,
+	useCallback,
+	useRef,
+	useState,
+} from "react";
 import { CreateMenu } from "@/components/dashboard/create-menu";
 import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
@@ -16,7 +22,10 @@ import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
-import { NotificationBell } from "@/components/notifications/notification-bell";
+import {
+	NotificationBell,
+	NotificationRail,
+} from "@/components/notifications/notification-bell";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -210,6 +219,7 @@ export function DashboardLayout() {
 	const activeOrganizationId = session?.session.activeOrganizationId ?? null;
 	const isSwitchingServer = useIsSwitchingServer();
 	const activityRailOpen = useActivityRailOpen();
+	const [notificationRailOpen, setNotificationRailOpen] = useState(false);
 	const audiobook = useAudioPlayerBook();
 	// The expanded player covers the window; the chrome behind it must leave the
 	// tab order and the accessibility tree while it does.
@@ -364,7 +374,10 @@ export function DashboardLayout() {
 								title={m["aria.friends_activity"]()}
 								aria-pressed={activityRailOpen}
 								aria-expanded={activityRailOpen}
-								onClick={toggleActivityRail}
+								onClick={() => {
+									setNotificationRailOpen(false);
+									toggleActivityRail();
+								}}
 								className={cn(
 									"rounded-full text-foreground [&_svg]:size-[18px]",
 									activityRailOpen && "bg-muted",
@@ -372,7 +385,13 @@ export function DashboardLayout() {
 							>
 								<Users weight={activityRailOpen ? "fill" : "bold"} />
 							</Button>
-							<NotificationBell />
+							<NotificationBell
+								open={notificationRailOpen}
+								onOpenChange={(open) => {
+									if (open) setActivityRailOpen(false);
+									setNotificationRailOpen(open);
+								}}
+							/>
 							<div className="hidden md:contents">
 								<UserMenu collapsed />
 							</div>
@@ -445,10 +464,16 @@ export function DashboardLayout() {
 							{/* Its only toggle lives in the top bar, so a standalone route
 							    would strand it open with no way to close it. */}
 							{!standalone && (
-								<ActivityRail
-									open={activityRailOpen}
-									onClose={() => setActivityRailOpen(false)}
-								/>
+								<>
+									<ActivityRail
+										open={activityRailOpen}
+										onClose={() => setActivityRailOpen(false)}
+									/>
+									<NotificationRail
+										open={notificationRailOpen}
+										onClose={() => setNotificationRailOpen(false)}
+									/>
+								</>
 							)}
 						</div>
 					</SidebarInset>
