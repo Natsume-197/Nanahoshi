@@ -111,6 +111,11 @@ services:
   postgres:
     image: groonga/pgroonga:latest-alpine-16
     container_name: nanahoshi-v2-postgres
+    # PostgreSQL uses POSIX dynamic shared memory for parallel query workers.
+    # Docker's 64MB default is smaller than this stack's concurrent DB budget;
+    # keep enough headroom for unrelated plans even though duplicate grouping
+    # is indexed and no longer expected to build catalog-wide parallel hashes.
+    shm_size: 512mb
     # Stock Postgres defaults assume ~1GB machines: 128MB cache and 4MB sorts
     # (which spill to disk on a 40k-book catalog). Sized for a 16GB host shared
     # with the app; jit off — LLVM compile bursts on ARM hurt short OLTP queries.

@@ -105,6 +105,7 @@ mock.module("../../../modules/audiobookProcessor", () => ({
 }));
 
 const regroupBookDuplicates = mock(() => Promise.resolve());
+const enqueueBookRegroup = mock(() => Promise.resolve(true));
 const priorDuplicateGrouping = await import(
 	"../../../modules/duplicateGrouping"
 );
@@ -113,6 +114,7 @@ mock.module("../../../modules/duplicateGrouping", () => ({
 	regroupBookDuplicates,
 	findMemberToPromote: mock(() => Promise.resolve(null)),
 	enqueueBookEnrich: mock(() => Promise.resolve()),
+	enqueueBookRegroup,
 }));
 
 // ─── Patch domain singletons in place (restored in afterAll) ─────────────────
@@ -287,6 +289,9 @@ describe("file.event.worker", () => {
 		fillMissingFromLocal.mockClear();
 		processAudiobook.mockClear();
 		regroupBookDuplicates.mockClear();
+		regroupBookDuplicates.mockImplementation(() => Promise.resolve());
+		enqueueBookRegroup.mockClear();
+		enqueueBookRegroup.mockImplementation(() => Promise.resolve(true));
 	});
 
 	describe("add — repair of half-processed books", () => {
@@ -415,6 +420,18 @@ describe("file.event.worker", () => {
 			});
 			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
 			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+		});
+
+		test("a transient immediate regroup failure schedules durable reconciliation", async () => {
+			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
+			metadataRowResult = { bookId: 7 };
+			regroupBookDuplicates.mockImplementationOnce(() =>
+				Promise.reject(new Error("temporary database pressure")),
+			);
+
+			await processJob(reprocessJob());
+
+			expect(enqueueBookRegroup).toHaveBeenCalledWith(7);
 		});
 
 		test("a book without any metadata row runs the full local extraction (repair)", async () => {

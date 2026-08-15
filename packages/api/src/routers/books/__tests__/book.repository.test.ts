@@ -185,6 +185,46 @@ describe("BookRepository", () => {
 		mockExecute.mockClear();
 	});
 
+	test("findGroupingCandidates() resolves indexed evidence before hydrating candidates", async () => {
+		executeResult = [{ book_id: "10" }, { book_id: "20" }];
+		selectResult = [
+			{
+				id: 10,
+				filesizeKb: 2_000,
+				duplicateOfBookId: null,
+				title: "Book 1",
+			},
+			{
+				id: 20,
+				filesizeKb: 1_000,
+				duplicateOfBookId: null,
+				title: "Book 1",
+			},
+		];
+
+		const result = await repo.findGroupingCandidates(7, {
+			isbns: ["9780306406157"],
+			asins: ["B07NRCPYW6"],
+			uids: ["publisher-42"],
+			primaryCatalogMatch: {
+				provider: "googlebooks",
+				providerId: "edition-1",
+			},
+		});
+
+		expect(result.map((row) => row.id)).toEqual([10, 20]);
+		expect(mockExecute).toHaveBeenCalledTimes(1);
+		expect(executedQuery).not.toBeNull();
+		const rendered = new PgDialect().sqlToQuery(executedQuery as SQL);
+		expect(rendered.sql).toContain("UNION");
+		expect(rendered.sql).toContain('FROM "book_metadata"');
+		expect(rendered.sql).toContain('FROM "enrichment_state"');
+		expect(rendered.sql).not.toContain("LEFT JOIN");
+		expect(rendered.params).toContain("googlebooks");
+		expect(rendered.params).toContain("edition-1");
+		expect(mockSelect).toHaveBeenCalledTimes(1);
+	});
+
 	test("create() passes the input to db.insert().values() and returns the inserted row", async () => {
 		const input = {
 			uuid: "test-uuid",

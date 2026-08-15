@@ -676,6 +676,21 @@ export const bookMetadata = pgTable(
 		index("book_metadata_publisher_id_idx").on(table.publisherId),
 		// Title sorts (catalog title_asc/desc, OPDS all-books) at 40k+ rows.
 		index("book_metadata_title_idx").on(table.title),
+		// Duplicate grouping probes these normalized identifiers for a handful of
+		// values at a time. Keep the expressions identical to BookRepository so
+		// Postgres can use bitmap index scans instead of scanning all metadata.
+		index("book_metadata_normalized_isbn13_idx").on(
+			sql`upper(replace(replace(coalesce(${table.isbn13}, ''), '-', ''), ' ', ''))`,
+		),
+		index("book_metadata_normalized_isbn10_idx").on(
+			sql`upper(replace(replace(coalesce(${table.isbn10}, ''), '-', ''), ' ', ''))`,
+		),
+		index("book_metadata_normalized_asin_idx").on(
+			sql`upper(trim(coalesce(${table.asin}, '')))`,
+		),
+		index("book_metadata_normalized_embedded_uid_idx").on(
+			sql`trim(coalesce(${table.embeddedUid}, ''))`,
+		),
 	],
 );
 

@@ -1,3 +1,4 @@
+import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { enrichmentStateRepository } from "../routers/enrichment/enrichment.repository";
@@ -29,8 +30,8 @@ export {
 };
 
 function validIsbnSet(meta: {
-	isbn13: string | null;
-	isbn10: string | null;
+	isbn13?: string | null;
+	isbn10?: string | null;
 }): string[] {
 	const out: string[] = [];
 	if (meta.isbn13 && isValidIsbn13(meta.isbn13))
@@ -40,14 +41,14 @@ function validIsbnSet(meta: {
 	return [...new Set(out)];
 }
 
-function validAsinSet(meta: { asin: string | null }): string[] {
+function validAsinSet(meta: { asin?: string | null }): string[] {
 	if (meta.asin && isValidAsin(meta.asin)) return [normalizeAsin(meta.asin)];
 	return [];
 }
 
 // Opaque OPF unique-identifier: no checksum exists, so beyond the format
 // guards the only defense is the boilerplate cap below + the title veto.
-function usableUidSet(meta: { embeddedUid: string | null }): string[] {
+function usableUidSet(meta: { embeddedUid?: string | null }): string[] {
 	if (meta.embeddedUid && isUsableEmbeddedUid(meta.embeddedUid))
 		return [normalizeEmbeddedUid(meta.embeddedUid)];
 	return [];
@@ -56,6 +57,7 @@ function usableUidSet(meta: { embeddedUid: string | null }): string[] {
 // A publisher id stamped on this many books in one library is boilerplate
 // (tool default, series-wide id), not an edition identifier — ignore it.
 const EMBEDDED_UID_BOILERPLATE_CAP = 8;
+const REGROUP_DEBOUNCE_MS = 5_000;
 
 type GroupingRow = {
 	title: string | null;
@@ -101,6 +103,60 @@ function groupingEvidence(
 			? [fallbackProviderEdition.identifier]
 			: [],
 	};
+}
+
+function durableRegroupIdentity(
+	row: GroupingRow & { libraryId: number | null },
+): string | null {
+	const providerEdition = authoritativeProviderEdition(row);
+	if (providerEdition) {
+		const { provider, providerId } = providerEdition.match;
+		return JSON.stringify([row.libraryId, provider, providerId]);
+	}
+
+	const isbn = validIsbnSet(row).sort()[0];
+	if (isbn) return JSON.stringify([row.libraryId, "isbn", isbn]);
+	const asin = validAsinSet(row)[0];
+	if (asin) return JSON.stringify([row.libraryId, "asin", asin]);
+	const uid = usableUidSet(row)[0];
+	if (uid) return JSON.stringify([row.libraryId, "embeddedUid", uid]);
+	return null;
+}
+
+/**
+ * Debounce a durable, provider-neutral reconciliation after evidence changes.
+ * The regroup job performs no provider calls and retries independently from
+ * enrichment, so a transient database failure never repeats remote work.
+ */
+export async function enqueueBookRegroup(bookId: number): Promise<boolean> {
+	const row = await bookRepository.getGroupingInfo(bookId);
+	if (
+		!row ||
+		row.libraryId == null ||
+		row.groupLocked ||
+		row.automaticGroupingEnabled === false
+	) {
+		return false;
+	}
+	const identity = durableRegroupIdentity(row);
+	if (!identity) return false;
+
+	await fileEventQueue.add(
+		"regroup-book",
+		{ action: "regroup", bookId, libraryId: row.libraryId },
+		{
+			attempts: 5,
+			backoff: { type: "exponential", delay: REGROUP_DEBOUNCE_MS },
+			delay: REGROUP_DEBOUNCE_MS,
+			deduplication: {
+				id: `duplicate-regroup:${identity}`,
+				ttl: REGROUP_DEBOUNCE_MS,
+				extend: true,
+				replace: true,
+			},
+		},
+	);
+	return true;
 }
 
 // ─── Grouping ────────────────────────────────────────────────────────────────

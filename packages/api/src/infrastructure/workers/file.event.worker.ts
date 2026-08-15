@@ -11,6 +11,7 @@ import {
 } from "../../modules/audiobookProcessor";
 import {
 	enqueueBookEnrich,
+	enqueueBookRegroup,
 	findMemberToPromote,
 	regroupBookDuplicates,
 } from "../../modules/duplicateGrouping";
@@ -204,9 +205,10 @@ async function handleFileEvent(job: Job) {
 
 			// Group by ISBN before enrichment: if this book becomes a hidden
 			// copy, the enrich worker will skip it (one source of truth).
-			await regroupBookDuplicates(bookInserted.id).catch((err) =>
-				log.error({ err, bookId: bookInserted.id }, "Regroup failed"),
-			);
+			await regroupBookDuplicates(bookInserted.id).catch(async (err) => {
+				log.error({ err, bookId: bookInserted.id }, "Regroup failed");
+				await enqueueBookRegroup(bookInserted.id);
+			});
 
 			// Enqueue Amazon metadata enrichment in background (non-blocking)
 			await enqueueAutoEnrich(
@@ -251,9 +253,10 @@ async function handleFileEvent(job: Job) {
 				});
 			}
 
-			await regroupBookDuplicates(bookId).catch((err) =>
-				log.error({ err, bookId }, "Regroup failed"),
-			);
+			await regroupBookDuplicates(bookId).catch(async (err) => {
+				log.error({ err, bookId }, "Regroup failed");
+				await enqueueBookRegroup(bookId);
+			});
 
 			// Hidden copies aren't enriched (one source of truth). For the rest,
 			// re-enqueue whenever a configured provider could still fill a missing

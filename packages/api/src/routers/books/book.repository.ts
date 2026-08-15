@@ -1720,21 +1720,25 @@ export class BookRepository {
 			primaryCatalogMatch?: { provider: string; providerId: string };
 		},
 	) {
-		const matchers: SQL[] = [];
+		const metadataMatchers: SQL[] = [];
 		if (ids.isbns.length > 0) {
 			const isbnList = sql.join(
 				ids.isbns.map((v) => sql`${v}`),
 				sql`, `,
 			);
-			matchers.push(sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`);
-			matchers.push(sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`);
+			metadataMatchers.push(
+				sql`${normIsbnSql(bookMetadata.isbn13)} IN (${isbnList})`,
+			);
+			metadataMatchers.push(
+				sql`${normIsbnSql(bookMetadata.isbn10)} IN (${isbnList})`,
+			);
 		}
 		if (ids.asins.length > 0) {
 			const asinList = sql.join(
 				ids.asins.map((v) => sql`${v}`),
 				sql`, `,
 			);
-			matchers.push(
+			metadataMatchers.push(
 				sql`upper(trim(coalesce(${bookMetadata.asin}, ''))) IN (${asinList})`,
 			);
 		}
@@ -1743,22 +1747,53 @@ export class BookRepository {
 				ids.uids.map((v) => sql`${v}`),
 				sql`, `,
 			);
-			matchers.push(
+			metadataMatchers.push(
 				sql`trim(coalesce(${bookMetadata.embeddedUid}, '')) IN (${uidList})`,
 			);
+		}
+
+		// Resolve each evidence family independently before hydrating rows. A
+		// three-table LEFT JOIN with one cross-table OR prevents Postgres from
+		// using the metadata expression indexes and the matched JSONB GIN index;
+		// on a large library it builds parallel hashes for the whole catalog just
+		// to return a handful of candidates.
+		const candidateQueries: SQL[] = [];
+		if (metadataMatchers.length > 0) {
+			candidateQueries.push(sql`
+				SELECT ${bookMetadata.bookId} AS book_id
+				FROM ${bookMetadata}
+				WHERE ${or(...metadataMatchers)}
+			`);
 		}
 		if (ids.primaryCatalogMatch) {
 			const match = ids.primaryCatalogMatch;
 			const needle = JSON.stringify([
 				{ provider: match.provider, providerId: match.providerId },
 			]);
-			matchers.push(sql`(
-				${enrichmentState.matched} @> ${needle}::jsonb
-				AND ${enrichmentState.status} IN ('enriched', 'partial')
-				AND ${enrichmentState.matched}->0->>'provider' = ${match.provider}
-				AND ${enrichmentState.matched}->0->>'providerId' = ${match.providerId}
-			)`);
+			candidateQueries.push(sql`
+				SELECT ${enrichmentState.bookId} AS book_id
+				FROM ${enrichmentState}
+				WHERE ${enrichmentState.matched} @> ${needle}::jsonb
+					AND ${enrichmentState.status} IN ('enriched', 'partial')
+					AND ${enrichmentState.matched}->0->>'provider' = ${match.provider}
+					AND ${enrichmentState.matched}->0->>'providerId' = ${match.providerId}
+			`);
 		}
+		if (candidateQueries.length === 0) return [];
+
+		const candidateIdResult = await db.execute(sql`
+			SELECT candidates.book_id
+			FROM (${sql.join(candidateQueries, sql` UNION `)}) candidates
+			INNER JOIN ${book} candidate_book
+				ON candidate_book.id = candidates.book_id
+			WHERE candidate_book.library_id = ${libraryId}
+				AND candidate_book.group_locked = false
+		`);
+		const candidateIds = candidateIdResult.rows
+			.map((row) => Number((row as { book_id: number | string }).book_id))
+			.filter(Number.isSafeInteger);
+		if (candidateIds.length === 0) return [];
+
 		return db
 			.select({
 				id: book.id,
@@ -1781,7 +1816,7 @@ export class BookRepository {
 				and(
 					eq(book.libraryId, libraryId),
 					eq(book.groupLocked, false),
-					or(...matchers),
+					inArray(book.id, candidateIds),
 				),
 			);
 	}

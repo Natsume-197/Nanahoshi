@@ -2,7 +2,7 @@ import { type Job, Worker } from "bullmq";
 import { TooManyRequestsError } from "../../errors";
 import { logger } from "../../lib/logger";
 import { workerConcurrency } from "../../lib/worker-budget";
-import { regroupBookDuplicates } from "../../modules/duplicateGrouping";
+import { enqueueBookRegroup } from "../../modules/duplicateGrouping";
 import { admit } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { dispatchDueMetadataRetries } from "../../modules/metadataRetry/metadata-retry.scheduler";
 import { isTaskCancelled } from "../../modules/taskManager";
@@ -90,10 +90,9 @@ async function enrichSingleBook(
 			{ refresh },
 		);
 
-		// Amazon may have just added an ISBN/ASIN — re-evaluate grouping.
-		await regroupBookDuplicates(bookId).catch((err) =>
-			log.error({ err, bookId }, "Regroup failed"),
-		);
+		// Provider evidence may have changed. Reconciliation is a separate,
+		// debounced job so database retries never repeat remote provider calls.
+		await enqueueBookRegroup(bookId);
 
 		log.info(
 			{ uuid, result: result ? "updated" : "no changes" },

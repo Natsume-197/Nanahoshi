@@ -1,0 +1,4 @@
+CREATE INDEX "book_metadata_normalized_isbn13_idx" ON "book_metadata" USING btree (upper(replace(replace(coalesce("isbn_13", ''), '-', ''), ' ', '')));--> statement-breakpoint
+CREATE INDEX "book_metadata_normalized_isbn10_idx" ON "book_metadata" USING btree (upper(replace(replace(coalesce("isbn_10", ''), '-', ''), ' ', '')));--> statement-breakpoint
+CREATE INDEX "book_metadata_normalized_asin_idx" ON "book_metadata" USING btree (upper(trim(coalesce("asin", ''))));--> statement-breakpoint
+CREATE INDEX "book_metadata_normalized_embedded_uid_idx" ON "book_metadata" USING btree (trim(coalesce("embedded_uid", '')));

@@ -8,6 +8,10 @@ const metadataEnrichAddMock = mock(async () => {});
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: { add: metadataEnrichAddMock },
 }));
+const fileEventAddMock = mock(async () => {});
+mock.module("../../infrastructure/queue/queues/file-event.queue", () => ({
+	fileEventQueue: { add: fileEventAddMock },
+}));
 const { bookMetadataRepository } = await import(
 	"../../routers/books/metadata/metadata.repository"
 );
@@ -27,6 +31,7 @@ const loggerMock = {
 mock.module("../../lib/logger", () => ({ logger: loggerMock }));
 
 const {
+	enqueueBookRegroup,
 	isValidIsbn13,
 	isValidIsbn10,
 	isValidAsin,
@@ -73,6 +78,86 @@ describe("duplicate identifier validation", () => {
 		expect(isUsableEmbeddedUid("0000000000")).toBe(false);
 		expect(isUsableEmbeddedUid("B08R8G4XMQ")).toBe(false);
 		expect(isUsableEmbeddedUid("9784040731278")).toBe(false);
+	});
+});
+
+describe("durable duplicate regroup scheduling", () => {
+	test("deduplicates a delayed retry by library and authoritative provider edition", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const getGroupingInfoSpy = spyOn(
+			bookRepository,
+			"getGroupingInfo",
+		).mockImplementation(async () => ({
+			libraryId: 7,
+			groupLocked: false,
+			automaticGroupingEnabled: true,
+			title: "Book 1",
+			titleRomaji: null,
+			isbn13: null,
+			isbn10: null,
+			asin: null,
+			embeddedUid: null,
+			languageCode: "en",
+			catalogMatches: [{ provider: "googlebooks", providerId: "edition-1" }],
+			catalogMatchStatus: "enriched",
+		}));
+
+		try {
+			fileEventAddMock.mockClear();
+			await expect(enqueueBookRegroup(42)).resolves.toBe(true);
+			expect(fileEventAddMock).toHaveBeenCalledTimes(1);
+			expect(fileEventAddMock.mock.calls[0]?.[0]).toBe("regroup-book");
+			expect(fileEventAddMock.mock.calls[0]?.[1]).toEqual({
+				action: "regroup",
+				bookId: 42,
+				libraryId: 7,
+			});
+			expect(fileEventAddMock.mock.calls[0]?.[2]).toMatchObject({
+				attempts: 5,
+				delay: 5_000,
+				deduplication: {
+					id: 'duplicate-regroup:[7,"googlebooks","edition-1"]',
+					ttl: 5_000,
+					extend: true,
+					replace: true,
+				},
+			});
+		} finally {
+			getGroupingInfoSpy.mockRestore();
+		}
+	});
+
+	test("does not promote a provisional provider match into grouping evidence", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const getGroupingInfoSpy = spyOn(
+			bookRepository,
+			"getGroupingInfo",
+		).mockImplementation(async () => ({
+			libraryId: 7,
+			groupLocked: false,
+			automaticGroupingEnabled: true,
+			title: "Book 1",
+			titleRomaji: null,
+			isbn13: null,
+			isbn10: null,
+			asin: null,
+			embeddedUid: null,
+			languageCode: "en",
+			catalogMatches: [{ provider: "ranobedb", providerId: "42" }],
+			catalogMatchStatus: "review",
+		}));
+
+		try {
+			fileEventAddMock.mockClear();
+			await expect(enqueueBookRegroup(42)).resolves.toBe(false);
+			expect(fileEventAddMock).not.toHaveBeenCalled();
+		} finally {
+			getGroupingInfoSpy.mockRestore();
+		}
 	});
 });
 
