@@ -24,7 +24,7 @@ function AmountRow({
 			<span className="w-14 shrink-0 text-[11px] text-muted-foreground">
 				{label}
 			</span>
-			<div className="grid flex-1 grid-cols-4 gap-1">
+			<div className="grid flex-1 grid-cols-5 gap-1">
 				{JUMP_AMOUNTS.map((amount) => (
 					<Button
 						key={amount}

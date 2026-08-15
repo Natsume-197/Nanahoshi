@@ -3,7 +3,6 @@
 // overflow-hidden element), so opening a book never lays out the whole document.
 // The parent remounts (via `key`) on layout-affecting setting changes.
 
-import { BookmarkSimple } from "@phosphor-icons/react";
 import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -19,7 +18,7 @@ import {
 } from "@/lib/reader/shared/reader-style";
 import { resolveReaderTextAnchorOffset } from "@/lib/reader/text-anchor";
 import {
-	type ReaderBookmark,
+	type ReaderPosition,
 	type ReaderTextAnchor,
 	SECTION_REFERENCE_PREFIX,
 } from "@/lib/reader/types";
@@ -47,7 +46,6 @@ interface PaginatedInternals {
 	sectionIndex: number;
 	virtualScrollPos: number;
 	previousIntendedCount: number;
-	displayedBookmark?: ReaderBookmark;
 	recalcTimer?: ReturnType<typeof setTimeout>;
 	resizeTimer?: ReturnType<typeof setTimeout>;
 	relayoutTimer?: ReturnType<typeof setTimeout>;
@@ -198,7 +196,6 @@ export function BookReaderPaginated({
 	reservePlayerSpace,
 	sections,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	apiRef,
@@ -217,12 +214,6 @@ export function BookReaderPaginated({
 		renderGeneration: 0,
 	});
 	const [allowDisplay, setAllowDisplay] = useState(false);
-	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
-	const [bookmarkMarkerStyle, setBookmarkMarkerStyle] = useState<{
-		top?: string;
-		left?: string;
-		right?: string;
-	}>({});
 	const [resizeTick, setResizeTick] = useState(0);
 	// Viewport depends on live settings (margins/max size) and window size.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: resizeTick re-reads the window size
@@ -291,49 +282,6 @@ export function BookReaderPaginated({
 		s.cancelStaging = undefined;
 	};
 
-	// ttu's updateBookmarkScreen: places the marker next to the bookmarked
-	// paragraph when its exact page is shown, with edge fallbacks otherwise.
-	const updateBookmarkScreen = () => {
-		const s = internalsRef.current;
-		const scrollEl = scrollElRef.current;
-		const charCount = s.displayedBookmark?.exploredCharCount;
-		// Count 0 (bookmark at the book start) is valid; only no-bookmark hides.
-		if (!s.calculator || charCount === undefined || !scrollEl) {
-			setIsBookmarkScreen(false);
-			return;
-		}
-		const result = s.calculator.checkBookmarkOnScreen(charCount);
-		setIsBookmarkScreen(result.isBookmarkScreen);
-		if (!result.isBookmarkScreen) return;
-
-		const dimensionAdjustment = Number(
-			getComputedStyle(scrollEl)[
-				verticalMode ? "marginTop" : "marginRight"
-			].replace(/px$/, ""),
-		);
-		const pos = result.bookmarkPos;
-		if (!pos) {
-			setBookmarkMarkerStyle(
-				verticalMode
-					? { top: "0.5rem", right: "0.75rem" }
-					: { top: "0.5rem", left: "0.75rem" },
-			);
-		} else if (verticalMode) {
-			setBookmarkMarkerStyle({
-				top: dimensionAdjustment ? `${dimensionAdjustment}px` : "0.5rem",
-				left: `${pos.left ?? 0}px`,
-			});
-		} else {
-			setBookmarkMarkerStyle({
-				top: `${pos.top ?? 0}px`,
-				left:
-					(pos.left ?? 0) > 0
-						? `calc(${pos.left}px - 20px)`
-						: `${Math.max(20, dimensionAdjustment)}px`,
-			});
-		}
-	};
-
 	// Re-measures the current section and re-anchors to the last user-intended
 	// reading position.
 	const relayoutNow = () => {
@@ -347,14 +295,13 @@ export function BookReaderPaginated({
 			s.pageManager.scrollTo(pos, false);
 		}
 		reportExplored(s.previousIntendedCount);
-		updateBookmarkScreen();
 	};
 
 	// Debounced: the quick-settings sliders commit one layout change per drag
 	// tick, and re-measuring every paragraph on each tick freezes the drag.
 	// Only the last tick's layout matters; the timer also guarantees React has
 	// committed the new layout props before anything is measured.
-	const scheduleRelayout = (position?: ReaderBookmark) => {
+	const scheduleRelayout = (position?: ReaderPosition) => {
 		const s = internalsRef.current;
 		if (position) s.previousIntendedCount = position.exploredCharCount;
 		clearTimeout(s.relayoutTimer);
@@ -450,7 +397,6 @@ export function BookReaderPaginated({
 			// backwards transition is trying to land on the section's last page.
 			s.calculator?.updateParagraphPos();
 			reportExplored();
-			updateBookmarkScreen();
 			onRendered?.();
 			scheduleAdjacentStaging(index);
 		});
@@ -499,7 +445,6 @@ export function BookReaderPaginated({
 			s.previousIntendedCount = targetCharacter;
 			s.pageManager?.scrollTo(position, false);
 			reportExplored(targetCharacter);
-			updateBookmarkScreen();
 		};
 		if (s.sectionIndex === sectionIndex) {
 			scrollToAnchor();
@@ -570,7 +515,6 @@ export function BookReaderPaginated({
 						s.previousIntendedCount = explored;
 					}
 					onExploredChangeRef.current(explored);
-					updateBookmarkScreen();
 				},
 				onSectionProgress: (progress) =>
 					onSectionProgressChangeRef.current(progress),
@@ -697,10 +641,6 @@ export function BookReaderPaginated({
 					}
 					s.previousIntendedCount = charCount;
 				}
-				if (initialBookmark) {
-					s.displayedBookmark = initialBookmark;
-					updateBookmarkScreen();
-				}
 				reportExplored(s.previousIntendedCount);
 				setAllowDisplay(true);
 			});
@@ -718,19 +658,18 @@ export function BookReaderPaginated({
 			resolveTextAnchor,
 			// Paginated mode never shows a document scrollbar (body is
 			// overflow-hidden), so there is nothing to hide.
-			getBookmark: () => {
+			getPosition: () => {
 				const exploredCharCount = Math.max(0, s.previousIntendedCount);
 				return {
 					exploredCharCount,
 					progress: calculator.charCount
 						? exploredCharCount / calculator.charCount
 						: 0,
-					lastBookmarkModified: Date.now(),
+					modifiedAt: Date.now(),
 				};
 			},
-			scrollToBookmark: (bookmark) => {
-				const target = bookmark.exploredCharCount;
-				s.displayedBookmark = bookmark;
+			scrollToPosition: (position) => {
+				const target = position.exploredCharCount;
 				// Count 0 = the book start: first section, first page.
 				const index = target
 					? calculator.getSectionIndexByCharCount(target)
@@ -741,17 +680,12 @@ export function BookReaderPaginated({
 						pageManager.scrollTo(pos, false);
 					}
 					s.previousIntendedCount = target;
-					updateBookmarkScreen();
 				};
 				if (s.sectionIndex === index) {
 					scroll();
 				} else {
 					renderSection(index, scroll);
 				}
-			},
-			showBookmarkMarker: (bookmark) => {
-				s.displayedBookmark = bookmark;
-				updateBookmarkScreen();
 			},
 			relayout: scheduleRelayout,
 		});
@@ -858,15 +792,6 @@ export function BookReaderPaginated({
 					<div ref={contentElRef} className="book-content-container" />
 				</div>
 			</div>
-
-			{isBookmarkScreen && (
-				<div
-					className="pointer-events-none fixed text-base opacity-25 sm:text-xl"
-					style={{ color: theme.fontColor, ...bookmarkMarkerStyle }}
-				>
-					<BookmarkSimple weight="fill" className="size-5" />
-				</div>
-			)}
 
 			{!allowDisplay && <ReaderLoadingOverlay theme={theme} />}
 		</>

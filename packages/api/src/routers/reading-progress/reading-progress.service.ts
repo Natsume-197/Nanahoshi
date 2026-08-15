@@ -14,7 +14,6 @@ export const saveProgress = async (
 	data: {
 		exploredCharCount?: number;
 		bookCharCount?: number;
-		positionMode?: "automatic" | "bookmark";
 		positionIntentAt?: number;
 		syncOperationId?: string;
 		readingTimeSeconds?: number;

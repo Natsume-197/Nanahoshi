@@ -5,7 +5,7 @@ import type {
 	VerticalTextOrientation,
 } from "@/lib/reader/settings";
 import type {
-	ReaderBookmark,
+	ReaderPosition,
 	ReaderTextAnchor,
 	Section,
 	SectionWithProgress,
@@ -22,11 +22,10 @@ export interface BookReaderApi {
 	/** Continuous-engine capability; absent from page-turning engines. */
 	toggleAutoScroll?(): void;
 	setAutoScrollMultiplier?(multiplier: number): void;
-	getBookmark(): ReaderBookmark | undefined;
-	scrollToBookmark(bookmark: ReaderBookmark): void;
-	showBookmarkMarker(bookmark: ReaderBookmark | undefined): void;
+	getPosition(): ReaderPosition | undefined;
+	scrollToPosition(position: ReaderPosition): void;
 	/** Re-measure after a live (non-remount) layout-affecting setting change. */
-	relayout(position?: ReaderBookmark): void;
+	relayout(position?: ReaderPosition): void;
 	/** PDF-engine capability; opens its native, progressively populated search. */
 	openSearch?(): void;
 	/**
@@ -71,9 +70,7 @@ export interface BaseReaderProps {
 	navigationBlocked: boolean;
 	sections: Section[];
 	/** Reading position to restore (scroll/page target), shown to no one. */
-	initialPosition: ReaderBookmark | undefined;
-	/** Saved bookmark, displayed as the marker; never used for restoring. */
-	initialBookmark: ReaderBookmark | undefined;
+	initialPosition: ReaderPosition | undefined;
 	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	apiRef: (api: BookReaderApi | null) => void;

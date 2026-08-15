@@ -28,7 +28,7 @@ export function isNodeImage(node: Node) {
 
 export function getCharacterCount(node: Node) {
 	// Images weigh 1 so they exist in the char-count-based position system
-	// (bookmarks, progress, restore); image-only books would otherwise have
+	// (progress, restore); image-only books would otherwise have
 	// charCount 0 and no anchors at all. Stats for text books shift by only
 	// +1 per illustration.
 	return isNodeImage(node) ? 1 : getRawCharacterCount(node);

@@ -34,6 +34,11 @@
 	}
 }
 
+.reader-route-content:focus,
+.reader-route-content:focus-visible {
+	outline: none;
+}
+
 .book-content {
 	font-family: var(--font-family-serif, "Noto Serif JP", serif);
 }

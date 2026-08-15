@@ -150,7 +150,7 @@ afterEach(() => {
 });
 
 describe("ReadListenRuntime", () => {
-	test("does not move the reader when the mode seeks audio from its entry bookmark", () => {
+	test("does not move the reader when the mode seeks audio from its entry position", () => {
 		document.body.innerHTML =
 			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
 
@@ -176,76 +176,6 @@ describe("ReadListenRuntime", () => {
 		);
 
 		expect(scrollIntoView).not.toHaveBeenCalled();
-	});
-
-	test("seeks to the previous and next aligned sentences", () => {
-		const view = render(
-			<ReadListenRuntime
-				pairUuid="pair-1"
-				ebookUuid="ebook-1"
-				sourceFormat="epub"
-				readerApiRef={{ current: null }}
-				readerSurfaceRef={{ current: document.body }}
-				sections={[]}
-				readerDomRevision="scroll-horizontal"
-				onExitReadListen={() => {}}
-			/>,
-		);
-
-		expect(capturedReadListen?.canSeekPreviousSentence).toBe(false);
-		expect(capturedReadListen?.canSeekNextSentence).toBe(true);
-		capturedReadListen?.onSeekNextSentence();
-		expect(seekTo).toHaveBeenLastCalledWith(9);
-
-		view.rerender(
-			<ReadListenRuntime
-				pairUuid="pair-1"
-				ebookUuid="ebook-1"
-				sourceFormat="epub"
-				readerApiRef={{ current: null }}
-				readerSurfaceRef={{ current: document.body }}
-				sections={[]}
-				readerDomRevision="pages-horizontal"
-				onExitReadListen={() => {}}
-			/>,
-		);
-		expect(capturedReadListen?.canSeekPreviousSentence).toBe(true);
-		expect(capturedReadListen?.canSeekNextSentence).toBe(false);
-		capturedReadListen?.onSeekPreviousSentence();
-		expect(seekTo).toHaveBeenLastCalledWith(0);
-	});
-
-	test("cycles sentence repetition from once to a continuous loop", () => {
-		playerTime = 0.5;
-		const runtime = () => (
-			<ReadListenRuntime
-				pairUuid="pair-1"
-				ebookUuid="ebook-1"
-				sourceFormat="epub"
-				readerApiRef={{ current: null }}
-				readerSurfaceRef={{ current: document.body }}
-				sections={[]}
-				readerDomRevision="scroll-horizontal"
-				onExitReadListen={() => {}}
-			/>
-		);
-		const view = render(runtime());
-
-		expect(capturedReadListen?.canRepeatSentence).toBe(true);
-		expect(capturedReadListen?.sentenceRepeatMode).toBe("off");
-		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
-		expect(seekTo).toHaveBeenLastCalledWith(0);
-		expect(capturedReadListen?.sentenceRepeatMode).toBe("once");
-
-		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
-		expect(capturedReadListen?.sentenceRepeatMode).toBe("loop");
-		playerTime = 1.1;
-		view.rerender(runtime());
-		expect(seekTo).toHaveBeenCalledTimes(2);
-		expect(seekTo).toHaveBeenLastCalledWith(0);
-
-		act(() => capturedReadListen?.onCycleSentenceRepeatMode());
-		expect(capturedReadListen?.sentenceRepeatMode).toBe("off");
 	});
 
 	test("pauses following on manual reading and returns to narration on request", () => {
@@ -379,7 +309,7 @@ describe("ReadListenRuntime", () => {
 			position: {
 				exploredCharCount: 4,
 				progress: 2 / 3,
-				lastBookmarkModified: 1,
+				modifiedAt: 1,
 			},
 			playheadSeconds: 9,
 		});

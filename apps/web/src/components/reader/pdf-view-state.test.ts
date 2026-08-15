@@ -1,20 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { createPdfSections } from "@/lib/reader/pdf-source";
 import {
-	bookmarkForPdfPage,
 	pdfNavigationBehavior,
 	pdfPagesForLayout,
+	positionForPdfPage,
 	stepPdfPage,
 } from "./pdf-view-state";
 
 describe("PDF view state", () => {
 	test("stores clamped, one-based page positions", () => {
-		expect(bookmarkForPdfPage(3, 10)).toMatchObject({
+		expect(positionForPdfPage(3, 10)).toMatchObject({
 			exploredCharCount: 3,
 			progress: 0.3,
 		});
-		expect(bookmarkForPdfPage(0, 10).exploredCharCount).toBe(1);
-		expect(bookmarkForPdfPage(99, 10).exploredCharCount).toBe(10);
+		expect(positionForPdfPage(0, 10).exploredCharCount).toBe(1);
+		expect(positionForPdfPage(99, 10).exploredCharCount).toBe(10);
 	});
 
 	test("creates one navigable section per page", () => {

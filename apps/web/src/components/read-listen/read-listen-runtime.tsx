@@ -1,11 +1,4 @@
-import {
-	type RefObject,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type RefObject, useCallback, useMemo, useState } from "react";
 import { PlayerHostReadListenBridge } from "@/components/audio-player/player-host";
 import {
 	ActiveReadListenCue,
@@ -20,11 +13,6 @@ import {
 	loadReadListenReaderSession,
 	resolveReadListenReaderPosition,
 } from "@/lib/read-listen/reader-session";
-import {
-	nextSentenceRepeatMode,
-	resolveSentenceRepeatBoundary,
-	type SentenceRepeatMode,
-} from "@/lib/read-listen/sentence-repeat";
 import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
@@ -66,11 +54,6 @@ export function ReadListenRuntime({
 	const [manualFollowSuspended, setManualFollowSuspended] = useState(false);
 	const [forceFollowCueId, setForceFollowCueId] = useState<string>();
 	const [seekFromText, setSeekFromText] = useState(false);
-	const [sentenceRepeatMode, setSentenceRepeatMode] =
-		useState<SentenceRepeatMode>("off");
-	const [sentenceRepeatCue, setSentenceRepeatCue] =
-		useState<ReadListenTimelineCue>();
-	const loopSeekPendingRef = useRef(false);
 	const [isInitialTextSeekPending, setIsInitialTextSeekPending] = useState(
 		initialTextPosition !== undefined ||
 			storedReaderSession?.position !== undefined,
@@ -84,13 +67,10 @@ export function ReadListenRuntime({
 		activeCue,
 		previousCue,
 		nextCue,
-		repeatCue,
 		isAudiobookLoaded,
-		isPlaying,
 		globalCurrentTime,
 		alignmentRevision,
 		statusText: currentText,
-		seekToCue,
 	} = session;
 	if (playheadRef) playheadRef.current = globalCurrentTime;
 	const restoredPosition = isAudiobookLoaded
@@ -100,7 +80,6 @@ export function ReadListenRuntime({
 				rememberedPosition: storedReaderSession?.position,
 				rememberedPlayheadSeconds: storedReaderSession?.positionPlayheadSeconds,
 				currentPlayheadSeconds: globalCurrentTime,
-				savedBookmark: undefined,
 				bookCharCount: 0,
 			})
 		: undefined;
@@ -152,57 +131,8 @@ export function ReadListenRuntime({
 			activeCue?.id === initialSeekCue?.cueId);
 	// A paused playhead can sit in a silence between aligned sentences. Keep the
 	// reader anchored to the latest cue (or the first upcoming one) so opening
-	// from the audiobook never falls back to an unrelated ebook bookmark.
+	// from the audiobook never falls back to an unrelated ebook position.
 	const readerCue = activeCue ?? previousCue ?? nextCue;
-	useEffect(() => {
-		if (sentenceRepeatMode === "off" || !sentenceRepeatCue || !isPlaying) {
-			return;
-		}
-		const playheadMs = globalCurrentTime * 1000;
-		if (playheadMs < sentenceRepeatCue.globalEndMs) {
-			loopSeekPendingRef.current = false;
-		}
-		const boundary = resolveSentenceRepeatBoundary({
-			mode: sentenceRepeatMode,
-			playheadMs,
-			cueEndMs: sentenceRepeatCue.globalEndMs,
-			loopSeekPending: loopSeekPendingRef.current,
-		});
-		if (boundary === "finish") {
-			setSentenceRepeatMode("off");
-			setSentenceRepeatCue(undefined);
-			return;
-		}
-		if (boundary === "loop") {
-			loopSeekPendingRef.current = true;
-			seekToCue(sentenceRepeatCue);
-		}
-	}, [
-		globalCurrentTime,
-		isPlaying,
-		seekToCue,
-		sentenceRepeatCue,
-		sentenceRepeatMode,
-	]);
-	const stopSentenceRepeat = useCallback(() => {
-		loopSeekPendingRef.current = false;
-		setSentenceRepeatMode("off");
-		setSentenceRepeatCue(undefined);
-	}, []);
-	const cycleSentenceRepeatMode = useCallback(() => {
-		const nextMode = nextSentenceRepeatMode(sentenceRepeatMode);
-		if (nextMode === "off") {
-			stopSentenceRepeat();
-			return;
-		}
-		if (sentenceRepeatMode === "off") {
-			if (!repeatCue) return;
-			loopSeekPendingRef.current = false;
-			setSentenceRepeatCue(repeatCue);
-			seekToCue(repeatCue);
-		}
-		setSentenceRepeatMode(nextMode);
-	}, [repeatCue, seekToCue, sentenceRepeatMode, stopSentenceRepeat]);
 	const resumeTextFollowing = useCallback(() => {
 		setManualFollowSuspended(false);
 		setForceFollowCueId(readerCue?.id);
@@ -228,23 +158,6 @@ export function ReadListenRuntime({
 			readerTheme: theme,
 			statusText: currentText,
 			onExitReadListen,
-			canSeekPreviousSentence: Boolean(previousCue),
-			onSeekPreviousSentence: () => {
-				if (previousCue) {
-					stopSentenceRepeat();
-					seekToCue(previousCue);
-				}
-			},
-			canSeekNextSentence: Boolean(nextCue),
-			onSeekNextSentence: () => {
-				if (nextCue) {
-					stopSentenceRepeat();
-					seekToCue(nextCue);
-				}
-			},
-			canRepeatSentence: Boolean(repeatCue || sentenceRepeatCue),
-			sentenceRepeatMode,
-			onCycleSentenceRepeatMode: cycleSentenceRepeatMode,
 			followText,
 			onToggleFollowText: toggleTextFollowing,
 			seekFromText,
@@ -252,17 +165,9 @@ export function ReadListenRuntime({
 		}),
 		[
 			currentText,
-			cycleSentenceRepeatMode,
 			followText,
-			nextCue,
 			onExitReadListen,
-			previousCue,
-			repeatCue,
-			sentenceRepeatCue,
-			sentenceRepeatMode,
 			seekFromText,
-			seekToCue,
-			stopSentenceRepeat,
 			theme,
 			toggleTextFollowing,
 		],

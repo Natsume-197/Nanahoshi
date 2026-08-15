@@ -1,4 +1,4 @@
-import { BookmarkSimple, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { type CSSProperties, useMemo, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -69,7 +69,6 @@ export function BookReaderFocus({
 	disableWheelNavigation,
 	sections,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	apiRef,
@@ -96,7 +95,6 @@ export function BookReaderFocus({
 	);
 	const [preparationError, setPreparationError] = useState(false);
 	const [sentenceIndex, setSentenceIndex] = useState(0);
-	const [displayedBookmark, setDisplayedBookmark] = useState(initialBookmark);
 
 	const updateSectionProgress = (
 		exploredCharacter: number,
@@ -215,18 +213,16 @@ export function BookReaderFocus({
 						if (character !== undefined) navigateToCharacter(character);
 					},
 					resolveTextAnchor: resolveAnchor,
-					getBookmark: () => ({
+					getPosition: () => ({
 						exploredCharCount: precisePositionRef.current,
 						progress: parsed.totalCharacters
 							? precisePositionRef.current / parsed.totalCharacters
 							: 0,
-						lastBookmarkModified: Date.now(),
+						modifiedAt: Date.now(),
 					}),
-					scrollToBookmark: (bookmark) => {
-						setDisplayedBookmark(bookmark);
-						navigateToCharacter(bookmark.exploredCharCount);
+					scrollToPosition: (position) => {
+						navigateToCharacter(position.exploredCharCount);
 					},
-					showBookmarkMarker: setDisplayedBookmark,
 					relayout: (position) => {
 						if (position)
 							precisePositionRef.current = position.exploredCharCount;
@@ -285,11 +281,6 @@ export function BookReaderFocus({
 	const isFirstSentence = sentenceIndex === 0;
 	const isLastSentence =
 		!focusDocument || sentenceIndex >= focusDocument.sentences.length - 1;
-	const isBookmarkSentence =
-		sentence !== undefined &&
-		displayedBookmark !== undefined &&
-		displayedBookmark.exploredCharCount >= sentence.startCharacter &&
-		displayedBookmark.exploredCharCount < sentence.endCharacter;
 	const sentenceClasses = buildReaderClasses({
 		mode: "focus",
 		verticalMode,
@@ -353,13 +344,6 @@ export function BookReaderFocus({
 				className={`${sentenceClasses} relative z-[2] flex max-h-full w-full max-w-3xl overflow-auto overscroll-contain`}
 				style={sentenceStyle}
 			>
-				{isBookmarkSentence && (
-					<BookmarkSimple
-						aria-hidden="true"
-						weight="fill"
-						className="pointer-events-none absolute top-0 left-0 size-5 opacity-25"
-					/>
-				)}
 				{sentence ? (
 					<div
 						key={`${sentence.sectionReference}:${sentenceIndex}`}

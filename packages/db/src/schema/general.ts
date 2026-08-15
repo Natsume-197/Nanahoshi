@@ -1171,8 +1171,8 @@ export const readingProgress = pgTable(
 			mode: "number",
 		}).default(0),
 		bookCharCount: bigint("book_char_count", { mode: "number" }).default(0),
-		/** Source of exploredCharCount. Null rows predate automatic resume and are
-		 *  therefore legacy manual-bookmark progress. */
+		/** Legacy: distinguished a manual bookmark from the automatic position
+		 *  before the manual bookmark was removed. Never read or written. */
 		positionMode: varchar("position_mode", { length: 20 }),
 		/** Client intent time for bounded last-intent-wins ordering. */
 		positionIntentAt: bigint("position_intent_at", { mode: "number" }),

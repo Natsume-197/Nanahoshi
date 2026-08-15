@@ -1,4 +1,3 @@
-import { BookmarkSimple } from "@phosphor-icons/react";
 import {
 	type CSSProperties,
 	useCallback,
@@ -23,7 +22,7 @@ import type {
 } from "@/lib/reader/manga-settings";
 import type { ReaderTheme } from "@/lib/reader/settings";
 import type {
-	ReaderBookmark,
+	ReaderPosition,
 	Section,
 	SectionWithProgress,
 } from "@/lib/reader/types";
@@ -38,8 +37,7 @@ interface BookReaderMangaProps {
 	pageProgressionDirection?: string | null;
 	readingDirection: MangaReadingDirection;
 	sections: Section[];
-	initialPosition: ReaderBookmark | undefined;
-	initialBookmark: ReaderBookmark | undefined;
+	initialPosition: ReaderPosition | undefined;
 	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onToggleChrome: () => void;
@@ -131,7 +129,6 @@ export function BookReaderManga({
 	readingDirection,
 	sections,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	onToggleChrome,
@@ -157,7 +154,6 @@ export function BookReaderManga({
 			Math.max(0, pages.length - 1),
 		),
 	);
-	const [displayedBookmark, setDisplayedBookmark] = useState(initialBookmark);
 	const readerRef = useRef<HTMLDivElement | null>(null);
 	const canvasRef = useRef<HTMLDivElement | null>(null);
 	const pageSlotsRef = useRef(new Map<number, HTMLDivElement>());
@@ -306,7 +302,7 @@ export function BookReaderManga({
 				if (strip) scrollToStripPage(index);
 				else setAnchorPage(index);
 			},
-			getBookmark() {
+			getPosition() {
 				const exploredCharCount = exploredCountForPage(
 					sections,
 					anchorRef.current,
@@ -315,18 +311,17 @@ export function BookReaderManga({
 				return {
 					exploredCharCount,
 					progress: exploredCharCount / total,
-					lastBookmarkModified: Date.now(),
+					modifiedAt: Date.now(),
 				};
 			},
-			scrollToBookmark(bookmark) {
+			scrollToPosition(position) {
 				const index = sectionIndexForCount(
 					sections,
-					bookmark.exploredCharCount,
+					position.exploredCharCount,
 				);
 				if (strip) scrollToStripPage(index);
 				else setAnchorPage(index);
 			},
-			showBookmarkMarker: setDisplayedBookmark,
 			relayout() {
 				setViewport({ width: viewportWidth(), height: viewportHeight() });
 			},
@@ -533,9 +528,6 @@ export function BookReaderManga({
 		return () => reader.removeEventListener("click", onReaderClick);
 	}, [onReaderClick]);
 
-	const bookmarkedPage = displayedBookmark
-		? sectionIndexForCount(sections, displayedBookmark.exploredCharCount)
-		: -1;
 	const canvasStyle = {
 		backgroundColor: theme.backgroundColor,
 		flexDirection: verticalStrip
@@ -616,13 +608,6 @@ export function BookReaderManga({
 						>
 							{/* biome-ignore lint/security/noDangerouslySetInnerHtml: source was sanitized before entering ReaderBookData */}
 							<div dangerouslySetInnerHTML={{ __html: page.html }} />
-							{bookmarkedPage === pageIndex && (
-								<BookmarkSimple
-									weight="fill"
-									className="absolute top-[max(0.75rem,var(--safe-area-top))] right-[max(0.75rem,var(--safe-area-right))] size-5 drop-shadow-md"
-									style={{ color: theme.fontColor }}
-								/>
-							)}
 						</div>
 					);
 				})}

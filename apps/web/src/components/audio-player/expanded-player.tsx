@@ -20,7 +20,6 @@ import { PlayerVolumeControl } from "@/components/audio-player/player-volume-con
 import {
 	ReadListenModeControls,
 	type ReadListenPlayerContext,
-	ReadListenSentenceControls,
 } from "@/components/audio-player/read-listen-player";
 import {
 	useAudioPlayerActions,
@@ -311,15 +310,6 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 								/>
 							)}
 						</div>
-
-						{readListen && (
-							<ReadListenSentenceControls
-								context={readListen}
-								side="top"
-								showStepLabels
-								buttonClassName="size-11"
-							/>
-						)}
 
 						<PlayerTransport size="expanded" />
 

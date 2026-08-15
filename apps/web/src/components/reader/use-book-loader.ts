@@ -4,33 +4,21 @@ import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { fetchAndCacheBook } from "@/lib/reader/download-book";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
-import { loadLocalBookmark } from "@/lib/reader/local-bookmark";
 import { loadLocalReadingPosition } from "@/lib/reader/local-reading-position";
 import {
 	createPdfSections,
 	type PdfReaderSource,
 } from "@/lib/reader/pdf-source";
-import { resolveReaderResumePosition } from "@/lib/reader/resolve-bookmark";
-import type {
-	ReaderSettings,
-	ReadingPositionMode,
-} from "@/lib/reader/settings";
+import { resolveReadingPosition } from "@/lib/reader/resolve-reading-position";
+import type { ReaderSettings } from "@/lib/reader/settings";
 import type {
 	ReaderBookData,
-	ReaderBookmark,
+	ReaderPosition,
 	ReaderSourceFormat,
 } from "@/lib/reader/types";
 import { readerColumnHeight } from "@/lib/reader/viewport";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
 import { client } from "@/utils/orpc";
-
-function normalizeReadingPositionMode(
-	value: unknown,
-): ReadingPositionMode | undefined {
-	if (value === "automatic") return "automatic";
-	if (value === "bookmark") return "bookmark";
-	return undefined;
-}
 
 export type LoadState =
 	| { phase: "loading" | "parsing" }
@@ -41,8 +29,7 @@ export type LoadState =
 			phase: "ready";
 			data: ReaderBookData;
 			html: string;
-			position: ReaderBookmark | undefined;
-			bookmark: ReaderBookmark | undefined;
+			position: ReaderPosition | undefined;
 			pdfSource?: PdfReaderSource;
 	  };
 
@@ -63,14 +50,13 @@ interface UseBookLoaderArgs {
 	contentForm?: "text" | "images" | null;
 	readerSettings: Pick<
 		ReaderSettings,
-		"readingPositionMode" | "writingMode" | "secondDimensionMaxValue"
+		"writingMode" | "secondDimensionMaxValue"
 	>;
 	/** Called once the book is parsed and the restore position is resolved,
 	 *  before the reader renders. */
 	onLoaded: (result: {
 		data: ReaderBookData;
-		position: ReaderBookmark | undefined;
-		bookmark: ReaderBookmark | undefined;
+		position: ReaderPosition | undefined;
 		positionClockAt: number;
 	}) => void;
 }
@@ -106,32 +92,24 @@ export function useBookLoader({
 
 		(async () => {
 			try {
-				const manualBookmark = loadLocalBookmark(uuid);
-				const automaticPosition = loadLocalReadingPosition(uuid);
+				const localPosition = loadLocalReadingPosition(uuid);
 				// Server progress is fetched in parallel with the (potentially
 				// heavy) cache read / download+parse.
 				const serverProgressPromise = client.readingProgress
 					.getProgress({ bookUuid: uuid })
-					.then((progress) => {
-						const positionMode = normalizeReadingPositionMode(
-							progress?.positionMode,
-						);
-						return {
-							exploredCharCount: progress?.exploredCharCount ?? 0,
-							bookCharCount: progress?.bookCharCount ?? 0,
-							modifiedAt: progress?.positionUpdatedAt
-								? new Date(progress.positionUpdatedAt).getTime()
-								: progress?.lastReadAt
-									? new Date(progress.lastReadAt).getTime()
-									: 0,
-							positionMode,
-						};
-					})
+					.then((progress) => ({
+						exploredCharCount: progress?.exploredCharCount ?? 0,
+						bookCharCount: progress?.bookCharCount ?? 0,
+						modifiedAt: progress?.positionUpdatedAt
+							? new Date(progress.positionUpdatedAt).getTime()
+							: progress?.lastReadAt
+								? new Date(progress.lastReadAt).getTime()
+								: 0,
+					}))
 					.catch(() => ({
 						exploredCharCount: 0,
 						bookCharCount: 0,
 						modifiedAt: 0,
-						positionMode: undefined,
 					}));
 
 				if (sourceFormat === "pdf") {
@@ -143,20 +121,11 @@ export function useBookLoader({
 					const serverProgress = await serverProgressPromise;
 					if (cancelled) return;
 					const expectedPageCount = Math.max(1, pageCount ?? 1);
-					const bookmark = resolveReaderResumePosition({
-						mode: "bookmark",
-						manualBookmark,
-						automaticPosition: undefined,
+					const position = resolveReadingPosition(
+						localPosition,
 						serverProgress,
-						currentBookCharCount: expectedPageCount,
-					});
-					const position = resolveReaderResumePosition({
-						mode: readerSettings.readingPositionMode,
-						manualBookmark,
-						automaticPosition,
-						serverProgress,
-						currentBookCharCount: expectedPageCount,
-					});
+						expectedPageCount,
+					);
 					const sections = createPdfSections(expectedPageCount);
 					const data: ReaderBookData = {
 						uuid,
@@ -176,11 +145,9 @@ export function useBookLoader({
 					onLoadedRef.current({
 						data,
 						position,
-						bookmark,
 						positionClockAt: Math.max(
 							serverProgress.modifiedAt,
-							manualBookmark?.lastBookmarkModified ?? 0,
-							automaticPosition?.lastBookmarkModified ?? 0,
+							localPosition?.modifiedAt ?? 0,
 						),
 					});
 					setLoadState({
@@ -188,7 +155,6 @@ export function useBookLoader({
 						data,
 						html: "",
 						position,
-						bookmark,
 						pdfSource: {
 							url,
 							name: fileName ?? `${bookTitle}.pdf`,
@@ -222,20 +188,11 @@ export function useBookLoader({
 				if (cancelled || !data) return;
 
 				const serverProgress = await serverProgressPromise;
-				const bookmark = resolveReaderResumePosition({
-					mode: "bookmark",
-					manualBookmark,
-					automaticPosition: undefined,
+				const position = resolveReadingPosition(
+					localPosition,
 					serverProgress,
-					currentBookCharCount: data.characters,
-				});
-				const position = resolveReaderResumePosition({
-					mode: readerSettings.readingPositionMode,
-					manualBookmark,
-					automaticPosition,
-					serverProgress,
-					currentBookCharCount: data.characters,
-				});
+					data.characters,
+				);
 				// Mirrors the max-height caps in reader.css (100vh, and
 				// --book-content-child-height in vertical mode).
 				const imageFitHeight = readerColumnHeight(
@@ -259,11 +216,9 @@ export function useBookLoader({
 				onLoadedRef.current({
 					data: renderedData,
 					position,
-					bookmark,
 					positionClockAt: Math.max(
 						serverProgress.modifiedAt,
-						manualBookmark?.lastBookmarkModified ?? 0,
-						automaticPosition?.lastBookmarkModified ?? 0,
+						localPosition?.modifiedAt ?? 0,
 					),
 				});
 				setLoadState({
@@ -271,7 +226,6 @@ export function useBookLoader({
 					data: renderedData,
 					html: formatted.elementHtml,
 					position,
-					bookmark,
 				});
 			} catch (error) {
 				if (!cancelled) {

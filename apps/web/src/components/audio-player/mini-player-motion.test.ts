@@ -140,22 +140,15 @@ describe("expanded player motion", () => {
 		);
 	});
 
-	it("makes sentence navigation a distinct primary control group", () => {
-		expect(readListenPlayer).toContain(
-			"export function ReadListenSentenceControls",
-		);
+	it("keeps the read & listen controls free of transport buttons", () => {
 		expect(readListenPlayer).toContain(
 			"export function ReadListenModeControls",
 		);
-		expect(readListenPlayer).toContain("<ArrowLeft");
-		expect(readListenPlayer).toContain("<ArrowRight");
 		expect(readListenPlayer).not.toContain("<SkipBack");
 		expect(readListenPlayer).not.toContain("<SkipForward");
-		expect(readListenPlayer).toContain(
-			'"flex min-w-0 items-center gap-0.5 rounded-full bg-foreground/[0.06] p-0.5"',
-		);
-		expect(playerBar).toContain("<ReadListenSentenceControls");
-		expect(expandedPlayer).toContain("<ReadListenSentenceControls");
+		expect(readListenPlayer).not.toContain("ReadListenSentenceControls");
+		expect(playerBar).not.toContain("<ReadListenSentenceControls");
+		expect(expandedPlayer).not.toContain("<ReadListenSentenceControls");
 	});
 
 	it("keeps desktop playback centered and mobile transport compact", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ReaderBookmark } from "@/lib/reader/types";
+import type { ReaderPosition } from "@/lib/reader/types";
 import {
 	disableReadListenReader,
 	loadReadListenReaderSession,
@@ -38,15 +38,15 @@ describe("Read & Listen reader session", () => {
 	});
 
 	test("remembers the live reader bookmark before leaving the mode", async () => {
-		const position: ReaderBookmark = {
+		const position: ReaderPosition = {
 			exploredCharCount: 420,
 			progress: 0.42,
 			scrollY: 1_200,
-			lastBookmarkModified: 1,
+			modifiedAt: 1,
 		};
 		const steps: string[] = [];
 		let finishLeaving = () => {};
-		const rememberPosition = mock((remembered: ReaderBookmark) => {
+		const rememberPosition = mock((remembered: ReaderPosition) => {
 			steps.push(`remember:${remembered.exploredCharCount}`);
 		});
 		const leaving = new Promise<void>((resolve) => {
@@ -72,13 +72,13 @@ describe("Read & Listen reader session", () => {
 	});
 
 	test("reopens at the bookmark remembered when the mode was closed", async () => {
-		const livePosition: ReaderBookmark = {
+		const livePosition: ReaderPosition = {
 			exploredCharCount: 420,
 			progress: 0.42,
 			scrollY: 1_200,
-			lastBookmarkModified: 1,
+			modifiedAt: 1,
 		};
-		let rememberedPosition: ReaderBookmark | undefined;
+		let rememberedPosition: ReaderPosition | undefined;
 		await disableReadListenReader({
 			getCurrentPosition: () => livePosition,
 			rememberPosition: (position) => {
@@ -92,11 +92,6 @@ describe("Read & Listen reader session", () => {
 				livePosition: undefined,
 				exploredCharCount: -1,
 				rememberedPosition,
-				savedBookmark: {
-					exploredCharCount: 0,
-					progress: 0,
-					lastBookmarkModified: 0,
-				},
 				bookCharCount: 1_000,
 			}),
 		).toEqual(livePosition);
@@ -137,7 +132,7 @@ describe("Read & Listen reader session", () => {
 				exploredCharCount: 420,
 				progress: 0.42,
 				scrollY: 1_200,
-				lastBookmarkModified: 1,
+				modifiedAt: 1,
 			},
 			playheadSeconds: 121,
 		});
@@ -157,7 +152,7 @@ describe("Read & Listen reader session", () => {
 				exploredCharCount: 420,
 				progress: 0.42,
 				scrollY: 1_200,
-				lastBookmarkModified: 1,
+				modifiedAt: 1,
 			},
 		});
 	});
@@ -222,10 +217,10 @@ describe("Read & Listen reader session", () => {
 	});
 
 	test("resumes exact text only while the audio playhead is still nearby", () => {
-		const position: ReaderBookmark = {
+		const position: ReaderPosition = {
 			exploredCharCount: 420,
 			progress: 0.42,
-			lastBookmarkModified: 1,
+			modifiedAt: 1,
 		};
 		expect(
 			resolveReadListenReaderPosition({
@@ -234,7 +229,6 @@ describe("Read & Listen reader session", () => {
 				rememberedPosition: position,
 				rememberedPlayheadSeconds: 120,
 				currentPlayheadSeconds: 120.5,
-				savedBookmark: undefined,
 				bookCharCount: 1_000,
 			}),
 		).toEqual(position);
@@ -245,7 +239,6 @@ describe("Read & Listen reader session", () => {
 				rememberedPosition: position,
 				rememberedPlayheadSeconds: 120,
 				currentPlayheadSeconds: 180,
-				savedBookmark: undefined,
 				bookCharCount: 1_000,
 			}),
 		).toBeUndefined();

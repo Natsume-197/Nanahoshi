@@ -133,28 +133,6 @@ export class SectionCharacterStatsCalculator {
 		return formatPos(screenPos, this.calculator.direction);
 	}
 
-	checkBookmarkOnScreen(charCount: number) {
-		const scrollPos = this.getScrollPosByCharCount(charCount);
-		const virtualPos = this.getVirtualScrollPos();
-
-		if (scrollPos !== -1 && scrollPos === virtualPos && this.calculator) {
-			return {
-				isBookmarkScreen: true,
-				...this.calculator.getBookMarkPosForSection(
-					this.getSectionStartCount(),
-					charCount,
-				),
-			};
-		}
-
-		return {
-			isBookmarkScreen: scrollPos !== -1 && scrollPos === virtualPos,
-			bookmarkPos: undefined,
-			node: undefined,
-			isFirstNode: true,
-		};
-	}
-
 	private getSectionStartCount() {
 		return this.getSectionStartCharCount(this.sectionIndex);
 	}

@@ -257,11 +257,7 @@ describe("reader layout", () => {
 
 	test("mirrors Behaviour controls in quick settings", () => {
 		expect(quickSettings).toContain('title="Behaviour"');
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Save reading position">',
-		);
-		expect(quickSettings).toContain('ariaLabel="Save reading position"');
-		expect(quickSettings).toContain("settings.readingPositionMode");
+		expect(quickSettings).not.toContain("readingPositionMode");
 		expect(quickSettings).toContain(
 			'<QuickSettingsRow label="Keep position on resize">',
 		);
@@ -292,9 +288,8 @@ describe("reader layout", () => {
 			"max(0px, calc(800px - var(--reader-player-reserve-current)))",
 		);
 		expect(readerSync).toContain(
-			"observedPositionModeRef.current !== positionMode",
+			"positionSnapshot !== lastPositionSnapshotRef.current",
 		);
-		expect(readerSync).toContain("positionIntentAt ?? 0");
 	});
 
 	test("does not recalculate the intended position from stale resize geometry", () => {
@@ -311,7 +306,7 @@ describe("reader layout", () => {
 			expect(source.slice(start, end)).not.toContain(
 				"calcPreciseExploredCharCount",
 			);
-			expect(source).toContain("formatBookmarkData(s.prevIntendedCharCount)");
+			expect(source).toContain("readPosition(s.prevIntendedCharCount)");
 			expect(source).toContain("scrollEl.clientWidth !== s.settledInnerWidth");
 			expect(source).toContain("s.scheduleRecalc?.(false)");
 			expect(source).toContain("uncommittedUserPosition");

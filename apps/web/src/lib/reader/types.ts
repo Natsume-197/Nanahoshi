@@ -70,13 +70,13 @@ export interface ReaderBookData {
 }
 
 /** Last reading position, persisted locally (and as char count on the server). */
-export interface ReaderBookmark {
+export interface ReaderPosition {
 	exploredCharCount: number;
 	progress: number;
 	positionVersion?: number;
 	scrollX?: number;
 	scrollY?: number;
-	lastBookmarkModified: number;
+	modifiedAt: number;
 }
 
 /** DOM-independent text target used by reader engines and Read & Listen. */

@@ -8,16 +8,12 @@
  * image loads.
  */
 
-import { BookmarkSimple } from "@phosphor-icons/react";
 import { type CSSProperties, type RefObject, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { AutoScrollerContinuous } from "@/lib/reader/auto-scroller";
-import {
-	BookmarkManagerContinuous,
-	type BookmarkPosData,
-} from "@/lib/reader/bookmark-manager-continuous";
 import { CharacterStatsCalculator } from "@/lib/reader/character-stats-calculator";
+import { formatPos } from "@/lib/reader/format-pos";
 import { horizontalMouseWheel } from "@/lib/reader/horizontal-mouse-wheel";
 import { refitImageWidths } from "@/lib/reader/image-dimensions";
 import { PageManagerContinuous } from "@/lib/reader/page-manager-continuous";
@@ -36,7 +32,7 @@ import {
 	buildReaderStyle,
 } from "@/lib/reader/shared/reader-style";
 import {
-	type ReaderBookmark,
+	type ReaderPosition,
 	SECTION_REFERENCE_PREFIX,
 	type SectionWithProgress,
 } from "@/lib/reader/types";
@@ -57,7 +53,6 @@ interface BookReaderContinuousProps extends BaseReaderProps {
 
 interface ReaderInternals {
 	calculator?: CharacterStatsCalculator;
-	bookmarkManager?: BookmarkManagerContinuous;
 	pageManager?: PageManagerContinuous;
 	autoScroller?: AutoScrollerContinuous;
 	scrollAdjustment: number;
@@ -71,7 +66,6 @@ interface ReaderInternals {
 	 * prevIntendedCharCount — the position every correction scrolls back to.
 	 */
 	layoutDirty: boolean;
-	displayedBookmark?: ReaderBookmark;
 	sectionToElement: Map<string, HTMLElement>;
 	sectionData: Map<string, SectionWithProgress>;
 	recalcTimer?: ReturnType<typeof setTimeout>;
@@ -122,7 +116,6 @@ export function BookReaderContinuous({
 	scrollContainerRef,
 	sections,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	onAutoScrollChange,
@@ -145,9 +138,6 @@ export function BookReaderContinuous({
 		sectionData: new Map(),
 	});
 	const [allowDisplay, setAllowDisplay] = useState(false);
-	const [bookmarkPos, setBookmarkPos] = useState<BookmarkPosData | undefined>(
-		undefined,
-	);
 	const getScrollContainer = () =>
 		scrollContainerRef.current ?? document.documentElement;
 	const getViewportWidth = () => getScrollContainer().clientWidth;
@@ -329,16 +319,6 @@ export function BookReaderContinuous({
 		}
 	};
 
-	const refreshBookmarkMarker = (bookmark: ReaderBookmark | undefined) => {
-		const s = internalsRef.current;
-		s.displayedBookmark = bookmark;
-		if (!bookmark || !s.bookmarkManager) {
-			setBookmarkPos(undefined);
-			return;
-		}
-		setBookmarkPos(s.bookmarkManager.getBookmarkBarPosition(bookmark));
-	};
-
 	const navigateToSection = (reference: string) => {
 		const s = internalsRef.current;
 		let targetElement = document.getElementById(reference);
@@ -364,36 +344,64 @@ export function BookReaderContinuous({
 		}
 	};
 
-	const scrollToBookmarkPos = (bookmark: ReaderBookmark) => {
+	const readPosition = (charCount: number): ReaderPosition | undefined => {
+		const s = internalsRef.current;
+		if (!s.calculator) return undefined;
+		const offset = verticalMode
+			? getScrollContainer().scrollLeft
+			: getScrollContainer().scrollTop;
+		return {
+			exploredCharCount: charCount,
+			progress: s.calculator.charCount ? charCount / s.calculator.charCount : 0,
+			[verticalMode ? "scrollX" : "scrollY"]: offset,
+			modifiedAt: Date.now(),
+		};
+	};
+
+	const exactScrollFor = (position: ReaderPosition) => {
+		const s = internalsRef.current;
+		const offset = verticalMode ? position.scrollX : position.scrollY;
+		if (!offset || !s.calculator) return undefined;
+		const formatted = formatPos(offset, s.calculator.direction);
+		if (
+			s.calculator.getCharCountByScrollPos(formatted) !==
+			position.exploredCharCount
+		) {
+			return undefined;
+		}
+		return verticalMode ? { left: offset } : { top: offset };
+	};
+
+	const scrollToReadingPos = (position: ReaderPosition) => {
 		const s = internalsRef.current;
 		if (!s.calculator || !s.pageManager) return;
 
-		// Make the bookmark the position the reflow corrector holds, or the next
+		// Make this the position the reflow corrector holds, or the next
 		// image-load/resize/relayout would yank us back to where we were before
-		// the jump (e.g. pressing "r" after scrolling away).
-		s.prevIntendedCharCount = bookmark.exploredCharCount;
+		// the jump.
+		s.prevIntendedCharCount = position.exploredCharCount;
 
 		// Count 0 = the very start of the book; no paragraph to anchor.
-		if (!bookmark.exploredCharCount) {
+		if (!position.exploredCharCount) {
 			s.isProgrammaticScroll = true;
 			s.pageManager.scrollTo(0);
 			return;
 		}
 
-		// Same writing mode the bookmark was saved in: the stored pixel offset is
-		// still valid, restore it exactly (keeps the in-paragraph offset).
-		const exact = s.bookmarkManager?.getExactScroll(bookmark);
+		// Same writing mode and layout it was saved in: restore the pixel offset
+		// exactly, which keeps the in-paragraph position.
+		const exact = exactScrollFor(position);
 		if (exact) {
 			s.isProgrammaticScroll = true;
 			getScrollContainer().scrollTo(exact);
 			return;
 		}
 
-		// Different orientation/mode: the stored pixel offset is meaningless, so
-		// anchor the bookmark's paragraph at the reading edge by char count.
+		// Otherwise the stored offset is meaningless: anchor the paragraph at the
+		// reading edge by char count.
 		s.isProgrammaticScroll = true;
 		s.pageManager.scrollTo(
-			s.calculator.getReadingEdgeScrollPos(bookmark.exploredCharCount),
+			s.calculator.getReadingEdgeScrollPos(position.exploredCharCount),
 		);
 	};
 
@@ -433,11 +441,6 @@ export function BookReaderContinuous({
 			scrollEl,
 			document,
 		);
-		const bookmarkManager = new BookmarkManagerContinuous(
-			calculator,
-			scrollEl,
-			firstDimensionMargin || 0,
-		);
 		const pageManager = new PageManagerContinuous(
 			verticalMode,
 			firstDimensionMargin || 0,
@@ -453,7 +456,6 @@ export function BookReaderContinuous({
 		);
 
 		s.calculator = calculator;
-		s.bookmarkManager = bookmarkManager;
 		s.pageManager = pageManager;
 		s.autoScroller = autoScroller;
 
@@ -481,7 +483,6 @@ export function BookReaderContinuous({
 				s.uncommittedUserPosition = false;
 				reportIntendedPosition();
 				updateSectionProgress();
-				refreshBookmarkMarker(s.displayedBookmark);
 				clearLayoutDirtyNextFrame();
 			}, 150);
 		};
@@ -536,10 +537,7 @@ export function BookReaderContinuous({
 			}
 
 			if (initialPosition) {
-				scrollToBookmarkPos(initialPosition);
-			}
-			if (initialBookmark) {
-				refreshBookmarkMarker(initialBookmark);
+				scrollToReadingPos(initialPosition);
 			}
 			reportIntendedPosition();
 			updateSectionProgress();
@@ -562,10 +560,8 @@ export function BookReaderContinuous({
 			// prevIntendedCharCount is the canonical semantic anchor. Re-sampling a
 			// line after reflow would return that line's new first character and
 			// slowly move the saved position on every viewport or font change.
-			getBookmark: () =>
-				s.bookmarkManager?.formatBookmarkData(s.prevIntendedCharCount),
-			scrollToBookmark: (bookmark) => scrollToBookmarkPos(bookmark),
-			showBookmarkMarker: (bookmark) => refreshBookmarkMarker(bookmark),
+			getPosition: () => readPosition(s.prevIntendedCharCount),
+			scrollToPosition: (position) => scrollToReadingPos(position),
 			setScrollbarHidden: (hidden) => {
 				// The gutter change reflows the book and fires scroll events; flag
 				// them as layout-induced so they don't overwrite the intended
@@ -593,11 +589,6 @@ export function BookReaderContinuous({
 						requestAnimationFrame(async () => {
 							if (cancelled) return;
 							const margin = livePropsRef.current.firstDimensionMargin || 0;
-							s.bookmarkManager = new BookmarkManagerContinuous(
-								calculator,
-								scrollEl,
-								margin,
-							);
 							s.pageManager = new PageManagerContinuous(
 								verticalMode,
 								margin,
@@ -616,7 +607,6 @@ export function BookReaderContinuous({
 							restoreIntendedPos();
 							reportIntendedPosition();
 							updateSectionProgress();
-							refreshBookmarkMarker(s.displayedBookmark);
 							clearLayoutDirtyNextFrame();
 						});
 					});
@@ -846,12 +836,6 @@ export function BookReaderContinuous({
 		backgroundColor: theme.backgroundColor,
 	};
 
-	const bookmarkAdjustment =
-		typeof window !== "undefined" &&
-		window.matchMedia("(min-width: 640px)").matches
-			? "0.5rem"
-			: "0.25rem";
-
 	return (
 		<>
 			<div
@@ -886,31 +870,6 @@ export function BookReaderContinuous({
 					/>
 				</>
 			) : null}
-
-			{bookmarkPos &&
-				(verticalMode ? (
-					<div
-						className="pointer-events-none absolute text-xl opacity-25"
-						style={{
-							color: theme.fontColor,
-							right: `calc(${bookmarkPos.right} + 1rem)`,
-							top: bookmarkAdjustment,
-						}}
-					>
-						<BookmarkSimple weight="fill" className="size-5" />
-					</div>
-				) : (
-					<div
-						className="pointer-events-none absolute text-sm opacity-25 sm:text-xl"
-						style={{
-							color: theme.fontColor,
-							left: bookmarkAdjustment,
-							top: `calc(${bookmarkPos.top} + 1.5rem)`,
-						}}
-					>
-						<BookmarkSimple weight="fill" className="size-5" />
-					</div>
-				))}
 
 			{!allowDisplay && <ReaderLoadingOverlay theme={theme} />}
 		</>

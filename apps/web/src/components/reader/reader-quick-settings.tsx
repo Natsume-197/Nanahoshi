@@ -945,22 +945,6 @@ export function ReaderQuickSettings({
 					title="Behaviour"
 					showTitle={activeCategory === null}
 				>
-					<QuickSettingsRow label="Save reading position">
-						<div className="w-52 max-w-full">
-							<Segmented
-								theme={theme}
-								ariaLabel="Save reading position"
-								options={[
-									{ id: "automatic", text: "Automatic" },
-									{ id: "bookmark", text: "Bookmark" },
-								]}
-								selected={settings.readingPositionMode}
-								onSelect={(readingPositionMode) =>
-									onChange({ readingPositionMode })
-								}
-							/>
-						</div>
-					</QuickSettingsRow>
 					{presentation.engine === "text-scroll" && (
 						<QuickSettingsRow label="Keep position on resize">
 							<Toggle

@@ -57,7 +57,6 @@ import {
 	resolveReadListenReaderPosition,
 } from "@/lib/read-listen/reader-session";
 import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
-import { saveLocalBookmark } from "@/lib/reader/local-bookmark";
 import { saveLocalReadingPosition } from "@/lib/reader/local-reading-position";
 import { resolveMangaReadingDirection } from "@/lib/reader/manga-pagination";
 import {
@@ -99,7 +98,7 @@ import {
 	type ReaderSettings,
 } from "@/lib/reader/settings";
 import { getReaderScrollbarWidth } from "@/lib/reader/shared/reader-document-chrome";
-import type { ReaderBookmark, SectionWithProgress } from "@/lib/reader/types";
+import type { ReaderPosition, SectionWithProgress } from "@/lib/reader/types";
 import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
 import { client, orpc } from "@/utils/orpc";
 import "@/components/reader/reader.css";
@@ -178,9 +177,9 @@ function RestoreReadListenPosition({
 	stop,
 	restore,
 }: {
-	position: ReaderBookmark;
+	position: ReaderPosition;
 	stop: () => void;
-	restore: (position: ReaderBookmark) => void;
+	restore: (position: ReaderPosition) => void;
 }) {
 	useMountEffect(() => {
 		stop();
@@ -200,8 +199,8 @@ function PersistReadListenPositionOnExit({
 	getCurrentPosition,
 	rememberPosition,
 }: {
-	getCurrentPosition: () => ReaderBookmark | undefined;
-	rememberPosition: (position: ReaderBookmark) => void;
+	getCurrentPosition: () => ReaderPosition | undefined;
+	rememberPosition: (position: ReaderPosition) => void;
 }) {
 	useMountEffect(() => () => {
 		const position = getCurrentPosition();
@@ -289,22 +288,18 @@ function ReaderPage() {
 	const [sectionProgress, setSectionProgress] = useState<
 		Map<string, SectionWithProgress>
 	>(new Map());
-	const [bookmark, setBookmark] = useState<ReaderBookmark | undefined>(
-		undefined,
-	);
-	const [isBookmarkScreen, setIsBookmarkScreen] = useState(false);
 	const [pdfDocumentPageCount, setPdfDocumentPageCount] = useState<
 		number | null
 	>(null);
 	const [readerApiRevision, setReaderApiRevision] = useState(0);
 	const apiRef = useRef<BookReaderApi | null>(null);
-	const readerSurfaceRef = useRef<HTMLMainElement | null>(null);
-	const livePositionRef = useRef<ReaderBookmark | undefined>(undefined);
-	const overlayEntryPositionRef = useRef<ReaderBookmark | undefined>(undefined);
+	const readerSurfaceRef = useRef<HTMLElement | null>(null);
+	const livePositionRef = useRef<ReaderPosition | undefined>(undefined);
+	const overlayEntryPositionRef = useRef<ReaderPosition | undefined>(undefined);
 	const initialReadListenSession = readListenPairUuid
 		? loadReadListenReaderSession({ pairUuid: readListenPairUuid })
 		: undefined;
-	const readListenPositionRef = useRef<ReaderBookmark | undefined>(undefined);
+	const readListenPositionRef = useRef<ReaderPosition | undefined>(undefined);
 	const readListenPlayheadRef = useRef<number | undefined>(
 		initialReadListenSession?.positionPlayheadSeconds,
 	);
@@ -324,8 +319,6 @@ function ReaderPage() {
 	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
 	const positionClockRef = useRef(0);
-	const bookmarkRef = useRef<ReaderBookmark | undefined>(undefined);
-	bookmarkRef.current = bookmark;
 	// Read by the async profile-sync callback, which outlives a render.
 	const settingsRef = useRef(settings);
 	settingsRef.current = settings;
@@ -343,7 +336,7 @@ function ReaderPage() {
 	}
 
 	const rememberReadListenPosition = useCallback(
-		(position: ReaderBookmark) => {
+		(position: ReaderPosition) => {
 			readListenPositionRef.current = position;
 			exploredRef.current = position.exploredCharCount;
 			if (readListenPairUuid && readListenPlayheadRef.current !== undefined) {
@@ -362,10 +355,9 @@ function ReaderPage() {
 			void disableReadListenReader({
 				getCurrentPosition: () =>
 					resolveReadListenReaderPosition({
-						livePosition: apiRef.current?.getBookmark(),
+						livePosition: apiRef.current?.getPosition(),
 						exploredCharCount: exploredRef.current,
 						rememberedPosition: readListenPositionRef.current,
-						savedBookmark: bookmarkRef.current,
 						bookCharCount: bookCharCountRef.current,
 					}),
 				rememberPosition: rememberReadListenPosition,
@@ -380,10 +372,9 @@ function ReaderPage() {
 		}
 		if (!readyReadListenPairing) return;
 		const position = resolveReadListenReaderPosition({
-			livePosition: apiRef.current?.getBookmark(),
+			livePosition: apiRef.current?.getPosition(),
 			exploredCharCount: exploredRef.current,
 			rememberedPosition: readListenPositionRef.current,
-			savedBookmark: bookmarkRef.current,
 			bookCharCount: bookCharCountRef.current,
 		});
 		if (position) {
@@ -399,10 +390,9 @@ function ReaderPage() {
 		void disableReadListenReader({
 			getCurrentPosition: () =>
 				resolveReadListenReaderPosition({
-					livePosition: apiRef.current?.getBookmark(),
+					livePosition: apiRef.current?.getPosition(),
 					exploredCharCount: exploredRef.current,
 					rememberedPosition: readListenPositionRef.current,
-					savedBookmark: bookmarkRef.current,
 					bookCharCount: bookCharCountRef.current,
 				}),
 			rememberPosition: rememberReadListenPosition,
@@ -459,21 +449,11 @@ function ReaderPage() {
 		language: book?.languageCode,
 		contentForm: book?.contentForm,
 		readerSettings: settings,
-		onLoaded: ({
-			data,
-			position,
-			bookmark: initialBookmark,
-			positionClockAt,
-		}) => {
+		onLoaded: ({ data, position, positionClockAt }) => {
 			bookCharCountRef.current = data.characters;
 			positionClockRef.current = positionClockAt;
-			setBookmark(
-				initialBookmark ? saveLocalBookmark(uuid, initialBookmark) : undefined,
-			);
 			livePositionRef.current =
-				position && settingsRef.current.readingPositionMode === "automatic"
-					? saveLocalReadingPosition(uuid, position)
-					: position;
+				position && saveLocalReadingPosition(uuid, position);
 		},
 	});
 
@@ -485,43 +465,31 @@ function ReaderPage() {
 	}, []);
 
 	const getCharCounts = useCallback(() => {
-		if (settingsRef.current.readingPositionMode === "automatic") {
-			const measuredPosition = apiRef.current?.getBookmark();
-			let position = livePositionRef.current;
-			if (
-				measuredPosition &&
-				measuredPosition.exploredCharCount !== position?.exploredCharCount
-			) {
-				position = measuredPosition;
-			}
-			if (position) {
-				position = saveLocalReadingPosition(uuid, position);
-				livePositionRef.current = position;
-				positionClockRef.current = Math.max(
-					positionClockRef.current,
-					position.lastBookmarkModified,
-				);
-			}
-			return {
-				exploredCharCount: position?.exploredCharCount,
-				bookCharCount: bookCharCountRef.current,
-				positionMode: position ? ("automatic" as const) : undefined,
-				positionIntentAt: position?.lastBookmarkModified,
-			};
+		const measuredPosition = apiRef.current?.getPosition();
+		let position = livePositionRef.current;
+		if (
+			measuredPosition &&
+			measuredPosition.exploredCharCount !== position?.exploredCharCount
+		) {
+			position = measuredPosition;
 		}
-
+		if (position) {
+			position = saveLocalReadingPosition(uuid, position);
+			livePositionRef.current = position;
+			positionClockRef.current = Math.max(
+				positionClockRef.current,
+				position.modifiedAt,
+			);
+		}
 		return {
-			exploredCharCount: bookmarkRef.current?.exploredCharCount,
+			exploredCharCount: position?.exploredCharCount,
 			bookCharCount: bookCharCountRef.current,
-			positionMode: bookmarkRef.current ? ("bookmark" as const) : undefined,
-			positionIntentAt: bookmarkRef.current?.lastBookmarkModified,
+			positionIntentAt: position?.modifiedAt,
 		};
 	}, [uuid]);
 
-	const { syncNow } = useReaderSync({
+	useReaderSync({
 		bookUuid: uuid,
-		activePositionMode: settings.readingPositionMode,
-		positionClockAt: positionClockRef.current,
 		enabled:
 			loadState.phase === "ready" &&
 			(!isPdfBook || pdfDocumentPageCount !== null) &&
@@ -529,37 +497,17 @@ function ReaderPage() {
 		getCharCounts,
 	});
 
-	const bookmarkPage = useCallback(() => {
-		// Count 0 (the very start of the book) is a valid bookmark position.
-		const data = apiRef.current?.getBookmark();
-		if (!data) return;
-		const savedBookmark = saveLocalBookmark(uuid, {
-			...data,
-			lastBookmarkModified: Math.max(
-				data.lastBookmarkModified,
-				positionClockRef.current + 1,
-			),
-		});
-		positionClockRef.current = Math.max(
-			positionClockRef.current,
-			savedBookmark.lastBookmarkModified,
-		);
-		setBookmark(savedBookmark);
-		apiRef.current?.showBookmarkMarker(savedBookmark);
-		setIsBookmarkScreen(true);
-	}, [uuid]);
-
 	const handleExploredChange = (count: number) => {
 		if (count === exploredRef.current) return;
 		exploredRef.current = count;
 		const position = {
 			exploredCharCount: count,
 			progress: bookCharCountRef.current ? count / bookCharCountRef.current : 0,
-			lastBookmarkModified: Math.max(Date.now(), positionClockRef.current + 1),
+			modifiedAt: Math.max(Date.now(), positionClockRef.current + 1),
 		};
 		positionClockRef.current = Math.max(
 			positionClockRef.current,
-			position.lastBookmarkModified,
+			position.modifiedAt,
 		);
 		livePositionRef.current = position;
 		// Quick Settings is deliberately non-modal so the navbar remains usable.
@@ -567,13 +515,10 @@ function ReaderPage() {
 		// becomes the new reflow anchor instead of snapping to the opening point.
 		if (quickSettingsOpen) overlayEntryPositionRef.current = position;
 		setExploredCharCount(count);
-		setIsBookmarkScreen(
-			!!bookmarkRef.current && bookmarkRef.current.exploredCharCount === count,
-		);
 	};
 
 	const captureReaderPosition = () => {
-		const position = apiRef.current?.getBookmark();
+		const position = apiRef.current?.getPosition();
 		if (!position) return livePositionRef.current;
 		livePositionRef.current = position;
 		exploredRef.current = position.exploredCharCount;
@@ -585,8 +530,6 @@ function ReaderPage() {
 	// (autoscroll speed) — these never touch the book layout.
 	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
 		const next = { ...settings, ...patch };
-		const resumeModeChanged =
-			next.readingPositionMode !== settings.readingPositionMode;
 		settingsRef.current = next;
 		setSettings(next);
 		setProfilesStore(
@@ -594,7 +537,6 @@ function ReaderPage() {
 				setProfileSettings(profilesStore, activeProfileId, next),
 			),
 		);
-		if (resumeModeChanged) void syncNow();
 	};
 
 	const handleCustomThemesChange = (next: CustomReaderThemes) => {
@@ -705,7 +647,7 @@ function ReaderPage() {
 	const applyCommittedSettings = (
 		next: ReaderSettings,
 		prev: ReaderSettings,
-		position?: ReaderBookmark,
+		position?: ReaderPosition,
 	) => {
 		const structuralChanged =
 			next.textLayout !== prev.textLayout ||
@@ -728,8 +670,6 @@ function ReaderPage() {
 		setDraftSettings(null);
 		if (!next) return;
 
-		const resumeModeChanged =
-			next.readingPositionMode !== settings.readingPositionMode;
 		restoreDocumentScrollbar(next.theme);
 		settingsRef.current = next;
 		setSettings(next);
@@ -741,7 +681,6 @@ function ReaderPage() {
 		if (position) livePositionRef.current = position;
 		applyCommittedSettings(next, settings, position);
 		overlayEntryPositionRef.current = undefined;
-		if (resumeModeChanged) void syncNow();
 	};
 
 	// Swaps the live settings for another profile's (overlay closed): restyles
@@ -758,7 +697,6 @@ function ReaderPage() {
 			`${getReaderScrollbarColor(nextTheme)} ${getReaderScrollbarTrackColor(nextTheme)}`,
 		);
 		applyCommittedSettings(next, prev, position);
-		if (next.readingPositionMode !== prev.readingPositionMode) void syncNow();
 	};
 
 	const handleQuickProfileSwitch = (id: string) => {
@@ -908,7 +846,6 @@ function ReaderPage() {
 
 	useReaderKeybinds({
 		apiRef,
-		bookmarkRef,
 		presentation,
 		verticalMode,
 		comicDirection,
@@ -917,7 +854,6 @@ function ReaderPage() {
 		tocOpen,
 		settingsOpen: settingsOpen || quickSettingsOpen,
 		navigationBlocked: Boolean(audioPlayerBook) && isAudioPlayerExpanded,
-		onBookmark: bookmarkPage,
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: () => {
 			if (quickSettingsOpen) closeQuickSettings();
@@ -998,7 +934,7 @@ function ReaderPage() {
 			? {
 					exploredCharCount: exploredRef.current,
 					progress: data.characters ? exploredRef.current / data.characters : 0,
-					lastBookmarkModified: positionClockRef.current || Date.now(),
+					modifiedAt: positionClockRef.current || Date.now(),
 				}
 			: loadState.position);
 
@@ -1055,14 +991,14 @@ function ReaderPage() {
 			<style dangerouslySetInnerHTML={styleSheetHtml} />
 			{!readListenPairUuid && readListenPositionRef.current && (
 				<RestoreReadListenPosition
-					key={readListenPositionRef.current.lastBookmarkModified}
+					key={readListenPositionRef.current.modifiedAt}
 					position={readListenPositionRef.current}
 					stop={stop}
 					restore={(position) => {
 						const readerApi = apiRef.current;
 						if (!readerApi) return;
 						exploredRef.current = position.exploredCharCount;
-						readerApi.scrollToBookmark(position);
+						readerApi.scrollToPosition(position);
 					}}
 				/>
 			)}
@@ -1081,7 +1017,6 @@ function ReaderPage() {
 					readerSettings={settings}
 					mangaSettings={mangaSettings}
 					initialPosition={initialPosition}
-					initialBookmark={bookmark}
 					onExploredCharCountChange={handleExploredChange}
 					onSectionProgressChange={setSectionProgress}
 					onToggleChrome={() => setShowHeader((open) => !open)}
@@ -1135,10 +1070,9 @@ function ReaderPage() {
 							key={`persist:${readListenPairUuid}`}
 							getCurrentPosition={() =>
 								resolveReadListenReaderPosition({
-									livePosition: apiRef.current?.getBookmark(),
+									livePosition: apiRef.current?.getPosition(),
 									exploredCharCount: exploredRef.current,
 									rememberedPosition: readListenPositionRef.current,
-									savedBookmark: bookmarkRef.current,
 									bookCharCount: bookCharCountRef.current,
 								})
 							}
@@ -1162,21 +1096,9 @@ function ReaderPage() {
 				bookTitle={bookTitle}
 				hasChapterData={sectionProgress.size > 0}
 				searchAvailable={presentation.engine === "pdf"}
-				isBookmarkScreen={isBookmarkScreen}
-				hasBookmarkData={!!bookmark}
 				onTocClick={() => {
 					setShowHeader(false);
 					setTocOpen(true);
-				}}
-				onBookmarkClick={() => {
-					setShowHeader(false);
-					bookmarkPage();
-				}}
-				onScrollToBookmarkClick={() => {
-					setShowHeader(false);
-					if (bookmarkRef.current) {
-						apiRef.current?.scrollToBookmark(bookmarkRef.current);
-					}
 				}}
 				onCompleteBook={completeBook}
 				onFullscreenClick={onFullscreenClick}

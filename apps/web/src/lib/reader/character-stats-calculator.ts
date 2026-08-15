@@ -4,7 +4,7 @@
  * All rights reserved.
  */
 
-import { binarySearch, binarySearchNoNegative } from "./binary-search";
+import { binarySearchNoNegative } from "./binary-search";
 import {
 	countTextCharactersBeforeOffset,
 	getCharacterCount,
@@ -165,7 +165,7 @@ export class CharacterStatsCalculator {
 	/**
 	 * Reads the first rendered character at the reading edge. Unlike the legacy
 	 * paragraph geometry this preserves a position inside a text node that spans
-	 * several screens. It is intentionally used for bookmarks/reflows rather than
+	 * several screens. It is intentionally used for saves/reflows rather than
 	 * every scroll event: caret hit-testing may force layout in the browser.
 	 */
 	calcPreciseExploredCharCount() {
@@ -363,74 +363,6 @@ export class CharacterStatsCalculator {
 			return { top: 0, left: 0, right: width, bottom: height };
 		}
 		return this.scrollEl.getBoundingClientRect();
-	}
-
-	getBookMarkPosForSection(startCount: number, charCount: number) {
-		const index = Math.max(
-			0,
-			binarySearch(this.accumulatedCharCount, charCount - startCount),
-		);
-
-		let finalIndex = index;
-		let bookmarkPos = this.processSectionBookmarkIteration(
-			index,
-			startCount,
-			charCount,
-		);
-
-		if (!bookmarkPos) {
-			for (
-				let i = index + 1, { length } = this.accumulatedCharCount;
-				i < length;
-				i += 1
-			) {
-				bookmarkPos = this.processSectionBookmarkIteration(
-					i,
-					startCount,
-					charCount,
-				);
-
-				if (bookmarkPos) {
-					finalIndex = i;
-					break;
-				}
-			}
-		}
-
-		return {
-			bookmarkPos,
-			node: bookmarkPos ? this.paragraphs[finalIndex] : undefined,
-			isFirstNode: finalIndex === 0,
-		};
-	}
-
-	private processSectionBookmarkIteration(
-		index: number,
-		startCount: number,
-		charCount: number,
-	) {
-		const currentCharSum = this.accumulatedCharCount[index] + startCount;
-
-		let bookmarkPos: { top?: number; left?: number } | undefined;
-
-		if (currentCharSum > charCount) {
-			let container = this.paragraphs[index];
-
-			if (container.parentElement) {
-				container =
-					container.parentElement.closest("p") || container.parentElement;
-			}
-
-			const { top, right, left } = getNodeBoundingRect(
-				this.document,
-				container,
-			);
-
-			bookmarkPos =
-				this.axis === "horizontal" ? { left: right } : { top, left };
-		}
-
-		return bookmarkPos;
 	}
 
 	private get scrollPos() {

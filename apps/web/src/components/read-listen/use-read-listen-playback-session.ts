@@ -1,9 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import {
-	useAudioPlayerActions,
-	useAudioPlayerState,
-} from "@/context/audio-player-context";
+import { useAudioPlayerState } from "@/context/audio-player-context";
 import {
 	createReadListenTimeline,
 	type ReadListenTimelineCue,
@@ -23,12 +20,10 @@ export type ReadListenPlaybackSession = {
 	activeCueIndex: number;
 	previousCue: ReadListenTimelineCue | undefined;
 	nextCue: ReadListenTimelineCue | undefined;
-	repeatCue: ReadListenTimelineCue | undefined;
 	isAudiobookLoaded: boolean;
 	isPlaying: boolean;
 	globalCurrentTime: number;
 	alignmentRevision: string;
-	seekToCue: (cue: ReadListenTimelineCue) => void;
 	retry: () => void;
 };
 
@@ -41,7 +36,6 @@ export function useReadListenPlaybackSession({
 	ebookUuid: string;
 }): ReadListenPlaybackSession {
 	const player = useAudioPlayerState();
-	const { seekTo } = useAudioPlayerActions();
 	const sessionQuery = useQuery(
 		orpc.readListen.getSession.queryOptions({ input: { pairUuid, ebookUuid } }),
 	);
@@ -85,7 +79,6 @@ export function useReadListenPlaybackSession({
 				};
 	const activeCueIndex = position.activeIndex;
 	const { activeCue, previousCue, nextCue } = position;
-	const repeatCue = activeCue ?? previousCue;
 	const loading =
 		sessionQuery.isLoading ||
 		detailsQuery.isLoading ||
@@ -110,10 +103,6 @@ export function useReadListenPlaybackSession({
 					? activeCue.text.exact
 					: m["read_listen.waiting_for_narration"]();
 
-	const seekToCue = useCallback(
-		(cue: ReadListenTimelineCue) => seekTo(cue.globalStartMs / 1000),
-		[seekTo],
-	);
 	const retry = useCallback(() => {
 		const requests: Promise<unknown>[] = [sessionQuery.refetch()];
 		if (audiobookUuid) requests.push(detailsQuery.refetch());
@@ -129,12 +118,10 @@ export function useReadListenPlaybackSession({
 		activeCueIndex,
 		previousCue,
 		nextCue,
-		repeatCue,
 		isAudiobookLoaded,
 		isPlaying: player.isPlaying,
 		globalCurrentTime: player.globalCurrentTime,
 		alignmentRevision: sessionQuery.data?.alignment.createdAt ?? "pending",
-		seekToCue,
 		retry,
 	};
 }

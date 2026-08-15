@@ -24,7 +24,7 @@ import {
 	ZoomGestureWrapper,
 	ZoomMode,
 } from "@embedpdf/plugin-zoom/react";
-import { Bookmark, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
@@ -43,7 +43,7 @@ import {
 } from "@/lib/reader/pdf-source";
 import type { ReaderTheme } from "@/lib/reader/settings";
 import type {
-	ReaderBookmark,
+	ReaderPosition,
 	Section,
 	SectionWithProgress,
 } from "@/lib/reader/types";
@@ -51,8 +51,8 @@ import { PdfNavigationToolbar } from "./pdf-navigation-toolbar";
 import { createPdfReaderConfig } from "./pdf-reader-config";
 import { PdfSearchPanel } from "./pdf-search-panel";
 import {
-	bookmarkForPdfPage,
 	type PdfLayoutMode,
+	positionForPdfPage,
 	stepPdfPage,
 } from "./pdf-view-state";
 import { readerMix } from "./reader-controls";
@@ -66,8 +66,7 @@ interface BookReaderPdfProps {
 	source: PdfReaderSource;
 	theme: ReaderTheme;
 	sections: Section[];
-	initialPosition: ReaderBookmark | undefined;
-	initialBookmark: ReaderBookmark | undefined;
+	initialPosition: ReaderPosition | undefined;
 	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onToggleChrome: () => void;
@@ -172,7 +171,6 @@ function PdfDocumentViewport({
 	theme,
 	sections,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	onToggleChrome,
@@ -191,7 +189,6 @@ function PdfDocumentViewport({
 	const { provides: spread } = useSpread(documentId);
 	const [layout, setLayout] = useState<PdfLayoutMode>("page");
 	const [searchOpen, setSearchOpen] = useState(false);
-	const [displayedBookmark, setDisplayedBookmark] = useState(initialBookmark);
 	const currentPageRef = useRef(1);
 	const currentLayoutRef = useRef<PdfLayoutMode>("page");
 	const callbacksRef = useRef({
@@ -257,9 +254,8 @@ function PdfDocumentViewport({
 				);
 				if (Number.isFinite(pageNumber)) goToPage(pageNumber);
 			},
-			getBookmark: () => bookmarkForPdfPage(currentPageRef.current, pageCount),
-			scrollToBookmark: (bookmark) => goToPage(bookmark.exploredCharCount),
-			showBookmarkMarker: setDisplayedBookmark,
+			getPosition: () => positionForPdfPage(currentPageRef.current, pageCount),
+			scrollToPosition: (position) => goToPage(position.exploredCharCount),
 			relayout: () =>
 				zoom?.requestZoom(
 					currentLayoutRef.current === "continuous"
@@ -369,21 +365,11 @@ function PdfDocumentViewport({
 						pageIndex={pageIndex}
 						textStyle={{ background: selectionColor }}
 					/>
-					{displayedBookmark?.exploredCharCount === pageIndex + 1 && (
-						<span
-							role="img"
-							aria-label="Bookmarked page"
-							className="pointer-events-none absolute top-2 right-2 rounded-full bg-black/65 p-2 text-white shadow-md"
-						>
-							<Bookmark aria-hidden="true" fill="currentColor" />
-						</span>
-					)}
 				</PagePointerProvider>
 			</Rotate>
 		),
 		[
 			activeSearchMatch,
-			displayedBookmark?.exploredCharCount,
 			documentId,
 			handlePageClick,
 			pageCount,

@@ -15,7 +15,6 @@ import {
 	ReadListenFollowButton,
 	ReadListenOpenButton,
 	type ReadListenPlayerContext,
-	ReadListenSentenceControls,
 	ReadListenSentenceSeekButton,
 } from "@/components/audio-player/read-listen-player";
 import {
@@ -319,7 +318,6 @@ export const PlayerBar = memo(function PlayerBar({
 					<div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
 						{readListen && (
 							<>
-								<ReadListenSentenceControls context={readListen} />
 								{!readListen.followText && (
 									<ReadListenFollowButton context={readListen} />
 								)}

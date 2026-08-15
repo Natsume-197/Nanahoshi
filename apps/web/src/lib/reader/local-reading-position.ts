@@ -1,15 +1,22 @@
-import { READER_POSITION_VERSION, type ReaderBookmark } from "./types";
+import { READER_POSITION_VERSION, type ReaderPosition } from "./types";
 
 const keyFor = (uuid: string) => `nanahoshi-reader-position:${uuid}`;
 
-/** Last live reading position, kept separate from the user's manual marker. */
+type StoredPosition = ReaderPosition & { lastBookmarkModified?: number };
+
+/** Last reading position, restored when the book is reopened. */
 export function loadLocalReadingPosition(
 	uuid: string,
-): ReaderBookmark | undefined {
+): ReaderPosition | undefined {
 	if (typeof window === "undefined") return undefined;
 	try {
 		const raw = window.localStorage.getItem(keyFor(uuid));
-		return raw ? (JSON.parse(raw) as ReaderBookmark) : undefined;
+		if (!raw) return undefined;
+		const stored = JSON.parse(raw) as StoredPosition;
+		return {
+			...stored,
+			modifiedAt: stored.modifiedAt ?? stored.lastBookmarkModified ?? 0,
+		};
 	} catch {
 		return undefined;
 	}
@@ -17,21 +24,18 @@ export function loadLocalReadingPosition(
 
 export function saveLocalReadingPosition(
 	uuid: string,
-	position: ReaderBookmark,
-): ReaderBookmark {
+	position: ReaderPosition,
+): ReaderPosition {
 	const previous = loadLocalReadingPosition(uuid);
 	if (
 		previous?.exploredCharCount === position.exploredCharCount &&
-		previous.lastBookmarkModified >= position.lastBookmarkModified
+		previous.modifiedAt >= position.modifiedAt
 	) {
 		return previous;
 	}
 	const savedPosition = {
 		...position,
-		lastBookmarkModified: Math.max(
-			position.lastBookmarkModified,
-			(previous?.lastBookmarkModified ?? -1) + 1,
-		),
+		modifiedAt: Math.max(position.modifiedAt, (previous?.modifiedAt ?? -1) + 1),
 		positionVersion: READER_POSITION_VERSION,
 	};
 	try {

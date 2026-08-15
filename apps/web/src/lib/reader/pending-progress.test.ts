@@ -8,7 +8,6 @@ describe("offline reader progress", () => {
 			bookUuid: "book-1",
 			bookCharCount: 1_000,
 			exploredCharCount: 300,
-			positionMode: "automatic" as const,
 			positionIntentAt: 100,
 			readingTimeSeconds: 60,
 			status: "reading" as const,

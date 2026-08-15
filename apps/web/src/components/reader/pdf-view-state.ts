@@ -1,4 +1,4 @@
-import type { ReaderBookmark } from "@/lib/reader/types";
+import type { ReaderPosition } from "@/lib/reader/types";
 
 export type PdfLayoutMode = "page" | "continuous" | "spread";
 
@@ -6,15 +6,15 @@ export function clampPdfPage(pageNumber: number, pageCount: number) {
 	return Math.min(Math.max(Math.floor(pageNumber), 1), Math.max(1, pageCount));
 }
 
-export function bookmarkForPdfPage(
+export function positionForPdfPage(
 	pageNumber: number,
 	pageCount: number,
-): ReaderBookmark {
+): ReaderPosition {
 	const page = clampPdfPage(pageNumber, pageCount);
 	return {
 		exploredCharCount: page,
 		progress: page / Math.max(1, pageCount),
-		lastBookmarkModified: Date.now(),
+		modifiedAt: Date.now(),
 	};
 }
 

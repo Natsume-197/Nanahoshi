@@ -1,12 +1,10 @@
 import type { RefObject } from "react";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import type { ReaderPresentation } from "@/lib/reader/reader-presentation";
-import type { ReaderBookmark } from "@/lib/reader/types";
 import type { BookReaderApi } from "./reader-shared-props";
 
 interface UseReaderKeybindsArgs {
 	apiRef: RefObject<BookReaderApi | null>;
-	bookmarkRef: RefObject<ReaderBookmark | undefined>;
 	presentation: ReaderPresentation;
 	verticalMode: boolean;
 	/** Physical page direction for visual books; independent of writing mode. */
@@ -18,7 +16,6 @@ interface UseReaderKeybindsArgs {
 	settingsOpen: boolean;
 	/** A non-reader surface (for example the expanded player) owns input. */
 	navigationBlocked?: boolean;
-	onBookmark: () => void;
 	onCloseToc: () => void;
 	onCloseSettings: () => void;
 	onChangeChapter: (offset: number) => void;
@@ -44,7 +41,6 @@ const pageFlipCodes = new Set([
  */
 export function useReaderKeybinds({
 	apiRef,
-	bookmarkRef,
 	presentation,
 	verticalMode,
 	comicDirection,
@@ -53,7 +49,6 @@ export function useReaderKeybinds({
 	tocOpen,
 	settingsOpen,
 	navigationBlocked = false,
-	onBookmark,
 	onCloseToc,
 	onCloseSettings,
 	onChangeChapter,
@@ -72,7 +67,7 @@ export function useReaderKeybinds({
 		if (event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) {
 			return;
 		}
-		// Holding a page-flip key keeps turning pages; everything else (bookmark,
+		// Holding a page-flip key keeps turning pages; everything else
 		// auto-scroll toggle, chapter jumps, continuous-mode A/D speed steps)
 		// fires once per press.
 		if (
@@ -105,12 +100,6 @@ export function useReaderKeybinds({
 
 		let handled = true;
 		switch (event.code || event.key?.toLowerCase()) {
-			case "KeyB":
-				onBookmark();
-				break;
-			case "KeyR":
-				if (bookmarkRef.current) api.scrollToBookmark(bookmarkRef.current);
-				break;
 			case "PageDown":
 				api.nextPage();
 				break;

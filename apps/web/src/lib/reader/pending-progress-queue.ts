@@ -1,10 +1,7 @@
-import type { ReadingPositionMode } from "./settings";
-
 export interface PendingProgress {
 	syncOperationId: string;
 	bookUuid: string;
 	exploredCharCount?: number;
-	positionMode?: ReadingPositionMode;
 	positionIntentAt?: number;
 	bookCharCount: number;
 	readingTimeSeconds: number;

@@ -27,7 +27,6 @@ export class ReadingProgressRepository {
 		data: {
 			exploredCharCount?: number;
 			bookCharCount?: number;
-			positionMode?: "automatic" | "bookmark";
 			positionIntentAt?: number;
 			syncOperationId?: string;
 			readingTimeSeconds?: number;
@@ -99,7 +98,6 @@ export class ReadingProgressRepository {
 					bookId,
 					exploredCharCount: data.exploredCharCount ?? 0,
 					bookCharCount: data.bookCharCount ?? 0,
-					positionMode: data.positionMode,
 					positionIntentAt: normalizedPositionIntentAt,
 					positionOperationId: hasPosition ? data.syncOperationId : undefined,
 					positionUpdatedAt: hasPosition ? now : undefined,
@@ -119,9 +117,6 @@ export class ReadingProgressRepository {
 							bookCharCount: hasPosition
 								? sql`CASE WHEN ${acceptsPosition} THEN ${data.bookCharCount} ELSE ${readingProgress.bookCharCount} END`
 								: data.bookCharCount,
-						}),
-						...(data.positionMode !== undefined && {
-							positionMode: sql`CASE WHEN ${acceptsPosition} THEN ${data.positionMode} ELSE ${readingProgress.positionMode} END`,
 						}),
 						...(normalizedPositionIntentAt !== undefined && {
 							positionIntentAt: sql`CASE WHEN ${acceptsPosition} THEN ${normalizedPositionIntentAt} ELSE ${readingProgress.positionIntentAt} END`,

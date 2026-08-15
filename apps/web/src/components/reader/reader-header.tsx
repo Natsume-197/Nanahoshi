@@ -6,9 +6,7 @@
  */
 
 import {
-	ArrowCounterClockwise,
 	ArrowsOut,
-	BookmarkSimple,
 	BookOpenText,
 	DotsThreeVertical,
 	Flag,
@@ -34,13 +32,9 @@ interface ReaderHeaderProps {
 	theme: ReaderTheme;
 	bookTitle: string;
 	hasChapterData: boolean;
-	isBookmarkScreen: boolean;
-	hasBookmarkData: boolean;
 	hasImages: boolean;
 	searchAvailable: boolean;
 	onTocClick: () => void;
-	onBookmarkClick: () => void;
-	onScrollToBookmarkClick: () => void;
 	onCompleteBook: () => void;
 	onFullscreenClick: () => void;
 	onImageGalleryClick: () => void;
@@ -96,13 +90,9 @@ export function ReaderHeader({
 	theme,
 	bookTitle,
 	hasChapterData,
-	isBookmarkScreen,
-	hasBookmarkData,
 	hasImages,
 	searchAvailable,
 	onTocClick,
-	onBookmarkClick,
-	onScrollToBookmarkClick,
 	onCompleteBook,
 	onFullscreenClick,
 	onImageGalleryClick,
@@ -190,21 +180,6 @@ export function ReaderHeader({
 						{hasChapterData && (
 							<IconButton title="Open Table of Contents" onClick={onTocClick}>
 								<List aria-hidden="true" className="size-5" />
-							</IconButton>
-						)}
-						<IconButton title="Create Bookmark" onClick={onBookmarkClick}>
-							<BookmarkSimple
-								aria-hidden="true"
-								weight={isBookmarkScreen ? "fill" : "regular"}
-								className="size-5"
-							/>
-						</IconButton>
-						{hasBookmarkData && (
-							<IconButton
-								title="Return to Bookmark"
-								onClick={onScrollToBookmarkClick}
-							>
-								<ArrowCounterClockwise aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
 						{searchAvailable && (

@@ -1,4 +1,4 @@
-export const JUMP_AMOUNTS = [10, 15, 30, 60] as const;
+export const JUMP_AMOUNTS = [5, 10, 15, 30, 60] as const;
 export type JumpAmount = (typeof JUMP_AMOUNTS)[number];
 
 export const DEFAULT_JUMP_BACK: JumpAmount = 10;

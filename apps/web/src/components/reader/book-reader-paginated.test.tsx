@@ -218,9 +218,8 @@ describe("BookReaderPaginated image section navigation", () => {
 				initialPosition={{
 					exploredCharCount: 3,
 					progress: 3 / 10,
-					lastBookmarkModified: 1,
+					modifiedAt: 1,
 				}}
-				initialBookmark={undefined}
 				onExploredCharCountChange={() => {}}
 				onSectionProgressChange={() => {}}
 				apiRef={(api) => {

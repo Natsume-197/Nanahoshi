@@ -21,7 +21,6 @@ export const readingProgressRouter = {
 				{
 					exploredCharCount: input.exploredCharCount,
 					bookCharCount: input.bookCharCount,
-					positionMode: input.positionMode,
 					positionIntentAt: input.positionIntentAt,
 					syncOperationId: input.syncOperationId,
 					readingTimeSeconds: input.readingTimeSeconds,

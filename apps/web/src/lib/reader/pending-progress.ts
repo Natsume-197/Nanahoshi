@@ -76,9 +76,6 @@ export async function flushPendingProgress(): Promise<void> {
 					...(entry.exploredCharCount !== undefined && {
 						exploredCharCount: entry.exploredCharCount,
 					}),
-					...(entry.positionMode !== undefined && {
-						positionMode: entry.positionMode,
-					}),
 					...(entry.positionIntentAt !== undefined && {
 						positionIntentAt: entry.positionIntentAt,
 					}),

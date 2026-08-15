@@ -1,18 +1,17 @@
-import type { ReaderBookmark } from "@/lib/reader/types";
+import type { ReaderPosition } from "@/lib/reader/types";
 
 export type DisableReadListenReaderOptions = {
-	getCurrentPosition: () => ReaderBookmark | undefined;
-	rememberPosition: (position: ReaderBookmark) => void;
+	getCurrentPosition: () => ReaderPosition | undefined;
+	rememberPosition: (position: ReaderPosition) => void;
 	leaveMode: () => Promise<void>;
 };
 
 export type ResolveReadListenReaderPositionOptions = {
-	livePosition: ReaderBookmark | undefined;
+	livePosition: ReaderPosition | undefined;
 	exploredCharCount: number;
-	rememberedPosition: ReaderBookmark | undefined;
+	rememberedPosition: ReaderPosition | undefined;
 	rememberedPlayheadSeconds?: number;
 	currentPlayheadSeconds?: number;
-	savedBookmark: ReaderBookmark | undefined;
 	bookCharCount: number;
 };
 
@@ -29,7 +28,7 @@ export type ReadListenReaderSession = {
 	originHref: string;
 	originHistoryIndex: number;
 	entryPlayheadSeconds: number;
-	position?: ReaderBookmark;
+	position?: ReaderPosition;
 	positionPlayheadSeconds?: number;
 };
 
@@ -55,13 +54,13 @@ function validNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
 }
 
-function validBookmark(value: unknown): value is ReaderBookmark {
+function validPosition(value: unknown): value is ReaderPosition {
 	if (!value || typeof value !== "object") return false;
-	const bookmark = value as Partial<ReaderBookmark>;
+	const position = value as Partial<ReaderPosition>;
 	return (
-		validNumber(bookmark.exploredCharCount) &&
-		validNumber(bookmark.progress) &&
-		validNumber(bookmark.lastBookmarkModified)
+		validNumber(position.exploredCharCount) &&
+		validNumber(position.progress) &&
+		validNumber(position.modifiedAt)
 	);
 }
 
@@ -85,7 +84,7 @@ export function loadReadListenReaderSession({
 			typeof value.originHref !== "string" ||
 			!validNumber(value.originHistoryIndex) ||
 			!validNumber(value.entryPlayheadSeconds) ||
-			(value.position !== undefined && !validBookmark(value.position)) ||
+			(value.position !== undefined && !validPosition(value.position)) ||
 			(value.positionPlayheadSeconds !== undefined &&
 				!validNumber(value.positionPlayheadSeconds))
 		) {
@@ -143,7 +142,7 @@ export function rememberReadListenReaderPosition({
 	storage = browserSessionStorage(),
 }: {
 	pairUuid: string;
-	position: ReaderBookmark;
+	position: ReaderPosition;
 	playheadSeconds: number;
 	storage?: ReadListenReaderSessionStorage;
 }) {
@@ -263,27 +262,22 @@ export function resolveReadListenReaderPosition({
 	rememberedPosition,
 	rememberedPlayheadSeconds,
 	currentPlayheadSeconds,
-	savedBookmark,
 	bookCharCount,
-}: ResolveReadListenReaderPositionOptions): ReaderBookmark | undefined {
+}: ResolveReadListenReaderPositionOptions): ReaderPosition | undefined {
 	if (livePosition) return livePosition;
 	if (exploredCharCount >= 0) {
 		return {
 			exploredCharCount,
 			progress: bookCharCount ? exploredCharCount / bookCharCount : 0,
-			lastBookmarkModified: Date.now(),
+			modifiedAt: Date.now(),
 		};
 	}
-	if (
-		rememberedPosition &&
+	const playheadMoved =
 		rememberedPlayheadSeconds !== undefined &&
 		currentPlayheadSeconds !== undefined &&
 		Math.abs(currentPlayheadSeconds - rememberedPlayheadSeconds) >
-			PLAYHEAD_RESUME_TOLERANCE_SECONDS
-	) {
-		return savedBookmark;
-	}
-	return rememberedPosition ?? savedBookmark;
+			PLAYHEAD_RESUME_TOLERANCE_SECONDS;
+	return playheadMoved ? undefined : rememberedPosition;
 }
 
 export async function disableReadListenReader({

@@ -5,7 +5,7 @@ import type { ReaderPresentation } from "@/lib/reader/reader-presentation";
 import type { ReaderSettings, ReaderTheme } from "@/lib/reader/settings";
 import type {
 	ReaderBookData,
-	ReaderBookmark,
+	ReaderPosition,
 	SectionWithProgress,
 } from "@/lib/reader/types";
 import { BookReaderContinuous } from "./book-reader-continuous";
@@ -23,8 +23,7 @@ interface ReaderEngineProps {
 	theme: ReaderTheme;
 	readerSettings: ReaderSettings;
 	mangaSettings: MangaReaderSettings;
-	initialPosition: ReaderBookmark | undefined;
-	initialBookmark: ReaderBookmark | undefined;
+	initialPosition: ReaderPosition | undefined;
 	onExploredCharCountChange: (count: number) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
 	onToggleChrome: () => void;
@@ -51,7 +50,6 @@ export function ReaderEngine({
 	readerSettings,
 	mangaSettings,
 	initialPosition,
-	initialBookmark,
 	onExploredCharCountChange,
 	onSectionProgressChange,
 	onToggleChrome,
@@ -71,7 +69,6 @@ export function ReaderEngine({
 				theme={theme}
 				sections={book.sections}
 				initialPosition={initialPosition}
-				initialBookmark={initialBookmark}
 				onExploredCharCountChange={onExploredCharCountChange}
 				onSectionProgressChange={onSectionProgressChange}
 				onToggleChrome={onToggleChrome}
@@ -91,7 +88,6 @@ export function ReaderEngine({
 				readingDirection={mangaSettings.readingDirection}
 				sections={book.sections}
 				initialPosition={initialPosition}
-				initialBookmark={initialBookmark}
 				onExploredCharCountChange={onExploredCharCountChange}
 				onSectionProgressChange={onSectionProgressChange}
 				onToggleChrome={onToggleChrome}
@@ -128,7 +124,6 @@ export function ReaderEngine({
 		navigationBlocked,
 		sections: book.sections,
 		initialPosition,
-		initialBookmark,
 		onExploredCharCountChange,
 		onSectionProgressChange,
 		apiRef: controllerRef,
