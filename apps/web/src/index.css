@@ -140,6 +140,8 @@
 	--card: oklch(0.285 0 90);
 	--card-border: rgba(255, 255, 255, 0.1);
 	--card-foreground: oklch(0.9587 0 90);
+	--surface-card: var(--card);
+	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
 	--popover: oklch(0.285 0 90);
 	--popover-foreground: oklch(0.9587 0 90);
 	--dropdown: color-mix(

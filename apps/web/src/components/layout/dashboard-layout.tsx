@@ -214,9 +214,9 @@ export function DashboardLayout() {
 	// The expanded player covers the window; the chrome behind it must leave the
 	// tab order and the accessibility tree while it does.
 	const playerExpanded = useAudioPlayerExpanded();
-	// The full-width transport bar is fixed to the bottom. When it's visible we
-	// reserve its height at the foot of the sidebar and the scroll area so neither
-	// is hidden behind it (the bar spans under the sidebar, not just the content).
+	// The full-width transport bar is fixed to the bottom. The layout reserves a
+	// separate row for it below the workspace so the scroll area ends above the
+	// bar instead of painting and scrolling behind it.
 	const showPlayerBar = Boolean(audiobook);
 	const standalone = STANDALONE_ROUTES.has(location.pathname);
 	// Matched route ids, not the pathname: `/dashboard/audiobooks/series/$uuid`
@@ -390,12 +390,7 @@ export function DashboardLayout() {
 					{/* One fixed chrome column. It doesn't collapse; below md it steps
 					    aside entirely for the bottom tab bar. */}
 					{!standalone && (
-						<div
-							className={cn(
-								"hidden shrink-0 md:flex",
-								showPlayerBar && "md:pb-[var(--player-reserve)]",
-							)}
-						>
+						<div className="hidden shrink-0 md:flex">
 							<DashboardAppRail
 								locationPathname={location.pathname}
 								activeOrganizationId={activeOrganizationId}
@@ -425,14 +420,11 @@ export function DashboardLayout() {
 									// to slide away from, never a gap. Matching scroll-padding
 									// keeps anchor targets clear of it.
 									className={cn(
-										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scroll-padding-bottom:calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] [scrollbar-gutter:stable] focus:outline-none",
+										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable] focus:outline-none",
 										// No bar below md on these routes, so the padding standing
 										// in for it would just be a gap above the artwork.
 										!mobileChromeless &&
 											"max-md:pt-[var(--mobile-header-height)] max-md:[scroll-padding-top:var(--mobile-header-height)]",
-										showPlayerBar
-											? "md:pb-[var(--player-reserve)] md:[scroll-padding-bottom:var(--player-reserve)]"
-											: "md:pb-0 md:[scroll-padding-bottom:0px]",
 									)}
 								>
 									{/* Inside the scroll area: the bar overlays the top of this
@@ -456,12 +448,20 @@ export function DashboardLayout() {
 								<ActivityRail
 									open={activityRailOpen}
 									onClose={() => setActivityRailOpen(false)}
-									reservePlayerSpace={showPlayerBar}
 								/>
 							)}
 						</div>
 					</SidebarInset>
 				</SidebarProvider>
+
+				{/* Fixed bottom chrome gets a real row in the dashboard layout. This
+				    keeps the workspace and its scrollbar above the player/navigation
+				    while the persistent player remains mounted across route changes. */}
+				<div
+					data-slot="dashboard-bottom-chrome-reserve"
+					aria-hidden="true"
+					className="h-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] shrink-0 bg-sidebar md:h-[var(--desktop-player-offset)]"
+				/>
 
 				{/* Keep fixed mobile chrome outside the transformed sidebar wrapper so
 				    it remains anchored to the visual viewport as browser UI resizes it. */}

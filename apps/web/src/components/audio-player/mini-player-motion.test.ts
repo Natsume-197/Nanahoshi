@@ -122,6 +122,24 @@ describe("expanded player motion", () => {
 		expect(readerRoute).not.toContain("playerDockVisible");
 	});
 
+	it("keeps dashboard scrolling above the fixed bottom chrome", () => {
+		const sidebarEnd = dashboardLayout.indexOf("</SidebarProvider>");
+		const reserve = dashboardLayout.indexOf(
+			'data-slot="dashboard-bottom-chrome-reserve"',
+		);
+		const mobileNav = dashboardLayout.indexOf("<MobileBottomNav");
+
+		expect(sidebarEnd).toBeGreaterThan(-1);
+		expect(reserve).toBeGreaterThan(sidebarEnd);
+		expect(mobileNav).toBeGreaterThan(reserve);
+		expect(dashboardLayout).toContain(
+			"h-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] shrink-0 bg-sidebar md:h-[var(--desktop-player-offset)]",
+		);
+		expect(dashboardLayout).not.toContain(
+			"pb-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))]",
+		);
+	});
+
 	it("makes sentence navigation a distinct primary control group", () => {
 		expect(readListenPlayer).toContain(
 			"export function ReadListenSentenceControls",

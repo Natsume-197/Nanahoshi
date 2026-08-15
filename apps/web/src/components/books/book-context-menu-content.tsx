@@ -6,10 +6,12 @@ import {
 	DeviceTablet,
 	DownloadSimple,
 	Heart,
+	Info,
 	ThumbsDown,
 	XCircle,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { AddToListModal } from "@/components/books/add-to-list-modal";
@@ -18,6 +20,7 @@ import {
 	ContextMenuContent,
 	ContextMenuGroup,
 	ContextMenuItem,
+	ContextMenuLinkItem,
 	ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
@@ -78,6 +81,9 @@ export function BookContextMenuContentPanel() {
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 
 	const hasActiveBook = activeBookUuid.length > 0;
+	const detailRoute = isAudiobook
+		? "/dashboard/audiobooks/$uuid"
+		: "/dashboard/books/$uuid";
 
 	// "Not interested": a book always resolves to its work server-side. Optimistic
 	// removal from every cached recommendation feed, with an undo affordance.
@@ -122,6 +128,21 @@ export function BookContextMenuContentPanel() {
 		<>
 			<ContextMenuContent className="w-56">
 				<ContextMenuGroup>
+					{hasActiveBook && activeInContinueList ? (
+						<ContextMenuLinkItem
+							closeOnClick
+							render={
+								<Link
+									to={detailRoute}
+									params={{ uuid: activeBookUuid }}
+									preload="intent"
+								/>
+							}
+						>
+							<Info />
+							{m["home.hero_view_details"]()}
+						</ContextMenuLinkItem>
+					) : null}
 					<ContextMenuItem
 						disabled={!hasActiveBook}
 						onClick={handleOpenInNewTab}

@@ -1,6 +1,7 @@
 import "@/test-utils/setup-dom";
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 
 const { cleanup, fireEvent, render, screen } = await import(
 	"@testing-library/react"
@@ -76,6 +77,15 @@ mock.module("@/utils/orpc", () => ({
 }));
 
 const { AddToListModal } = await import("./add-to-list-modal");
+const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
+const darkTheme = css.slice(
+	css.indexOf(".dark {"),
+	css.indexOf("\n}\n\n@theme inline"),
+);
+const normalizedDarkTheme = darkTheme
+	.replace(/\s+/g, " ")
+	.replace(/\(\s+/g, "(")
+	.replace(/\s+\)/g, ")");
 
 afterEach(cleanup);
 
@@ -119,5 +129,12 @@ describe("AddToListModal responsive layout", () => {
 		const inactiveShelf = screen.getByRole("button", { name: "Completed" });
 		expect(activeShelf.classList.contains("bg-surface-accent")).toBe(true);
 		expect(inactiveShelf.classList.contains("bg-surface-card")).toBe(true);
+	});
+
+	test("dark appearance derives tile surfaces from the dark theme", () => {
+		expect(darkTheme).toContain("--surface-card: var(--card)");
+		expect(normalizedDarkTheme).toContain(
+			"--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card))",
+		);
 	});
 });

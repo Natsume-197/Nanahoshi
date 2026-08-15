@@ -3,6 +3,9 @@ import { CaretRight, Check } from "@phosphor-icons/react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+const contextMenuItemClassName =
+	"group/context-menu-item relative flex min-h-8 cursor-default select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm outline-hidden transition-[background-color,color] duration-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-dropdown-destructive data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-7 data-[variant=destructive]:text-dropdown-destructive data-highlighted:text-accent-foreground data-disabled:opacity-50 dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 data-[variant=destructive]:*:[svg]:text-dropdown-destructive data-highlighted:*:[svg]:text-accent-foreground";
+
 function ContextMenu({
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
@@ -115,10 +118,20 @@ function ContextMenuItem({
 			data-slot="context-menu-item"
 			data-inset={inset}
 			data-variant={variant}
-			className={cn(
-				"group/context-menu-item relative flex min-h-8 cursor-default select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm outline-hidden transition-[background-color,color] duration-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-dropdown-destructive data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-7 data-[variant=destructive]:text-dropdown-destructive data-highlighted:text-accent-foreground data-disabled:opacity-50 dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 data-[variant=destructive]:*:[svg]:text-dropdown-destructive data-highlighted:*:[svg]:text-accent-foreground",
-				className,
-			)}
+			className={cn(contextMenuItemClassName, className)}
+			{...props}
+		/>
+	);
+}
+
+function ContextMenuLinkItem({
+	className,
+	...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.LinkItem>) {
+	return (
+		<ContextMenuPrimitive.LinkItem
+			data-slot="context-menu-link-item"
+			className={cn(contextMenuItemClassName, className)}
 			{...props}
 		/>
 	);
@@ -295,6 +308,7 @@ export {
 	ContextMenuGroup,
 	ContextMenuItem,
 	ContextMenuLabel,
+	ContextMenuLinkItem,
 	ContextMenuPortal,
 	ContextMenuRadioGroup,
 	ContextMenuRadioItem,

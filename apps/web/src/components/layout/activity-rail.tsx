@@ -17,7 +17,6 @@ import { m } from "@/paraglide/messages";
 interface ActivityRailProps {
 	open: boolean;
 	onClose: () => void;
-	reservePlayerSpace?: boolean;
 }
 
 /**
@@ -28,11 +27,7 @@ interface ActivityRailProps {
  * layout jumps under the reader's cursor. Non-modal — clicks behind it still
  * work, so the roster can stay open while you browse.
  */
-export function ActivityRail({
-	open,
-	onClose,
-	reservePlayerSpace = false,
-}: ActivityRailProps) {
+export function ActivityRail({ open, onClose }: ActivityRailProps) {
 	const isSheet = useActivityRailIsSheet();
 	useOverlayBackDismiss(open && isSheet, onClose);
 
@@ -51,7 +46,6 @@ export function ActivityRail({
 				inert={!open}
 				className={cn(
 					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
-					reservePlayerSpace && "pb-[var(--player-reserve)]",
 					open
 						? "pointer-events-auto translate-x-0"
 						: "pointer-events-none translate-x-full",
