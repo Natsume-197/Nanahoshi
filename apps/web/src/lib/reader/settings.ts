@@ -169,8 +169,6 @@ export interface ReaderSettings {
 	autoScrollMultiplier: number;
 	avoidPageBreak: boolean;
 	pageColumns: number;
-	/** How many parsed books the IndexedDB cache keeps (oldest evicted first). */
-	maxCachedBooks: number;
 }
 
 export const READER_SETTINGS_VERSION = 2;
@@ -206,7 +204,6 @@ export const defaultReaderSettings: ReaderSettings = {
 	autoScrollMultiplier: 20,
 	avoidPageBreak: false,
 	pageColumns: 0,
-	maxCachedBooks: 10,
 };
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
@@ -340,14 +337,6 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		defaultReaderSettings.autoScrollMultiplier,
 		1,
 		100,
-	);
-	next.maxCachedBooks = Math.round(
-		clampNumber(
-			stored.maxCachedBooks,
-			defaultReaderSettings.maxCachedBooks,
-			1,
-			100,
-		),
 	);
 	return next;
 }

@@ -42,7 +42,7 @@ export const BOOK_SANITIZE_VERSION = 1;
 
 export const SECTION_REFERENCE_PREFIX = "ttu-";
 
-/** Parsed book content, cached in IndexedDB keyed by the Nanahoshi book uuid. */
+/** Source format of parsed book content. */
 export type ReaderSourceFormat = SupportedEbookFormat;
 
 export interface ReaderBookData {

@@ -1,9 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { CACHED_BOOKS_QUERY_KEY } from "@/hooks/use-cached-books";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { fetchAndCacheBook } from "@/lib/reader/download-book";
 import { formatBookDataHtml } from "@/lib/reader/format-book-data-html";
+import { loadBookForReader } from "@/lib/reader/load-book";
 import { loadLocalReadingPosition } from "@/lib/reader/local-reading-position";
 import {
 	createPdfSections,
@@ -37,8 +35,7 @@ interface UseBookLoaderArgs {
 	uuid: string;
 	bookTitle: string;
 	cover?: string | null;
-	/** Server the book belongs to, recorded on the offline copy so the downloads
-	 *  list stays scoped to the active server. */
+	/** Server that authorizes and serves this reading session. */
 	serverId: string | null;
 	/** File size in bytes from the book metadata, used as the download progress
 	 *  total when the response omits Content-Length (chunked transfer). */
@@ -62,10 +59,8 @@ interface UseBookLoaderArgs {
 }
 
 /**
- * Loads a book for the reader: reads the IndexedDB cache, otherwise downloads
- * and parses the EPUB and caches it, formats the HTML, and resolves the reading
- * manual marker and automatic position independently, then resolves the active
- * profile's resume source against server progress (fetched in parallel).
+ * Downloads and parses a book for the active reader session, formats the HTML,
+ * and resolves the reading marker and automatic position against server progress.
  */
 export function useBookLoader({
 	uuid,
@@ -82,7 +77,6 @@ export function useBookLoader({
 	onLoaded,
 }: UseBookLoaderArgs): LoadState {
 	const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
-	const queryClient = useQueryClient();
 	const onLoadedRef = useRef(onLoaded);
 	onLoadedRef.current = onLoaded;
 
@@ -93,8 +87,7 @@ export function useBookLoader({
 		(async () => {
 			try {
 				const localPosition = loadLocalReadingPosition(uuid);
-				// Server progress is fetched in parallel with the (potentially
-				// heavy) cache read / download+parse.
+				// Server progress is fetched in parallel with download and parsing.
 				const serverProgressPromise = client.readingProgress
 					.getProgress({ bookUuid: uuid })
 					.then((progress) => ({
@@ -164,14 +157,14 @@ export function useBookLoader({
 					return;
 				}
 
-				const { data, written } = await fetchAndCacheBook(
+				const data = await loadBookForReader({
 					uuid,
 					bookTitle,
+					cover,
 					fileSizeBytes,
 					serverId,
-					{
-						cover,
-						sourceFormat,
+					sourceFormat,
+					callbacks: {
 						onDownloadProgress: (progress) => {
 							if (!cancelled) setLoadState({ phase: "downloading", progress });
 						},
@@ -179,13 +172,8 @@ export function useBookLoader({
 							if (!cancelled) setLoadState({ phase: "parsing" });
 						},
 					},
-				);
-				// The downloads list only changes once the write lands; opening the
-				// book never waits for it.
-				void written.then(() =>
-					queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY }),
-				);
-				if (cancelled || !data) return;
+				});
+				if (cancelled) return;
 
 				const serverProgress = await serverProgressPromise;
 				const position = resolveReadingPosition(

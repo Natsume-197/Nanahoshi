@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-query";
 import { persistQueryClient } from "@tanstack/react-query-persist-client";
 import { toast } from "sonner";
-import { CACHED_BOOKS_QUERY_KEY, QUERY_PERSIST_KEY } from "@/lib/offline";
+import { QUERY_PERSIST_KEY } from "@/lib/offline";
 import { notifySessionUnauthorized } from "@/lib/session-events";
 
 export const queryClient = new QueryClient({
@@ -78,9 +78,6 @@ function startQueryPersistence() {
 					unknown,
 					{ input?: { sort?: unknown } } | undefined,
 				];
-				// The downloads list reads IndexedDB (already local); persisting a
-				// snapshot would shadow it with stale data on restore.
-				if (first === CACHED_BOOKS_QUERY_KEY[0]) return false;
 				// Loader pass-through entries (fetchLoaderQuery) only exist to dedupe
 				// preload + navigation; persisting them would pile up detail blobs.
 				if (first === "loader") return false;

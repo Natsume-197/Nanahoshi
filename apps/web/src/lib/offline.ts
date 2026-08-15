@@ -1,13 +1,16 @@
 export const QUERY_PERSIST_KEY = "nanahoshi-query-cache";
 
-/**
- * Query key of the offline-books list. Lives here (not in use-cached-books)
- * because utils/orpc.ts needs it at boot, and the hook module drags the reader
- * IndexedDB stack (Dexie) into the entry bundle.
- */
-export const CACHED_BOOKS_QUERY_KEY = ["reader-cached-books"];
+/** Removes book copies created by the former offline reader. */
+export function removeLegacyBookStorage(): void {
+	if (!("indexedDB" in window)) return;
+	try {
+		window.indexedDB.deleteDatabase("NanahoshiReaderDB");
+	} catch {
+		// The browser can reject storage access in private mode.
+	}
+}
 
-/** Sign-out cleanup. The IndexedDB book cache is deliberately kept. */
+/** Sign-out cleanup for browser caches that do not contain book files. */
 export async function clearOfflineCaches(): Promise<void> {
 	try {
 		window.localStorage.removeItem(QUERY_PERSIST_KEY);

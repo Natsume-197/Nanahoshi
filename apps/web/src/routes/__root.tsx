@@ -17,6 +17,7 @@ import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { removeLegacyBookStorage } from "@/lib/offline";
 import { flushPendingProgress } from "@/lib/reader/pending-progress";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
@@ -175,8 +176,7 @@ function RootDocument() {
 		// After hydration on purpose: restoring the persisted cache earlier makes
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
-		// without persist() the browser may evict IndexedDB under disk pressure
-		navigator.storage?.persist?.().catch(() => {});
+		removeLegacyBookStorage();
 		flushPendingProgress();
 	});
 

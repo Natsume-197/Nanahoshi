@@ -44,7 +44,6 @@ describe("reader settings normalization", () => {
 			firstDimensionMargin: -500,
 			secondDimensionMaxValue: 99_999,
 			pageColumns: 50,
-			maxCachedBooks: 0,
 		});
 
 		expect(normalized.fontSize).toBe(defaultReaderSettings.fontSize);
@@ -52,7 +51,6 @@ describe("reader settings normalization", () => {
 		expect(normalized.firstDimensionMargin).toBe(0);
 		expect(normalized.secondDimensionMaxValue).toBe(10_000);
 		expect(normalized.pageColumns).toBe(2);
-		expect(normalized.maxCachedBooks).toBe(1);
 	});
 
 	test("keeps the public text limits stable", () => {

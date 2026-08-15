@@ -1,11 +1,6 @@
-import { ArrowLineDown, CloudSlash } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { Fragment, type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
-import { buttonVariants } from "@/components/ui/button";
-import { useCachedBooks } from "@/hooks/use-cached-books";
-import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
 	type HomeSectionId,
 	type HomeSectionPreference,
@@ -110,43 +105,8 @@ function OrderedHomeSections({
 	);
 }
 
-function OfflineHomeNotice() {
-	const { data: books } = useCachedBooks();
-	const count = books?.length ?? 0;
-
-	return (
-		<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)}>
-			<div className="flex min-h-72 flex-col items-center justify-center gap-4 py-12 text-center">
-				<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
-					<CloudSlash aria-hidden="true" className="size-7" />
-				</div>
-				<div className="flex max-w-md flex-col gap-1.5">
-					<h2 className="text-balance font-semibold text-xl leading-tight">
-						{m["home.offline_title"]()}
-					</h2>
-					<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
-						{count > 0
-							? m["home.offline_ready"]({ count })
-							: m["home.offline_empty"]()}
-					</p>
-				</div>
-				{count > 0 && (
-					<Link
-						to="/dashboard/downloads"
-						className={buttonVariants({ variant: "default" })}
-					>
-						<ArrowLineDown data-icon="inline-start" aria-hidden="true" />
-						{m["home.view_downloads"]()}
-					</Link>
-				)}
-			</div>
-		</div>
-	);
-}
-
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
-		const online = useOnlineStatus();
 		const layout = useHomeLayout();
 
 		// Format availability is still the cheapest way to distinguish an empty
@@ -154,10 +114,6 @@ export const DashboardHomeContent = memo(
 		const { data: formats } = useQuery(
 			orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
 		);
-
-		if (!online) {
-			return <OfflineHomeNotice />;
-		}
 
 		if (formats === undefined) {
 			return <DashboardHomeSkeleton layout={layout} />;

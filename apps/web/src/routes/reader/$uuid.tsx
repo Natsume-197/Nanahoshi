@@ -131,8 +131,7 @@ export const Route = createFileRoute("/reader/$uuid")({
 			if (error instanceof ORPCError && error.status === 404) {
 				throw notFound();
 			}
-			// offline: the reader can still serve the book from IndexedDB
-			return { book: null, switchedOrgId: null };
+			throw error;
 		}
 	},
 });
@@ -1197,7 +1196,6 @@ function ReaderPage() {
 					presentation={presentation}
 					settings={draftSettings}
 					customThemes={customThemes}
-					currentBookUuid={uuid}
 					onChange={handleDraftChange}
 					onPresentationChange={handlePresentationChange}
 					onClose={closeSettings}

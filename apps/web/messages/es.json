@@ -877,9 +877,6 @@
 		"removed_from_collection": "Quitado de la colección",
 		"kindle_queued": "Libro en cola para envío a tu Kindle",
 		"kindle_failed": "No se pudo enviar el libro a Kindle",
-		"book_stored_offline": "Libro guardado para lectura sin conexión",
-		"store_offline_failed": "No se pudo guardar el libro sin conexión",
-		"offline_copy_removed": "Copia sin conexión eliminada",
 		"list_updated": "Lista actualizada",
 		"removed_from_list": "Quitado de la lista",
 		"remove_from_list_failed": "No se pudo quitar de la lista",
@@ -1496,8 +1493,6 @@
 		"continue_reading": "Seguir leyendo",
 		"read_more": "Leer más",
 		"show_less": "Mostrar menos",
-		"store_offline": "Guardar sin conexión",
-		"remove_offline": "Quitar copia sin conexión",
 		"send_to_kindle": "Enviar a Kindle",
 		"enrich_metadata": "Enriquecer metadatos",
 		"restore_metadata": "Restaurar metadatos",
@@ -1816,9 +1811,6 @@
 		"empty_no_server": "Todavía no perteneces a ningún servidor. Acepta una invitación para empezar.",
 		"go_library_settings": "Configurar biblioteca",
 		"view_invitations": "Ver invitaciones",
-		"offline_title": "Estás sin conexión",
-		"offline_empty": "Sin conexión ahora mismo. Los libros que guardes sin conexión se pueden leer aquí sin ella.",
-		"view_downloads": "Ver descargas",
 		"series_book_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
@@ -1836,16 +1828,6 @@
 				"match": {
 					"countPlural=one": "{count} audiolibro",
 					"countPlural=other": "{count} audiolibros"
-				}
-			}
-		],
-		"offline_ready": [
-			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
-				"match": {
-					"countPlural=one": "Sin conexión ahora mismo, pero tienes un libro descargado listo para leer sin conexión.",
-					"countPlural=other": "Sin conexión ahora mismo, pero tienes {count} libros descargados listos para leer sin conexión."
 				}
 			}
 		]

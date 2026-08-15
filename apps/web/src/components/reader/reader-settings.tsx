@@ -6,21 +6,14 @@
  * theme; margins and reading area edit as % of screen instead of raw px.
  */
 
-import { ArrowLeft, HardDrive, Rows, TextT, X } from "@phosphor-icons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Rows, TextT, X } from "@phosphor-icons/react";
 import { type ComponentType, type ReactNode, useState } from "react";
 import {
 	readerMix,
 	Segmented,
-	Stepper,
 	ThemedTextInput,
 	Toggle,
 } from "@/components/reader/reader-controls";
-import {
-	CACHED_BOOKS_QUERY_KEY,
-	useCachedBooks,
-} from "@/hooks/use-cached-books";
-import { clearCachedBooks, deleteCachedBook } from "@/lib/reader/db";
 import type {
 	ReadAs,
 	ReaderPresentation,
@@ -32,19 +25,7 @@ import {
 	type ReaderSettings,
 } from "@/lib/reader/settings";
 
-function formatBytes(bytes: number) {
-	if (bytes < 1024) return `${bytes} B`;
-	const units = ["KB", "MB", "GB"];
-	let value = bytes;
-	let unitIndex = -1;
-	do {
-		value /= 1024;
-		unitIndex += 1;
-	} while (value >= 1024 && unitIndex < units.length - 1);
-	return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
-}
-
-type SettingsCategory = "layout" | "text" | "storage";
+type SettingsCategory = "layout" | "text";
 
 const CATEGORIES: {
 	key: SettingsCategory;
@@ -64,20 +45,12 @@ const CATEGORIES: {
 		desc: "Additional font and paragraph controls.",
 		icon: TextT,
 	},
-	{
-		key: "storage",
-		label: "Storage",
-		desc: "Books kept on this device for offline reading.",
-		icon: HardDrive,
-	},
 ];
 
 interface ReaderSettingsOverlayProps {
 	presentation: ReaderPresentation;
 	settings: ReaderSettings;
 	customThemes: CustomReaderThemes;
-	/** Marks the book that is open behind the overlay in the cache list. */
-	currentBookUuid?: string;
 	onChange: (patch: Partial<ReaderSettings>) => void;
 	onPresentationChange: (change: ReaderPresentationChange) => void;
 	onClose: () => void;
@@ -87,7 +60,6 @@ export function ReaderSettingsOverlay({
 	presentation,
 	settings,
 	customThemes,
-	currentBookUuid,
 	onChange,
 	onPresentationChange,
 	onClose,
@@ -103,24 +75,8 @@ export function ReaderSettingsOverlay({
 
 	const [category, setCategory] = useState<SettingsCategory>("layout");
 
-	const queryClient = useQueryClient();
-	const invalidateCachedBooks = () =>
-		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
-	const cachedBooks = useCachedBooks();
-	const deleteCached = useMutation({
-		mutationFn: deleteCachedBook,
-		onSettled: invalidateCachedBooks,
-	});
-	const clearCached = useMutation({
-		mutationFn: clearCachedBooks,
-		onSettled: invalidateCachedBooks,
-	});
-
 	const iconButtonClasses =
 		"flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-10 sm:w-10";
-	const smallIconClasses =
-		"flex h-9 w-9 cursor-pointer items-center justify-center rounded-md opacity-60 transition-opacity duration-150 hover:opacity-100";
-
 	// Plain render helpers (not components): defining components inline would
 	// remount them per keystroke and drop input focus.
 	const row = (
@@ -244,88 +200,6 @@ export function ReaderSettingsOverlay({
 						{ hint: "Proportional vertical spacing (vpal)" },
 					)}
 			</div>
-		),
-
-		storage: (
-			<>
-				<div className="flex flex-col">
-					{row(
-						"Max downloaded books",
-						<Stepper
-							theme={theme}
-							display={String(settings.maxCachedBooks)}
-							onStep={(direction) =>
-								onChange({
-									maxCachedBooks: Math.max(
-										1,
-										settings.maxCachedBooks + direction,
-									),
-								})
-							}
-						/>,
-						{ hint: "Older books are removed first" },
-					)}
-				</div>
-				<div className="mt-5">
-					<div className="mb-2 flex items-center justify-between">
-						<span className="text-sm opacity-70">Downloaded books</span>
-						{(cachedBooks.data?.length ?? 0) > 0 && (
-							<button
-								type="button"
-								className="cursor-pointer text-xs underline opacity-60 transition-opacity duration-150 hover:opacity-100"
-								onClick={() => clearCached.mutate()}
-							>
-								Delete all (
-								{formatBytes(
-									(cachedBooks.data ?? []).reduce(
-										(acc, book) => acc + book.sizeBytes,
-										0,
-									),
-								)}
-								)
-							</button>
-						)}
-					</div>
-					{(cachedBooks.data?.length ?? 0) === 0 ? (
-						<p className="text-sm opacity-50">
-							{cachedBooks.isPending
-								? "Loading…"
-								: "No books stored for offline reading."}
-						</p>
-					) : (
-						<div className="flex flex-col">
-							{(cachedBooks.data ?? []).map((book) => (
-								<div
-									key={book.uuid}
-									className="flex items-center gap-4 border-b py-2 last:border-b-0"
-									style={{ borderColor: mix(10) }}
-								>
-									<div className="min-w-0 flex-1">
-										<p className="truncate text-sm">
-											{book.title}
-											{book.uuid === currentBookUuid && (
-												<span className="ml-2 text-xs opacity-60">(open)</span>
-											)}
-										</p>
-										<p className="text-xs opacity-50">
-											{formatBytes(book.sizeBytes)} ·{" "}
-											{new Date(book.storedAt).toLocaleDateString()}
-										</p>
-									</div>
-									<button
-										type="button"
-										title="Remove from cache"
-										className={smallIconClasses}
-										onClick={() => deleteCached.mutate(book.uuid)}
-									>
-										<Trash className="size-4" />
-									</button>
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			</>
 		),
 	};
 

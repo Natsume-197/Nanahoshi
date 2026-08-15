@@ -1,10 +1,8 @@
-import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
 import {
 	ArrowCounterClockwise,
 	BookmarkSimple,
 	BookOpen,
 	CircleNotch,
-	CloudArrowDown,
 	DeviceTablet,
 	DotsThree,
 	DotsThreeVertical,
@@ -65,21 +63,9 @@ import {
 import type { getBook } from "@/functions/books/get-book";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
-import {
-	CACHED_BOOKS_QUERY_KEY,
-	useCachedBookUuids,
-} from "@/hooks/use-cached-books";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { usePop } from "@/hooks/use-pop";
-import { authClient } from "@/lib/auth-client";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
-import { deleteCachedBook } from "@/lib/reader/db";
-import {
-	fetchAndCacheBook,
-	isBookLoadPending,
-} from "@/lib/reader/download-book";
-import { shouldSkipReaderPrefetch } from "@/lib/reader/prefetch";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -99,11 +85,6 @@ import {
 import { client, orpc } from "@/utils/orpc";
 
 type BookData = Awaited<ReturnType<typeof getBook>>["book"];
-
-/** Dwell on the read button before its book starts downloading. Long enough
- *  that crossing the button costs nothing, short enough that a user reaching
- *  for it has a head start by the time they click. */
-const PREFETCH_HOVER_DELAY_MS = 120;
 
 // Below sm the triggers share the row in equal parts and wrap their label
 // rather than overflowing it, so the bar never becomes a scroller that a
@@ -256,9 +237,6 @@ export function BookDetailPage() {
 										bookUuid={book.uuid}
 										bookTitle={title}
 										bookCover={book.cover ?? null}
-										fileSizeBytes={
-											book.filesizeKb ? book.filesizeKb * 1024 : undefined
-										}
 									/>
 								</div>
 							</aside>
@@ -444,21 +422,16 @@ function HeroActions({
 	bookUuid,
 	bookTitle,
 	bookCover,
-	fileSizeBytes,
 }: {
 	book: BookData;
 	bookUuid: string;
 	bookTitle: string;
 	bookCover: string | null;
-	fileSizeBytes?: number;
 }) {
-	const queryClient = useQueryClient();
 	const router = useRouter();
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("book", "download");
-	const sourceFormat = ebookSourceFormatForFilename(book.filename) ?? undefined;
-	const isPdf = sourceFormat === "pdf";
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
 	// Sticky across closes (render-phase ref, see the render site).
@@ -470,71 +443,6 @@ function HeroActions({
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
 
 	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
-
-	// --- Reader prefetch ---
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	const cachedBookUuids = useCachedBookUuids();
-	const isStoredOffline = cachedBookUuids.has(bookUuid);
-	const invalidateCachedBooks = () =>
-		queryClient.invalidateQueries({ queryKey: CACHED_BOOKS_QUERY_KEY });
-	const storeOfflineMutation = useMutation({
-		// Awaits the IndexedDB write, not just the parse: the success toast
-		// claims the book is stored offline, so it must actually be stored.
-		mutationFn: async () => {
-			const { written } = await fetchAndCacheBook(
-				bookUuid,
-				bookTitle,
-				fileSizeBytes,
-				activeOrg?.id ?? null,
-				{ cover: bookCover, sourceFormat },
-			);
-			await written;
-		},
-		onSuccess: () => toast.success(m["toast.book_stored_offline"]()),
-		onError: (error) =>
-			toast.error(getErrorMessage(error, m["toast.store_offline_failed"]())),
-		onSettled: invalidateCachedBooks,
-	});
-	// Intent to read: start the download+parse now so the reader finds the book
-	// cached (or joins the in-flight load) instead of starting from scratch on
-	// click. Cheap to call repeatedly — a cached or in-flight book is a no-op.
-	const startPrefetch = () => {
-		if (isPdf) return;
-		if (isStoredOffline || isBookLoadPending(bookUuid)) return;
-		if (shouldSkipReaderPrefetch()) return;
-		void fetchAndCacheBook(
-			bookUuid,
-			bookTitle,
-			fileSizeBytes,
-			activeOrg?.id ?? null,
-			{ cover: bookCover, sourceFormat },
-		)
-			.then(({ written }) => written.then(invalidateCachedBooks))
-			// A failed prefetch is silent: the reader will surface the error if
-			// the user actually opens the book.
-			.catch(() => {});
-	};
-
-	// Books run to tens of MB, so a cursor merely crossing the button must not
-	// start a download — only a deliberate dwell does. Pointer-down and focus
-	// are already commitment, so they skip the wait.
-	const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-		undefined,
-	);
-	const prefetchOnHover = () => {
-		clearTimeout(hoverTimerRef.current);
-		hoverTimerRef.current = setTimeout(startPrefetch, PREFETCH_HOVER_DELAY_MS);
-	};
-	const cancelHoverPrefetch = () => clearTimeout(hoverTimerRef.current);
-	useOnUnmount(cancelHoverPrefetch);
-
-	const removeOfflineMutation = useMutation({
-		mutationFn: () => deleteCachedBook(bookUuid),
-		onSuccess: () => toast.success(m["toast.offline_copy_removed"]()),
-		onSettled: invalidateCachedBooks,
-	});
-	const offlineBusy =
-		storeOfflineMutation.isPending || removeOfflineMutation.isPending;
 
 	// --- Shelf ---
 	const bookShelfQueryOptions = orpc.bookShelf.get.queryOptions({
@@ -619,27 +527,6 @@ function HeroActions({
 	// mounts on open, so the pair costs nothing.
 	const moreMenuItems = (
 		<>
-			{/* Storing offline downloads the file; removing a local copy doesn't. */}
-			{(isStoredOffline || (canDownload && !isPdf)) && (
-				<DropdownMenuItem
-					className="min-h-10"
-					onClick={() =>
-						isStoredOffline
-							? removeOfflineMutation.mutate()
-							: storeOfflineMutation.mutate()
-					}
-					disabled={offlineBusy}
-				>
-					{offlineBusy ? (
-						<CircleNotch className="animate-spin motion-reduce:animate-none" />
-					) : (
-						<CloudArrowDown />
-					)}
-					{isStoredOffline
-						? m["book.remove_offline"]()
-						: m["book.store_offline"]()}
-				</DropdownMenuItem>
-			)}
 			{canDownload && (
 				<>
 					<DropdownMenuItem
@@ -667,7 +554,7 @@ function HeroActions({
 			)}
 			{canEnrich && (
 				<>
-					{(isStoredOffline || canDownload) && <DropdownMenuSeparator />}
+					{canDownload && <DropdownMenuSeparator />}
 					<DropdownMenuItem
 						className="min-h-10"
 						onClick={() => setIsEditOpen(true)}
@@ -744,14 +631,7 @@ function HeroActions({
 			<div className="flex flex-col gap-2">
 				<div className="flex items-center gap-2">
 					<Button asChild className="h-11 flex-1 gap-1.5 font-semibold text-sm">
-						<Link
-							to="/reader/$uuid"
-							params={{ uuid: bookUuid }}
-							onPointerEnter={prefetchOnHover}
-							onPointerLeave={cancelHoverPrefetch}
-							onPointerDown={startPrefetch}
-							onFocus={startPrefetch}
-						>
+						<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
 							<BookOpen
 								aria-hidden="true"
 								data-icon="inline-start"

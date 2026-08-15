@@ -864,9 +864,6 @@
 		"removed_from_collection": "コレクションから削除しました",
 		"kindle_queued": "Kindleへの配信待ちに追加しました",
 		"kindle_failed": "Kindleに本を送信できませんでした",
-		"book_stored_offline": "オフライン読書用に本を保存しました",
-		"store_offline_failed": "本をオフライン用に保存できませんでした",
-		"offline_copy_removed": "オフラインコピーを削除しました",
 		"list_updated": "リストを更新しました",
 		"removed_from_list": "リストから削除しました",
 		"remove_from_list_failed": "リストから削除できませんでした",
@@ -1470,8 +1467,6 @@
 		"continue_reading": "続きを読む",
 		"read_more": "もっと見る",
 		"show_less": "閉じる",
-		"store_offline": "オフライン用に保存",
-		"remove_offline": "オフラインコピーを削除",
 		"send_to_kindle": "Kindle に送信",
 		"enrich_metadata": "メタデータを補完",
 		"restore_metadata": "メタデータを復元",
@@ -1781,9 +1776,6 @@
 		"empty_no_server": "まだどのサーバーにも参加していません。招待を承認して始めましょう。",
 		"go_library_settings": "ライブラリを設定",
 		"view_invitations": "招待を表示",
-		"offline_title": "オフラインです",
-		"offline_empty": "現在接続されていません。オフライン用に保存した本は、接続なしでもここで読めます。",
-		"view_downloads": "ダウンロードを表示",
 		"series_book_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
@@ -1801,16 +1793,6 @@
 				"match": {
 					"countPlural=one": "{count}作品",
 					"countPlural=other": "{count}作品"
-				}
-			}
-		],
-		"offline_ready": [
-			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
-				"match": {
-					"countPlural=one": "現在オフラインですが、ダウンロード済みの本を1冊読めます。",
-					"countPlural=other": "現在オフラインですが、ダウンロード済みの本を{count}冊読めます。"
 				}
 			}
 		]

@@ -877,9 +877,6 @@
 		"removed_from_collection": "Removed from collection",
 		"kindle_queued": "Book queued for delivery to your Kindle",
 		"kindle_failed": "Failed to send book to Kindle",
-		"book_stored_offline": "Book stored for offline reading",
-		"store_offline_failed": "Failed to store book offline",
-		"offline_copy_removed": "Offline copy removed",
 		"list_updated": "List updated",
 		"removed_from_list": "Removed from list",
 		"remove_from_list_failed": "Failed to remove from list",
@@ -1496,8 +1493,6 @@
 		"continue_reading": "Continue reading",
 		"read_more": "Read more",
 		"show_less": "Show less",
-		"store_offline": "Store offline",
-		"remove_offline": "Remove offline copy",
 		"send_to_kindle": "Send to Kindle",
 		"enrich_metadata": "Enrich metadata",
 		"restore_metadata": "Restore metadata",
@@ -1816,9 +1811,6 @@
 		"empty_no_server": "You're not part of any server yet. Accept an invitation to get started.",
 		"go_library_settings": "Configure library",
 		"view_invitations": "View invitations",
-		"offline_title": "You're offline",
-		"offline_empty": "No connection right now. Books you store offline can be read here without one.",
-		"view_downloads": "View downloads",
 		"series_book_count": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
@@ -1836,16 +1828,6 @@
 				"match": {
 					"countPlural=one": "{count} audiobook",
 					"countPlural=other": "{count} audiobooks"
-				}
-			}
-		],
-		"offline_ready": [
-			{
-				"declarations": ["input count", "local countPlural = count: plural"],
-				"selectors": ["countPlural"],
-				"match": {
-					"countPlural=one": "No connection right now, but a downloaded book is ready to read offline.",
-					"countPlural=other": "No connection right now, but {count} downloaded books are ready to read offline."
 				}
 			}
 		]
