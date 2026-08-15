@@ -749,22 +749,11 @@ function ReaderPage() {
 		if (next.readingPositionMode !== prev.readingPositionMode) void syncNow();
 	};
 
-	// Switch while the overlay is open: the draft is saved into the outgoing
-	// profile and the incoming profile loads into the draft — the reader keeps
-	// rendering the committed settings until the overlay closes.
-	const handleOverlayProfileSwitch = (id: string) => {
-		if (!draftSettings || id === activeProfileId) return;
+	const handleQuickProfileSwitch = (id: string) => {
+		if (id === activeProfileId) return;
 		setActiveProfileId(id);
 		setActiveProfileIdState(id);
-		const committed = commitProfilesStore(
-			setProfileSettings(profilesStore, activeProfileId, draftSettings),
-		);
-		setProfilesStore(committed);
-		const next = getProfileSettings(committed, id);
-		applyReaderBackground(
-			getReaderTheme(next.theme, customThemesRef.current).backgroundColor,
-		);
-		setDraftSettings(next);
+		applyProfileSettings(getProfileSettings(profilesStore, id));
 	};
 
 	// "Save as": the new profile becomes active and takes the draft (committed
@@ -1243,7 +1232,15 @@ function ReaderPage() {
 				settings={settings}
 				theme={theme}
 				customThemes={customThemes}
+				profiles={profilesStore.profiles}
+				activeProfileId={activeProfileId}
 				isMobile={isMobile}
+				onProfileSwitch={handleQuickProfileSwitch}
+				onProfileCreate={handleProfileCreate}
+				onProfileRename={handleProfileRename}
+				onProfileDuplicate={handleProfileDuplicate}
+				onProfileDelete={handleProfileDelete}
+				onCustomThemesChange={handleCustomThemesChange}
 				onChange={handleQuickSettingsChange}
 				onMangaSettingsChange={handleMangaSettingsChange}
 				onPresentationChange={handlePresentationChange}
@@ -1257,21 +1254,11 @@ function ReaderPage() {
 			{draftSettings && (
 				<ReaderSettingsOverlay
 					presentation={presentation}
-					mangaSettings={mangaSettings}
 					settings={draftSettings}
 					customThemes={customThemes}
 					currentBookUuid={uuid}
-					profiles={profilesStore.profiles}
-					activeProfileId={activeProfileId}
-					onProfileSwitch={handleOverlayProfileSwitch}
-					onProfileCreate={handleProfileCreate}
-					onProfileRename={handleProfileRename}
-					onProfileDuplicate={handleProfileDuplicate}
-					onProfileDelete={handleProfileDelete}
 					onChange={handleDraftChange}
-					onMangaSettingsChange={handleMangaSettingsChange}
 					onPresentationChange={handlePresentationChange}
-					onCustomThemesChange={handleCustomThemesChange}
 					onClose={closeSettings}
 				/>
 			)}

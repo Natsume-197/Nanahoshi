@@ -3,7 +3,8 @@
  * settings-custom-theme-input.svelte) — BSD-3-Clause, ッツ Reader Authors.
  */
 
-import { useRef, useState } from "react";
+import { Copy } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
 import {
 	readerMix,
 	ThemedOption,
@@ -90,48 +91,31 @@ interface ColorInputRowProps {
 	label: string;
 	attribute: ThemeAttribute;
 	values: CustomThemeValue;
-	borderColor: string;
+	surfaceColor: string;
 	onColorChange: (attribute: ThemeAttribute, value: string) => void;
-	onAlphaChange: (attribute: ThemeAttribute, value: number) => void;
 }
 
 function ColorInputRow({
 	label,
 	attribute,
 	values,
-	borderColor,
+	surfaceColor,
 	onColorChange,
-	onAlphaChange,
 }: ColorInputRowProps) {
 	return (
-		<>
-			<span className="text-sm opacity-70">{label}</span>
+		<label
+			className="flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl px-3"
+			style={{ backgroundColor: surfaceColor }}
+		>
+			<span className="min-w-0 flex-1 text-sm">{label}</span>
 			<input
 				type="color"
-				className="h-9 w-full cursor-pointer rounded-md border sm:h-8"
-				style={{ borderColor }}
+				aria-label={`${label} color`}
+				className="size-8 shrink-0 cursor-pointer rounded-full border-0 bg-transparent p-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
 				value={values.hexExpression}
 				onChange={(event) => onColorChange(attribute, event.target.value)}
 			/>
-			<input
-				type="number"
-				step={0.1}
-				min={0}
-				max={1}
-				className="h-9 rounded-md border bg-transparent px-2 text-sm outline-none sm:h-8"
-				style={{ borderColor }}
-				value={values.alphaValue}
-				onChange={(event) => {
-					let value = event.target.value
-						? Number.parseFloat(event.target.value)
-						: undefined;
-					if (value === undefined || value < 0 || value > 1) {
-						value = 1;
-					}
-					onAlphaChange(attribute, value);
-				}}
-			/>
-		</>
+		</label>
 	);
 }
 
@@ -166,6 +150,15 @@ export function ReaderCustomThemeDialog({
 	const [themeName, setThemeName] = useState(existing ? selectedTheme : "");
 	const themeNameRef = useRef<HTMLInputElement>(null);
 
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		requestAnimationFrame(() => themeNameRef.current?.focus());
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [onClose]);
+
 	const handleColorValueChange = (attribute: ThemeAttribute, value: string) => {
 		setCustomTheme((prev) => ({
 			...prev,
@@ -173,17 +166,6 @@ export function ReaderCustomThemeDialog({
 				hexExpression: value,
 				alphaValue: prev[attribute].alphaValue,
 				rgbaExpression: hexToRGB(value, prev[attribute].alphaValue),
-			},
-		}));
-	};
-
-	const handleAlphaValueChange = (attribute: ThemeAttribute, value: number) => {
-		setCustomTheme((prev) => ({
-			...prev,
-			[attribute]: {
-				hexExpression: prev[attribute].hexExpression,
-				alphaValue: value,
-				rgbaExpression: hexToRGB(prev[attribute].hexExpression, value),
 			},
 		}));
 	};
@@ -218,31 +200,95 @@ export function ReaderCustomThemeDialog({
 		onSave(themeName, colors, selectedTheme);
 	};
 
-	const hairline = readerMix(theme, 25);
+	const surface = readerMix(theme, 7);
+	const hairline = readerMix(theme, 20);
 
 	return (
-		<div className="writing-horizontal-tb fixed inset-0 z-[80] h-full w-full">
+		<div
+			className="writing-horizontal-tb fixed inset-0 z-[80] flex items-end justify-center p-2 sm:items-center sm:p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="custom-theme-title"
+		>
 			<button
 				type="button"
 				aria-label="Close dialog"
-				className="fade-in absolute inset-0 animate-in bg-black/40 duration-200 motion-reduce:animate-none"
+				className="fade-in absolute inset-0 animate-in bg-black/35 backdrop-blur-[2px] duration-200 motion-reduce:animate-none"
 				onClick={onClose}
 			/>
-			<div className="relative top-1/2 left-1/2 inline-block w-[min(28rem,90vw)] -translate-x-1/2 -translate-y-1/2">
-				<section
-					className="fade-in zoom-in-95 animate-in rounded-lg border p-5 shadow-xl duration-200 motion-reduce:animate-none"
-					style={{
-						color: theme.fontColor,
-						backgroundColor: theme.backgroundColor,
-						borderColor: readerMix(theme, 15),
-					}}
+			<section
+				className="fade-in zoom-in-95 relative flex max-h-[min(31rem,calc(100dvh-1rem))] w-full max-w-sm animate-in flex-col overflow-hidden rounded-2xl shadow-2xl duration-200 motion-reduce:animate-none"
+				style={{
+					color: theme.fontColor,
+					backgroundColor: readerMix(theme, 96),
+					boxShadow: `0 24px 64px -24px ${readerMix(theme, 55)}`,
+				}}
+			>
+				<header
+					className="grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center px-3"
+					style={{ boxShadow: `inset 0 -1px ${hairline}` }}
 				>
-					<h2 className="mb-4 font-medium text-sm">
-						{selectedTheme ? "Edit Custom Theme" : "New Custom Theme"}
+					<button
+						type="button"
+						className="h-10 w-fit cursor-pointer rounded-lg px-1.5 text-sm outline-none transition-opacity hover:opacity-65 focus-visible:outline-2 focus-visible:outline-offset-2"
+						onClick={onClose}
+					>
+						Cancel
+					</button>
+					<h2 id="custom-theme-title" className="font-semibold text-sm">
+						{selectedTheme ? "Edit theme" : "New theme"}
 					</h2>
-					<div className="grid max-h-[60vh] grid-cols-1 items-center gap-2 overflow-auto sm:grid-cols-[1fr_auto_4.5rem] sm:gap-x-4 sm:gap-y-3">
-						<div className="sm:col-span-2">
+					<button
+						type="button"
+						className="h-10 w-fit cursor-pointer justify-self-end rounded-lg px-1.5 font-semibold text-sm outline-none transition-opacity hover:opacity-65 focus-visible:outline-2 focus-visible:outline-offset-2"
+						style={{ color: theme.fontColor }}
+						onClick={handleSave}
+					>
+						Save
+					</button>
+				</header>
+				<div className="min-h-0 overflow-y-auto overscroll-contain p-3">
+					<label className="block">
+						<span className="mb-1.5 block px-1 font-medium text-[11px] uppercase tracking-wide opacity-55">
+							Theme name
+						</span>
+						<input
+							ref={themeNameRef}
+							type="text"
+							className="h-11 w-full rounded-xl border-0 bg-transparent px-3 text-sm outline-none transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2"
+							style={{
+								color: theme.fontColor,
+								backgroundColor: surface,
+								boxShadow: `inset 0 0 0 1px ${hairline}`,
+							}}
+							placeholder="Evening paper"
+							value={themeName}
+							onChange={(event) => setThemeName(event.target.value)}
+						/>
+					</label>
+					<div
+						className="mt-3 flex min-h-20 flex-col justify-between rounded-xl p-3"
+						style={{
+							color: customTheme.fontColor.rgbaExpression,
+							backgroundColor: customTheme.backgroundColor.rgbaExpression,
+							boxShadow: `inset 0 0 0 1px ${hairline}`,
+						}}
+					>
+						<div className="font-serif text-base">Reading preview</div>
+						<p className="max-w-sm font-serif text-xs opacity-80">
+							A quiet page, shaped for the way you read.
+						</p>
+					</div>
+					<div className="mt-3">
+						<label
+							className="mb-1.5 block px-1 font-medium text-[11px] uppercase tracking-wide opacity-55"
+							htmlFor="copy-theme"
+						>
+							Start from
+						</label>
+						<div className="flex gap-2">
 							<ThemedSelect
+								id="copy-theme"
 								theme={theme}
 								value={themeToCopy}
 								onChange={setThemeToCopy}
@@ -253,99 +299,71 @@ export function ReaderCustomThemeDialog({
 									</ThemedOption>
 								))}
 							</ThemedSelect>
-						</div>
-						<button
-							type="button"
-							className="h-9 cursor-pointer rounded-md border px-3 text-sm opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-8"
-							style={{ borderColor: hairline }}
-							onClick={handleCopyTheme}
-						>
-							Copy
-						</button>
-						<ColorInputRow
-							label="Font"
-							attribute="fontColor"
-							values={customTheme.fontColor}
-							borderColor={hairline}
-							onColorChange={handleColorValueChange}
-							onAlphaChange={handleAlphaValueChange}
-						/>
-						<ColorInputRow
-							label="Background"
-							attribute="backgroundColor"
-							values={customTheme.backgroundColor}
-							borderColor={hairline}
-							onColorChange={handleColorValueChange}
-							onAlphaChange={handleAlphaValueChange}
-						/>
-						<ColorInputRow
-							label="Furigana partial hide font"
-							attribute="hintFuriganaFontColor"
-							values={customTheme.hintFuriganaFontColor}
-							borderColor={hairline}
-							onColorChange={handleColorValueChange}
-							onAlphaChange={handleAlphaValueChange}
-						/>
-						<ColorInputRow
-							label="Furigana hide shadow"
-							attribute="hintFuriganaShadowColor"
-							values={customTheme.hintFuriganaShadowColor}
-							borderColor={hairline}
-							onColorChange={handleColorValueChange}
-							onAlphaChange={handleAlphaValueChange}
-						/>
-						<ColorInputRow
-							label="Footer font"
-							attribute="tooltipTextFontColor"
-							values={customTheme.tooltipTextFontColor}
-							borderColor={hairline}
-							onColorChange={handleColorValueChange}
-							onAlphaChange={handleAlphaValueChange}
-						/>
-						<div className="sm:col-span-2">
-							<input
-								ref={themeNameRef}
-								type="text"
-								className="h-9 w-full rounded-md border bg-transparent px-2 text-sm outline-none transition-colors duration-150 focus:border-current sm:h-8"
-								style={{ borderColor: hairline, color: theme.fontColor }}
-								placeholder="Theme Name"
-								value={themeName}
-								onChange={(event) => setThemeName(event.target.value)}
-							/>
-						</div>
-						<div
-							className="flex h-9 items-center justify-center rounded-md text-lg sm:h-8"
-							style={{
-								color: customTheme.fontColor.rgbaExpression,
-								backgroundColor: customTheme.backgroundColor.rgbaExpression,
-								boxShadow: `inset 0 0 0 1px ${hairline}`,
-							}}
-						>
-							ぁあ
+							<button
+								type="button"
+								className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 font-medium text-xs outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
+								style={{ backgroundColor: surface }}
+								onClick={handleCopyTheme}
+							>
+								<Copy aria-hidden="true" className="size-4" />
+								Copy
+							</button>
 						</div>
 					</div>
-					<footer className="mt-5 flex items-center justify-end gap-2">
-						<button
-							type="button"
-							className="h-9 cursor-pointer rounded-md px-3 text-sm opacity-70 transition-opacity duration-150 hover:opacity-100 sm:h-8"
-							onClick={onClose}
-						>
-							Cancel
-						</button>
-						<button
-							type="button"
-							className="h-9 cursor-pointer rounded-md px-4 font-medium text-sm transition-opacity duration-150 hover:opacity-90 sm:h-8"
-							style={{
-								backgroundColor: theme.fontColor,
-								color: theme.backgroundColor,
-							}}
-							onClick={handleSave}
-						>
-							Save
-						</button>
-					</footer>
-				</section>
-			</div>
+					<div className="mt-3">
+						<h3 className="mb-1.5 px-1 font-medium text-[11px] uppercase tracking-wide opacity-55">
+							Colors
+						</h3>
+						<div className="flex flex-col gap-2">
+							<ColorInputRow
+								label="Text"
+								attribute="fontColor"
+								values={customTheme.fontColor}
+								surfaceColor={surface}
+								onColorChange={handleColorValueChange}
+							/>
+							<ColorInputRow
+								label="Page"
+								attribute="backgroundColor"
+								values={customTheme.backgroundColor}
+								surfaceColor={surface}
+								onColorChange={handleColorValueChange}
+							/>
+						</div>
+					</div>
+					<details
+						className="mt-3 rounded-xl px-3 py-2.5"
+						style={{ backgroundColor: surface }}
+					>
+						<summary className="cursor-pointer font-medium text-xs">
+							More colors
+						</summary>
+						<div className="mt-2 flex flex-col gap-2">
+							<ColorInputRow
+								label="Furigana"
+								attribute="hintFuriganaFontColor"
+								values={customTheme.hintFuriganaFontColor}
+								surfaceColor={readerMix(theme, 12)}
+								onColorChange={handleColorValueChange}
+							/>
+							<ColorInputRow
+								label="Furigana shadow"
+								attribute="hintFuriganaShadowColor"
+								values={customTheme.hintFuriganaShadowColor}
+								surfaceColor={readerMix(theme, 12)}
+								onColorChange={handleColorValueChange}
+							/>
+							<ColorInputRow
+								label="Footer"
+								attribute="tooltipTextFontColor"
+								values={customTheme.tooltipTextFontColor}
+								surfaceColor={readerMix(theme, 12)}
+								onColorChange={handleColorValueChange}
+							/>
+						</div>
+					</details>
+				</div>
+			</section>
 		</div>
 	);
 }

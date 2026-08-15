@@ -312,6 +312,7 @@ export function ThemedTextInput({
 	value,
 	placeholder,
 	list,
+	ariaLabel,
 	onChange,
 	onKeyDown,
 }: {
@@ -319,6 +320,7 @@ export function ThemedTextInput({
 	value: string;
 	placeholder?: string;
 	list?: string;
+	ariaLabel?: string;
 	onChange: (value: string) => void;
 	onKeyDown?: (key: string) => void;
 }) {
@@ -330,6 +332,7 @@ export function ThemedTextInput({
 			value={value}
 			placeholder={placeholder}
 			list={list}
+			aria-label={ariaLabel}
 			onChange={(event) => onChange(event.target.value)}
 			onKeyDown={(event) => onKeyDown?.(event.key)}
 		/>

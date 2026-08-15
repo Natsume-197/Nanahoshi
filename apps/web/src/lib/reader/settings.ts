@@ -15,8 +15,6 @@ export type ReaderThemeId =
 	| "attribute-theme"
 	| "light-theme"
 	| "ecru-theme"
-	| "water-theme"
-	| "gray-theme"
 	| "dark-theme"
 	| "black-theme";
 
@@ -71,12 +69,6 @@ export const readerThemes: ReaderTheme[] = [
 		...lightBase,
 	},
 	{ id: "ecru-theme", backgroundColor: "rgba(247, 246, 235, 1)", ...lightBase },
-	{
-		id: "water-theme",
-		backgroundColor: "rgba(223, 236, 244, 1)",
-		...lightBase,
-	},
-	{ id: "gray-theme", backgroundColor: "rgba(35, 39, 42, 1)", ...darkBase },
 	{
 		id: "dark-theme",
 		backgroundColor: "rgba(18, 18, 18, 1)",
@@ -243,7 +235,12 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 
 	const stored = raw as Partial<ReaderSettings>;
 	const next = { ...defaultReaderSettings };
-	if (typeof stored.theme === "string" && stored.theme.trim()) {
+	if (
+		typeof stored.theme === "string" &&
+		stored.theme.trim() &&
+		stored.theme !== "water-theme" &&
+		stored.theme !== "gray-theme"
+	) {
 		next.theme = stored.theme;
 	}
 	if (typeof stored.fontFamilyGroupOne === "string") {

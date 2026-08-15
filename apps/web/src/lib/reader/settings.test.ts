@@ -84,6 +84,15 @@ describe("reader settings normalization", () => {
 		expect(normalized.fontWeight).toBe(100);
 	});
 
+	test("migrates retired Water and Gray themes to the default", () => {
+		expect(normalizeReaderSettings({ theme: "water-theme" }).theme).toBe(
+			defaultReaderSettings.theme,
+		);
+		expect(normalizeReaderSettings({ theme: "gray-theme" }).theme).toBe(
+			defaultReaderSettings.theme,
+		);
+	});
+
 	test("keeps automatic and bookmark resume modes explicit", () => {
 		expect(
 			normalizeReaderSettings({ readingPositionMode: "automatic" })

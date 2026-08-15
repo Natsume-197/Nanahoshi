@@ -15,6 +15,9 @@ const quickSettings = await Bun.file(
 const fullSettings = await Bun.file(
 	new URL("./reader-settings.tsx", import.meta.url),
 ).text();
+const customThemeEditor = await Bun.file(
+	new URL("./reader-custom-theme.tsx", import.meta.url),
+).text();
 const paginatedReader = await Bun.file(
 	new URL("./book-reader-paginated.tsx", import.meta.url),
 ).text();
@@ -112,7 +115,7 @@ describe("reader layout", () => {
 		);
 	});
 
-	test("keeps the mobile drawer mounted for its close transition and caps it at 60dvh", () => {
+	test("keeps the mobile drawer and uses a desktop sliding side panel", () => {
 		expect(readerRoute).toContain("<ReaderQuickSettings");
 		expect(readerRoute).not.toContain(
 			"{quickSettingsOpen && (\n\t\t\t\t<ReaderQuickSettings",
@@ -120,9 +123,16 @@ describe("reader layout", () => {
 		expect(quickSettings).toContain("open={open}");
 		expect(quickSettings).toContain('"--drawer-content-height": "60dvh"');
 		expect(quickSettings).toContain('"--drawer-content-max-height": "60dvh"');
-		expect(quickSettings.match(/modal=\{false\}/g)).toHaveLength(2);
-		expect(quickSettings).not.toContain("DialogPrimitive.Backdrop");
+		expect(quickSettings.match(/modal=\{false\}/g)).toHaveLength(1);
+		expect(quickSettings).not.toContain("DialogPrimitive");
 		expect(quickSettings).toContain("reader-quick-settings-sheet");
+		expect(quickSettings).toContain("aria-hidden={!open}");
+		expect(quickSettings).toContain("inert={!open}");
+		expect(quickSettings).toContain(
+			'aria-describedby="reader-quick-settings-description"',
+		);
+		expect(quickSettings).toContain("translate-x-full");
+		expect(quickSettings).toContain("motion-safe:transition-transform");
 		expect(globalStyles).toContain(
 			".reader-quick-settings-sheet[data-ending-style]",
 		);
@@ -131,19 +141,113 @@ describe("reader layout", () => {
 		);
 	});
 
-	test("offers columns in Layout and resume mode in Behaviour", () => {
-		expect(fullSettings).toContain('key: "behaviour"');
-		expect(fullSettings).toContain('label: "Behaviour"');
-		expect(fullSettings).toContain('"Save reading position"');
-		expect(fullSettings).toContain('"Columns"');
-		expect(fullSettings).toContain('{ id: 0, text: "Auto" }');
-		expect(fullSettings).toContain('{ id: 1, text: "1" }');
-		expect(fullSettings).toContain('{ id: 2, text: "2" }');
+	test("groups quick settings behind icon-labelled category buttons on every screen", () => {
+		expect(quickSettings).toContain(
+			"useState<QuickSettingsCategory | null>(null)",
+		);
+		expect(quickSettings).toContain(
+			"selectedCategory === null ? categoryList : settingsContent",
+		);
+		expect(quickSettings).toContain("settingsCategories.map((category)");
+		expect(quickSettings).toContain("setSelectedCategory(category.id)");
+		expect(quickSettings).toContain('aria-label="Back to settings categories"');
+		expect(quickSettings).toContain(
+			"onClick={() => setSelectedCategory(null)}",
+		);
+		expect(quickSettings).toContain(
+			'id: "profiles" as const, label: "Profiles", icon: Users',
+		);
+		expect(quickSettings).toContain(
+			'id: "visual" as const, label: "Visual", icon: Eye',
+		);
+		expect(quickSettings).toContain(
+			'id: "layout" as const, label: "Layout", icon: Rows',
+		);
+		expect(quickSettings).toContain(
+			'id: "behaviour" as const, label: "Behaviour", icon: CursorClick',
+		);
+		expect(quickSettings).toContain('className="size-5 shrink-0"');
+	});
+
+	test("moves frequent layout and text controls to quick settings", () => {
+		expect(fullSettings).not.toContain('key: "behaviour"');
+		expect(fullSettings).not.toContain('label: "Behaviour"');
+		expect(fullSettings).not.toContain('"Save reading position"');
+		expect(fullSettings).not.toContain('"Font size"');
+		expect(fullSettings).not.toContain('"Line height"');
+		expect(fullSettings).not.toContain('"Writing mode"');
+		expect(fullSettings).not.toContain('"Text layout"');
+		expect(fullSettings).not.toContain('"Page layout"');
+		expect(fullSettings).not.toContain('"Reading direction"');
+		expect(fullSettings).not.toContain('"Justify text"');
+		expect(fullSettings).not.toContain("onChange({ theme: id })");
+		expect(fullSettings).not.toContain('"Columns"');
+		expect(fullSettings).not.toContain('"Font weight"');
+		expect(fullSettings).not.toContain('"Pretty text wrap"');
+		expect(fullSettings).not.toContain('"Prioritize reader styles"');
+		expect(fullSettings).not.toContain('"Paragraph indentation"');
+		expect(fullSettings).not.toContain('"Paragraph spacing"');
+		expect(fullSettings).not.toContain('"Paragraph spacing size"');
+		expect(fullSettings).not.toContain('key: "profiles"');
+		expect(fullSettings).not.toContain('key: "reading"');
+		expect(fullSettings).not.toContain('key: "theme"');
+		expect(fullSettings).not.toContain("ReaderCustomThemeDialog");
+		expect(fullSettings).not.toContain('"Character counter"');
+		expect(fullSettings).not.toContain('"Percentage"');
+		expect(fullSettings).not.toContain('"Hide furigana"');
+		expect(fullSettings).not.toContain('"Disable wheel navigation"');
+		expect(quickSettings).toContain('<QuickSettingsRow label="Columns">');
+		expect(quickSettings).toContain('ariaLabel="Columns"');
+		expect(quickSettings).toContain('<QuickSettingsRow label="Font weight">');
+		expect(quickSettings.indexOf('label="Font"')).toBeLessThan(
+			quickSettings.indexOf('label="Font weight"'),
+		);
+		expect(quickSettings.indexOf('label="Font weight"')).toBeLessThan(
+			quickSettings.indexOf('label="Text orientation"'),
+		);
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Pretty text wrap">',
+		);
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Prioritize reader styles">',
+		);
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Paragraph indentation">',
+		);
+		expect(quickSettings).toContain('aria-label="Paragraph indentation"');
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Paragraph spacing">',
+		);
+		expect(quickSettings).toContain('ariaLabel="Paragraph spacing"');
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Paragraph spacing size">',
+		);
+		expect(quickSettings).toContain('<QuickSettingsRow label="Hide furigana">');
+		expect(quickSettings).toContain("settings.hideFurigana");
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Character counter">',
+		);
+		expect(quickSettings).toContain('<QuickSettingsRow label="Percentage">');
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Progress indicator">',
+		);
+		expect(quickSettings).toContain("onProfileSwitch: (id: string) => void");
+		expect(quickSettings).toContain(
+			"onCustomThemesChange: (next: CustomReaderThemes) => void",
+		);
+		expect(quickSettings).toContain(">Create theme<");
+		expect(quickSettings).toContain("ReaderCustomThemeDialog");
+		expect(customThemeEditor).toContain("Reading preview");
+		expect(customThemeEditor).toContain('aria-modal="true"');
+		expect(readerRoute).toContain("profiles={profilesStore.profiles}");
+		expect(readerRoute).toContain(
+			"onCustomThemesChange={handleCustomThemesChange}",
+		);
 		expect(readerRoute).toContain("readerSettings: settings");
 	});
 
 	test("mirrors Behaviour controls in quick settings", () => {
-		expect(quickSettings).toContain('<QuickSettingsSection title="Behaviour">');
+		expect(quickSettings).toContain('title="Behaviour"');
 		expect(quickSettings).toContain(
 			'<QuickSettingsRow label="Save reading position">',
 		);
@@ -154,6 +258,10 @@ describe("reader layout", () => {
 		);
 		expect(quickSettings).toContain('ariaLabel="Keep position on resize"');
 		expect(quickSettings).toContain("settings.autoPositionOnResize");
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Disable wheel navigation">',
+		);
+		expect(quickSettings).toContain("settings.disableWheelNavigation");
 	});
 
 	test("keeps paginated page geometry above the persistent player", () => {
