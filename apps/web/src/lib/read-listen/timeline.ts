@@ -1,5 +1,5 @@
 import type { ReadListenCue } from "@nanahoshi-v2/read-listen/manifest";
-import type { ReaderSourceFormat } from "@/lib/reader/types";
+import type { ReaderSourceFormat } from "@/features/reader/document/types";
 
 export type ReadListenTimelineCue = ReadListenCue & {
 	globalStartMs: number;
@@ -100,5 +100,5 @@ export function toReaderSectionReference(
 	sectionRef: string,
 	format: ReaderSourceFormat,
 ): string {
-	return `ttu-${format}-${sectionRef.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-")}`;
+	return `nanahoshi-${format}-${sectionRef.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-")}`;
 }

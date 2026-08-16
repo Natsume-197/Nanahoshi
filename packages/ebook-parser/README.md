@@ -28,13 +28,13 @@ To add a reflowable format:
 4. Only then expose the format in `SUPPORTED_EBOOK_FORMATS`.
 
 To add a paged format, return `content.kind === "pages"` with stable page ids
-and an `openPage` implementation. Page layout and TTU storage remain reader
+and an `openPage` implementation. Page layout and reader storage remain web
 adapter concerns; the parser must not manufacture HTML chapters.
 
 Catalog policies such as ISBN/ASIN classification, cover persistence and
 text-vs-images classification belong to the API adapter, not this package.
-DOM sanitization, TTU wrappers and IndexedDB persistence belong to the web
-reader adapter.
+DOM sanitization, document wrappers and IndexedDB persistence belong to the
+web reader adapter.
 
 ## Decompression license
 

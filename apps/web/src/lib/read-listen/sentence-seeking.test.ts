@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { bindReadListenSentenceSeeking } from "./sentence-seeking";
 
 const readerCss = await Bun.file(
-	new URL("../../components/reader/reader.css", import.meta.url),
+	new URL("../../features/reader/ui/styles/reader.css", import.meta.url),
 ).text();
 let pendingAnimationFrame: FrameRequestCallback | undefined;
 

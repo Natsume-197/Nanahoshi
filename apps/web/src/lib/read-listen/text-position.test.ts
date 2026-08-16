@@ -14,9 +14,9 @@ beforeAll(() => {
 describe("Read & Listen text position", () => {
 	test("selects the cue nearest to the reader's character coordinate", () => {
 		const dom = new JSDOM(
-			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>',
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>',
 		);
-		const id = "ttu-epub-chapter-xhtml";
+		const id = "nanahoshi-epub-chapter-xhtml";
 		const targets = ["first", "second", "third"].map((value, index) => ({
 			anchor: {
 				kind: "text-quote" as const,

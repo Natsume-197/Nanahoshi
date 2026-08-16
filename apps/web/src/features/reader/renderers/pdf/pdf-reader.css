@@ -1,0 +1,38 @@
+.nanahoshi-pdf-viewport {
+	scrollbar-gutter: stable both-edges;
+	touch-action: pan-x pan-y pinch-zoom;
+	overscroll-behavior: contain;
+}
+
+.nanahoshi-pdf-scroller {
+	min-width: 100%;
+	min-height: 100%;
+}
+
+.nanahoshi-pdf-page {
+	isolation: isolate;
+	box-shadow:
+		0 0 0 1px var(--pdf-page-outline),
+		0 12px 32px -18px var(--pdf-page-shadow);
+}
+
+.nanahoshi-pdf-toolbar {
+	scrollbar-width: none;
+}
+
+.nanahoshi-pdf-toolbar::-webkit-scrollbar {
+	display: none;
+}
+
+@media (forced-colors: active) {
+	.nanahoshi-pdf-toolbar,
+	.nanahoshi-pdf-page {
+		outline: 1px solid CanvasText;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nanahoshi-pdf-viewport {
+		scroll-behavior: auto;
+	}
+}

@@ -1,0 +1,158 @@
+import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+import { openEbook, openEpubSource } from "@nanahoshi-v2/ebook-parser";
+import { readBlobWithProgress } from "@/features/reader/document/processing/fetch-with-progress";
+import type { ReaderSourceFormat } from "@/features/reader/document/types";
+import {
+	createReaderBookSession,
+	type ReaderBookSession,
+} from "@/features/reader/session/reader-book-session";
+import { client } from "@/utils/orpc";
+import { openHttpRangeZipSource } from "./http-range-zip-source";
+import { openLazyHtmlBook } from "./lazy-html-book";
+import { loadEbook } from "./load-ebook";
+import {
+	canCacheReaderBook,
+	getCachedReaderBookFile,
+	getReaderBookFacts,
+	putCachedReaderBookFile,
+	putReaderBookFacts,
+	readerBookFactsFromData,
+} from "./reader-book-cache";
+import {
+	getReaderBookMemoryCache,
+	putReaderBookMemoryCache,
+} from "./reader-book-memory-cache";
+
+export interface LoadBookCallbacks {
+	/** 0–1, or undefined while the size is unknown. */
+	onDownloadProgress?: (progress: number | undefined) => void;
+	onParsing?: () => void;
+}
+
+export type LoadedReaderBook = ReaderBookSession;
+
+/** Downloads and parses one ebook for the active reading session. */
+export async function loadBookForReader({
+	uuid,
+	bookTitle,
+	cover,
+	fileSizeBytes,
+	fileHash,
+	fileName,
+	serverId,
+	sourceFormat,
+	allowLazySections = false,
+	callbacks = {},
+}: {
+	uuid: string;
+	bookTitle: string;
+	cover?: string | null;
+	fileSizeBytes?: number;
+	fileHash?: string | null;
+	fileName?: string;
+	serverId: string | null;
+	sourceFormat?: ReaderSourceFormat;
+	/** Only paginated text can consume section HTML independently. */
+	allowLazySections?: boolean;
+	callbacks?: LoadBookCallbacks;
+}): Promise<LoadedReaderBook> {
+	if (!serverId) throw new Error("Reading requires a server connection");
+
+	const cacheCandidate = { serverId, uuid, fileHash };
+	const cacheKey = canCacheReaderBook(cacheCandidate)
+		? cacheCandidate
+		: undefined;
+	let blob = cacheKey ? await getCachedReaderBookFile(cacheKey) : undefined;
+	let filename = fileName;
+	let readerUrl: string | undefined;
+	const facts = cacheKey ? await getReaderBookFacts(cacheKey) : undefined;
+
+	if (!filename || (!blob && facts)) {
+		const readerFile = await client.files.getReaderUrl({ uuid, serverId });
+		filename ??= readerFile.filename;
+		readerUrl = readerFile.url;
+	}
+	const resolvedFormat = filename
+		? ebookSourceFormatForFilename(filename)
+		: undefined;
+	if (!resolvedFormat || (sourceFormat && resolvedFormat !== sourceFormat)) {
+		throw new Error(`Unsupported ebook format: ${filename ?? "unknown"}`);
+	}
+	if (cacheKey && !allowLazySections) {
+		const cached = getReaderBookMemoryCache(cacheKey);
+		if (cached) {
+			cached.cover = cover ?? null;
+			return createReaderBookSession({ data: cached });
+		}
+	}
+
+	// Facts make the outline and absolute character coordinates available without
+	// walking every chapter again. If bytes are not cached, the same session is
+	// backed by HTTP Range instead of a whole-file download.
+	if (
+		allowLazySections &&
+		facts &&
+		(resolvedFormat === "epub" || resolvedFormat === "kepub")
+	) {
+		try {
+			callbacks.onParsing?.();
+			const ebook = blob
+				? await openEbook(blob, { filename })
+				: await openEpubSource(
+						await openHttpRangeZipSource(
+							readerUrl ??
+								(await client.files.getReaderUrl({ uuid, serverId })).url,
+						),
+						resolvedFormat,
+					);
+			const lazyBook = await openLazyHtmlBook({
+				ebook,
+				uuid,
+				fallbackTitle: bookTitle,
+				document,
+				facts,
+			});
+			lazyBook.data.cover = cover ?? null;
+			return createReaderBookSession({ data: lazyBook.data, lazyBook });
+		} catch {
+			// An old cache or a Range-stripping proxy must never make the book
+			// unreadable. The established complete-download path remains the
+			// conservative fallback and refreshes the facts below.
+		}
+	}
+
+	if (!blob) {
+		callbacks.onDownloadProgress?.(0);
+		if (!readerUrl) {
+			const readerFile = await client.files.getReaderUrl({ uuid, serverId });
+			filename ??= readerFile.filename;
+			readerUrl = readerFile.url;
+		}
+		const response = await fetch(readerUrl, { credentials: "include" });
+		if (!response.ok) {
+			throw new Error(`Download failed with status ${response.status}`);
+		}
+		blob = await readBlobWithProgress(
+			response,
+			(progress) => callbacks.onDownloadProgress?.(progress),
+			fileSizeBytes,
+		);
+		if (cacheKey) await putCachedReaderBookFile(cacheKey, blob);
+	}
+
+	callbacks.onParsing?.();
+	const data = await loadEbook(
+		uuid,
+		blob,
+		filename ?? "",
+		bookTitle,
+		document,
+		facts,
+	);
+	data.cover = cover ?? null;
+	if (cacheKey) {
+		await putReaderBookFacts(cacheKey, readerBookFactsFromData(data, document));
+		if (!allowLazySections) putReaderBookMemoryCache(cacheKey, data);
+	}
+	return createReaderBookSession({ data });
+}

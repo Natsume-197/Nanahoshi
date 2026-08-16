@@ -8,7 +8,12 @@ import {
 	SeekReadListenFromText,
 } from "@/components/read-listen/read-listen-bindings";
 import { useReadListenPlaybackSession } from "@/components/read-listen/use-read-listen-playback-session";
-import type { BookReaderApi } from "@/components/reader/reader-shared-props";
+import type {
+	ReaderSourceFormat,
+	Section,
+} from "@/features/reader/document/types";
+import type { ReaderTheme } from "@/features/reader/presentation/settings";
+import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	loadReadListenReaderSession,
 	resolveReadListenReaderPosition,
@@ -17,8 +22,6 @@ import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
-import type { ReaderTheme } from "@/lib/reader/settings";
-import type { ReaderSourceFormat, Section } from "@/lib/reader/types";
 import { m } from "@/paraglide/messages";
 
 export function ReadListenRuntime({

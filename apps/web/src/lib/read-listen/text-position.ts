@@ -1,6 +1,6 @@
-import { getCharacterCount } from "@/lib/reader/character-count";
-import { getParagraphNodes } from "@/lib/reader/get-paragraph-nodes";
-import type { Section } from "@/lib/reader/types";
+import { getCharacterCount } from "@/features/reader/document/processing/character-count";
+import { getParagraphNodes } from "@/features/reader/document/processing/get-paragraph-nodes";
+import type { Section } from "@/features/reader/document/types";
 import {
 	getReadListenPositionIndex,
 	type ReadListenAnchorTarget,

@@ -99,7 +99,7 @@ describe("Read & Listen timeline", () => {
 
 	test("maps Honomiya EPUB references to reader section ids", () => {
 		expect(toReaderSectionReference("p-0001.xhtml", "epub")).toBe(
-			"ttu-epub-p-0001-xhtml",
+			"nanahoshi-epub-p-0001-xhtml",
 		);
 	});
 });

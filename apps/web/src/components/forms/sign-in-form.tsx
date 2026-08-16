@@ -81,6 +81,10 @@ export function SignInForm({
 				</div>
 
 				<form
+					// React intercepts this after hydration. Before that point, a form
+					// defaults to GET and leaks the password into the login URL.
+					// POST keeps credentials in the request body during SSR hand-off.
+					method="post"
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();

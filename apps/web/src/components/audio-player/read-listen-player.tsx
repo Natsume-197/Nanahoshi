@@ -1,6 +1,6 @@
 import { BookOpenText, Crosshair, CursorClick } from "@phosphor-icons/react";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
-import type { ReaderThemeColors } from "@/lib/reader/settings";
+import type { ReaderThemeColors } from "@/features/reader/presentation/settings";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 

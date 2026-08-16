@@ -1,10 +1,10 @@
 import type { EbookDocument, EbookFormat } from "../ebook";
 import type { ZipArchive } from "../zip/archive";
-import { openZip } from "../zip/browser";
+import { openZip, type ZipSource } from "../zip/browser";
 import { openEpubArchive } from "./document";
 
 export async function openEpubDocument(
-	blob: Blob,
+	blob: Blob | ZipSource,
 	format: Extract<EbookFormat, "epub" | "kepub"> = "epub",
 ): Promise<EbookDocument> {
 	const zip = await openZip(blob);

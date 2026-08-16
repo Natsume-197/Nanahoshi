@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-import type { BookReaderApi } from "@/components/reader/reader-shared-props";
+import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	rememberReadListenReaderEntry,
 	rememberReadListenReaderPosition,
@@ -152,7 +152,7 @@ afterEach(() => {
 describe("ReadListenRuntime", () => {
 	test("does not move the reader when the mode seeks audio from its entry position", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
 
 		render(
 			<ReadListenRuntime
@@ -163,7 +163,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[
 					{
-						reference: "ttu-epub-chapter-xhtml",
+						reference: "nanahoshi-epub-chapter-xhtml",
 						charactersWeight: 1,
 						startCharacter: 0,
 						characters: 6,
@@ -180,7 +180,7 @@ describe("ReadListenRuntime", () => {
 
 	test("pauses following on manual reading and returns to narration on request", () => {
 		document.body.innerHTML =
-			'<main id="reader-fixture"><div class="book-content"><section id="ttu-epub-chapter-xhtml"><p>一。</p></section></div></main>';
+			'<main id="reader-fixture"><div class="book-content"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p></section></div></main>';
 		const readerSurface = document.getElementById("reader-fixture");
 		const paragraph = document.querySelector("p");
 		Object.defineProperty(paragraph, "getBoundingClientRect", {
@@ -225,7 +225,7 @@ describe("ReadListenRuntime", () => {
 
 	test("rebinds the active cue after the reader replaces its document", () => {
 		document.body.innerHTML =
-			'<main id="reader-fixture"><section id="ttu-epub-chapter-xhtml"><p>一。</p></section></main>';
+			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p></section></main>';
 		const readerSurface = document.getElementById("reader-fixture");
 		const continuousNavigateToTextAnchor = mock(() => {});
 		const paginatedNavigateToTextAnchor = mock(() => {});
@@ -250,9 +250,11 @@ describe("ReadListenRuntime", () => {
 		expect(continuousNavigateToTextAnchor).toHaveBeenCalledTimes(1);
 
 		const replacement = document.createElement("section");
-		replacement.id = "ttu-epub-chapter-xhtml";
+		replacement.id = "nanahoshi-epub-chapter-xhtml";
 		replacement.innerHTML = "<p>一。</p>";
-		document.getElementById("ttu-epub-chapter-xhtml")?.replaceWith(replacement);
+		document
+			.getElementById("nanahoshi-epub-chapter-xhtml")
+			?.replaceWith(replacement);
 		readerApiRef.current = {
 			navigateToTextAnchor: paginatedNavigateToTextAnchor,
 		} as unknown as BookReaderApi;
@@ -276,7 +278,7 @@ describe("ReadListenRuntime", () => {
 	test("opens at the latest aligned sentence when paused in a narration gap", () => {
 		playerTime = 5;
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>三。</p></section>';
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>三。</p></section>';
 
 		render(
 			<ReadListenRuntime
@@ -314,7 +316,7 @@ describe("ReadListenRuntime", () => {
 			playheadSeconds: 9,
 		});
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
 
 		render(
 			<ReadListenRuntime
@@ -325,7 +327,7 @@ describe("ReadListenRuntime", () => {
 				readerSurfaceRef={{ current: document.body }}
 				sections={[
 					{
-						reference: "ttu-epub-chapter-xhtml",
+						reference: "nanahoshi-epub-chapter-xhtml",
 						charactersWeight: 1,
 						startCharacter: 0,
 						characters: 6,

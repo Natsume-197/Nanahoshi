@@ -19,6 +19,21 @@ describe("openZip", () => {
 		expect(await zip.text("b/c.txt")).toBe("nested");
 	});
 
+	it("reads through an asynchronous random-access source", async () => {
+		const file = buildZip([{ name: "chapter.txt", data: bytes("lazy") }]);
+		const requested: Array<[number | undefined, number | undefined]> = [];
+		const zip = await openZip({
+			size: file.size,
+			async slice(start, end, type) {
+				requested.push([start, end]);
+				return file.slice(start, end, type);
+			},
+		});
+
+		expect(await zip.text("chapter.txt")).toBe("lazy");
+		expect(requested.length).toBeGreaterThan(2);
+	});
+
 	it("reads deflated entries", async () => {
 		const body = "あ".repeat(5000);
 		const zip = await openZip(

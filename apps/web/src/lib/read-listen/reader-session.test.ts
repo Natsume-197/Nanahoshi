@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ReaderPosition } from "@/lib/reader/types";
+import type { ReaderPosition } from "@/features/reader/document/types";
 import {
 	disableReadListenReader,
 	loadReadListenReaderSession,

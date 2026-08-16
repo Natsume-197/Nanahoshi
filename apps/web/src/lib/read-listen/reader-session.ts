@@ -1,4 +1,4 @@
-import type { ReaderPosition } from "@/lib/reader/types";
+import type { ReaderPosition } from "@/features/reader/document/types";
 
 export type DisableReadListenReaderOptions = {
 	getCurrentPosition: () => ReaderPosition | undefined;

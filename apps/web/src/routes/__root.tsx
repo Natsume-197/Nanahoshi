@@ -13,12 +13,12 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { LocaleContext } from "@/context/locale-context";
+import { flushPendingProgress } from "@/features/reader/session/pending-progress";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { removeLegacyBookStorage } from "@/lib/offline";
-import { flushPendingProgress } from "@/lib/reader/pending-progress";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
 	applyPaletteVars,

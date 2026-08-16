@@ -10,6 +10,7 @@ import { normalizeOpenError } from "./normalize-error";
 export type * from "./ebook";
 export * from "./errors";
 export * from "./formats";
+export type { ZipSource } from "./zip/browser";
 
 export async function openEbook(
 	input: Blob | ArrayBuffer | Uint8Array,
@@ -47,6 +48,15 @@ export async function openEbook(
 	} catch (error) {
 		throw normalizeOpenError(error, format);
 	}
+}
+
+/** Opens an EPUB/Kepub from a random-access browser source (for HTTP Range). */
+export async function openEpubSource(
+	source: import("./zip/browser").ZipSource,
+	format: Extract<EbookFormat, "epub" | "kepub"> = "epub",
+): Promise<EbookDocument> {
+	const { openEpubDocument } = await import("./epub/browser");
+	return openEpubDocument(source, format);
 }
 
 function formatFromOptions(options: OpenEbookOptions): EbookFormat | null {

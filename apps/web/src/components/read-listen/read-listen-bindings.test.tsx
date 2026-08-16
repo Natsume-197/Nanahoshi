@@ -2,7 +2,7 @@ import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { cleanup, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import type { ComponentProps } from "react";
-import type { BookReaderApi } from "@/components/reader/reader-shared-props";
+import type { BookReaderApi } from "@/features/reader/reader-contract";
 
 let activeAudiobookUuid: string | null = "audio-1";
 const loadAudiobook = mock(() => {});
@@ -72,7 +72,7 @@ afterEach(() => {
 describe("Read & Listen player bindings", () => {
 	test("highlights the active occurrence when identical sentences repeat", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-xhtml"><p>はい。はい。</p></section>';
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>はい。はい。</p></section>';
 		let activeRanges: Range[] = [];
 		Object.defineProperty(window, "CSS", {
 			configurable: true,
@@ -244,7 +244,7 @@ describe("Read & Listen player bindings", () => {
 
 	test("smoothly follows an active cue into the reading focus area", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
+			'<section id="nanahoshi-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
 		const cue = {
 			id: "cue-2",
 			text: {
@@ -278,7 +278,7 @@ describe("Read & Listen player bindings", () => {
 
 	test("keeps trying a forced return until the narrated sentence finishes rendering", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-2-xhtml"></section>';
+			'<section id="nanahoshi-epub-chapter-2-xhtml"></section>';
 		const cue = {
 			id: "cue-late-render",
 			text: {
@@ -311,7 +311,7 @@ describe("Read & Listen player bindings", () => {
 				/>,
 			);
 			expect(pendingFrames).toHaveLength(1);
-			const section = document.getElementById("ttu-epub-chapter-2-xhtml");
+			const section = document.getElementById("nanahoshi-epub-chapter-2-xhtml");
 			if (!section) throw new Error("Missing late-render section fixture");
 			section.innerHTML = "<p>Second chapter.</p>";
 			pendingFrames.shift()?.(0);
@@ -324,7 +324,7 @@ describe("Read & Listen player bindings", () => {
 
 	test("does not move a cue that is already inside the reading comfort zone", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
+			'<section id="nanahoshi-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
 		const paragraph = document.querySelector("p");
 		Object.defineProperty(paragraph, "getBoundingClientRect", {
 			configurable: true,
@@ -369,7 +369,7 @@ describe("Read & Listen player bindings", () => {
 
 	test("does not recenter a visible sentence within a paginated spread", () => {
 		document.body.innerHTML =
-			'<main class="book-content book-content--paginated"><section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section></main>';
+			'<main class="book-content book-content--paginated"><section id="nanahoshi-epub-chapter-2-xhtml"><p>Second chapter.</p></section></main>';
 		const paragraph = document.querySelector("p");
 		Object.defineProperty(paragraph, "getBoundingClientRect", {
 			configurable: true,
@@ -415,7 +415,7 @@ describe("Read & Listen player bindings", () => {
 	test("follows active cues without motion when reduced motion is enabled", () => {
 		setReducedMotion(true);
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
+			'<section id="nanahoshi-epub-chapter-2-xhtml"><p>Second chapter.</p></section>';
 		const cue = {
 			id: "cue-2",
 			text: {
@@ -449,7 +449,7 @@ describe("Read & Listen player bindings", () => {
 
 	test("seeks the audiobook from the reader position when enabling the mode", () => {
 		document.body.innerHTML =
-			'<section id="ttu-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
+			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';
 		const cue = {
 			id: "cue-3",
 			text: {
@@ -469,7 +469,7 @@ describe("Read & Listen player bindings", () => {
 				targetCharacter={2}
 				sections={[
 					{
-						reference: "ttu-epub-chapter-xhtml",
+						reference: "nanahoshi-epub-chapter-xhtml",
 						charactersWeight: 1,
 						startCharacter: 0,
 						characters: 3,
@@ -477,7 +477,10 @@ describe("Read & Listen player bindings", () => {
 				]}
 				targetsBySection={
 					new Map([
-						["ttu-epub-chapter-xhtml", [{ anchor: cue.text, value: cue }]],
+						[
+							"nanahoshi-epub-chapter-xhtml",
+							[{ anchor: cue.text, value: cue }],
+						],
 					])
 				}
 				readerApiRef={{ current: null }}

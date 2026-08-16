@@ -1,10 +1,15 @@
 import type { RefObject } from "react";
-import type { BookReaderApi } from "@/components/reader/reader-shared-props";
 import {
 	toPlayerData,
 	useAudioPlayerActions,
 	useAudioPlayerBook,
 } from "@/context/audio-player-context";
+import type {
+	ReaderSourceFormat,
+	ReaderTextAnchor,
+	Section,
+} from "@/features/reader/document/types";
+import type { BookReaderApi } from "@/features/reader/reader-contract";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	bindReadListenManualFollowPause,
@@ -22,11 +27,6 @@ import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
-import type {
-	ReaderSourceFormat,
-	ReaderTextAnchor,
-	Section,
-} from "@/lib/reader/types";
 import { m } from "@/paraglide/messages";
 import type { client } from "@/utils/orpc";
 

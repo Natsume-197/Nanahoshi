@@ -1,3 +1,5 @@
+import { clearReaderBookCache } from "@/features/reader/document/reader-book-cache";
+
 export const QUERY_PERSIST_KEY = "nanahoshi-query-cache";
 
 /** Removes book copies created by the former offline reader. */
@@ -10,8 +12,9 @@ export function removeLegacyBookStorage(): void {
 	}
 }
 
-/** Sign-out cleanup for browser caches that do not contain book files. */
+/** Sign-out cleanup for every browser cache, including private reader files. */
 export async function clearOfflineCaches(): Promise<void> {
+	await clearReaderBookCache();
 	try {
 		window.localStorage.removeItem(QUERY_PERSIST_KEY);
 	} catch {
