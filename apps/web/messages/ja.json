@@ -814,7 +814,6 @@
 		"task_library_reprocess": "ライブラリを再処理しました",
 		"task_library_regroup": "版を再グループ化しました",
 		"task_bookmeter_sync": "Bookmeterと同期しました",
-		"task_cover_backfill": "表紙を更新しました",
 		"task_read_listen_generation": "読書と音声を同期しました"
 	},
 	"status": {

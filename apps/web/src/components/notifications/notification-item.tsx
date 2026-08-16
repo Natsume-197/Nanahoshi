@@ -7,7 +7,6 @@ import {
 	CircleNotch,
 	Database,
 	type Icon,
-	Image,
 	MagicWand,
 	PaperPlaneTilt,
 	Sparkle,
@@ -42,7 +41,6 @@ const TASK_TITLES: Record<string, () => string> = {
 		m["notifications.task_recommendations_rebuild_global"],
 	"recommendations-feeds": m["notifications.task_recommendations_feeds"],
 	"bookmeter-sync": m["notifications.task_bookmeter_sync"],
-	"cover-backfill": m["notifications.task_cover_backfill"],
 	"read-listen-generation": m["notifications.task_read_listen_generation"],
 };
 
@@ -61,7 +59,6 @@ const TASK_ICONS: Record<string, Icon> = {
 	"recommendations-rebuild-global": ArrowsClockwise,
 	"recommendations-feeds": ArrowsClockwise,
 	"bookmeter-sync": BookOpen,
-	"cover-backfill": Image,
 	"read-listen-generation": BookOpen,
 };
 

@@ -16,15 +16,11 @@
 		"@nanahoshi-v2/env": "workspace:*",
 		"better-auth": "catalog:",
 		"drizzle-orm": "catalog:",
-		"dotenv": "catalog:",
-		"nodemailer": "^9.0.3",
-		"pg": "^8.22.0",
-		"zod": "catalog:"
+		"nodemailer": "^9.0.3"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
 		"@types/nodemailer": "^8.0.1",
-		"@types/pg": "catalog:",
 		"typescript": "catalog:"
 	}
 }

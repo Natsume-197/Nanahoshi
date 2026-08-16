@@ -131,10 +131,3 @@ export function gatewaySubscribe(
 		}
 	};
 }
-
-/** Send a namespaced message to the server. No-op if the socket isn't open. */
-export function gatewaySend(ns: string, data: unknown): void {
-	if (ws?.readyState === WebSocket.OPEN) {
-		ws.send(JSON.stringify({ ns, data }));
-	}
-}

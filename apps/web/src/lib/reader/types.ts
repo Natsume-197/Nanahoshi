@@ -18,25 +18,12 @@ export interface Section {
 /** A section plus how far the reader has scrolled through it (0–100). */
 export type SectionWithProgress = Section & { progress: number };
 
-/**
- * Version of the counting algorithm behind `characters`/`sections`. Cached
- * entries with an older (or missing) version are recounted from their stored
- * HTML on load — the original EPUB is not kept, so a full re-parse is not an
- * option offline. Bump when getCharacterCount/getParagraphNodes change.
- */
-export const BOOK_COUNT_VERSION = 3;
 /** Version of the persisted explored-character coordinate system. */
 export const READER_POSITION_VERSION = 2;
 
-/** Version of Content Form inference for cached ReaderBookData. */
-export const BOOK_CONTENT_FORM_VERSION = 1;
-
 /**
- * Version of the sanitizer profile the cached `elementHtml` was cleaned with.
- * Book HTML is sanitized once, before it is stored, so opening a cached book
- * skips DOMPurify entirely — it dominated the open path otherwise. Entries with
- * an older (or missing) version are sanitized on read instead, so tightening
- * the profile only needs a bump here to invalidate previously-cleaned HTML.
+ * Version of the sanitizer profile used while parsing the current book.
+ * It avoids sanitizing the same HTML twice before the reader renders it.
  */
 export const BOOK_SANITIZE_VERSION = 1;
 
@@ -50,10 +37,7 @@ export interface ReaderBookData {
 	sourceFormat?: ReaderSourceFormat;
 	/** File-derived delivery form used to resolve the automatic presentation. */
 	contentForm?: "text" | "images";
-	/** Missing on legacy cache entries, which are reclassified from stored HTML. */
-	contentFormVersion?: number;
 	presentation?: EbookPresentation;
-	serverId?: string | null;
 	title: string;
 	cover?: string | null;
 	language: string;
@@ -62,10 +46,7 @@ export interface ReaderBookData {
 	blobs: Record<string, Blob>;
 	characters: number;
 	sections: Section[];
-	storedAt: number;
-	countVersion?: number;
-	/** See BOOK_SANITIZE_VERSION. Absent on entries cached before write-time
-	 *  sanitizing, which are sanitized on read. */
+	/** See BOOK_SANITIZE_VERSION. */
 	sanitizeVersion?: number;
 }
 

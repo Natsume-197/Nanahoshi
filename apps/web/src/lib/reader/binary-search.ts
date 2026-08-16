@@ -23,5 +23,4 @@ function binarySearchImpl(notFoundValue: -1 | undefined) {
 		binarySearchRecursive(arr, 0, arr.length - 1, x);
 }
 
-export const binarySearch = binarySearchImpl(-1);
 export const binarySearchNoNegative = binarySearchImpl(undefined);

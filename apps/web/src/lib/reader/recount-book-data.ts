@@ -1,11 +1,9 @@
 import { getCharacterCount } from "./character-count";
 import { getParagraphNodes } from "./get-paragraph-nodes";
-import { BOOK_COUNT_VERSION, type ReaderBookData, type Section } from "./types";
+import type { ReaderBookData, Section } from "./types";
 
 /**
- * Re-derives `characters` and the section weights of a cached book from its
- * stored HTML, for cache entries counted by an older algorithm (the original
- * EPUB is not kept, so re-parsing is not an option offline). Mirrors
+ * Re-derives `characters` and section weights from parsed book HTML. Mirrors
  * generateEpubHtml's aggregation: a parented section folds its count into the
  * current main chapter; `startCharacter` is the running total of the previous
  * main chapters.
@@ -45,5 +43,5 @@ export function recountBookData(
 		}
 	}
 
-	return { ...data, characters, sections, countVersion: BOOK_COUNT_VERSION };
+	return { ...data, characters, sections };
 }

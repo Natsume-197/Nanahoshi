@@ -218,7 +218,3 @@ function getMimeType(filePath: string): string | null {
 	const ext = path.extname(filePath).toLowerCase();
 	return EXTENSION_TO_MIME[ext] ?? null;
 }
-
-export function getAudioMimeType(filename: string): string | null {
-	return getMimeType(filename);
-}

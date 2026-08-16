@@ -69,30 +69,6 @@ export function formatReadingTime(seconds: number) {
 	return `${minutes}m`;
 }
 
-/**
- * Humanizes a duration for reading-identity displays: days+hours for long spans,
- * hours+minutes otherwise. Unlike {@link formatReadingTime}, it rolls hours into
- * days so totals like "78h" read as "3d 6h".
- */
-export function formatReadingDuration(seconds: number): string {
-	if (!seconds || seconds <= 0) return "0m";
-	const days = Math.floor(seconds / 86400);
-	const hours = Math.floor((seconds % 86400) / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
-	if (days > 0) return `${days}d ${hours}h`;
-	if (hours > 0) return `${hours}h ${minutes}m`;
-	return `${minutes}m`;
-}
-
-/** Spelled-out duration for status lines, e.g. "4 h 26 min" or "26 min". */
-export function formatDurationLong(seconds: number): string {
-	const total = Math.max(0, Math.floor(seconds));
-	const hours = Math.floor(total / 3600);
-	const minutes = Math.floor((total % 3600) / 60);
-	if (hours > 0) return `${hours} h ${minutes} min`;
-	return `${minutes} min`;
-}
-
 export function formatTime(seconds: number): string {
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);
@@ -111,12 +87,6 @@ export function formatFileSize(filesizeKb?: number | null) {
 		return `${(filesizeKb / 1024 ** 2).toFixed(2)} GB`;
 	if (filesizeKb >= 1024) return `${(filesizeKb / 1024).toFixed(1)} MB`;
 	return `${filesizeKb} KB`;
-}
-
-export function formatNumber(n: number) {
-	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-	return n.toString();
 }
 
 /** Catalog-subtitle rating badge (e.g. "★ 4.3 avg"), or null when unrated. */

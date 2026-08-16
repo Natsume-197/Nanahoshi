@@ -827,7 +827,6 @@
 		"task_library_reprocess": "Biblioteca reprocesada",
 		"task_library_regroup": "Ediciones reagrupadas",
 		"task_bookmeter_sync": "Bookmeter sincronizado",
-		"task_cover_backfill": "Portadas actualizadas",
 		"task_read_listen_generation": "Lectura y audio alineados"
 	},
 	"status": {

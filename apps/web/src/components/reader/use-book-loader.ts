@@ -124,7 +124,6 @@ export function useBookLoader({
 						uuid,
 						sourceFormat: "pdf",
 						contentForm: contentForm ?? "text",
-						serverId,
 						title: bookTitle,
 						cover,
 						language: language ?? "",
@@ -133,7 +132,6 @@ export function useBookLoader({
 						blobs: {},
 						characters: expectedPageCount,
 						sections,
-						storedAt: Date.now(),
 					};
 					onLoadedRef.current({
 						data,

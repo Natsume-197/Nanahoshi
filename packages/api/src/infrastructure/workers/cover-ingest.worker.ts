@@ -16,7 +16,6 @@ import {
 import { coverKeyFromPath, ingestCover } from "../../lib/cover-store";
 import { coverJobConcurrency } from "../../lib/image-concurrency";
 import { logger } from "../../lib/logger";
-import { backfillCoverIngest } from "../../modules/covers/cover-backfill";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { coverIngestQueue } from "../queue/queues/cover-ingest.queue";
@@ -150,15 +149,6 @@ export const coverIngestWorker = new Worker(
 	async (job: Job<CoverIngestJobData | CoverRenditionJobData>) => {
 		if (job.name === "rendition") {
 			return await processRendition(job as Job<CoverRenditionJobData>);
-		}
-		if (job.name === "backfill") {
-			// Producer work belongs in the worker process, never in the API. It
-			// returns no taskId on purpose: the producer is not one of the units
-			// the task counts, only the ingest jobs it creates are.
-			const enqueued = await backfillCoverIngest(
-				(job.data as { taskId?: string }).taskId,
-			);
-			return { enqueued };
 		}
 		const typed = job as Job<CoverIngestJobData>;
 		const result = await processIngest(typed);

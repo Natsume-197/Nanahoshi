@@ -9,8 +9,6 @@ import {
 import type { RuntimeContext } from "./config/initializers/types";
 import { websocket } from "./gateway/gateway";
 
-export { apiHandler, rpcHandler } from "./routes/orpc";
-
 const app = buildApp();
 const context: RuntimeContext = { app };
 

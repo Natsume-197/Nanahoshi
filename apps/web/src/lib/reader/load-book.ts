@@ -49,6 +49,5 @@ export async function loadBookForReader({
 	}
 	const data = await loadEbook(uuid, blob, filename, bookTitle, document);
 	data.cover = cover ?? null;
-	data.serverId = serverId;
 	return data;
 }

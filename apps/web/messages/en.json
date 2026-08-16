@@ -827,7 +827,6 @@
 		"task_library_reprocess": "Library reprocessed",
 		"task_library_regroup": "Editions regrouped",
 		"task_bookmeter_sync": "Bookmeter synced",
-		"task_cover_backfill": "Covers updated",
 		"task_read_listen_generation": "Read and Listen aligned"
 	},
 	"status": {

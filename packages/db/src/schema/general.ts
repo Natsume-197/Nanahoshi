@@ -14,7 +14,6 @@ import {
 	pgTable,
 	primaryKey,
 	serial,
-	smallint,
 	text,
 	timestamp,
 	unique,
@@ -1171,9 +1170,6 @@ export const readingProgress = pgTable(
 			mode: "number",
 		}).default(0),
 		bookCharCount: bigint("book_char_count", { mode: "number" }).default(0),
-		/** Legacy: distinguished a manual bookmark from the automatic position
-		 *  before the manual bookmark was removed. Never read or written. */
-		positionMode: varchar("position_mode", { length: 20 }),
 		/** Client intent time for bounded last-intent-wins ordering. */
 		positionIntentAt: bigint("position_intent_at", { mode: "number" }),
 		positionOperationId: varchar("position_operation_id", { length: 36 }),
@@ -1750,40 +1746,6 @@ export const userAudiobookShelf = pgTable(
 		index("user_audiobook_shelf_user_idx").on(table.userId),
 		index("user_audiobook_shelf_status_idx").on(table.userId, table.status),
 		index("user_audiobook_shelf_book_idx").on(table.bookId),
-	],
-);
-
-export const playbackSession = pgTable(
-	"playback_session",
-	{
-		id: bigserial({ mode: "number" }).primaryKey(),
-		userId: text("user_id").notNull(),
-		bookId: bigint("book_id", { mode: "number" }).notNull(),
-		startTime: doublePrecision("start_time"),
-		currentTime: doublePrecision("current_time"),
-		timeListening: doublePrecision("time_listening"),
-		playMethod: smallint("play_method").default(0),
-		deviceId: text("device_id"),
-		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "playback_session_user_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.bookId],
-			foreignColumns: [book.id],
-			name: "playback_session_book_id_fkey",
-		}).onDelete("cascade"),
-		index("playback_session_user_idx").on(table.userId),
-		index("playback_session_book_idx").on(table.bookId),
 	],
 );
 

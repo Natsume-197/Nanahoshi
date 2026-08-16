@@ -70,26 +70,10 @@ export function isSupportedExtension(
 }
 
 export const EPUB_MEDIA_TYPE = ebookMediaType("epub");
-export const KEPUB_MEDIA_TYPE = ebookMediaType("kepub");
 export const AZW_MEDIA_TYPE = ebookMediaType("azw");
 export const AZW3_MEDIA_TYPE = ebookMediaType("azw3");
 export const MOBI_MEDIA_TYPE = ebookMediaType("mobi");
 export const FB2_MEDIA_TYPE = ebookMediaType("fb2");
-export const CBZ_MEDIA_TYPE = ebookMediaType("cbz");
-export const CBR_MEDIA_TYPE = ebookMediaType("cbr");
-export const CB7_MEDIA_TYPE = ebookMediaType("cb7");
-export const PDF_MEDIA_TYPE = ebookMediaType("pdf");
-
-export function isEpubFamilyFilename(filename: string): boolean {
-	const format = ebookFormatFromFilename(filename);
-	return format === "epub" || format === "kepub";
-}
-
-export function isEpubFamilyMediaType(
-	mediaType: string | null | undefined,
-): boolean {
-	return mediaType === EPUB_MEDIA_TYPE;
-}
 
 export type EbookSourceFormat = SupportedEbookFormat;
 

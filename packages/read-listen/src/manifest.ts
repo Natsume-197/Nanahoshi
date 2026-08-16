@@ -41,7 +41,7 @@ const textQuoteAnchorSchema = z
 	})
 	.strict();
 
-export const readListenCueSchema = z
+const readListenCueSchema = z
 	.object({
 		id: z.string().min(1),
 		text: z.discriminatedUnion("kind", [
@@ -190,7 +190,3 @@ export const honomiyaManifestV1Schema = z.preprocess(
 
 export type HonomiyaManifestV1 = z.infer<typeof honomiyaManifestV1Schema>;
 export type ReadListenCue = z.infer<typeof readListenCueSchema>;
-
-export function parseHonomiyaManifest(input: unknown): HonomiyaManifestV1 {
-	return honomiyaManifestV1Schema.parse(input);
-}

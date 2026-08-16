@@ -108,13 +108,6 @@ export const TASK_REGISTRY = {
 		modifiesContent: false,
 		notifyOnFinish: false,
 	},
-	"cover-backfill": {
-		defaultLabel: "Reprocessing cover art",
-		queue: "cover-ingest",
-		scope: "global",
-		modifiesContent: false,
-		notifyOnFinish: true,
-	},
 	"recommendations-rebuild": {
 		defaultLabel: "Rebuilding recommendations",
 		queue: "recommendations",

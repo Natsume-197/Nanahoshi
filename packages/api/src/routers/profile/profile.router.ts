@@ -84,11 +84,4 @@ export const profileRouter = {
 				context.session.session.activeOrganizationId ?? undefined,
 			);
 		}),
-
-	getPublicStats: protectedProcedure
-		.input(GetPublicProfileInput)
-		.handler(async ({ input, context }) => {
-			const { serverId, scope } = await resolveBookScope(context.session);
-			return profileService.getStatsByUsername(input.username, serverId, scope);
-		}),
 };

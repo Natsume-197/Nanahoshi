@@ -2,8 +2,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 /**
- * Preloads the reader route first, then opportunistically starts the ebook.
- * Navigation remains the source of truth: every prefetch failure is silent.
+ * Preloads the reader route. Navigation remains the source of truth: every
+ * prefetch failure is silent.
  */
 export function useReadListenReaderPrefetch(
 	target:
@@ -24,13 +24,9 @@ export function useReadListenReaderPrefetch(
 		});
 	}, [router, target]);
 
-	const warm = useCallback(() => {
-		void preloadRoute().catch(() => {});
-	}, [preloadRoute]);
-
 	const prepare = useCallback(() => {
 		void preloadRoute().catch(() => {});
 	}, [preloadRoute]);
 
-	return { warm, prepare };
+	return { prepare };
 }

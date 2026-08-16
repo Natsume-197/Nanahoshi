@@ -316,38 +316,13 @@ mock.module("../../../utils/misc", () => ({
 	),
 	// Test rows use "content-*" hashes (current) and "legacy-*" (old format).
 	isCurrentHashFormat: mock((hash: string) => !hash.startsWith("legacy-")),
-	formatBytes: mock((bytes: number) => `${bytes} bytes`),
 	generateDeterministicUUID: mock(
 		(filename: string, hash: string) => `uuid-${filename}-${hash}`,
 	),
 }));
 
-// `fgFiles` controls which file paths fast-glob "finds" during a scan.
+// `fgFiles` controls which file paths the fake directory traversal finds.
 let fgFiles: string[] = [];
-let fgStreamError: Error | null = null;
-mock.module("fast-glob", () => ({
-	default: {
-		stream: mock((_pattern: string, options?: { suppressErrors?: boolean }) => {
-			let index = 0;
-			return {
-				[Symbol.asyncIterator]: () => ({
-					next: () => {
-						if (fgStreamError && options?.suppressErrors !== true) {
-							return Promise.reject(fgStreamError);
-						}
-						if (index < fgFiles.length) {
-							return Promise.resolve({
-								done: false,
-								value: fgFiles[index++],
-							});
-						}
-						return Promise.resolve({ done: true, value: undefined });
-					},
-				}),
-			};
-		}),
-	},
-}));
 
 // Default stat result; override per path with `statResults`.
 // `fsAccessErrors` makes fs.access reject for a path (simulates unmounted root).
@@ -527,7 +502,6 @@ describe("libraryScanner", () => {
 		resetTracking();
 		selectResults = [];
 		fgFiles = [];
-		fgStreamError = null;
 		contentHashes = {};
 		statResults = {};
 		realPaths = {};

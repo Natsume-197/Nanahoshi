@@ -1,6 +1,3 @@
-import type { RouterClient } from "@orpc/server";
-
-import { protectedProcedure, publicProcedure } from "../index";
 import { adminRouter } from "./admin";
 import { audiobookShelfRouter } from "./audiobook-shelf";
 import { audiobooksRouter } from "./audiobooks";
@@ -46,15 +43,6 @@ import { userSettingsRouter } from "./user-settings";
 import { usersRouter } from "./users/users.router";
 
 export const appRouter = {
-	healthCheck: publicProcedure.handler(() => {
-		return "OK";
-	}),
-	privateData: protectedProcedure.handler(({ context }) => {
-		return {
-			message: "This is private",
-			user: context.session?.user,
-		};
-	}),
 	admin: adminRouter,
 	audiobooks: audiobooksRouter,
 	audiobookShelf: audiobookShelfRouter,
@@ -100,4 +88,3 @@ export const appRouter = {
 	registration: registrationRouter,
 };
 export type AppRouter = typeof appRouter;
-export type AppRouterClient = RouterClient<typeof appRouter>;

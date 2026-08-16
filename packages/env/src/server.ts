@@ -12,7 +12,6 @@ export const env = createEnv({
 		DOWNLOAD_SECRET: z.uuid(),
 		COOKIE_DOMAIN: z.string().optional(),
 		SERVER_URL: z.string(),
-		VITE_SERVER_URL: z.string().optional(),
 
 		// Database
 		DB_HOST: z.string().default("localhost"),

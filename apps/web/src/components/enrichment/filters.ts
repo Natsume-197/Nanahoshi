@@ -50,14 +50,6 @@ export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
 	done: "completed",
 };
 
-// Sub-filters offered per bucket, in the order the sidebar lists them.
-export const BUCKET_LIFECYCLES: Partial<
-	Record<EnrichmentBucket, EnrichmentLifecycle[]>
-> = {
-	in_progress: ["running", "scheduled"],
-	attention: ["unresolved", "no_match", "review", "partial", "failed"],
-};
-
 export type TraySearch = {
 	bucket?: BucketFilter;
 	lifecycle?: EnrichmentLifecycle;

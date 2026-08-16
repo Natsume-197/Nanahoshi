@@ -10,13 +10,6 @@ export function isElementGaiji(el: HTMLImageElement) {
 	);
 }
 
-export function isNodeGaiji(node: Node) {
-	if (!(node instanceof HTMLImageElement)) {
-		return false;
-	}
-	return isElementGaiji(node);
-}
-
 // Covers <img> and SVG <image> (manga pages are commonly svg-wrapped).
 export function isNodeImage(node: Node) {
 	return (

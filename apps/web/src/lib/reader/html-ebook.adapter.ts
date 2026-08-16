@@ -8,8 +8,6 @@ import { formatStyleSheet } from "./format-style-sheet";
 import { recountBookData } from "./recount-book-data";
 import { sanitizeStoredBookHtml } from "./sanitize-html";
 import {
-	BOOK_CONTENT_FORM_VERSION,
-	BOOK_COUNT_VERSION,
 	BOOK_SANITIZE_VERSION,
 	type ReaderBookData,
 	type ReaderSourceFormat,
@@ -182,7 +180,6 @@ export async function adaptHtmlEbook(
 				textLength: bodyTextLength,
 				imageCount,
 			}),
-			contentFormVersion: BOOK_CONTENT_FORM_VERSION,
 			presentation,
 			title: ebook.metadata.title.trim() || fallbackTitle,
 			language: normalizeLanguage(ebook.metadata.language) || "ja",
@@ -191,8 +188,6 @@ export async function adaptHtmlEbook(
 			blobs,
 			characters: 0,
 			sections,
-			storedAt: Date.now(),
-			countVersion: BOOK_COUNT_VERSION,
 			sanitizeVersion: BOOK_SANITIZE_VERSION,
 		};
 

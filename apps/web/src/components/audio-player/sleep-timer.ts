@@ -1,7 +1,6 @@
 import { getActiveChapterIndex } from "@/utils/chapters";
 
 export const SLEEP_DURATIONS = [5, 10, 15, 30, 45, 60] as const;
-export type SleepDuration = (typeof SLEEP_DURATIONS)[number];
 
 export const SLEEP_FADE_SECONDS = 20;
 export const SLEEP_EXTEND_SECONDS = 300;

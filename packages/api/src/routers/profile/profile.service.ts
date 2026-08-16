@@ -43,15 +43,6 @@ export const getStats = async (
 	return profileRepository.getStats(userId, serverId, scope);
 };
 
-export const getStatsByUsername = async (
-	username: string,
-	serverId?: string,
-	scope: LibraryScope = "ALL",
-) => {
-	const profile = await getProfileByUsername(username, serverId);
-	return getStats(profile.id, serverId, scope);
-};
-
 export const updateProfile = async (
 	userId: string,
 	data: {

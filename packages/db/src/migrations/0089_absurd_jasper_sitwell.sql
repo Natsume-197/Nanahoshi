@@ -1,0 +1,1 @@
+ALTER TABLE "reading_progress" DROP COLUMN "position_mode";

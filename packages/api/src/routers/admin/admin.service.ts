@@ -1,8 +1,6 @@
 import { ensureDefaultRole } from "../../auth/access.repository";
 import { BadRequestError } from "../../errors";
-import { coverIngestQueue } from "../../infrastructure/queue/queues/cover-ingest.queue";
 import { startGlobalRecommendationRebuild } from "../../modules/recommendations/recommendation.tasks";
-import { createTask } from "../../modules/taskManager";
 import { adminRepository } from "./admin.repository";
 
 export async function getSystemStats() {
@@ -79,21 +77,4 @@ export async function removeMember(memberId: string) {
 
 export async function updateMemberRole(memberId: string, role: string) {
 	await adminRepository.updateMemberRole(memberId, role);
-}
-
-/**
- * Puts cover art acquired before Cover Ingest existed through it: bounded to the
- * store ceiling, one format, and named after its real resolution. Until a cover
- * has been through it, it keeps exactly the behaviour it had before, so this is
- * a catch-up sweep that can be run, cancelled and re-run freely.
- */
-export async function triggerCoverBackfill(): Promise<void> {
-	// App-wide maintenance (all servers); the registry scopes it to app owners.
-	const task = await createTask({ type: "cover-backfill", payload: {} });
-	// The producer loop runs as a job so the paging never touches the API process.
-	await coverIngestQueue.add(
-		"backfill",
-		{ taskId: task.id },
-		{ removeOnComplete: true, removeOnFail: false },
-	);
 }

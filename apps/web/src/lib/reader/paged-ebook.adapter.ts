@@ -3,8 +3,6 @@ import { formatStyleSheet } from "./format-style-sheet";
 import { recountBookData } from "./recount-book-data";
 import { sanitizeStoredBookHtml } from "./sanitize-html";
 import {
-	BOOK_CONTENT_FORM_VERSION,
-	BOOK_COUNT_VERSION,
 	BOOK_SANITIZE_VERSION,
 	type ReaderBookData,
 	type ReaderSourceFormat,
@@ -90,7 +88,6 @@ export async function adaptPagedEbook(
 			uuid,
 			sourceFormat,
 			contentForm: "images",
-			contentFormVersion: BOOK_CONTENT_FORM_VERSION,
 			presentation: ebook.metadata.presentation ?? {
 				layout: "pre-paginated",
 				declaresPageResolution: true,
@@ -102,8 +99,6 @@ export async function adaptPagedEbook(
 			blobs,
 			characters: 0,
 			sections,
-			storedAt: Date.now(),
-			countVersion: BOOK_COUNT_VERSION,
 			sanitizeVersion: BOOK_SANITIZE_VERSION,
 		};
 		return recountBookData(base, document);

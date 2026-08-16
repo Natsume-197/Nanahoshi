@@ -1,6 +1,6 @@
 import type { EbookFormat } from "./ebook";
 
-export const SUPPORTED_EBOOK_FORMATS = [
+const SUPPORTED_EBOOK_FORMATS = [
 	"epub",
 	"kepub",
 	"mobi",

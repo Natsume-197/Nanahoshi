@@ -86,11 +86,6 @@ export const adminRouter = {
 			return { success: true };
 		}),
 
-	triggerCoverBackfill: adminProcedure.handler(async () => {
-		await adminService.triggerCoverBackfill();
-		return { success: true };
-	}),
-
 	triggerRecommendationsRebuild: adminProcedure.handler(async ({ context }) => {
 		return adminService.triggerRecommendationsRebuild(context.session.user.id);
 	}),

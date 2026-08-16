@@ -13,7 +13,6 @@ const pdf = {
 	blobs: {},
 	characters: 2,
 	sections: [],
-	storedAt: 0,
 } satisfies ReaderBookData;
 
 const epub = {

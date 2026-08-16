@@ -22,14 +22,8 @@
 		"@orpc/openapi": "^1.14.13",
 		"@orpc/server": "^1.14.13",
 		"@orpc/zod": "^1.14.13",
-		"better-auth": "^1.6.25",
-		"bullmq": "^5.81.2",
-		"dotenv": "^17.4.2",
-		"drizzle-orm": "^0.45.2",
 		"hono": "^4.12.33",
-		"pino": "^10.3.1",
-		"sharp": "^0.35.3",
-		"zod": "^4.4.3"
+		"sharp": "^0.35.3"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",

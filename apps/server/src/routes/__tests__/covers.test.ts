@@ -149,7 +149,7 @@ describe("wide misses stay off the request path", () => {
 
 		expect(res.status).toBe(200);
 		const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
-		expect(meta.width).toBe(600);
+		expect(meta.width).toBe(400);
 
 		expect(enqueued).toHaveLength(1);
 		expect(enqueued[0]?.name).toBe("rendition");

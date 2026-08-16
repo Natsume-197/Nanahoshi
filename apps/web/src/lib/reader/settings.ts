@@ -9,14 +9,6 @@ export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
-export type ReaderThemeId =
-	| "nanahoshi-theme"
-	| "attribute-theme"
-	| "light-theme"
-	| "ecru-theme"
-	| "dark-theme"
-	| "black-theme";
-
 export interface ReaderThemeColors {
 	fontColor: string;
 	backgroundColor: string;
