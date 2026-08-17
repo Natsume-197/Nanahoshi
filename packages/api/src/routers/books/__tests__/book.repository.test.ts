@@ -386,6 +386,7 @@ describe("BookRepository", () => {
 				id: 10,
 				uuid: "book-uuid-10",
 				filename: "vol1.epub",
+				title: "Vol 1",
 				mediaType: "ebook",
 				filesizeKb: 2048,
 				isCanonical: true,
@@ -394,6 +395,7 @@ describe("BookRepository", () => {
 				id: 11,
 				uuid: "book-uuid-11",
 				filename: "vol1-copy.epub",
+				title: null,
 				mediaType: "ebook",
 				filesizeKb: 1024,
 				isCanonical: false,
@@ -413,6 +415,7 @@ describe("BookRepository", () => {
 			{
 				uuid: "book-uuid-11",
 				filename: "vol1-copy.epub",
+				title: null,
 				mediaType: "ebook",
 				filesizeKb: 1024,
 			},
@@ -435,8 +438,16 @@ describe("BookRepository", () => {
 		const result = await repo.getWithMetadata("book-uuid-11", "org-1", "ALL");
 		expect(result?.isDuplicate).toBe(true);
 		expect(result?.canonicalUuid).toBe("book-uuid-10");
-		// The canonical is reachable via the banner, so it isn't repeated here.
-		expect(result?.otherCopies).toEqual([]);
+		// The copies view is complete even when reached through a hidden copy.
+		expect(result?.otherCopies).toEqual([
+			{
+				uuid: "book-uuid-10",
+				filename: "vol1.epub",
+				title: "Vol 1",
+				mediaType: "ebook",
+				filesizeKb: 2048,
+			},
+		]);
 		expect(executedQuery).not.toBeNull();
 		const query = new PgDialect().sqlToQuery(executedQuery as SQL).sql;
 		expect(query).toContain(

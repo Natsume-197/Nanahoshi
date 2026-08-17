@@ -1597,7 +1597,14 @@
 		"modified": "Modified",
 		"duplicate_notice": "This is a grouped copy of another book.",
 		"view_main_edition": "View the main edition",
-		"separate": "Separate",
+		"copy_current": "Current",
+		"open_copy_named": "Open {filename}",
+		"separate": "Separate from group",
+		"separate_confirm_title": "Separate this copy from the group?",
+		"separate_confirm_description": "{filename} will become an independent book.",
+		"separate_confirm_lock": "It will no longer be grouped automatically with its other copies.",
+		"separate_confirm_refresh": "Its metadata may be updated again.",
+		"separate_confirm_action": "Separate copy",
 		"edit_metadata": "Edit metadata"
 	},
 	"audiobook": {

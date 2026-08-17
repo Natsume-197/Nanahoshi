@@ -1562,7 +1562,14 @@
 		"modified": "更新日",
 		"duplicate_notice": "これは別の本にまとめられたコピーです。",
 		"view_main_edition": "メインの版を表示",
-		"separate": "分離",
+		"copy_current": "現在表示中",
+		"open_copy_named": "{filename}を開く",
+		"separate": "グループから分離",
+		"separate_confirm_title": "このコピーをグループから分離しますか？",
+		"separate_confirm_description": "{filename} は独立した本になります。",
+		"separate_confirm_lock": "ほかのコピーと自動でまとめられなくなります。",
+		"separate_confirm_refresh": "メタデータが再度更新されることがあります。",
+		"separate_confirm_action": "コピーを分離",
 		"edit_metadata": "メタデータを編集"
 	},
 	"audiobook": {

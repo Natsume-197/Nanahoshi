@@ -42,6 +42,7 @@ import {
 	type DetailListRow,
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -70,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import {
+	COVER_EDGE,
 	coverPresets,
 	getCoverFilename,
 	getCoverPresetUrl,
@@ -149,7 +151,8 @@ export function BookDetailPage() {
 	) : null;
 	// The cover remains the artwork; controls follow the user's application theme.
 	const accentColor = "var(--primary)";
-	const copiesCount = book.otherCopies?.length ?? 0;
+	const otherCopiesCount = book.otherCopies?.length ?? 0;
+	const copiesCount = otherCopiesCount + 1;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
 
 	return (
@@ -257,7 +260,7 @@ export function BookDetailPage() {
 										PAGE_GUTTER,
 										// Pins to the very top: below md these routes drop the top bar,
 										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 mt-6 bg-background/95 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 lg:mx-0 lg:px-0",
+										"sticky top-0 z-20 mt-6 py-1 lg:mx-0 lg:px-0",
 									)}
 								>
 									<TabsList
@@ -277,7 +280,7 @@ export function BookDetailPage() {
 										>
 											{m["book.tab_file_metadata"]()}
 										</TabsTrigger>
-										{copiesCount > 0 && (
+										{otherCopiesCount > 0 && (
 											<TabsTrigger
 												value="copies"
 												className={BOOK_TAB_TRIGGER_CLASSNAME}
@@ -307,7 +310,7 @@ export function BookDetailPage() {
 									<FileAndMetadataSection book={book} />
 								</TabsContent>
 
-								{copiesCount > 0 && (
+								{otherCopiesCount > 0 && (
 									<TabsContent
 										value="copies"
 										className="pt-8 data-[state=active]:animate-none"
@@ -1258,104 +1261,285 @@ function useUngroupMutation(pageBookUuid: string) {
 
 function DuplicateBanner({ book }: { book: BookData }) {
 	const { can } = useAbilities();
-	const ungroup = useUngroupMutation(book.uuid);
+	const [isUngroupDialogOpen, setIsUngroupDialogOpen] = useState(false);
 	return (
-		<div className="flex flex-col gap-3 border-border/70 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
-			<p className="text-muted-foreground text-sm">
-				{m["book.duplicate_notice"]()}{" "}
-				{book.canonicalUuid && (
-					<Link
-						to="/dashboard/books/$uuid"
-						params={{ uuid: book.canonicalUuid }}
-						className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-foreground"
+		<>
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<div className="flex min-w-0 items-start gap-3">
+					<div className="grid size-9 shrink-0 place-items-center text-primary">
+						<Stack aria-hidden="true" className="size-4" weight="duotone" />
+					</div>
+					<p className="min-w-0 text-foreground/80 text-sm leading-relaxed">
+						{m["book.duplicate_notice"]()}{" "}
+						{book.canonicalUuid && (
+							<Link
+								to="/dashboard/books/$uuid"
+								params={{ uuid: book.canonicalUuid }}
+								className="font-medium text-foreground underline decoration-muted-foreground/45 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+							>
+								{m["book.view_main_edition"]()}
+							</Link>
+						)}
+					</p>
+				</div>
+				{can("book", "editMetadata") && (
+					<Button
+						variant="outline"
+						className="h-11 shrink-0 px-4"
+						onClick={() => setIsUngroupDialogOpen(true)}
 					>
-						{m["book.view_main_edition"]()}
-					</Link>
-				)}
-			</p>
-			{can("book", "editMetadata") && (
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={ungroup.isPending}
-					aria-busy={ungroup.isPending}
-					onClick={() => ungroup.mutate(book.uuid)}
-				>
-					{ungroup.isPending ? (
-						<CircleNotch
-							data-icon="inline-start"
-							className="animate-spin motion-reduce:animate-none"
-						/>
-					) : (
 						<LinkBreak aria-hidden="true" data-icon="inline-start" />
-					)}
-					{m["book.separate"]()}
-				</Button>
-			)}
-		</div>
+						{m["book.separate"]()}
+					</Button>
+				)}
+			</div>
+			<UngroupEditionDialog
+				pageBookUuid={book.uuid}
+				filename={book.filename}
+				open={isUngroupDialogOpen}
+				onOpenChange={setIsUngroupDialogOpen}
+			/>
+		</>
 	);
 }
 
 function OtherCopiesSection({ book }: { book: BookData }) {
 	const { can } = useAbilities();
-	const ungroup = useUngroupMutation(book.uuid);
-	const headingId = useId();
-	const copies = book.otherCopies ?? [];
-	if (copies.length === 0) return null;
+	const [copyToUngroup, setCopyToUngroup] = useState<{
+		uuid: string;
+		filename: string;
+	} | null>(null);
+	const otherCopies = book.otherCopies ?? [];
+	if (otherCopies.length === 0) return null;
 	const canEdit = can("book", "editMetadata");
+	const coverFilename = getCoverFilename(book.cover);
+	const coverUrl = coverFilename
+		? getCoverPresetUrl(coverFilename, coverPresets.thumbnail)
+		: null;
+	const coverSrcSet = coverFilename
+		? getCoverSrcSet(coverFilename, coverPresets.thumbnail.widths)
+		: undefined;
+	const sharedTitle =
+		book.title ?? otherCopies.find((copy) => copy.title)?.title ?? null;
+	const copies = [
+		{
+			uuid: book.uuid,
+			filename: book.filename,
+			title: book.title ?? sharedTitle,
+			mediaType: book.mediaType,
+			filesizeKb: book.filesizeKb,
+			isCurrent: true,
+		},
+		...otherCopies.map((copy) => ({
+			...copy,
+			title: copy.title ?? sharedTitle,
+			isCurrent: false,
+		})),
+	];
 
 	return (
 		<section
-			className="flex flex-col gap-4 border-border/70 border-t pt-8"
-			aria-labelledby={headingId}
+			className="border-border/70 border-t pt-8"
+			aria-label={m["book.tab_copies_short"]({ count: copies.length })}
 		>
-			<h2
-				id={headingId}
-				className="text-pretty font-bold text-xl leading-tight"
-			>
-				{m["book.tab_other_copies"]({ count: copies.length })}
-			</h2>
 			<ul className="divide-y divide-border/55">
 				{copies.map((copy) => {
+					const displayTitle = copy.title ?? copy.filename;
+					const format =
+						copy.filename.split(".").at(-1)?.toUpperCase() ??
+						copy.mediaType?.toUpperCase();
 					const size = formatFileSize(copy.filesizeKb);
 					return (
 						<li
 							key={copy.uuid}
-							className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 text-sm first:pt-0"
+							className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 py-4 first:pt-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
 						>
-							<Link
-								to="/dashboard/books/$uuid"
-								params={{ uuid: copy.uuid }}
-								className="col-start-1 row-start-1 min-w-0 break-all underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:decoration-foreground/70 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
-							>
-								<bdi>{copy.filename}</bdi>
-							</Link>
-							<div className="col-start-1 row-start-2 flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
-								{copy.mediaType && (
-									<span className="uppercase">{copy.mediaType}</span>
+							{(() => {
+								const cover = (
+									<div
+										className={cn(
+											"relative aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm",
+											COVER_EDGE,
+										)}
+									>
+										{coverUrl ? (
+											<img
+												src={coverUrl}
+												srcSet={coverSrcSet}
+												sizes="48px"
+												alt=""
+												width={48}
+												height={72}
+												className="h-full w-full object-cover"
+												loading="lazy"
+												decoding="async"
+											/>
+										) : (
+											<BookOpen
+												aria-hidden="true"
+												className="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/55"
+											/>
+										)}
+									</div>
+								);
+
+								return copy.isCurrent ? (
+									<div className="row-span-2">{cover}</div>
+								) : (
+									<Link
+										to="/dashboard/books/$uuid"
+										params={{ uuid: copy.uuid }}
+										aria-label={m["book.open_copy_named"]({
+											filename: displayTitle,
+										})}
+										className="row-span-2 rounded-md focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+									>
+										{cover}
+									</Link>
+								);
+							})()}
+							<div className="flex min-w-0 flex-col gap-1 py-0.5">
+								{copy.isCurrent ? (
+									<p className="min-w-0 break-words font-medium text-foreground text-sm leading-snug">
+										<bdi>{displayTitle}</bdi>
+									</p>
+								) : (
+									<Link
+										to="/dashboard/books/$uuid"
+										params={{ uuid: copy.uuid }}
+										aria-label={m["book.open_copy_named"]({
+											filename: displayTitle,
+										})}
+										className="min-w-0 break-words font-medium text-foreground text-sm leading-snug underline decoration-muted-foreground/35 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+									>
+										<bdi>{displayTitle}</bdi>
+									</Link>
 								)}
-								{copy.mediaType && size && <span aria-hidden="true">·</span>}
-								{size && <span>{size}</span>}
+								<p className="min-w-0 break-all text-muted-foreground text-xs leading-snug">
+									<bdi>{copy.filename}</bdi>
+								</p>
+								<div className="flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
+									{format && (
+										<span className="font-semibold tracking-wider">
+											{format}
+										</span>
+									)}
+									{copy.isCurrent && (
+										<Badge variant="secondary">
+											{m["book.copy_current"]()}
+										</Badge>
+									)}
+								</div>
+								{size && (
+									<p className="text-muted-foreground text-xs tabular-nums">
+										{size}
+									</p>
+								)}
 							</div>
-							{canEdit && (
-								<Button
-									variant="ghost"
-									size="icon"
-									aria-label={m["aria.separate_copy_named"]({
-										filename: copy.filename,
-									})}
-									disabled={ungroup.isPending}
-									aria-busy={ungroup.isPending}
-									onClick={() => ungroup.mutate(copy.uuid)}
-									className="col-start-2 row-span-2 row-start-1 size-11 shrink-0"
-								>
-									<LinkBreak aria-hidden="true" />
-								</Button>
+							{!copy.isCurrent && canEdit && (
+								<div className="col-start-2 flex pt-1 sm:col-start-3 sm:row-span-2 sm:row-start-1 sm:self-center sm:pt-0">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="size-11"
+												aria-label={m["aria.more_actions"]()}
+											>
+												<DotsThree aria-hidden="true" weight="bold" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												onClick={() =>
+													setCopyToUngroup({
+														uuid: copy.uuid,
+														filename: copy.filename,
+													})
+												}
+											>
+												<LinkBreak aria-hidden="true" />
+												{m["book.separate"]()}
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</div>
 							)}
 						</li>
 					);
 				})}
 			</ul>
+			{copyToUngroup && (
+				<UngroupEditionDialog
+					pageBookUuid={book.uuid}
+					targetUuid={copyToUngroup.uuid}
+					filename={copyToUngroup.filename}
+					open
+					onOpenChange={(open) => !open && setCopyToUngroup(null)}
+				/>
+			)}
 		</section>
+	);
+}
+
+function UngroupEditionDialog({
+	pageBookUuid,
+	targetUuid = pageBookUuid,
+	filename,
+	open,
+	onOpenChange,
+}: {
+	pageBookUuid: string;
+	targetUuid?: string;
+	filename: string;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const ungroup = useUngroupMutation(pageBookUuid);
+
+	return (
+		<Modal
+			open={open}
+			onOpenChange={onOpenChange}
+			title={m["book.separate_confirm_title"]()}
+			description={m["book.separate_confirm_description"]({ filename })}
+			footer={
+				<>
+					<Button
+						type="button"
+						variant="outline"
+						disabled={ungroup.isPending}
+						onClick={() => onOpenChange(false)}
+					>
+						{m["common.cancel"]()}
+					</Button>
+					<Button
+						type="button"
+						disabled={ungroup.isPending}
+						aria-busy={ungroup.isPending}
+						onClick={() =>
+							ungroup.mutate(targetUuid, {
+								onSuccess: () => onOpenChange(false),
+							})
+						}
+					>
+						{ungroup.isPending ? (
+							<CircleNotch
+								data-icon="inline-start"
+								className="animate-spin motion-reduce:animate-none"
+							/>
+						) : (
+							<LinkBreak aria-hidden="true" data-icon="inline-start" />
+						)}
+						{m["book.separate_confirm_action"]()}
+					</Button>
+				</>
+			}
+		>
+			<ul className="list-disc space-y-1 pl-5 text-muted-foreground text-sm">
+				<li>{m["book.separate_confirm_lock"]()}</li>
+				<li>{m["book.separate_confirm_refresh"]()}</li>
+			</ul>
+		</Modal>
 	);
 }

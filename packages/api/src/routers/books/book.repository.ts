@@ -104,6 +104,7 @@ type SiblingRow = {
 	id: number;
 	uuid: string;
 	filename: string;
+	title: string | null;
 	mediaType: string | null;
 	filesizeKb: number | null;
 	isCanonical: boolean;
@@ -282,7 +283,8 @@ export class BookRepository {
 				l.media_type AS "libraryMediaType",
 				l.uuid AS "libraryUuid",
 				l.name AS "libraryName",
-				bm.title, bm.subtitle, bm.description,
+				COALESCE(bm.title, canonical_bm.title) AS title,
+				bm.subtitle, bm.description,
 				bm.published_date AS "publishedDate",
 				bm.language_code AS "languageCode",
 				bm.page_count AS "pageCount",
@@ -339,6 +341,7 @@ export class BookRepository {
 						jsonb_agg(
 							jsonb_build_object(
 								'id', b2.id, 'uuid', b2.uuid, 'filename', b2.filename,
+								'title', b2m.title,
 								'mediaType', b2.media_type, 'filesizeKb', b2.filesize_kb,
 								'isCanonical', b2.duplicate_of_book_id IS NULL
 							)
@@ -347,12 +350,15 @@ export class BookRepository {
 						'[]'
 					)
 					FROM book b2
+					LEFT JOIN book_metadata b2m ON b2m.book_id = b2.id
 					WHERE b2.duplicate_of_book_id = COALESCE(b.duplicate_of_book_id, b.id)
 						OR b2.id = COALESCE(b.duplicate_of_book_id, b.id)
 				) AS siblings
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_metadata canonical_bm
+				ON canonical_bm.book_id = COALESCE(b.duplicate_of_book_id, b.id)
 			WHERE b.uuid = ${uuid} ${serverId ? sql`AND l.server_id = ${serverId}` : sql``} ${accessibleSql(scope)}
 			LIMIT 1
 		`);
@@ -367,12 +373,14 @@ export class BookRepository {
 		const duplicateOfBookId = row.duplicate_of_book_id;
 		const siblings = row.siblings;
 		const otherCopies = siblings
-			// Exclude the book being viewed and the canonical edition (the canonical
-			// is reached via the DuplicateBanner, so it shouldn't repeat here).
-			.filter((s) => Number(s.id) !== Number(bookId) && !s.isCanonical)
+			// The detail page renders the viewed book separately, then the rest of
+			// its group. Keeping the canonical here when a hidden copy is open makes
+			// the copies view complete from either entry point.
+			.filter((s) => Number(s.id) !== Number(bookId))
 			.map((s) => ({
 				uuid: s.uuid,
 				filename: s.filename,
+				title: s.title,
 				mediaType: s.mediaType,
 				filesizeKb: s.filesizeKb,
 			}));
