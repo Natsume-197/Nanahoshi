@@ -1,5 +1,6 @@
 import { LISTENING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
+import { markActivePlayback } from "../../modules/instance-activity/playback.manager";
 import { markBookActivity } from "../../modules/presence/presence.service";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
@@ -16,6 +17,13 @@ export const saveProgress = async (
 		durationSeconds?: number;
 		listeningTimeSeconds?: number;
 		status?: string;
+	},
+	session?: {
+		sessionId: string;
+		userName: string;
+		userImage: string | null;
+		device: string | null;
+		ipAddress: string | null;
 	},
 ) => {
 	if (!serverId) throw new NotFoundError("Audiobook not found");
@@ -38,6 +46,28 @@ export const saveProgress = async (
 
 	if (data.status === LISTENING_STATUSES.LISTENING) {
 		await markBookActivity(userId, bookId, bookUuid, "listening");
+		if (session)
+			void bookRepository
+				.getTitleById(bookId)
+				.then((bookTitle) =>
+					markActivePlayback({
+						sessionId: session.sessionId,
+						userId,
+						userName: session.userName,
+						userImage: session.userImage,
+						device: session.device,
+						ipAddress: session.ipAddress,
+						serverId,
+						bookUuid,
+						bookTitle: bookTitle ?? bookRecord.filename,
+						kind: "listening",
+						progress:
+							result.durationSeconds && result.durationSeconds > 0
+								? (result.currentTimeSeconds ?? 0) / result.durationSeconds
+								: null,
+					}),
+				)
+				.catch(() => {});
 	}
 
 	// recommendation signals: completion (either direction) or crossing 50%

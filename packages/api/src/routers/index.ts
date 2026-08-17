@@ -9,6 +9,7 @@ import { discordRulesRouter } from "./discord-rules";
 import { enrichmentRouter } from "./enrichment/enrichment.router";
 import { filesRouter } from "./files";
 import { genresRouter } from "./genres";
+import { instanceActivityRouter } from "./instance-activity";
 import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
@@ -74,6 +75,7 @@ export const appRouter = {
 	tasks: tasksRouter,
 	invitations: invitationsRouter,
 	inviteLinks: inviteLinksRouter,
+	instanceActivity: instanceActivityRouter,
 	users: usersRouter,
 	userSettings: userSettingsRouter,
 	discordRules: discordRulesRouter,

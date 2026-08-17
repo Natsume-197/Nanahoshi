@@ -22,6 +22,12 @@ import {
 	member as memberRole,
 	owner as ownerRole,
 } from "./permissions";
+import {
+	getAuditRequestMetadata,
+	recordSecurityAuditEvent,
+	type SecurityAuditInput,
+	type SecurityAuditSource,
+} from "./security-audit";
 import { checkSignUp } from "./signup-gate";
 import type { SignUpDenialReason } from "./signup-gate.rules";
 
@@ -55,6 +61,38 @@ const cookieConfig = {
 	secure: true,
 	httpOnly: true,
 };
+
+type AuthenticatedAuditSession = {
+	user: { id: string; name: string; email: string };
+	session: { id: string; activeOrganizationId?: string | null };
+};
+
+function recordAuthenticatedAuditEvent(
+	eventType: Extract<
+		SecurityAuditInput["eventType"],
+		"sign_in" | "sign_out" | "password_changed"
+	>,
+	session: AuthenticatedAuditSession,
+	request: ReturnType<typeof getAuditRequestMetadata>,
+	source: SecurityAuditSource = "web",
+): void {
+	void recordSecurityAuditEvent({
+		eventType,
+		outcome: "success",
+		source,
+		actor: { id: session.user.id, name: session.user.name },
+		subject: {
+			id: session.user.id,
+			name: session.user.name,
+			identifier: session.user.email,
+		},
+		sessionId: session.session.id,
+		server: session.session.activeOrganizationId
+			? { id: session.session.activeOrganizationId }
+			: null,
+		...request,
+	});
+}
 
 /** Escape user-controlled values before interpolating into the invitation HTML. */
 function escapeHtml(value: string): string {
@@ -280,11 +318,65 @@ const authConfig = {
 			});
 		}),
 		after: createAuthMiddleware(async (ctx) => {
+			const request = getAuditRequestMetadata(
+				ctx.request?.headers ?? new Headers(),
+			);
+			const failed = ctx.context.returned instanceof APIError;
+			const session = ctx.context.session;
+			const newSession = ctx.context.newSession;
+
+			// Better Auth runs `after` hooks for API errors too. This is the one
+			// place where failed credential attempts are observable without changing
+			// the response or the timing of authentication.
+			if (ctx.path === "/sign-in/email") {
+				if (failed) {
+					void recordSecurityAuditEvent({
+						eventType: "sign_in",
+						outcome: "failure",
+						source: "web",
+						subjectIdentifier:
+							typeof ctx.body?.email === "string" ? ctx.body.email : null,
+						...request,
+					});
+				} else if (newSession?.user && newSession.session) {
+					recordAuthenticatedAuditEvent("sign_in", newSession, request);
+				}
+			}
+
+			if (ctx.path.startsWith("/callback")) {
+				if (failed) {
+					void recordSecurityAuditEvent({
+						eventType: "sign_in",
+						outcome: "failure",
+						source: "oauth",
+						...request,
+					});
+				} else if (newSession?.user && newSession.session) {
+					recordAuthenticatedAuditEvent(
+						"sign_in",
+						newSession,
+						request,
+						"oauth",
+					);
+				}
+			}
+
+			if (ctx.path === "/sign-out" && session?.user && !failed) {
+				recordAuthenticatedAuditEvent("sign_out", session, request);
+			}
+
+			if (
+				(ctx.path === "/change-password" || ctx.path === "/reset-password") &&
+				session?.user &&
+				!failed
+			) {
+				recordAuthenticatedAuditEvent("password_changed", session, request);
+			}
+
 			// OIDC provisions the membership here — after the session row exists — so
 			// session.create.before couldn't see it. Provision, then set the active
 			// org now. Non-OIDC sign-ins are already handled by session.create.before.
 			if (!ctx.path.startsWith("/oauth2/callback")) return;
-			const newSession = ctx.context.newSession;
 			if (!newSession?.session?.id || !newSession?.user?.id) return;
 
 			await provisionOidcUser(newSession.user.id).catch((err) => {

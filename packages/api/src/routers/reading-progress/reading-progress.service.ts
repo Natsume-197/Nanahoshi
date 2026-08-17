@@ -1,5 +1,6 @@
 import { READING_STATUSES } from "../../constants";
 import { NotFoundError } from "../../errors";
+import { markActivePlayback } from "../../modules/instance-activity/playback.manager";
 import { markBookActivity } from "../../modules/presence/presence.service";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
@@ -18,6 +19,13 @@ export const saveProgress = async (
 		syncOperationId?: string;
 		readingTimeSeconds?: number;
 		status?: string;
+	},
+	session?: {
+		sessionId: string;
+		userName: string;
+		userImage: string | null;
+		device: string | null;
+		ipAddress: string | null;
 	},
 ) => {
 	if (!serverId) throw new NotFoundError("Book not found");
@@ -42,6 +50,28 @@ export const saveProgress = async (
 
 	if (positionAccepted && data.status === READING_STATUSES.READING) {
 		await markBookActivity(userId, bookId, bookUuid, "reading");
+		if (session)
+			void bookRepository
+				.getTitleById(bookId)
+				.then((bookTitle) =>
+					markActivePlayback({
+						sessionId: session.sessionId,
+						userId,
+						userName: session.userName,
+						userImage: session.userImage,
+						device: session.device,
+						ipAddress: session.ipAddress,
+						serverId,
+						bookUuid,
+						bookTitle: bookTitle ?? bookRecord.filename,
+						kind: "reading",
+						progress:
+							result.bookCharCount && result.bookCharCount > 0
+								? (result.exploredCharCount ?? 0) / result.bookCharCount
+								: null,
+					}),
+				)
+				.catch(() => {});
 	}
 
 	// recommendation signals: completion (either direction) or crossing 50%

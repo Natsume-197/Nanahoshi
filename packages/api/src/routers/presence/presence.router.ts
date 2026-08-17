@@ -1,4 +1,5 @@
 import { protectedProcedure } from "../../index";
+import { clearActivePlayback } from "../../modules/instance-activity/playback.manager";
 import { SetIdleInput, SetStatusInput } from "./presence.model";
 import * as presenceService from "./presence.service";
 
@@ -11,7 +12,10 @@ export const presenceRouter = {
 		}),
 
 	clearActivity: protectedProcedure.handler(async ({ context }) => {
-		await presenceService.clearActivity(context.session.user.id);
+		await Promise.all([
+			presenceService.clearActivity(context.session.user.id),
+			clearActivePlayback(context.session.session.id).catch(() => {}),
+		]);
 		return { success: true };
 	}),
 

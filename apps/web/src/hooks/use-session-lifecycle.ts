@@ -7,14 +7,16 @@ import { authClient } from "@/lib/auth-client";
 import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { SESSION_UNAUTHORIZED_EVENT } from "@/lib/session-events";
 
-type SessionsRevokedEvent = { kind: "sessions_revoked" };
+type SessionsRevokedEvent =
+	| { kind: "sessions_revoked" }
+	| { kind: "session_revoked" };
 
 function isSessionsRevokedEvent(data: unknown): data is SessionsRevokedEvent {
 	return (
 		typeof data === "object" &&
 		data !== null &&
 		"kind" in data &&
-		data.kind === "sessions_revoked"
+		(data.kind === "sessions_revoked" || data.kind === "session_revoked")
 	);
 }
 

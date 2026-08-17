@@ -5,6 +5,7 @@ import {
 	ListChecks,
 	ListMagnifyingGlass,
 	LockKey,
+	MonitorPlay,
 	PaintBrush,
 	PlugsConnected,
 	Shield,
@@ -18,6 +19,7 @@ import { useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { HonomiyaSettings } from "@/components/settings/sections/honomiya";
+import { InstanceActivitySettings } from "@/components/settings/sections/instance-activity";
 import { IntegrationsSettings } from "@/components/settings/sections/integrations";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { AdminLogs } from "@/components/settings/sections/logs";
@@ -54,6 +56,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	honomiya: Waveform,
 	tasks: ListChecks,
 	logs: ListMagnifyingGlass,
+	activity: MonitorPlay,
 };
 
 const LABELS: Record<SettingsSection, () => string> = {
@@ -71,6 +74,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	honomiya: m["settings.nav.honomiya"],
 	tasks: m["settings.nav.tasks"],
 	logs: m["settings.nav.logs"],
+	activity: m["settings.nav.activity"],
 };
 
 const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
@@ -82,6 +86,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"honomiya",
 	"tasks",
 	"logs",
+	"activity",
 ]);
 
 function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
@@ -125,6 +130,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 					item("honomiya"),
 					item("tasks"),
 					item("logs"),
+					item("activity"),
 				],
 			},
 		);
@@ -207,5 +213,7 @@ function SettingsContent({ section }: { section: SettingsSection }) {
 			return <AdminTasks />;
 		case "logs":
 			return <AdminLogs />;
+		case "activity":
+			return <InstanceActivitySettings />;
 	}
 }

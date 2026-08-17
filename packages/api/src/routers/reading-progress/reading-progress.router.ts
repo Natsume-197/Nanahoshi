@@ -26,6 +26,13 @@ export const readingProgressRouter = {
 					readingTimeSeconds: input.readingTimeSeconds,
 					status: input.status,
 				},
+				{
+					sessionId: context.session.session.id,
+					userName: context.session.user.name,
+					userImage: context.session.user.image ?? null,
+					device: context.session.session.userAgent ?? null,
+					ipAddress: context.session.session.ipAddress ?? null,
+				},
 			);
 		}),
 

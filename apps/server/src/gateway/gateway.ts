@@ -1,6 +1,7 @@
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
+import { instanceActivityModule } from "./instance-activity.module";
 import { notificationsModule } from "./notifications.module";
 import { presenceModule } from "./presence.module";
 import { recommendationsModule } from "./recommendations.module";
@@ -23,6 +24,7 @@ const modules: GatewayModule[] = [
 	notificationsModule,
 	recommendationsModule,
 	sessionsModule,
+	instanceActivityModule,
 ];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope

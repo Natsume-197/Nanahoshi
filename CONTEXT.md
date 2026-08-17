@@ -4,6 +4,34 @@ Nanahoshi organizes a shared digital library and reconciles catalog records from
 
 ## Language
 
+**Playback Session**:
+One actively reading or listening consumption context bound to one authenticated device session. A member using the same publication from two devices produces two Playback Sessions, each retaining its own client, device and current progress context; browser tabs sharing an authenticated session resolve to one row with its most recent activity. An authenticated but non-consuming device is not a Playback Session. It is live-only telemetry: a clean close removes it immediately and a missing heartbeat removes it after 90 seconds; its title is never retained as administrative consumption history.
+_Avoid_: User presence, reading progress, active member
+
+**Security Audit Event**:
+An immutable administrative record of a security-relevant authentication or session action: a successful or failed sign-in, sign-out, session revocation, password change, or role change. It records the originating server when one is active, attempted identity where known, client/device and full IP address; events are retained for 90 days and can be filtered by outcome, user, server, and device. Every authentication origin — web, OAuth, OPDS or API — emits the same event with its origin identified. A daily purge alone deletes expired events.
+_Avoid_: Presence event, notification, current session
+
+**Audit Actor**:
+The authenticated principal that initiated an administrative security action. It is distinct from the Audit Subject for actions such as session revocation and role change.
+_Avoid_: Event subject, affected user, current session
+
+**Audit Subject**:
+The user or authenticated session affected by a Security Audit Event. It is distinct from the Audit Actor for an administrative action and ordinarily coincides with it for authentication events.
+_Avoid_: Audit actor, initiator, event author
+
+**Audit Delivery Failure**:
+The technical condition in which a Security Audit Event cannot be persisted. It emits a structured server error but never blocks the user action that caused it; the absent event is an explicit gap rather than a fabricated audit record.
+_Avoid_: Authentication failure, audit event, user-facing security notification
+
+**Instance Activity Console**:
+The global administrative surface that lists Playback Sessions and Security Audit Events across every server. In its first version only the global Nanahoshi administrator may access it; organization roles and owners have no access.
+_Avoid_: Server dashboard, member activity rail, organization settings
+
+**Administrative Privacy Override**:
+The narrowly scoped exception allowing the global Nanahoshi administrator to see a Playback Session's publication even when its member disabled sharing reading activity. It applies only inside the Instance Activity Console and does not change what other members can see.
+_Avoid_: Share Reading Activity preference, public presence
+
 **Catalog Identity**:
 The domain decision that two records describe the same catalog entity at the requested identity level. All remote book and audiobook providers use one discovery, ranking, preliminary assessment, hydration, final assessment, and merge pipeline. The record's media kind selects the rules inside `catalogIdentity`: written books compare edition-level identity using explicit identity evidence, while audiobooks use Audiobook Quick Match with Audiobookshelf-compatible matching semantics. Discovery, Candidate Ranking, canonical metadata selection, merging, and persistence remain outside the module.
 _Avoid_: Search relevance, metadata similarity

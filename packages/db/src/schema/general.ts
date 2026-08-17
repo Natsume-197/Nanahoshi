@@ -35,6 +35,59 @@ export const appSettings = pgTable(
 	(t) => [unique().on(t.key)],
 );
 
+/**
+ * Append-only, instance-wide security trail. These columns intentionally do
+ * not carry foreign keys: audit evidence must survive a user or organization
+ * being removed. Display names and server names are immutable snapshots taken
+ * at the time of the event.
+ */
+export const securityAuditEvent = pgTable(
+	"security_audit_event",
+	{
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		eventType: text("event_type").notNull(),
+		outcome: text("outcome").notNull(),
+		source: text("source").notNull(),
+		actorUserId: text("actor_user_id"),
+		actorName: text("actor_name"),
+		subjectUserId: text("subject_user_id"),
+		subjectName: text("subject_name"),
+		// Email / username attempted when no account could be resolved.
+		subjectIdentifier: text("subject_identifier"),
+		sessionId: text("session_id"),
+		device: text("device"),
+		ipAddress: text("ip_address"),
+		serverId: text("server_id"),
+		serverName: text("server_name"),
+		details: jsonb("details")
+			.$type<Record<string, unknown>>()
+			.default(sql`'{}'::jsonb`)
+			.notNull(),
+	},
+	(table) => [
+		index("security_audit_event_created_at_idx").on(table.createdAt.desc()),
+		index("security_audit_event_subject_created_at_idx").on(
+			table.subjectUserId,
+			table.createdAt.desc(),
+		),
+		index("security_audit_event_source_outcome_created_at_idx").on(
+			table.source,
+			table.outcome,
+			table.createdAt.desc(),
+		),
+		index("security_audit_event_server_created_at_idx").on(
+			table.serverId,
+			table.createdAt.desc(),
+		),
+	],
+);
+
 // Per-organization (tenant) settings. Behavioral/credential metadata-source
 // config (Amazon domain+cookie, RanobeDB provider toggle) lives here so it
 // can't leak across tenants the way a single global app_settings row would.

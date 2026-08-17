@@ -13,6 +13,7 @@ const SETTINGS_SECTIONS = [
 	"honomiya",
 	"tasks",
 	"logs",
+	"activity",
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

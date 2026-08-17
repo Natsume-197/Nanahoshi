@@ -1,3 +1,4 @@
+import { recordSecurityAuditEvent } from "@nanahoshi-v2/auth/security-audit";
 import { adminProcedure } from "../../index";
 import {
 	BanUserInput,
@@ -40,8 +41,19 @@ export const adminRouter = {
 
 	setUserRole: adminProcedure
 		.input(SetUserRoleInput)
-		.handler(async ({ input }) => {
+		.handler(async ({ input, context }) => {
 			await adminService.setUserRole(input.userId, input.role);
+			void recordSecurityAuditEvent({
+				eventType: "role_changed",
+				outcome: "success",
+				source: "web",
+				actor: {
+					id: context.session.user.id,
+					name: context.session.user.name,
+				},
+				subject: { id: input.userId },
+				details: { role: input.role },
+			});
 			return { success: true };
 		}),
 

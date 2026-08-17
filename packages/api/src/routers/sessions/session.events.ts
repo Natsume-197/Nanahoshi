@@ -7,10 +7,15 @@ import { redis } from "../../infrastructure/queue/redis";
 
 const SESSION_CHANNEL = "session:revocations";
 
-export type SessionsRevokedEvent = {
-	kind: "sessions_revoked";
-	initiatorSessionId: string;
-};
+export type SessionsRevokedEvent =
+	| {
+			kind: "sessions_revoked";
+			initiatorSessionId: string;
+	  }
+	| {
+			kind: "session_revoked";
+			sessionId: string;
+	  };
 
 interface ChannelMessage {
 	userId: string;
@@ -36,6 +41,14 @@ export function publishSessionsRevoked(
 	event: SessionsRevokedEvent,
 ): void {
 	const message: ChannelMessage = { userId, event };
+	redis.publish(SESSION_CHANNEL, JSON.stringify(message)).catch(() => {});
+}
+
+export function publishSessionRevoked(userId: string, sessionId: string): void {
+	const message: ChannelMessage = {
+		userId,
+		event: { kind: "session_revoked", sessionId },
+	};
 	redis.publish(SESSION_CHANNEL, JSON.stringify(message)).catch(() => {});
 }
 

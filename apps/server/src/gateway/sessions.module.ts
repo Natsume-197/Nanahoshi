@@ -6,7 +6,11 @@ export const sessionsModule: GatewayModule = {
 
 	connect(conn: GatewayConnection) {
 		const unsubscribe = subscribeToSessionRevocations(conn.userId, (event) => {
-			if (event.initiatorSessionId !== conn.sessionId) {
+			if (
+				(event.kind === "sessions_revoked" &&
+					event.initiatorSessionId !== conn.sessionId) ||
+				(event.kind === "session_revoked" && event.sessionId === conn.sessionId)
+			) {
 				conn.send("sessions", event);
 			}
 		});
