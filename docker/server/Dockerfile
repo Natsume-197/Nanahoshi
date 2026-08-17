@@ -108,6 +108,7 @@ COPY --from=build /app/apps/server/package.json ./package.json
 COPY --from=build /app/packages/db/src/migrations ./dist/migrations
 COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=production-deps /app/apps/server/node_modules ./node_modules
+RUN ln -s /app/node_modules/.bun/node_modules/@embedpdf /app/node_modules/@embedpdf
 COPY --from=calibre /opt/calibre /opt/calibre
 COPY --from=build /app/apps/server/bin ./bin
 COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
@@ -126,6 +127,7 @@ COPY --from=build /app/apps/server/package.json ./package.json
 COPY --from=build /app/packages/db/src/migrations ./dist/migrations
 COPY --from=api-deps /app/node_modules /app/node_modules
 COPY --from=api-deps /app/apps/server/node_modules ./node_modules
+RUN ln -s /app/node_modules/.bun/node_modules/@embedpdf /app/node_modules/@embedpdf
 COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
 USER nanahoshi
 EXPOSE 3000
