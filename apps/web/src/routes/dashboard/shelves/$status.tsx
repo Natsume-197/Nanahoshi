@@ -6,6 +6,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
 	type ShelfBucket,
@@ -67,18 +68,15 @@ function ShelfPage() {
 				/>
 			) : (
 				<>
-					<section className="rounded-xl border border-border/60 bg-card p-4">
-						<div className="flex items-center justify-between gap-4">
-							<h1 className="font-semibold text-xl tracking-tight">
-								{shelfBucketLabel(status, mediaType)}
-							</h1>
-							{!query.isLoading && (
-								<div className="rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs tabular-nums">
-									{m["media.item_count"]({ count: books.length })}
-								</div>
-							)}
-						</div>
-					</section>
+					<CollectionToolbar
+						title={shelfBucketLabel(status, mediaType)}
+						subtitle={
+							!query.isLoading
+								? m["media.item_count"]({ count: books.length })
+								: undefined
+						}
+						loading={query.isFetching && !query.isLoading}
+					/>
 
 					{query.isLoading && (
 						<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">

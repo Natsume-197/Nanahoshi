@@ -1,9 +1,4 @@
-import {
-	ArrowLeft,
-	CircleNotch,
-	FolderOpen,
-	Trash,
-} from "@phosphor-icons/react";
+import { ArrowLeft, CircleNotch, Trash } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -13,6 +8,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -21,6 +17,7 @@ import { useAbilities } from "@/hooks/use-abilities";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -86,13 +83,13 @@ function CollectionDetailPage() {
 				className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
 			>
 				<ArrowLeft className="size-4" />
-				Back to collections
+				{m["shelves.back"]()}
 			</Link>
 
 			{detailsQuery.isLoading && (
 				<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">
 					<CircleNotch className="size-4 animate-spin" />
-					Loading collection...
+					{m["collection.loading"]()}
 				</div>
 			)}
 
@@ -104,85 +101,46 @@ function CollectionDetailPage() {
 
 			{collection && (
 				<>
-					<section className="rounded-xl border border-border/60 bg-card p-4">
-						<div className="flex items-start justify-between gap-4">
-							<div className="space-y-1">
-								<h1 className="font-semibold text-xl tracking-tight">
-									{collection.name}
-								</h1>
-								{collection.description && (
-									<p className="text-muted-foreground text-sm">
-										{collection.description}
-									</p>
-								)}
-								{!collection.isOwner && (
-									<Link
-										to="/dashboard/user/$username"
-										params={{ username: collection.ownerUsername }}
-										className="inline-flex items-center gap-1.5 pt-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
-									>
-										<UserAvatar
-											name={collection.ownerName}
-											image={collection.ownerImage}
-											className="size-5 shrink-0"
-										/>
-										@{collection.ownerUsername}
-									</Link>
-								)}
-							</div>
-							<div className="flex items-center gap-2">
-								<div className="flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1.5 text-primary text-xs">
-									<FolderOpen className="size-3.5" />
-									{collection.bookCount}{" "}
-									{collection.bookCount === 1 ? "book" : "books"}
-								</div>
-								{collection.isOwner && canDelete && (
-									<>
+					<CollectionToolbar
+						title={collection.name}
+						subtitle={[
+							m["collection.subtitle"]({ count: collection.bookCount }),
+							collection.description,
+						]
+							.filter(Boolean)
+							.join(" · ")}
+						actions={
+							!collection.isOwner || canDelete ? (
+								<div className="flex items-center gap-2">
+									{!collection.isOwner && (
+										<Link
+											to="/dashboard/user/$username"
+											params={{ username: collection.ownerUsername }}
+											className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-sm transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+										>
+											<UserAvatar
+												name={collection.ownerName}
+												image={collection.ownerImage}
+												className="size-5 shrink-0"
+											/>
+											@{collection.ownerUsername}
+										</Link>
+									)}
+									{collection.isOwner && canDelete && (
 										<Button
 											type="button"
-											size="icon"
-											variant="ghost"
-											className="size-8 text-muted-foreground hover:text-destructive"
+											size="lg"
+											variant="destructive"
 											onClick={() => setDeleteOpen(true)}
 										>
-											<Trash className="size-4" />
+											<Trash className="size-4" data-icon="inline-start" />
+											{m["common.delete"]()}
 										</Button>
-										<Modal
-											open={deleteOpen}
-											onOpenChange={setDeleteOpen}
-											title={`Delete "${collection.name}"?`}
-											description="This will permanently delete this collection. Books in it will not be removed from your library."
-											footer={
-												<>
-													<Button
-														type="button"
-														variant="outline"
-														onClick={() => setDeleteOpen(false)}
-													>
-														Cancel
-													</Button>
-													<Button
-														type="button"
-														disabled={deleteCollectionMutation.isPending}
-														onClick={() => deleteCollectionMutation.mutate()}
-														className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-													>
-														{deleteCollectionMutation.isPending && (
-															<CircleNotch
-																className="animate-spin"
-																data-icon="inline-start"
-															/>
-														)}
-														Delete
-													</Button>
-												</>
-											}
-										/>
-									</>
-								)}
-							</div>
-						</div>
-					</section>
+									)}
+								</div>
+							) : undefined
+						}
+					/>
 
 					{books.length === 0 ? (
 						<EmptyState
@@ -217,6 +175,40 @@ function CollectionDetailPage() {
 						</BookContextMenuRoot>
 					)}
 				</>
+			)}
+			{collection && (
+				<Modal
+					open={deleteOpen}
+					onOpenChange={setDeleteOpen}
+					title={m["collection.delete_title"]()}
+					description={m["collection.delete_desc"]({ name: collection.name })}
+					footer={
+						<>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={deleteCollectionMutation.isPending}
+								onClick={() => setDeleteOpen(false)}
+							>
+								{m["common.cancel"]()}
+							</Button>
+							<Button
+								type="button"
+								disabled={deleteCollectionMutation.isPending}
+								onClick={() => deleteCollectionMutation.mutate()}
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							>
+								{deleteCollectionMutation.isPending && (
+									<CircleNotch
+										className="animate-spin"
+										data-icon="inline-start"
+									/>
+								)}
+								{m["common.delete"]()}
+							</Button>
+						</>
+					}
+				/>
 			)}
 		</div>
 	);

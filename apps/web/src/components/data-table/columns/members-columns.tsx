@@ -6,6 +6,7 @@ import {
 	DataTableColumnHeader,
 	defineTableFeatures,
 } from "@/components/data-table";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ type Member = {
 		id: string;
 		name: string;
 		email: string;
+		image?: string | null;
 	};
 };
 
@@ -62,9 +64,12 @@ export const membersColumns = helper.columns([
 			const { user, role } = row.original;
 			return (
 				<div className="flex items-center gap-2.5">
-					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-xs">
-						{user.name?.charAt(0)?.toUpperCase() ?? "?"}
-					</div>
+					<UserAvatar
+						name={user.name}
+						image={user.image}
+						className="size-7 shrink-0"
+						fallbackClassName="text-xs"
+					/>
 					<div>
 						<p className="flex items-center gap-1 font-medium text-sm">
 							{user.name}
