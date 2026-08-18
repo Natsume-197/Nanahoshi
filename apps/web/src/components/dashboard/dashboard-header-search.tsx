@@ -662,7 +662,7 @@ export function DashboardHeaderSearch() {
 					// sideways when search opens — and the same height variable, so a
 					// shorter bar (landscape) can't leave the overlay taller than what
 					// it covers.
-					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(var(--mobile-header-height)+var(--safe-area-top))] items-center gap-2 bg-sidebar pt-[var(--safe-area-top)] pr-[max(1rem,var(--safe-area-right))] pl-[max(1rem,var(--safe-area-left))] md:hidden"
+					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(var(--mobile-header-height)+var(--safe-area-top))] items-center gap-2 bg-background pt-[var(--safe-area-top)] pr-[max(1rem,var(--safe-area-right))] pl-[max(1rem,var(--safe-area-left))] md:hidden"
 				>
 					<Button
 						variant="ghost"
