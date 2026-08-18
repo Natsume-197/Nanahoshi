@@ -179,7 +179,7 @@
 	--chart-5: oklch(0.4059 0 90);
 	/* Chrome sits below the raised content sheet, so it stays darker than
 	   --background by the same delta the light theme uses (-0.03 L). */
-	--sidebar: oklch(0.196 0 90);
+	--sidebar: oklch(0.151 0.004 285.878);
 	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
 	--sidebar-primary-foreground: oklch(0.211 0 90);

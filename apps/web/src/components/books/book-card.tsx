@@ -6,6 +6,7 @@ import {
 	usePrefetchAudiobook,
 } from "@/components/audio-player/use-play-audiobook";
 import { AuthorLinkList } from "@/components/books/author-link-list";
+import { useBookCardPresentation } from "@/components/books/book-card-presentation-context";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
@@ -63,6 +64,7 @@ export const BookCard = memo(function BookCard({
 	primaryAction = "details",
 	showOverlayAction = true,
 }: BookCardProps) {
+	const presentation = useBookCardPresentation();
 	const isAudiobook = mediaType === "audiobook";
 	const playAudiobook = usePlayAudiobook();
 	const prefetchAudiobook = usePrefetchAudiobook();
@@ -101,13 +103,18 @@ export const BookCard = memo(function BookCard({
 	// The small cover of a horizontal card can't host the full-size action, so it
 	// takes a scaled-down one tucked into the corner.
 	const isCompactAction = orientation === "horizontal";
+	const usesTintedSurface = isCompactAction || presentation === "showcase";
 	const actionSizeClass = isCompactAction ? "size-8" : "size-11";
 	const actionIconClass = isCompactAction ? "size-4" : "size-5";
 	const overlay = showOverlayAction ? (
 		<div
 			className={cn(
 				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
-				isCompactAction ? "end-2.5 bottom-2.5" : "end-2 bottom-2",
+				presentation === "showcase" && !isCompactAction
+					? "inset-0 flex items-center justify-center rounded-md bg-black/20"
+					: isCompactAction
+						? "end-2.5 bottom-2.5"
+						: "end-2 bottom-2",
 			)}
 		>
 			{isAudiobook ? (
@@ -197,14 +204,16 @@ export const BookCard = memo(function BookCard({
 			}
 			title={displayTitle}
 			subtitle={
-				authorText ? (
+				authorText && presentation !== "showcase" ? (
 					<AuthorLinkList
 						authors={authors}
 						linkClassName={cn(
 							"transition-colors",
-							isCompactAction ? "hover:text-current" : "hover:text-foreground",
+							usesTintedSurface
+								? "hover:text-current"
+								: "hover:text-foreground",
 						)}
-						separatorClassName={isCompactAction ? "text-current" : undefined}
+						separatorClassName={usesTintedSurface ? "text-current" : undefined}
 					/>
 				) : undefined
 			}

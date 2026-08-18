@@ -435,7 +435,7 @@ export function DashboardHeaderSearch() {
 	const searchInput = (
 		<InputGroup
 			className={cn(
-				"theme-gradient-surface group/search h-11 rounded-xl bg-control",
+				"theme-gradient-surface group/search h-11 rounded-2xl bg-control",
 				showDropdown && "shadow-sm",
 			)}
 		>

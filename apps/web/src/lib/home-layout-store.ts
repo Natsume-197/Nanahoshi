@@ -18,9 +18,25 @@ export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
 export interface HomeSectionPreference {
 	id: HomeSectionId;
 	visible: boolean;
+	carouselStyle: HomeCarouselStyle;
 }
 
+export const HOME_CAROUSEL_STYLES = ["classic", "showcase"] as const;
+
+export type HomeCarouselStyle = (typeof HOME_CAROUSEL_STYLES)[number];
+
 export const HOME_LAYOUT_STORAGE_KEY = "nanahoshi-home-layout-v1";
+
+const CUSTOMIZABLE_CAROUSEL_SECTION_IDS = new Set<HomeSectionId>([
+	"recently-added",
+	"books-for-you",
+	"audiobooks-for-you",
+	"popular",
+	"book-series",
+	"audiobook-series",
+	"random-books",
+	"random-audiobooks",
+]);
 
 const LEGACY_SECTION_IDS: Partial<Record<string, HomeSectionId>> = {
 	"recent-books": "recently-added",
@@ -32,7 +48,26 @@ const LEGACY_SECTION_IDS: Partial<Record<string, HomeSectionId>> = {
 };
 
 export function getDefaultHomeLayout(): HomeSectionPreference[] {
-	return HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
+	return HOME_SECTION_IDS.map((id) => ({
+		id,
+		visible: true,
+		carouselStyle: getDefaultHomeCarouselStyle(),
+	}));
+}
+
+export function getDefaultHomeCarouselStyle(): HomeCarouselStyle {
+	return "classic";
+}
+
+export function normalizeHomeCarouselStyle(value: unknown): HomeCarouselStyle {
+	return typeof value === "string" &&
+		HOME_CAROUSEL_STYLES.includes(value as HomeCarouselStyle)
+		? (value as HomeCarouselStyle)
+		: getDefaultHomeCarouselStyle();
+}
+
+export function supportsHomeCarouselStyle(id: HomeSectionId): boolean {
+	return CUSTOMIZABLE_CAROUSEL_SECTION_IDS.has(id);
 }
 
 /**
@@ -75,12 +110,21 @@ export function normalizeHomeLayout(value: unknown): HomeSectionPreference[] {
 					"visible" in item && typeof item.visible === "boolean"
 						? item.visible
 						: true,
+				carouselStyle: normalizeHomeCarouselStyle(
+					"carouselStyle" in item ? item.carouselStyle : undefined,
+				),
 			});
 		}
 	}
 
 	for (const id of HOME_SECTION_IDS) {
-		if (!seen.has(id)) normalized.push({ id, visible: true });
+		if (!seen.has(id)) {
+			normalized.push({
+				id,
+				visible: true,
+				carouselStyle: getDefaultHomeCarouselStyle(),
+			});
+		}
 	}
 
 	return normalized;

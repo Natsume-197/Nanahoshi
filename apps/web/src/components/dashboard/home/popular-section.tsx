@@ -47,7 +47,7 @@ export const PopularSection = memo(function PopularSection({
 					>
 						<BookCard
 							uuid={item.book.uuid}
-							title={item.seriesName ?? item.book.title}
+							title={item.book.title}
 							filename={item.book.filename}
 							cover={item.book.cover}
 							tint={item.book.mainColor}

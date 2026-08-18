@@ -28,12 +28,22 @@ import {
 import { type CSSProperties, type JSX, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
 	getDefaultHomeLayout,
+	type HomeCarouselStyle,
 	type HomeSectionId,
 	type HomeSectionPreference,
 	setHomeLayout,
+	supportsHomeCarouselStyle,
 	useHomeLayout,
 } from "@/lib/home-layout-store";
 import { cn } from "@/lib/utils";
@@ -62,12 +72,14 @@ function SortableSectionRow({
 	total,
 	onMove,
 	onVisibleChange,
+	onCarouselStyleChange,
 }: {
 	item: HomeSectionPreference;
 	index: number;
 	total: number;
 	onMove: (index: number, delta: -1 | 1) => void;
 	onVisibleChange: (id: HomeSectionId, visible: boolean) => void;
+	onCarouselStyleChange: (id: HomeSectionId, style: HomeCarouselStyle) => void;
 }): JSX.Element {
 	const label = labelFor(item.id);
 	const {
@@ -115,12 +127,51 @@ function SortableSectionRow({
 					<DotsSixVertical aria-hidden="true" />
 				</Button>
 
-				<label
-					htmlFor={switchId}
-					className="min-w-0 flex-1 cursor-pointer font-medium text-sm"
-				>
-					{label}
-				</label>
+				<div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+					<label
+						htmlFor={switchId}
+						className="cursor-pointer font-medium text-sm"
+					>
+						{label}
+					</label>
+
+					{supportsHomeCarouselStyle(item.id) && (
+						<Select<HomeCarouselStyle>
+							items={[
+								{
+									value: "classic",
+									label: m["home.organize_carousel_classic"](),
+								},
+								{
+									value: "showcase",
+									label: m["home.organize_carousel_showcase"](),
+								},
+							]}
+							value={item.carouselStyle}
+							onValueChange={(value) => onCarouselStyleChange(item.id, value)}
+						>
+							<SelectTrigger
+								size="sm"
+								className="w-full max-w-28"
+								aria-label={m["home.organize_carousel_style_for"]({
+									name: label,
+								})}
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectItem value="classic">
+										{m["home.organize_carousel_classic"]()}
+									</SelectItem>
+									<SelectItem value="showcase">
+										{m["home.organize_carousel_showcase"]()}
+									</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					)}
+				</div>
 
 				<div className="flex shrink-0 items-center gap-0.5">
 					<Button
@@ -189,6 +240,14 @@ export function HomeLayoutModal(): JSX.Element {
 	const setVisible = (id: HomeSectionId, visible: boolean) => {
 		setDraft((current) =>
 			current.map((item) => (item.id === id ? { ...item, visible } : item)),
+		);
+	};
+
+	const setCarouselStyle = (id: HomeSectionId, style: HomeCarouselStyle) => {
+		setDraft((current) =>
+			current.map((item) =>
+				item.id === id ? { ...item, carouselStyle: style } : item,
+			),
 		);
 	};
 
@@ -309,6 +368,7 @@ export function HomeLayoutModal(): JSX.Element {
 										total={draft.length}
 										onMove={move}
 										onVisibleChange={setVisible}
+										onCarouselStyleChange={setCarouselStyle}
 									/>
 								))}
 							</ul>

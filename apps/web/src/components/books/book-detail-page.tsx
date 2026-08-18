@@ -260,13 +260,13 @@ export function BookDetailPage() {
 										PAGE_GUTTER,
 										// Pins to the very top: below md these routes drop the top bar,
 										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 mt-6 py-1 lg:mx-0 lg:px-0",
+										"sticky top-0 z-20 mt-6 bg-background py-1 lg:mx-0 lg:px-0",
 									)}
 								>
 									<TabsList
 										variant="line"
 										aria-label={m["book.tabs_label"]()}
-										className="scrollbar-none h-14 w-full justify-start gap-1 p-0 sm:overflow-x-auto"
+										className="scrollbar-none h-14 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:overflow-x-auto"
 									>
 										<TabsTrigger
 											value="overview"
@@ -930,9 +930,11 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 function BookDetailPanel({
 	title,
 	rows,
+	withTopDivider = true,
 }: {
 	title: string;
 	rows: DetailListRow[];
+	withTopDivider?: boolean;
 }) {
 	const headingId = useId();
 	if (rows.length === 0) return null;
@@ -940,7 +942,7 @@ function BookDetailPanel({
 	return (
 		<section
 			aria-labelledby={headingId}
-			className="border-border/70 border-t pt-8"
+			className={cn(withTopDivider && "border-border/70 border-t pt-8")}
 		>
 			<h2
 				id={headingId}
@@ -1069,6 +1071,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 				<BookDetailPanel
 					title={m["book.section_details"]()}
 					rows={detailRows}
+					withTopDivider={false}
 				/>
 			)}
 

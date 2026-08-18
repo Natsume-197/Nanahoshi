@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { useBookCardPresentation } from "@/components/books/book-card-presentation-context";
 import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
@@ -187,8 +188,13 @@ export function BookCardShell({
 	tint,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
+	const presentation = useBookCardPresentation();
+	const isShowcase = presentation === "showcase" && !isHorizontal;
+	const usesTintedSurface = isHorizontal || isShowcase;
+	const hasFooterContent =
+		subtitle !== undefined || (isHorizontal && meta != null);
 	const [hideCardText] = useHideCardText();
-	const hidesTextBlock = hideCardText && !isHorizontal;
+	const hidesTextBlock = hideCardText && !usesTintedSurface;
 	const hasImmediateCardAction = onCardAction !== undefined || fullCardAction;
 	// Virtualized grids AND horizontal carousels both sweep cards under a
 	// stationary cursor during scroll. In either, hover intent still preloads the
@@ -208,7 +214,7 @@ export function BookCardShell({
 		? getCoverPresetUrl(coverFilename, coverPreset)
 		: undefined;
 	const usesSquareCoverFrame =
-		square && !isHorizontal && coverFrameRatio === "square";
+		square && !isHorizontal && (coverFrameRatio === "square" || isShowcase);
 	// Square artwork in a mixed row keeps the 2/3 frame, so it letterboxes. The
 	// bands are a flat mat in the artwork's own color rather than a blown-up blur
 	// of it: mixed into the theme surface, so it stays quiet and reads as matting
@@ -239,10 +245,17 @@ export function BookCardShell({
 				// never shifts the text column of its card against the rest.
 				isHorizontal
 					? "flex size-16 shrink-0 items-center justify-start sm:size-[4.25rem]"
-					: cn(
-							"flex w-full items-center justify-center rounded-md bg-muted",
-							usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
-						),
+					: isShowcase
+						? cn(
+								"mx-auto flex shrink-0 items-center justify-center overflow-hidden rounded-md bg-black/10 shadow-[0_10px_24px_oklch(0_0_0/0.28)] ring-1 ring-white/10",
+								usesSquareCoverFrame
+									? "aspect-square w-[82%]"
+									: "aspect-[2/3] w-[74%]",
+							)
+						: cn(
+								"flex w-full items-center justify-center rounded-md bg-muted",
+								usesSquareCoverFrame ? "aspect-square" : "aspect-[2/3]",
+							),
 			)}
 			style={coverFrameColor ? { backgroundColor: coverFrameColor } : undefined}
 		>
@@ -306,6 +319,33 @@ export function BookCardShell({
 		</div>
 	);
 
+	const titleClassName = cn(
+		"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
+		isHorizontal
+			? HORIZONTAL_TITLE_CLASS
+			: isShowcase
+				? "min-h-12 text-balance text-center font-semibold text-base leading-snug tracking-tight md:text-lg"
+				: compactTextBlock
+					? COMPACT_TITLE_CLASS
+					: "text-base leading-relaxed",
+	);
+	const titleNode = hasImmediateCardAction ? (
+		<p className={titleClassName}>{title}</p>
+	) : (
+		<Link
+			{...(resolvedLinkProps as ComponentProps<typeof Link>)}
+			title={ariaLabel}
+			tabIndex={-1}
+			className={cn(
+				"pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+				isShowcase && "w-full text-center",
+			)}
+			onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
+		>
+			<p className={titleClassName}>{title}</p>
+		</Link>
+	);
+
 	return (
 		<div
 			data-slot="book-card-shell"
@@ -318,33 +358,48 @@ export function BookCardShell({
 				// 2:3 book are the same size.
 				isHorizontal
 					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5 shadow-card hover:shadow-card-hover motion-safe:transition-[box-shadow] motion-safe:duration-150 motion-safe:ease-out"
-					: cn("flex-col", hidesTextBlock ? "gap-0" : "gap-3"),
+					: isShowcase
+						? cn(
+								"flex-col justify-between gap-3 overflow-hidden rounded-2xl bg-card p-4 text-center shadow-card",
+								hasFooterContent
+									? "h-[24rem] lg:h-[25rem]"
+									: "h-[22rem] lg:h-[23rem]",
+							)
+						: cn("flex-col", hidesTextBlock ? "gap-0" : "gap-3"),
 			)}
-			// The stronger cover color is the defining surface of the compact Recent
-			// card. Mixing in oklab keeps the hue stable while leaving enough of the
-			// theme surface to make neighboring cards feel related.
-			style={isHorizontal ? getTintedCardStyle(tint) : undefined}
+			// Continue and Showcase intentionally share this single surface recipe.
+			// Keeping the cover tint here prevents either presentation from drifting
+			// when the color treatment changes later.
+			style={usesTintedSurface ? getTintedCardStyle(tint) : undefined}
 		>
+			{isShowcase && (
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] ring-1 ring-white/[0.08] ring-inset"
+				/>
+			)}
 			{/* Hover tint as an opacity fade on a premounted layer: opacity composites
 			    off the main thread, while transitioning background-color would
 			    style-recalc + paint every frame as cards sweep under the cursor.
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
-			<div
-				aria-hidden
-				style={isHorizontal ? undefined : getHoverTintStyle(tint)}
-				className={cn(
-					"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
-					isHorizontal
-						? "inset-0 bg-white/10 duration-150"
-						: // The fill grows OUTWARD instead of the card gaining padding, so
-							// it reads as a padded card while the cover itself still starts
-							// exactly on the section heading's line. Bounded by two things:
-							// half the smallest neighbouring gap (12px rails / 16px grids),
-							// so a hovered card never tints the cover beside it, and the
-							// rail's own py-1/md:py-2, which clips anything taller.
-							"-inset-x-1.5 -inset-y-1 bg-surface-hover duration-200 md:-inset-2",
-				)}
-			/>
+			{!isShowcase && (
+				<div
+					aria-hidden
+					style={isHorizontal ? undefined : getHoverTintStyle(tint)}
+					className={cn(
+						"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
+						isHorizontal
+							? "inset-0 bg-white/10 duration-150"
+							: // The fill grows OUTWARD instead of the card gaining padding, so
+								// it reads as a padded card while the cover itself still starts
+								// exactly on the section heading's line. Bounded by two things:
+								// half the smallest neighbouring gap (12px rails / 16px grids),
+								// so a hovered card never tints the cover beside it, and the
+								// rail's own py-1/md:py-2, which clips anything taller.
+								"-inset-x-1.5 -inset-y-1 bg-surface-hover duration-200 md:-inset-2",
+					)}
+				/>
+			)}
 			{onCardAction ? (
 				<button
 					type="button"
@@ -354,7 +409,7 @@ export function BookCardShell({
 					aria-label={cardActionAriaLabel ?? ariaLabel}
 					className={cn(
 						"absolute inset-0 z-0 cursor-pointer",
-						isHorizontal
+						usesTintedSurface
 							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
 							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 					)}
@@ -365,13 +420,14 @@ export function BookCardShell({
 					aria-label={ariaLabel}
 					className={cn(
 						"absolute inset-0 z-0 cursor-pointer",
-						isHorizontal
+						usesTintedSurface
 							? "rounded-2xl focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2"
 							: "rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
 					)}
 					onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
 				/>
 			)}
+			{isShowcase && titleNode}
 			{coverFrame}
 			{/* Hover action button at the bottom-right corner of horizontal cards. */}
 			{isHorizontal && overlay}
@@ -379,76 +435,46 @@ export function BookCardShell({
 			    subtitle) so every tile is the same height and the hover background
 			    never changes size. Content is top-aligned, so the subtitle always
 			    sits directly under the title and any slack falls at the bottom. */}
-			<div
-				className={cn(
-					"flex min-w-0 flex-col gap-1 px-0.5",
-					hidesTextBlock && "hidden",
-					hasImmediateCardAction && "pointer-events-none",
-					isHorizontal
-						? "flex-1 gap-0.5 pe-2"
-						: compactTextBlock
-							? COMPACT_TEXT_BLOCK_CLASS[subtitleLines]
-							: subtitleLines === 2
-								? "min-h-[6.5rem]"
-								: "min-h-[4.9375rem]",
-				)}
-			>
-				{hasImmediateCardAction ? (
-					<p
-						className={cn(
-							"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
-							isHorizontal
-								? HORIZONTAL_TITLE_CLASS
+			{(!isShowcase || hasFooterContent) && (
+				<div
+					className={cn(
+						"flex min-w-0 flex-col gap-1 px-0.5",
+						hidesTextBlock && "hidden",
+						hasImmediateCardAction && "pointer-events-none",
+						isHorizontal
+							? "flex-1 gap-0.5 pe-2"
+							: isShowcase
+								? "min-h-7 items-center justify-end gap-0.5 text-center"
 								: compactTextBlock
-									? COMPACT_TITLE_CLASS
-									: "text-base leading-relaxed",
-						)}
-					>
-						{title}
-					</p>
-				) : (
-					<Link
-						{...(resolvedLinkProps as ComponentProps<typeof Link>)}
-						title={ariaLabel}
-						tabIndex={-1}
-						className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-						onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
-					>
-						<p
+									? COMPACT_TEXT_BLOCK_CLASS[subtitleLines]
+									: subtitleLines === 2
+										? "min-h-[6.5rem]"
+										: "min-h-[4.9375rem]",
+					)}
+				>
+					{!isShowcase && titleNode}
+					{subtitle && (
+						<div
 							className={cn(
-								"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
-								isHorizontal
-									? HORIZONTAL_TITLE_CLASS
-									: compactTextBlock
-										? COMPACT_TITLE_CLASS
-										: "text-base leading-relaxed",
+								"relative z-10 leading-relaxed",
+								usesTintedSurface
+									? "text-current text-xs"
+									: "text-muted-foreground text-sm",
+								subtitleLines === 2
+									? "pointer-events-none flex flex-col gap-0.5"
+									: "line-clamp-1 [&>span]:inline",
 							)}
 						>
-							{title}
+							{subtitle}
+						</div>
+					)}
+					{isHorizontal && meta && (
+						<p className="relative z-10 text-pretty text-current text-xs tabular-nums leading-normal">
+							{meta}
 						</p>
-					</Link>
-				)}
-				{subtitle && (
-					<div
-						className={cn(
-							"relative z-10 leading-relaxed",
-							isHorizontal
-								? "text-current text-xs"
-								: "text-muted-foreground text-sm",
-							subtitleLines === 2
-								? "pointer-events-none flex flex-col gap-0.5"
-								: "line-clamp-1 [&>span]:inline",
-						)}
-					>
-						{subtitle}
-					</div>
-				)}
-				{isHorizontal && meta && (
-					<p className="relative z-10 text-pretty text-current text-xs tabular-nums leading-normal">
-						{meta}
-					</p>
-				)}
-			</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

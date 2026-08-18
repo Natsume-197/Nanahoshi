@@ -1,5 +1,6 @@
 import { type JSX, memo } from "react";
 import { AuthorLinkList } from "@/components/books/author-link-list";
+import { useBookCardPresentation } from "@/components/books/book-card-presentation-context";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { ScrollSection } from "@/components/shared/scroll-section";
@@ -7,6 +8,7 @@ import { coverPresets, getCoverFilename } from "@/utils/covers";
 import {
 	DASHBOARD_AUDIOBOOK_TILE_CLASS,
 	DASHBOARD_BOOK_TILE_CLASS,
+	DASHBOARD_SHOWCASE_TILE_CLASS,
 } from "./section-skeleton";
 
 export type SeriesEntry = {
@@ -68,11 +70,13 @@ export const SeriesSection = memo(function SeriesSection({
 	aspectRatio = "book",
 	countMessage,
 }: SeriesSectionProps): JSX.Element | null {
+	const presentation = useBookCardPresentation();
 	if (series.length === 0) {
 		return null;
 	}
 
-	const showAuthor = series.some((s) => s.author);
+	const showAuthor =
+		presentation !== "showcase" && series.some((s) => s.author);
 
 	return (
 		<ScrollSection
@@ -88,9 +92,11 @@ export const SeriesSection = memo(function SeriesSection({
 				>
 					<div
 						className={
-							aspectRatio === "square"
-								? DASHBOARD_AUDIOBOOK_TILE_CLASS
-								: DASHBOARD_BOOK_TILE_CLASS
+							presentation === "showcase"
+								? DASHBOARD_SHOWCASE_TILE_CLASS
+								: aspectRatio === "square"
+									? DASHBOARD_AUDIOBOOK_TILE_CLASS
+									: DASHBOARD_BOOK_TILE_CLASS
 						}
 					>
 						<BookCardShell
@@ -118,11 +124,15 @@ export const SeriesSection = memo(function SeriesSection({
 									<span className="line-clamp-1 block tabular-nums">
 										{countMessage({ count: s.count })}
 									</span>
-									{s.author ? (
+									{s.author && presentation !== "showcase" ? (
 										<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">
 											<AuthorLinkList
 												authors={[s.author]}
-												linkClassName="motion-safe:transition-colors hover:text-foreground"
+												linkClassName={
+													presentation === "showcase"
+														? "motion-safe:transition-colors hover:text-current"
+														: "motion-safe:transition-colors hover:text-foreground"
+												}
 											/>
 										</span>
 									) : null}

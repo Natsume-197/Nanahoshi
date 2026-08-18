@@ -52,7 +52,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 				>
 					<BookCard
 						uuid={item.book.uuid}
-						title={item.seriesName ?? item.book.title}
+						title={item.book.title}
 						filename={item.book.filename}
 						cover={item.book.cover}
 						tint={item.book.mainColor}

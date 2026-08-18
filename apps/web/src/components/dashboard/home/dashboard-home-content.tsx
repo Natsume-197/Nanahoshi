@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type JSX, memo } from "react";
+import { BookCardPresentationProvider } from "@/components/books/book-card-presentation-context";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import {
 	type HomeSectionId,
@@ -43,20 +44,24 @@ function DashboardHomeSkeleton({
 				{layout
 					.filter((item) => item.visible)
 					.slice(0, 4)
-					.map((item) =>
-						item.id === "continue" ? (
-							<ResumeSectionSkeleton key={item.id} />
-						) : (
-							<SectionSkeleton
-								key={item.id}
-								square={
-									item.id === "audiobooks-for-you" ||
-									item.id === "audiobook-series" ||
-									item.id === "random-audiobooks"
-								}
-							/>
-						),
-					)}
+					.map((item) => (
+						<BookCardPresentationProvider
+							key={item.id}
+							value={item.carouselStyle}
+						>
+							{item.id === "continue" ? (
+								<ResumeSectionSkeleton />
+							) : (
+								<SectionSkeleton
+									square={
+										item.id === "audiobooks-for-you" ||
+										item.id === "audiobook-series" ||
+										item.id === "random-audiobooks"
+									}
+								/>
+							)}
+						</BookCardPresentationProvider>
+					))}
 			</div>
 		</div>
 	);
@@ -97,7 +102,9 @@ function OrderedHomeSections({
 			{layout.map((item) =>
 				item.visible ? (
 					<Fragment key={item.id}>
-						<HomeSection id={item.id} />
+						<BookCardPresentationProvider value={item.carouselStyle}>
+							<HomeSection id={item.id} />
+						</BookCardPresentationProvider>
 					</Fragment>
 				) : null,
 			)}

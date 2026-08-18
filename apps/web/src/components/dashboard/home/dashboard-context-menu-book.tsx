@@ -1,9 +1,11 @@
 import type { JSX, ReactNode } from "react";
+import { useBookCardPresentation } from "@/components/books/book-card-presentation-context";
 import { BookContextMenuTrigger } from "@/components/books/book-context-menu";
 import type { MediaType } from "@/hooks/books/use-book-context-menu-actions";
 import {
 	DASHBOARD_AUDIOBOOK_TILE_CLASS,
 	DASHBOARD_BOOK_TILE_CLASS,
+	DASHBOARD_SHOWCASE_TILE_CLASS,
 } from "./section-skeleton";
 
 type DashboardContextMenuBookProps = {
@@ -19,6 +21,7 @@ export function DashboardContextMenuBook({
 	mediaType,
 	isRecommendation,
 }: DashboardContextMenuBookProps): JSX.Element {
+	const presentation = useBookCardPresentation();
 	return (
 		<BookContextMenuTrigger
 			bookUuid={bookUuid}
@@ -27,9 +30,11 @@ export function DashboardContextMenuBook({
 		>
 			<div
 				className={
-					mediaType === "audiobook"
-						? DASHBOARD_AUDIOBOOK_TILE_CLASS
-						: DASHBOARD_BOOK_TILE_CLASS
+					presentation === "showcase"
+						? DASHBOARD_SHOWCASE_TILE_CLASS
+						: mediaType === "audiobook"
+							? DASHBOARD_AUDIOBOOK_TILE_CLASS
+							: DASHBOARD_BOOK_TILE_CLASS
 				}
 			>
 				{children}

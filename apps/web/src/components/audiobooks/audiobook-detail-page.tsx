@@ -253,13 +253,13 @@ export function AudiobookDetailPage() {
 										PAGE_GUTTER,
 										// Pins to the very top: below md these routes drop the top bar,
 										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 mt-6 bg-background/95 py-1 backdrop-blur-xl supports-[backdrop-filter]:bg-background/90 lg:mx-0 lg:px-0",
+										"sticky top-0 z-20 mt-6 bg-background py-1 lg:mx-0 lg:px-0",
 									)}
 								>
 									<TabsList
 										variant="line"
 										aria-label={m["audiobook.tabs_label"]()}
-										className="scrollbar-none h-14 w-full justify-start gap-1 p-0 sm:overflow-x-auto"
+										className="scrollbar-none h-14 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:overflow-x-auto"
 									>
 										<TabsTrigger
 											value="overview"

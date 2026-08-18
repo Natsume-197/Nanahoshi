@@ -92,7 +92,6 @@ export function getMutedAccentSurfaceColor(accentColor: string): string | null {
 // grids that re-render every scroll frame — without this the search runs per
 // tile per frame. Caching the object also keeps its identity stable.
 const tintedCardStyles = new Map<string, CSSProperties | undefined>();
-
 const hoverTintStyles = new Map<string, CSSProperties>();
 
 /**
@@ -114,8 +113,8 @@ export function getHoverTintStyle(
 
 /**
  * The whole "this card is the color of its artwork" treatment in one place:
- * the muted plate plus the foreground that survives on it. Shared by the
- * horizontal Recent cards and the genre/tag tiles so they stay one look.
+ * the muted plate plus the foreground that survives on it. Shared by Continue,
+ * Showcase, and genre/tag tiles so every tinted surface follows one recipe.
  */
 export function getTintedCardStyle(
 	tint: string | null | undefined,
