@@ -269,7 +269,7 @@ export const PlayerBar = memo(function PlayerBar({
 			{/* ── Desktop dock. Its surface absorbs the bottom inset (a landscape
 			     tablet is >=md and still has a home indicator); --player-reserve
 			     keeps the layout in step. ── */}
-			<div className="hidden h-[var(--player-reserve)] border-border border-t bg-card px-4 pb-[var(--safe-area-bottom)] text-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
+			<div className="hidden h-[var(--player-reserve)] border-sidebar-border border-t bg-sidebar px-4 pb-[var(--safe-area-bottom)] text-sidebar-foreground shadow-[0_-4px_16px_-8px_rgba(0,0,0,0.18)] md:block">
 				{/* Three columns: info left, transport centered on ~half, controls right. */}
 				<div className="flex h-full w-full items-center gap-4">
 					<div className="flex min-w-0 flex-1 items-center gap-2.5">

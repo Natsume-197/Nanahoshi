@@ -114,6 +114,15 @@ describe("expanded player motion", () => {
 		expect(playerBar).toContain("<ReadListenFollowButton");
 	});
 
+	it("paints both player docks on the chrome surface, never on a card", () => {
+		// The bar spans the full window under the rail, so it is part of the
+		// frame around the content sheet — a card step would open that frame at
+		// the bottom edge. Sidebar tokens also follow the reader theme override.
+		expect(playerBar).toContain("border-sidebar-border border-t bg-sidebar");
+		expect(playerBar).not.toContain("bg-card");
+		expect(miniPlayer).not.toContain("after:bg-card");
+	});
+
 	it("keeps the reader scrollbar usable while the dock paints full-bleed", () => {
 		expect(miniPlayer).toContain("fixed inset-x-0");
 		expect(miniPlayer).toContain('placement === "reader"');

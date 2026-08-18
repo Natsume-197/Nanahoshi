@@ -364,7 +364,7 @@ function customPaletteVars(
 					"--border": mix(background, 88, "white"),
 					"--input": mix(background, 88, "black"),
 					"--ring": mix(primary, 80, "black"),
-					"--sidebar": mix(background, 70, "black"),
+					"--sidebar": mix(background, 88, "black"),
 					"--sidebar-accent": mix(card, 90, "black"),
 					"--sidebar-border": mix(background, 90, "white"),
 				}

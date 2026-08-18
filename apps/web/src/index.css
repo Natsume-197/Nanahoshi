@@ -130,37 +130,37 @@
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	/* Every dark surface is a pure neutral (r=g=b): the ladder carries no hue,
-	   so nothing picks up a cool cast as it rises off the canvas. Hover and
-	   border steps are white veils rather than fixed values, so they keep
-	   their weight on whichever surface they land on. */
-	--background: oklch(0.226 0 90);
-	--foreground: oklch(0.9451 0 90);
+	/* Sampled off Discord's dark theme (2026 build), then the whole ladder
+	   taken down 0.016 L on the user's ask — the steps between surfaces are
+	   Discord's, the floor is a notch below it. Near-black on a whisper of hue
+	   286 (chroma 0.004 on the chrome, 0.0095 on the sheet), an order of
+	   magnitude below where that hue starts reading lavender; ink stays pure
+	   neutral. Hover and border steps are white veils rather than fixed
+	   values, so they keep their weight on whichever surface they land on. */
+	--background: oklch(0.225 0.0095 286);
+	--foreground: oklch(0.9551 0 90);
 	--reading: oklch(0.917 0 90);
-	--card: oklch(0.285 0 90);
+	--card: oklch(0.262 0.0055 286);
 	--card-border: rgba(255, 255, 255, 0.1);
 	--card-foreground: oklch(0.9587 0 90);
 	--surface-card: var(--card);
 	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
-	--popover: oklch(0.285 0 90);
+	--popover: oklch(0.262 0.0055 286);
 	--popover-foreground: oklch(0.9587 0 90);
-	--dropdown: color-mix(
-		in oklab,
-		var(--popover) 94%,
-		var(--popover-foreground)
-	);
+	--dropdown: var(--popover);
 	--dropdown-destructive: color-mix(
 		in oklab,
 		var(--destructive) 40%,
 		var(--popover-foreground)
 	);
 	--primary: oklch(0.9551 0 0);
-	--primary-foreground: oklch(0.211 0 90);
-	--floating-action: oklch(0.203 0 90);
+	--primary-foreground: oklch(0.198 0.004 286);
+	--floating-action: oklch(0.198 0.004 286);
 	--floating-action-foreground: oklch(0.97 0 90);
-	--secondary: oklch(0.33 0 90);
+	/* Discord's row-hover/active fill. */
+	--secondary: oklch(0.298 0.004 286);
 	--secondary-foreground: oklch(0.9587 0 90);
-	--muted: oklch(0.285 0 90);
+	--muted: oklch(0.262 0.0055 286);
 	--muted-foreground: oklch(0.738 0 90);
 	--accent: rgba(255, 255, 255, 0.14);
 	--accent-foreground: oklch(0.9672 0 90);
@@ -170,19 +170,27 @@
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
 	--border: rgba(255, 255, 255, 0.1);
-	--input: oklch(0.258 0 90);
+	--input: oklch(0.216 0.006 286);
+	/* A veil rather than a fixed fill: the ladder is tight enough that any
+	   solid value reads on one rung and vanishes on the next — the header
+	   search sits on the chrome, a settings field on a card. It lifts rather
+	   than sinks, because the chrome is near-black already and a well there
+	   just reads as a hole; kept low so a field in a dialog never becomes the
+	   brightest thing on screen. --input stays solid for the borders and tracks
+	   derived from it. */
+	--control: rgba(255, 255, 255, 0.03);
 	--ring: oklch(0.7641 0 0);
 	--chart-1: oklch(0.9551 0 0);
 	--chart-2: oklch(0.8178 0 90);
 	--chart-3: oklch(0.6805 0 90);
 	--chart-4: oklch(0.5432 0 90);
 	--chart-5: oklch(0.4059 0 90);
-	/* Chrome sits below the raised content sheet, so it stays darker than
-	   --background by the same delta the light theme uses (-0.03 L). */
-	--sidebar: oklch(0.151 0.004 285.878);
+	/* Chrome sits below the raised content sheet (-0.027 L), the same split
+	   Discord runs between its channel list and the chat pane. */
+	--sidebar: oklch(0.198 0.004 286);
 	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
-	--sidebar-primary-foreground: oklch(0.211 0 90);
+	--sidebar-primary-foreground: oklch(0.198 0.004 286);
 	--sidebar-accent: rgba(255, 255, 255, 0.1);
 	--sidebar-accent-foreground: oklch(0.9672 0 90);
 	--sidebar-border: rgba(255, 255, 255, 0.1);

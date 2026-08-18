@@ -181,7 +181,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 					"read-listen-player-dock fixed inset-x-0 text-sidebar-foreground md:bottom-0",
 					miniPlayerBarLayer(isExpanded, hasContent),
 					placement === "reader"
-						? "bottom-[var(--safe-area-bottom)] after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-sidebar after:content-[''] md:after:bg-card"
+						? "bottom-[var(--safe-area-bottom)] after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-sidebar after:content-['']"
 						: "bottom-[calc(var(--mobile-tabbar-height)+var(--safe-area-bottom))]",
 				)}
 				style={
