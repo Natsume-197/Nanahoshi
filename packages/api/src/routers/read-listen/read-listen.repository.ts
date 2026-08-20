@@ -246,6 +246,14 @@ export class ReadListenRepository {
 			.orderBy(readListenPair.createdAt);
 	}
 
+	async listAllPairRows(serverId: string): Promise<ReadListenPairRow[]> {
+		return await db
+			.select()
+			.from(readListenPair)
+			.where(eq(readListenPair.serverId, serverId))
+			.orderBy(desc(readListenPair.updatedAt));
+	}
+
 	async getPairRow(
 		id: string,
 		serverId: string,

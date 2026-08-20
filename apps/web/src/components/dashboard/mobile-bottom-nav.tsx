@@ -1,5 +1,6 @@
 import {
 	BookOpen,
+	BookOpenText,
 	Books,
 	Buildings,
 	Folder,
@@ -66,6 +67,12 @@ const catalogEntries = [
 		href: "/dashboard/audiobooks",
 		label: m["home.all_audiobooks"],
 		icon: Headphones,
+	},
+	{
+		section: "read-listen",
+		href: "/dashboard/read-listen",
+		label: m["nav.read_listen"],
+		icon: BookOpenText,
 	},
 ] as const;
 
@@ -151,6 +158,7 @@ export function MobileBottomNav({
 	const isLibraryActive =
 		railSection === "books" ||
 		railSection === "audiobooks" ||
+		railSection === "read-listen" ||
 		location.pathname.startsWith("/dashboard/libraries") ||
 		browseNavItems.some((item) => location.pathname.startsWith(item.href));
 

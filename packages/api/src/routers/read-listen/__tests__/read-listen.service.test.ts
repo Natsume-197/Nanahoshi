@@ -135,6 +135,7 @@ function createHarness() {
 			),
 		),
 		listPairRows: mock(() => Promise.resolve([] as ReadListenPairRow[])),
+		listAllPairRows: mock(() => Promise.resolve([] as ReadListenPairRow[])),
 		getPairRow: mock(() => Promise.resolve(pairRow)),
 		listAlignmentRows: mock(() =>
 			Promise.resolve([] as ReadListenAlignmentRow[]),
@@ -213,6 +214,17 @@ function createHarness() {
 }
 
 describe("ReadListenService", () => {
+	test("lists only pairs whose two publications are in the caller scope", async () => {
+		const { service, store } = createHarness();
+		store.listAllPairRows.mockResolvedValue([pairRow]);
+		store.listPublicationsByIds.mockResolvedValue([ebook]);
+
+		const result = await service.listPairings("server-1", [1]);
+
+		expect(result).toEqual([]);
+		expect(store.listAllPairRows).toHaveBeenCalledWith("server-1");
+	});
+
 	test("canonicalizes the endpoints when association starts from an audiobook", async () => {
 		const { service, store } = createHarness();
 

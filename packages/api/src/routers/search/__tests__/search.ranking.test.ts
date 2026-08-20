@@ -6,6 +6,7 @@ const emptyPools = (): TopResultPools => ({
 	series: [],
 	authors: [],
 	audiobooks: [],
+	readListen: [],
 	collections: [],
 	users: [],
 });
@@ -102,5 +103,31 @@ describe("rankTopResults", () => {
 
 		const [first] = rankTopResults(pools, "overlord", 5);
 		expect(first?.type === "series" && first.uuid).toBe("big");
+	});
+
+	test("ranks a Read & Listen pair by either publication's metadata", () => {
+		const pools = emptyPools();
+		pools.readListen.push({
+			id: "pair-1",
+			ebook: {
+				uuid: "ebook-1",
+				title: "The Book",
+				filename: "the-book.epub",
+				cover: "the-book.avif",
+				authors: [{ name: "Ada Lovelace" }],
+			},
+			audiobook: {
+				uuid: "audiobook-1",
+				title: "The Book (Unabridged)",
+				filename: "the-book.m4b",
+				cover: "the-book-audio.avif",
+				authors: [{ name: "Ada Lovelace" }],
+				narrators: [{ name: "Grace Hopper" }],
+			},
+		});
+
+		const [first] = rankTopResults(pools, "grace hopper", 5);
+
+		expect(first).toMatchObject({ type: "read-listen", id: "pair-1" });
 	});
 });

@@ -1,5 +1,6 @@
 import {
 	BookOpen,
+	BookOpenText,
 	Books,
 	Buildings,
 	DotsThree,
@@ -37,6 +38,7 @@ interface RailItem {
 		| "/dashboard"
 		| "/dashboard/books"
 		| "/dashboard/audiobooks"
+		| "/dashboard/read-listen"
 		| "/dashboard/collections"
 		| "/dashboard/series"
 		| "/dashboard/genres";
@@ -79,6 +81,13 @@ const railItems: RailItem[] = [
 		label: m["nav.audiobooks"],
 		icon: Headphones,
 		section: "audiobooks",
+		needsCatalog: true,
+	},
+	{
+		href: "/dashboard/read-listen",
+		label: m["nav.read_listen"],
+		icon: BookOpenText,
+		section: "read-listen",
 		needsCatalog: true,
 	},
 	{
@@ -155,7 +164,9 @@ function BlockBody({
 					className="size-5"
 				/>
 			</span>
-			<span className="max-w-full truncate font-medium">{label}</span>
+			<span className="max-w-full text-center font-medium leading-tight">
+				{label}
+			</span>
 		</>
 	);
 }
@@ -182,8 +193,8 @@ export function DashboardAppRail({
 	return (
 		<nav
 			aria-label={m["nav.menu"]()}
-			// Sized for the longest label we ship at 10px ("Colecciones"); a longer
-			// locale still truncates, so every block carries a title as the escape.
+			// Labels wrap to keep localized destinations fully visible; every block
+			// also carries a title as an additional escape for narrow rail space.
 			className="theme-gradient-surface hidden w-[5.5rem] shrink-0 flex-col items-center bg-sidebar px-2 md:flex"
 		>
 			<div className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain py-2">

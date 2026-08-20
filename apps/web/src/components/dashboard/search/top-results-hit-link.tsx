@@ -32,6 +32,16 @@ export function HitLink({
 					{children}
 				</Link>
 			);
+		case "read-listen":
+			return (
+				<Link
+					to="/dashboard/audiobooks/$uuid"
+					params={{ uuid: hit.audiobook.uuid }}
+					{...shared}
+				>
+					{children}
+				</Link>
+			);
 		case "series":
 			return (
 				<Link

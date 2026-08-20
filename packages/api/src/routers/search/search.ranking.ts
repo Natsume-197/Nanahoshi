@@ -1,4 +1,4 @@
-import type { TopHit } from "./search.model";
+import type { TopHit, TopReadListenPublication } from "./search.model";
 
 // Pure cross-type re-ranking, shared by the server (search.top endpoint used
 // by the header dropdown) and the web search page (which ranks the section
@@ -11,6 +11,7 @@ import type { TopHit } from "./search.model";
 const TYPE_WEIGHT: Record<TopHit["type"], number> = {
 	series: 1.15,
 	book: 1.0,
+	"read-listen": 0.95,
 	author: 0.95,
 	audiobook: 0.9,
 	collection: 0.75,
@@ -61,6 +62,11 @@ export type TopResultPools = {
 		filename: string;
 		cover?: string | null;
 		authors?: AuthorRef[] | null;
+	}[];
+	readListen: {
+		id: string;
+		ebook: TopReadListenPublication;
+		audiobook: TopReadListenPublication;
 	}[];
 	collections: {
 		id: string;
@@ -135,6 +141,21 @@ export function rankTopResults(
 				authors: ab.authors ?? [],
 			},
 			names: [ab.title, ...(ab.authors ?? []).map((a) => a.name)],
+		})),
+		...pools.readListen.map((pairing) => ({
+			hit: {
+				type: "read-listen" as const,
+				id: pairing.id,
+				ebook: pairing.ebook,
+				audiobook: pairing.audiobook,
+			},
+			names: [
+				pairing.ebook.title,
+				...pairing.ebook.authors.map((author) => author.name),
+				pairing.audiobook.title,
+				...pairing.audiobook.authors.map((author) => author.name),
+				...(pairing.audiobook.narrators ?? []).map((narrator) => narrator.name),
+			],
 		})),
 		...pools.collections.map((c) => ({
 			hit: {

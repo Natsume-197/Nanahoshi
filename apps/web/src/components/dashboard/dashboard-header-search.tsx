@@ -50,6 +50,8 @@ function hitKey(hit: TopHit): string {
 		case "book":
 		case "audiobook":
 			return `${hit.type}-${hit.uuid}`;
+		case "read-listen":
+			return `read-listen-${hit.id}`;
 		case "series":
 		case "author":
 			return `${hit.type}-${hit.uuid}`;
@@ -236,6 +238,13 @@ export function DashboardHeaderSearch() {
 					params: { uuid: hit.uuid },
 				});
 				break;
+			case "read-listen":
+				resetAndClose();
+				navigate({
+					to: "/dashboard/audiobooks/$uuid",
+					params: { uuid: hit.audiobook.uuid },
+				});
+				break;
 			case "author":
 				resetAndClose();
 				navigate({
@@ -369,6 +378,11 @@ export function DashboardHeaderSearch() {
 						{m["book.no_cover"]()}
 					</span>,
 				);
+			case "read-listen":
+				return thumb(
+					hit.audiobook.cover,
+					<Books className="size-4 text-muted-foreground/50" />,
+				);
 			case "series":
 				return thumb(
 					hit.cover,
@@ -406,6 +420,15 @@ export function DashboardHeaderSearch() {
 				return {
 					title: hit.title ?? hit.filename,
 					subtitle: authorText ? `${typeLabel} · ${authorText}` : typeLabel,
+				};
+			}
+			case "read-listen": {
+				const authorText = formatNames(hit.audiobook.authors);
+				return {
+					title: hit.audiobook.title,
+					subtitle: authorText
+						? `${m["nav.read_listen"]()} · ${authorText}`
+						: m["nav.read_listen"](),
 				};
 			}
 			case "series":

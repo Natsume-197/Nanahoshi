@@ -40,6 +40,26 @@ export function createReadListenRouter(
 	service: typeof readListenService = readListenService,
 ) {
 	return {
+		listPairings: orgReadProcedure.handler(async ({ context }) => {
+			const pairings = await service.listPairings(
+				context.serverId,
+				context.accessibleLibraryIds,
+			);
+			const visible = await Promise.all(
+				pairings.map(async (pairing) =>
+					(await canReadPublications(context.session, [
+						pairing.ebook.uuid,
+						pairing.audiobook.uuid,
+					]))
+						? pairing
+						: null,
+				),
+			);
+			return visible.filter(
+				(pairing): pairing is NonNullable<typeof pairing> => pairing !== null,
+			);
+		}),
+
 		getPairings: orgReadProcedure
 			.input(GetReadListenPairingsInput)
 			.handler(async ({ input, context }) => {

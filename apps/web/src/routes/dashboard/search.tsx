@@ -1,5 +1,5 @@
+import type { ReadListenPairing } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
 import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
-import type { TopResultPools } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import {
 	BookOpen,
 	Books,
@@ -18,14 +18,7 @@ import {
 	redirect,
 	useRouter,
 } from "@tanstack/react-router";
-import {
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -43,11 +36,7 @@ import {
 	readUiSnapshot,
 	saveUiSnapshot,
 } from "@/lib/scroll-restoration";
-import {
-	mergeStableSearchResults,
-	rankSearchResultBatches,
-	searchResultKey,
-} from "@/lib/search-result-batches";
+import { searchResultKey } from "@/lib/search-result-batches";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -58,12 +47,13 @@ import {
 	getCoverSrcSet,
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 type SearchTypeFilter =
 	| "all"
 	| "books"
 	| "audiobooks"
+	| "read-listen"
 	| "series"
 	| "authors"
 	| "collections"
@@ -86,6 +76,7 @@ export const Route = createFileRoute("/dashboard/search")({
 });
 
 const SEARCH_MIN_QUERY_LENGTH = 1;
+const SEARCH_TOP_RESULTS_LIMIT = 20;
 const SKELETON_ROW_COUNT = 5;
 const ROW_SKELETON_KEYS = Array.from(
 	{ length: SKELETON_ROW_COUNT },
@@ -427,6 +418,9 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 			/>
 		);
 	}
+	if (hit.type === "read-listen") {
+		return <ReadListenResultRow pairing={hit} />;
+	}
 
 	let artwork: ReactNode;
 	let title: string;
@@ -537,30 +531,6 @@ function InfiniteResultsLoader({
 	);
 }
 
-function useStableRankedResults(query: string, latestRanked: TopHit[]) {
-	const [snapshot, setSnapshot] = useState(() => ({
-		query,
-		results: latestRanked,
-	}));
-	const stableResults = useMemo(
-		() =>
-			snapshot.query === query
-				? mergeStableSearchResults(snapshot.results, latestRanked)
-				: latestRanked,
-		[latestRanked, query, snapshot],
-	);
-
-	useEffect(() => {
-		setSnapshot((previous) =>
-			previous.query === query && previous.results === stableResults
-				? previous
-				: { query, results: stableResults },
-		);
-	}, [query, stableResults]);
-
-	return stableResults;
-}
-
 function SearchEmptyState({
 	title,
 	description,
@@ -583,37 +553,168 @@ function SearchEmptyState({
 	);
 }
 
+function pairingMatchesQuery(pairing: ReadListenPairing, query: string) {
+	const haystack = [
+		pairing.ebook.title,
+		pairing.ebook.filename,
+		...pairing.ebook.authors.map((author) => author.name),
+		pairing.audiobook.title,
+		pairing.audiobook.filename,
+		...pairing.audiobook.authors.map((author) => author.name),
+		...pairing.audiobook.narrators.map((narrator) => narrator.name),
+	]
+		.join(" ")
+		.toLocaleLowerCase();
+	return haystack.includes(query.toLocaleLowerCase());
+}
+
+type ReadListenSearchResult = Extract<TopHit, { type: "read-listen" }>;
+
+function ReadListenArtwork({ pairing }: { pairing: ReadListenSearchResult }) {
+	const ebookCover = getCoverFilename(pairing.ebook.cover);
+	const audiobookCover = getCoverFilename(pairing.audiobook.cover);
+
+	return (
+		<div className="relative size-28 shrink-0" aria-hidden="true">
+			<div
+				className={cn(
+					"absolute inset-y-0 start-0 flex h-28 w-[4.625rem] items-center justify-center overflow-hidden rounded-md bg-muted shadow-black/20 shadow-sm",
+					COVER_EDGE,
+				)}
+			>
+				{ebookCover ? (
+					<img
+						src={getCoverPresetUrl(ebookCover, coverPresets.thumbnail)}
+						srcSet={getCoverSrcSet(ebookCover, coverPresets.thumbnail.widths)}
+						sizes="74px"
+						alt=""
+						className="size-full object-cover"
+						loading="lazy"
+						decoding="async"
+						width={148}
+						height={224}
+					/>
+				) : (
+					<BookOpen className="size-7 text-muted-foreground" />
+				)}
+			</div>
+			<div
+				className={cn(
+					"absolute end-0 bottom-0 z-10 flex size-20 items-center justify-center overflow-hidden rounded-lg bg-muted shadow-black/30 shadow-lg",
+					COVER_EDGE,
+				)}
+			>
+				{audiobookCover ? (
+					<img
+						src={getCoverPresetUrl(audiobookCover, coverPresets.thumbnail)}
+						srcSet={getCoverSrcSet(
+							audiobookCover,
+							coverPresets.thumbnail.widths,
+						)}
+						sizes="80px"
+						alt=""
+						className="size-full object-cover"
+						loading="lazy"
+						decoding="async"
+						width={160}
+						height={160}
+					/>
+				) : (
+					<Headphones className="size-7 text-muted-foreground" />
+				)}
+			</div>
+		</div>
+	);
+}
+
+function ReadListenResultRow({ pairing }: { pairing: ReadListenSearchResult }) {
+	const title = pairing.audiobook.title;
+	const authorText = formatNames(pairing.audiobook.authors);
+
+	return (
+		<li>
+			<BookContextMenuTrigger
+				bookUuid={pairing.audiobook.uuid}
+				mediaType="audiobook"
+				className="block"
+			>
+				<Link
+					to="/dashboard/audiobooks/$uuid"
+					params={{ uuid: pairing.audiobook.uuid }}
+					preload="intent"
+					className={rowClassName}
+				>
+					<ResultRowContent
+						artwork={<ReadListenArtwork pairing={pairing} />}
+						title={title}
+						subtitle={authorText}
+						meta={m["nav.read_listen"]()}
+					/>
+				</Link>
+			</BookContextMenuTrigger>
+		</li>
+	);
+}
+
 function SearchPage() {
 	const { q } = Route.useSearch();
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 	const { recent: recentSearches } = useRecentSearches();
+	const router = useRouter();
+	const [filterSnapshotKey] = useState(
+		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
+	);
+	const [filter, setFilter] = useState<SearchTypeFilter>(
+		() => readUiSnapshot<SearchTypeFilter>(filterSnapshotKey) ?? "all",
+	);
+	useOnUnmount(() => saveUiSnapshot(filterSnapshotKey, filter));
+	const prevQueryRef = useRef(normalizedQuery);
+	if (normalizedQuery !== prevQueryRef.current) {
+		prevQueryRef.current = normalizedQuery;
+		setFilter("all");
+	}
+	const isAll = filter === "all";
+	const { data: topResults, isLoading: isTopLoading } = useQuery({
+		...orpc.search.top.queryOptions({
+			input: { query: normalizedQuery, limit: SEARCH_TOP_RESULTS_LIMIT },
+		}),
+		enabled: shouldSearch && isAll,
+		staleTime: 60_000,
+	});
 
 	const { data: seriesData, isLoading: isSeriesLoading } = useQuery({
 		queryKey: ["series", "search", normalizedQuery],
 		queryFn: () => client.series.search({ query: normalizedQuery }),
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "series",
 		staleTime: 60_000,
 	});
 	const { data: authorsData, isLoading: isAuthorsLoading } = useQuery({
 		queryKey: ["authors", "search", normalizedQuery],
 		queryFn: () => client.authors.search({ query: normalizedQuery }),
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "authors",
 		staleTime: 60_000,
 	});
 	const { data: usersData, isLoading: isUsersLoading } = useQuery({
 		queryKey: ["users", "search", normalizedQuery],
 		queryFn: () => client.users.search({ query: normalizedQuery, limit: 10 }),
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "users",
 		staleTime: 60_000,
 	});
 	const { data: collectionsData, isLoading: isCollectionsLoading } = useQuery({
 		queryKey: ["collections", "search", normalizedQuery],
 		queryFn: () =>
 			client.collections.search({ query: normalizedQuery, limit: 20 }),
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "collections",
 		staleTime: 60_000,
 	});
+	const { data: readListenPairings, isLoading: isReadListenLoading } = useQuery(
+		{
+			...orpc.readListen.listPairings.queryOptions(),
+			enabled: shouldSearch && filter === "read-listen",
+			staleTime: 60_000,
+		},
+	);
 	const {
 		data: booksData,
 		isLoading: isBooksLoading,
@@ -630,7 +731,7 @@ function SearchPage() {
 			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "books",
 		staleTime: 60_000,
 	});
 	const {
@@ -649,7 +750,7 @@ function SearchPage() {
 			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-		enabled: shouldSearch,
+		enabled: shouldSearch && filter === "audiobooks",
 		staleTime: 60_000,
 	});
 
@@ -665,172 +766,73 @@ function SearchPage() {
 	const authors = authorsData ?? [];
 	const users = usersData ?? [];
 	const collections = collectionsData ?? [];
+	const matchingReadListenPairings = useMemo(
+		() =>
+			(readListenPairings ?? []).filter((pairing) =>
+				pairingMatchesQuery(pairing, normalizedQuery),
+			),
+		[readListenPairings, normalizedQuery],
+	);
 	const booksTotal = booksData?.pages[0]?.pagination.totalHits ?? books.length;
 	const audiobooksTotal =
 		audiobooksData?.pages[0]?.pagination.totalHits ?? audiobooks.length;
-	const isAllLoading =
-		isBooksLoading ||
-		isAudiobooksLoading ||
-		isSeriesLoading ||
-		isAuthorsLoading ||
-		isCollectionsLoading ||
-		isUsersLoading;
-	const router = useRouter();
-	const [filterSnapshotKey] = useState(
-		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
-	);
-	const [filter, setFilter] = useState<SearchTypeFilter>(
-		() => readUiSnapshot<SearchTypeFilter>(filterSnapshotKey) ?? "all",
-	);
-	useOnUnmount(() => saveUiSnapshot(filterSnapshotKey, filter));
-	const prevQueryRef = useRef(normalizedQuery);
-	if (normalizedQuery !== prevQueryRef.current) {
-		prevQueryRef.current = normalizedQuery;
-		setFilter("all");
-	}
-
-	const isAll = filter === "all";
+	const isSearchLoading =
+		(filter === "all" && isTopLoading) ||
+		(filter === "books" && isBooksLoading) ||
+		(filter === "audiobooks" && isAudiobooksLoading) ||
+		(filter === "read-listen" && isReadListenLoading) ||
+		(filter === "series" && isSeriesLoading) ||
+		(filter === "authors" && isAuthorsLoading) ||
+		(filter === "collections" && isCollectionsLoading) ||
+		(filter === "users" && isUsersLoading);
 	const fetchMoreBooks = useCallback(() => {
 		void booksFetchNextPage();
 	}, [booksFetchNextPage]);
 	const fetchMoreAudiobooks = useCallback(() => {
 		void audiobooksFetchNextPage();
 	}, [audiobooksFetchNextPage]);
-	const fetchMoreAll = useCallback(() => {
-		if (booksHasNextPage) fetchMoreBooks();
-		if (audiobooksHasNextPage) fetchMoreAudiobooks();
-	}, [
-		booksHasNextPage,
-		audiobooksHasNextPage,
-		fetchMoreBooks,
-		fetchMoreAudiobooks,
-	]);
-	const latestRankedResults = useMemo(() => {
-		const bookPages = booksData?.pages ?? [];
-		const audiobookPages = audiobooksData?.pages ?? [];
-		const batches: TopResultPools[] = [
-			{
-				books: bookPages[0]?.books ?? [],
-				audiobooks: audiobookPages[0]?.audiobooks ?? [],
-				series,
-				authors,
-				collections,
-				users,
-			},
-		];
-		const pageCount = Math.max(bookPages.length, audiobookPages.length);
-
-		for (let index = 1; index < pageCount; index += 1) {
-			const bookPage = bookPages[index];
-			if (bookPage) {
-				batches.push({
-					books: bookPage.books,
-					audiobooks: [],
-					series: [],
-					authors: [],
-					collections: [],
-					users: [],
-				});
-			}
-
-			const audiobookPage = audiobookPages[index];
-			if (audiobookPage) {
-				batches.push({
-					books: [],
-					audiobooks: audiobookPage.audiobooks,
-					series: [],
-					authors: [],
-					collections: [],
-					users: [],
-				});
-			}
-		}
-
-		return rankSearchResultBatches(batches, normalizedQuery);
-	}, [
-		booksData,
-		audiobooksData,
-		series,
-		authors,
-		collections,
-		users,
-		normalizedQuery,
-	]);
-	const rankedResults = useStableRankedResults(
-		normalizedQuery,
-		latestRankedResults,
-	);
 	const resultCounts: Record<SearchTypeFilter, number> = {
-		all:
-			booksTotal +
-			audiobooksTotal +
-			series.length +
-			authors.length +
-			collections.length +
-			users.length,
+		all: topResults?.length ?? 0,
 		books: booksTotal,
 		audiobooks: audiobooksTotal,
+		"read-listen": matchingReadListenPairings.length,
 		series: series.length,
 		authors: authors.length,
 		collections: collections.length,
 		users: users.length,
 	};
 	const activeResultCount = resultCounts[filter];
-	const hasNoResults = shouldSearch && !isAllLoading && resultCounts.all === 0;
+	const hasNoResults =
+		shouldSearch && !isSearchLoading && activeResultCount === 0;
 	const statusMessage = !shouldSearch
 		? ""
-		: isAllLoading
+		: isSearchLoading
 			? m["search.loading_results"]()
 			: m["search.results_summary"]({
 					count: activeResultCount,
 					query: normalizedQuery,
 				});
 
-	const filterOptions = (
-		[
-			{ key: "all", label: m["search.all"](), visible: true },
-			{
-				key: "books",
-				label: m["search.books"](),
-				visible: booksTotal > 0,
-			},
-			{
-				key: "audiobooks",
-				label: m["search.audiobooks"](),
-				visible: audiobooksTotal > 0,
-			},
-			{
-				key: "series",
-				label: m["nav.series"](),
-				visible: series.length > 0,
-			},
-			{
-				key: "authors",
-				label: m["search.authors"](),
-				visible: authors.length > 0,
-			},
-			{
-				key: "collections",
-				label: m["search.collections"](),
-				visible: collections.length > 0,
-			},
-			{
-				key: "users",
-				label: m["search.users"](),
-				visible: users.length > 0,
-			},
-		] as const
-	).filter((option) => option.visible);
+	const filterOptions = [
+		{ key: "all", label: m["search.all"]() },
+		{ key: "books", label: m["search.books"]() },
+		{ key: "audiobooks", label: m["search.audiobooks"]() },
+		{ key: "read-listen", label: m["nav.read_listen"]() },
+		{ key: "series", label: m["nav.series"]() },
+		{ key: "authors", label: m["search.authors"]() },
+		{ key: "collections", label: m["search.collections"]() },
+		{ key: "users", label: m["search.users"]() },
+	] as const;
 
 	return (
 		<div className={cn(PAGE_GUTTER, "mx-auto w-full py-6 md:py-8")}>
-			<div className="space-y-8" aria-busy={isAllLoading || undefined}>
+			<div className="space-y-8" aria-busy={isSearchLoading || undefined}>
 				<p role="status" className="sr-only">
 					{statusMessage}
 				</p>
 				<h1 className="sr-only">{m["search.results"]()}</h1>
 
-				{shouldSearch && isAllLoading ? (
+				{shouldSearch && isSearchLoading ? (
 					<FilterChipsSkeleton />
 				) : shouldSearch ? (
 					<div className="scrollbar-none -mx-4 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
@@ -867,25 +869,17 @@ function SearchPage() {
 				)}
 
 				{isAll &&
-					(isAllLoading ? (
+					(isTopLoading ? (
 						<ResultListSkeleton />
-					) : rankedResults.length > 0 ? (
+					) : topResults && topResults.length > 0 ? (
 						<BookContextMenuRoot>
 							<ul className="divide-y divide-border/60">
-								{rankedResults.map((hit) => (
+								{topResults.map((hit) => (
 									<RankedResultRow key={searchResultKey(hit)} hit={hit} />
 								))}
 							</ul>
 						</BookContextMenuRoot>
 					) : null)}
-
-				{isAll && (
-					<InfiniteResultsLoader
-						hasNextPage={booksHasNextPage || audiobooksHasNextPage}
-						isFetching={booksIsFetchingNextPage || audiobooksIsFetchingNextPage}
-						onLoadMore={fetchMoreAll}
-					/>
-				)}
 
 				{filter === "books" &&
 					(isBooksLoading ? (
@@ -947,6 +941,22 @@ function SearchPage() {
 						onLoadMore={fetchMoreAudiobooks}
 					/>
 				)}
+
+				{filter === "read-listen" &&
+					(isReadListenLoading ? (
+						<ResultListSkeleton title={m["nav.read_listen"]()} />
+					) : matchingReadListenPairings.length > 0 ? (
+						<ResultSection
+							id="search-read-listen"
+							title={m["nav.read_listen"]()}
+						>
+							<BookContextMenuRoot mediaType="audiobook">
+								{matchingReadListenPairings.map((pairing) => (
+									<ReadListenResultRow key={pairing.id} pairing={pairing} />
+								))}
+							</BookContextMenuRoot>
+						</ResultSection>
+					) : null)}
 
 				{filter === "series" &&
 					(isSeriesLoading ? (

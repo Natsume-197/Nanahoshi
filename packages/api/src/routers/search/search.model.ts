@@ -15,6 +15,12 @@ export type TopHit =
 			authors: { id?: number | null; name: string }[];
 	  }
 	| {
+			type: "read-listen";
+			id: string;
+			ebook: TopReadListenPublication;
+			audiobook: TopReadListenPublication;
+	  }
+	| {
 			type: "series";
 			uuid: string;
 			name: string;
@@ -43,3 +49,12 @@ export type TopHit =
 			displayUsername: string | null;
 			image: string | null;
 	  };
+
+export type TopReadListenPublication = {
+	uuid: string;
+	title: string;
+	filename: string;
+	cover: string | null;
+	authors: { name: string }[];
+	narrators?: { name: string }[];
+};
