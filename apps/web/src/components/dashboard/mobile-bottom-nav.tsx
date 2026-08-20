@@ -49,7 +49,7 @@ const tabs = [
 		icon: Folder,
 		href: "/dashboard/collections" as const,
 		exact: false,
-		needsNetwork: true,
+		needsNetwork: false,
 	},
 ] as const;
 
@@ -76,13 +76,12 @@ const catalogEntries = [
 	},
 ] as const;
 
-const drawerItemClass = (isActive: boolean, online: boolean) =>
+const drawerItemClass = (isActive: boolean) =>
 	cn(
 		"flex min-h-11 touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
 		isActive
 			? "bg-accent font-medium text-foreground"
 			: "text-muted-foreground active:bg-accent/50",
-		!online && "pointer-events-none opacity-40",
 	);
 
 // Catalog sections behind the "Library" tab (mirrors the desktop sidebar's
@@ -268,10 +267,9 @@ export function MobileBottomNav({
 						type="button"
 						data-pressable="subtle"
 						onClick={() => setLibraryOpen(true)}
-						disabled={!online}
 						aria-expanded={libraryOpen}
 						aria-controls={LIBRARY_DRAWER_ID}
-						className={tabClass(isLibraryActive, !online)}
+						className={tabClass(isLibraryActive, false)}
 					>
 						<Books
 							aria-hidden="true"
@@ -342,9 +340,7 @@ export function MobileBottomNav({
 										params={{ uuid: lib.uuid }}
 										data-pressable="subtle"
 										onClick={() => setLibraryOpen(false)}
-										aria-disabled={!online}
-										tabIndex={online ? undefined : -1}
-										className={drawerItemClass(isActive, online)}
+										className={drawerItemClass(isActive)}
 									>
 										<Icon className="size-5" />
 										<span className="truncate">
@@ -373,9 +369,7 @@ export function MobileBottomNav({
 									to={entry.href}
 									data-pressable="subtle"
 									onClick={() => setLibraryOpen(false)}
-									aria-disabled={!online}
-									tabIndex={online ? undefined : -1}
-									className={drawerItemClass(isActive, online)}
+									className={drawerItemClass(isActive)}
 								>
 									<entry.icon className="size-5" />
 									<span>{entry.label()}</span>
@@ -391,9 +385,7 @@ export function MobileBottomNav({
 									to={item.href}
 									data-pressable="subtle"
 									onClick={() => setLibraryOpen(false)}
-									aria-disabled={!online}
-									tabIndex={online ? undefined : -1}
-									className={drawerItemClass(isActive, online)}
+									className={drawerItemClass(isActive)}
 								>
 									<item.icon className="size-5" />
 									<span>{item.label()}</span>

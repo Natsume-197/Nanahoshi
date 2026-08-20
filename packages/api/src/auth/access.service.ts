@@ -21,6 +21,7 @@ export type LibraryOverwrites = {
 
 export type PermissionContext = {
 	isAppOwner: boolean;
+	isMember: boolean;
 	isOrgOwner: boolean;
 	hasAdministrator: boolean;
 	highestPosition: number;
@@ -78,6 +79,7 @@ export function buildPermissionContext(args: {
 
 	return {
 		isAppOwner: args.isAppOwner,
+		isMember: args.membershipRole !== null,
 		isOrgOwner,
 		hasAdministrator,
 		highestPosition,

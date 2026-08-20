@@ -1,4 +1,8 @@
 import { clearReaderBookCache } from "@/features/reader/document/reader-book-cache";
+import {
+	clearPendingProgressForOwner,
+	setPendingProgressOwner,
+} from "@/features/reader/session/pending-progress";
 
 export const QUERY_PERSIST_KEY = "nanahoshi-query-cache";
 
@@ -14,9 +18,13 @@ export function removeLegacyBookStorage(): void {
 
 /** Sign-out cleanup for every browser cache, including private reader files. */
 export async function clearOfflineCaches(): Promise<void> {
+	clearPendingProgressForOwner();
+	setPendingProgressOwner(null);
 	await clearReaderBookCache();
 	try {
 		window.localStorage.removeItem(QUERY_PERSIST_KEY);
+		window.localStorage.removeItem("nanahoshi:recent-searches");
+		window.localStorage.removeItem("kindle-email");
 	} catch {
 		// no-op (private mode)
 	}

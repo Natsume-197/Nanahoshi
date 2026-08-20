@@ -64,7 +64,16 @@ export function ServerBranding() {
 				);
 			}
 
+			const oldUrl = profile?.[kind];
 			await client.serverProfile.update({ [kind]: result.imageUrl });
+			if (oldUrl && oldUrl !== result.imageUrl) {
+				void fetch(`${env.VITE_SERVER_URL}/api/media/cleanup`, {
+					method: "POST",
+					credentials: "include",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ kind, oldUrl }),
+				});
+			}
 		},
 		onSuccess: async () => {
 			setEditing(null);
@@ -81,8 +90,18 @@ export function ServerBranding() {
 	});
 
 	const clearMutation = useMutation({
-		mutationFn: (kind: ImageKind) =>
-			client.serverProfile.update({ [kind]: null }),
+		mutationFn: async (kind: ImageKind) => {
+			const oldUrl = profile?.[kind];
+			await client.serverProfile.update({ [kind]: null });
+			if (oldUrl) {
+				await fetch(`${env.VITE_SERVER_URL}/api/media/cleanup`, {
+					method: "POST",
+					credentials: "include",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ kind, oldUrl }),
+				});
+			}
+		},
 		onSuccess: async () => {
 			invalidateProfile();
 			await refetchOrg();

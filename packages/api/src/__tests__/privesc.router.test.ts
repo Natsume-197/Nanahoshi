@@ -39,6 +39,7 @@ mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
 
 type PC = {
 	isAppOwner: boolean;
+	isMember: boolean;
 	isOrgOwner: boolean;
 	hasAdministrator: boolean;
 	highestPosition: number;
@@ -48,6 +49,7 @@ type PC = {
 
 let pcResult: PC = {
 	isAppOwner: false,
+	isMember: true,
 	isOrgOwner: false,
 	hasAdministrator: false,
 	highestPosition: 0,
@@ -118,6 +120,7 @@ const { callAs, expectRejectsWithCode } = await import("./helpers/authHarness");
 function pc(o: Partial<PC>): PC {
 	return {
 		isAppOwner: false,
+		isMember: true,
 		isOrgOwner: false,
 		hasAdministrator: false,
 		highestPosition: 0,

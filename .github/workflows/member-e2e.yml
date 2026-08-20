@@ -1,0 +1,45 @@
+name: Member E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: URL of the disposable Nanahoshi test deployment
+        required: true
+        type: string
+      book_uuid:
+        description: Ebook UUID readable by the baseline member
+        required: true
+        type: string
+      confirm_disposable:
+        description: Confirm that base_url is an ephemeral deployment safe to mutate
+        required: true
+        type: boolean
+
+jobs:
+  member-smoke:
+    if: ${{ inputs.confirm_disposable }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: browser-actions/setup-chrome@v1
+      - run: bun install --frozen-lockfile
+      - name: New-member invitation onboarding
+        env:
+          MEMBER_E2E_BASE_URL: ${{ inputs.base_url }}
+          MEMBER_E2E_INVITE_CODE: ${{ secrets.MEMBER_E2E_INVITE_CODE }}
+          MEMBER_E2E_BROWSER: /usr/bin/google-chrome
+          MEMBER_E2E_ALLOW_REMOTE: disposable-only
+        run: bun run --cwd apps/web test:e2e:member-onboarding
+      - name: Reader permissions and progress smoke
+        env:
+          READER_E2E_BASE_URL: ${{ inputs.base_url }}
+          READER_E2E_EMAIL: ${{ secrets.READER_E2E_EMAIL }}
+          READER_E2E_PASSWORD: ${{ secrets.READER_E2E_PASSWORD }}
+          READER_E2E_BOOK_UUID: ${{ inputs.book_uuid }}
+          READER_E2E_BROWSER: /usr/bin/google-chrome
+          READER_E2E_SCENARIOS: text
+        run: bun run --cwd apps/web test:e2e:reader

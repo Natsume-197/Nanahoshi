@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, type JSX, memo } from "react";
+import { type JSX, memo, useEffect, useRef, useState } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import {
 	type HomeSectionId,
@@ -94,14 +94,57 @@ function OrderedHomeSections({
 }): JSX.Element {
 	return (
 		<>
-			{layout.map((item) =>
+			{layout.map((item, index) =>
 				item.visible ? (
-					<Fragment key={item.id}>
-						<HomeSection id={item.id} />
-					</Fragment>
+					<DeferredHomeSection
+						key={item.id}
+						id={item.id}
+						priority={index < 2}
+					/>
 				) : null,
 			)}
 		</>
+	);
+}
+
+function DeferredHomeSection({
+	id,
+	priority,
+}: {
+	id: HomeSectionId;
+	priority: boolean;
+}) {
+	const ref = useRef<HTMLDivElement>(null);
+	const [active, setActive] = useState(priority);
+
+	useEffect(() => {
+		if (active || !ref.current) return;
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (!entry?.isIntersecting) return;
+				setActive(true);
+				observer.disconnect();
+			},
+			{ rootMargin: "800px 0px" },
+		);
+		observer.observe(ref.current);
+		return () => observer.disconnect();
+	}, [active]);
+
+	return (
+		<div ref={ref}>
+			{active ? (
+				<HomeSection id={id} />
+			) : (
+				<SectionSkeleton
+					square={
+						id === "audiobooks-for-you" ||
+						id === "audiobook-series" ||
+						id === "random-audiobooks"
+					}
+				/>
+			)}
+		</div>
 	);
 }
 

@@ -55,36 +55,6 @@ export const Route = createFileRoute("/dashboard/")({
 			// error handling, not as an unhandled rejection here.
 			heroReady.catch(() => {});
 		}
-		context.queryClient.prefetchQuery(
-			orpc.books.listRecent.queryOptions({ input: { limit: DASHBOARD_LIMIT } }),
-		);
-		context.queryClient.prefetchQuery(
-			orpc.audiobooks.listRecent.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-		);
-		context.queryClient.prefetchQuery(
-			orpc.series.list.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-		);
-		context.queryClient.prefetchQuery(
-			orpc.audiobooks.listSeries.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-		);
-		context.queryClient.prefetchQuery({
-			...orpc.books.listRandom.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-			staleTime: Number.POSITIVE_INFINITY,
-		});
-		context.queryClient.prefetchQuery({
-			...orpc.audiobooks.listRandom.queryOptions({
-				input: { limit: DASHBOARD_LIMIT },
-			}),
-			staleTime: Number.POSITIVE_INFINITY,
-		});
 	},
 });
 

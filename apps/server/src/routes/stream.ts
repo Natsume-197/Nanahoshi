@@ -1,6 +1,9 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { resolveBookScopeCached } from "@nanahoshi-v2/api/auth/access.repository";
+import {
+	canAccessBookAction,
+	resolveBookScopeCached,
+} from "@nanahoshi-v2/api/auth/access.repository";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
 import type { Hono } from "hono";
@@ -23,6 +26,11 @@ export function mountStream(app: Hono) {
 		// Fail closed: no active org means no tenant boundary can be enforced.
 		// (Mirrors downloads.ts and canAccessBookAction.)
 		if (!serverId) {
+			return c.text("Forbidden", 403);
+		}
+		if (
+			!(await canAccessBookAction(ctx.session, uuid, "audiobook", "download"))
+		) {
 			return c.text("Forbidden", 403);
 		}
 

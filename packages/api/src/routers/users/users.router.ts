@@ -6,15 +6,12 @@ import { SearchUsersInput } from "./users.model";
 import { usersRepository } from "./users.repository";
 
 export const usersRouter = {
-	search: protectedProcedure
+	search: orgProcedure
 		.input(SearchUsersInput)
 		.handler(async ({ input, context }) => {
-			const serverId =
-				context.session.session.activeOrganizationId ?? undefined;
-			if (!serverId) return [];
 			return usersRepository.search(
 				input.query,
-				serverId,
+				context.serverId,
 				context.session.user.id,
 				input.limit ?? 5,
 			);

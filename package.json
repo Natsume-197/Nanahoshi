@@ -44,6 +44,8 @@
 		"infra:up": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env up -d",
 		"infra:down": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env down",
 		"infra:logs": "docker compose -f docker-compose.dev.yml --env-file apps/server/.env logs -f",
+		"backup": "bash scripts/backup.sh",
+		"restore": "bash scripts/restore.sh",
 		"check": "biome check --write .",
 		"test": "bash scripts/test.sh",
 		"validate": "bun run check-types && bunx biome check . && bun run test"

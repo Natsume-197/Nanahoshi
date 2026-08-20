@@ -710,7 +710,9 @@ function SearchPage() {
 	});
 	const { data: readListenPairings, isLoading: isReadListenLoading } = useQuery(
 		{
-			...orpc.readListen.listPairings.queryOptions(),
+			...orpc.readListen.searchPairings.queryOptions({
+				input: { query: normalizedQuery, limit: 20 },
+			}),
 			enabled: shouldSearch && filter === "read-listen",
 			staleTime: 60_000,
 		},

@@ -7,6 +7,7 @@
 		"start": "bun run server.ts",
 		"test:production-ssr": "bun run scripts/verify-production-ssr.ts",
 		"test:e2e:reader": "bun run scripts/reader-e2e.ts",
+		"test:e2e:member-onboarding": "bun run scripts/member-onboarding-e2e.ts",
 		"preview": "vite preview",
 		"dev": "vite dev"
 	},

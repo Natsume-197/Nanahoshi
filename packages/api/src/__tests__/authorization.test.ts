@@ -118,6 +118,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 
 type FakePC = {
 	isAppOwner: boolean;
+	isMember: boolean;
 	isOrgOwner: boolean;
 	hasAdministrator: boolean;
 	highestPosition: number;
@@ -128,6 +129,7 @@ type FakePC = {
 /** Set per-test to control the resolved permission context. */
 let permissionContext: FakePC = {
 	isAppOwner: false,
+	isMember: true,
 	isOrgOwner: false,
 	hasAdministrator: false,
 	highestPosition: 0,
@@ -249,6 +251,22 @@ describe("middleware authorization gates", () => {
 				),
 				"BAD_REQUEST",
 			);
+		});
+
+		test("a stale active org is rejected after membership is revoked", async () => {
+			permissionContext = { ...permissionContext, isMember: false };
+			try {
+				await expectRejectsWithCode(
+					callAs(
+						libraryRouter.getLibraryById,
+						{ id: 1 },
+						{ activeOrganizationId: "org-A" },
+					),
+					"FORBIDDEN",
+				);
+			} finally {
+				permissionContext = { ...permissionContext, isMember: true };
+			}
 		});
 	});
 

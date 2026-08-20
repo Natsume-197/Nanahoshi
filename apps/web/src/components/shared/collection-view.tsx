@@ -21,6 +21,8 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	/** Shown only when not loading and not searching (page passes plain text). */
 	subtitle?: ReactNode;
 	isLoading: boolean;
+	isError?: boolean;
+	errorState?: ReactNode;
 	isFetching?: boolean;
 	isFetchingNextPage?: boolean;
 
@@ -96,6 +98,8 @@ export function CollectionView<TItem, TSort extends string>({
 	title,
 	subtitle,
 	isLoading,
+	isError = false,
+	errorState,
 	isFetching,
 	isFetchingNextPage,
 	search,
@@ -128,7 +132,7 @@ export function CollectionView<TItem, TSort extends string>({
 	searchEmptyState,
 }: CollectionViewProps<TItem, TSort>) {
 	const hasItems = items.length > 0;
-	const showControls = !isLoading && (hasItems || isSearching);
+	const showControls = !isLoading && !isError && (hasItems || isSearching);
 	const usesFilterBar = !!filterBar;
 	const showSort =
 		!!sortOptions && hasItems && !(hideSortWhileSearching && isSearching);
@@ -188,7 +192,10 @@ export function CollectionView<TItem, TSort extends string>({
 
 			{filterBar}
 
+			{isError && !hasItems && errorState}
+
 			{isLoading &&
+				!isError &&
 				(gridSkeleton ?? (
 					<div className={BOOK_GRID_CLASS}>
 						{SKELETON_KEYS.map((key) => (
@@ -198,6 +205,7 @@ export function CollectionView<TItem, TSort extends string>({
 				))}
 
 			{!isLoading &&
+				!isError &&
 				!hasItems &&
 				(isSearching ? (searchEmptyState ?? emptyState) : emptyState)}
 

@@ -222,7 +222,7 @@ describe("ReadListenService", () => {
 		const result = await service.listPairings("server-1", [1]);
 
 		expect(result).toEqual([]);
-		expect(store.listAllPairRows).toHaveBeenCalledWith("server-1");
+		expect(store.listAllPairRows).toHaveBeenCalledWith("server-1", 0, 50);
 	});
 
 	test("canonicalizes the endpoints when association starts from an audiobook", async () => {

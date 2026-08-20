@@ -2,12 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import type { AudiobookShelfStatus } from "@/components/profile/book-shelf-sections";
 import { ProfilePagination } from "@/components/profile/profile-pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
+import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -44,7 +46,7 @@ export function ProfileAudiobooksGrid({
 		setPage(0);
 	}
 
-	const { data, isLoading } = useQuery({
+	const { data, isLoading, isError, refetch } = useQuery({
 		...orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
 			input: {
 				username,
@@ -64,6 +66,16 @@ export function ProfileAudiobooksGrid({
 		onStatusChange(status);
 		setPage(0);
 	};
+	const statusLabel = (status: AudiobookShelfStatus | undefined) =>
+		status === undefined
+			? m["catalog_pages.all"]()
+			: status === "listening"
+				? m["catalog_pages.listening"]()
+				: status === "completed"
+					? m["catalog_pages.completed"]()
+					: status === "backlog"
+						? m["catalog_pages.backlog"]()
+						: m["catalog_pages.want_listen"]();
 
 	return (
 		<div className="space-y-4">
@@ -72,9 +84,7 @@ export function ProfileAudiobooksGrid({
 					{isLoading ? (
 						<Skeleton as="span" className="inline-block h-4 w-16 rounded" />
 					) : (
-						<>
-							{total} {total === 1 ? "Audiobook" : "Audiobooks"}
-						</>
+						m["media.audiobook_count"]({ count: total })
 					)}
 				</p>
 			</div>
@@ -87,12 +97,14 @@ export function ProfileAudiobooksGrid({
 						size="sm"
 						onClick={() => handleStatusChange(filter.status)}
 					>
-						{filter.label}
+						{statusLabel(filter.status)}
 					</Button>
 				))}
 			</div>
 
-			{isLoading ? (
+			{isError ? (
+				<QueryErrorState onRetry={() => void refetch()} />
+			) : isLoading ? (
 				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((id) => (
 						<BookCardSkeleton key={id} square />
@@ -100,11 +112,11 @@ export function ProfileAudiobooksGrid({
 				</div>
 			) : items.length === 0 ? (
 				<EmptyState
-					title="No audiobooks found"
+					title={m["likes.empty_title_audiobooks"]()}
 					description={
 						activeStatus
-							? "No audiobooks with this status yet."
-							: "This shelf is empty."
+							? m["catalog_pages.no_status_audiobooks"]()
+							: m["catalog_pages.empty_shelf"]()
 					}
 				/>
 			) : (

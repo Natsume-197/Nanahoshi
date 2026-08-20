@@ -31,6 +31,7 @@ mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
 
 type PC = {
 	isAppOwner: boolean;
+	isMember: boolean;
 	isOrgOwner: boolean;
 	hasAdministrator: boolean;
 	highestPosition: number;
@@ -41,6 +42,7 @@ type PC = {
 /** Set per-test to control the resolved permission context. */
 let pcResult: PC = {
 	isAppOwner: false,
+	isMember: true,
 	isOrgOwner: false,
 	hasAdministrator: false,
 	highestPosition: 0,
@@ -95,6 +97,7 @@ mock.module("../auth/access.repository", () => ({
 function pc(overrides: Partial<PC>): PC {
 	return {
 		isAppOwner: false,
+		isMember: true,
 		isOrgOwner: false,
 		hasAdministrator: false,
 		highestPosition: 0,

@@ -1,4 +1,6 @@
+import { toast } from "sonner";
 import { switchActiveServer } from "@/lib/switch-server";
+import { m } from "@/paraglide/messages";
 import { useMountEffect } from "./use-mount-effect";
 
 /**
@@ -17,6 +19,12 @@ export function useSyncActiveOrg(switchedOrgId: string | null | undefined) {
 		if (!switchedOrgId) return;
 		// No navigate: the book page already resolved this book under the new org;
 		// switching just realigns the session + cache so the rest of the UI follows.
-		void switchActiveServer(switchedOrgId);
+		void switchActiveServer(switchedOrgId).catch((error) =>
+			toast.error(
+				error instanceof Error
+					? error.message
+					: m["toast.switch_server_failed"](),
+			),
+		);
 	});
 }

@@ -1,6 +1,7 @@
 import { client } from "@/utils/orpc";
 
 export interface PendingProgress {
+	ownerId: string;
 	syncOperationId: string;
 	bookUuid: string;
 	exploredCharCount?: number;
@@ -11,17 +12,18 @@ export interface PendingProgress {
 	savedAt: number;
 }
 
-export type PendingProgressEntry = Omit<PendingProgress, "savedAt">;
+export type PendingProgressEntry = Omit<PendingProgress, "savedAt" | "ownerId">;
 type PendingQueue = Record<string, PendingProgress>;
 
 export function enqueuePendingProgress(
 	queue: PendingQueue,
 	entry: PendingProgressEntry,
+	ownerId: string,
 	savedAt = Date.now(),
 ): PendingQueue {
 	return {
 		...queue,
-		[entry.syncOperationId]: { ...entry, savedAt },
+		[entry.syncOperationId]: { ...entry, ownerId, savedAt },
 	};
 }
 
@@ -30,6 +32,11 @@ export function enqueuePendingProgress(
 
 const PENDING_KEY = "nanahoshi-pending-progress";
 const PENDING_RETENTION_MS = 29 * 24 * 60 * 60 * 1_000;
+let activeOwnerId: string | null = null;
+
+export function setPendingProgressOwner(ownerId: string | null): void {
+	activeOwnerId = ownerId;
+}
 
 function readQueue(): PendingQueue {
 	try {
@@ -42,6 +49,8 @@ function readQueue(): PendingQueue {
 		const queue = Object.fromEntries(
 			Object.entries(stored).flatMap(([legacyKey, entry]) => {
 				if (entry.savedAt < Date.now() - PENDING_RETENTION_MS) return [];
+				// Pre-ownership entries cannot safely be attributed on a shared device.
+				if (!("ownerId" in entry) || typeof entry.ownerId !== "string") return [];
 				const syncOperationId = entry.syncOperationId ?? legacyKey;
 				return [[syncOperationId, { ...entry, syncOperationId }]];
 			}),
@@ -68,7 +77,8 @@ function writeQueue(queue: PendingQueue) {
 }
 
 export function markPendingProgress(entry: PendingProgressEntry): void {
-	writeQueue(enqueuePendingProgress(readQueue(), entry));
+	if (!activeOwnerId) return;
+	writeQueue(enqueuePendingProgress(readQueue(), entry, activeOwnerId));
 }
 
 export function clearPendingProgress(syncOperationId: string): void {
@@ -81,11 +91,14 @@ export function clearPendingProgress(syncOperationId: string): void {
 let flushing = false;
 
 /** Entries that fail again stay queued. */
-export async function flushPendingProgress(): Promise<void> {
-	if (flushing) return;
+export async function flushPendingProgress(
+	ownerId = activeOwnerId,
+): Promise<void> {
+	if (flushing || !ownerId) return;
 	flushing = true;
 	try {
 		for (const entry of Object.values(readQueue())) {
+			if (entry.ownerId !== ownerId) continue;
 			try {
 				await client.readingProgress.saveProgress({
 					bookUuid: entry.bookUuid,
@@ -108,4 +121,15 @@ export async function flushPendingProgress(): Promise<void> {
 	} finally {
 		flushing = false;
 	}
+}
+
+export function clearPendingProgressForOwner(ownerId = activeOwnerId): void {
+	if (!ownerId) return;
+	writeQueue(
+		Object.fromEntries(
+			Object.entries(readQueue()).filter(
+				([, entry]) => entry.ownerId !== ownerId,
+			),
+		),
+	);
 }

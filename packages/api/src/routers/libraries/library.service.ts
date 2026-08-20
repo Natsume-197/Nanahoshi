@@ -123,10 +123,23 @@ export const getLibraries = async (
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
 	const libraries = await libraryRepository.findByOrganization(serverId);
-	if (accessibleLibraryIds === "ALL") return libraries;
+	const publicLibrary = ({
+		paths: _paths,
+		...library
+	}: (typeof libraries)[number]) => library;
+	if (accessibleLibraryIds === "ALL") return libraries.map(publicLibrary);
 	const allowed = new Set(accessibleLibraryIds);
-	return libraries.filter((l) => allowed.has(l.id));
+	return libraries.filter((l) => allowed.has(l.id)).map(publicLibrary);
 };
+
+export const toPublicLibrary = <T extends { paths?: unknown }>({
+	paths: _paths,
+	...library
+}: T) => library;
+
+/** Operational library records, including host paths, for library managers. */
+export const getLibrariesWithPaths = async (serverId: string) =>
+	libraryRepository.findByOrganization(serverId);
 
 export const getLibrariesOverview = async (
 	serverId: string,
@@ -263,7 +276,13 @@ export const getLibraryFolderIssues = async (
 	serverId: string,
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
-	const libraries = await getLibraries(serverId, accessibleLibraryIds);
+	const allLibraries = await libraryRepository.findByOrganization(serverId);
+	const libraries =
+		accessibleLibraryIds === "ALL"
+			? allLibraries
+			: allLibraries.filter((library) =>
+					accessibleLibraryIds.includes(library.id),
+				);
 	const probes = await Promise.all(
 		libraries.flatMap((lib) =>
 			(lib.paths ?? [])

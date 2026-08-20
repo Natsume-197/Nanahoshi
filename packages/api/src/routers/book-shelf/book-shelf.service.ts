@@ -3,6 +3,7 @@ import { NotFoundError } from "../../errors";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
+import { membersRepository } from "../members/members.repository";
 import { bookShelfRepository } from "./book-shelf.repository";
 
 export const setShelfStatus = async (
@@ -91,6 +92,7 @@ export const listPublicShelf = async (
 	if (!serverId) return [];
 	const userId = await bookShelfRepository.getUserIdByUsername(username);
 	if (!userId) return [];
+	if (!(await membersRepository.isMember(userId, serverId))) return [];
 	return bookShelfRepository.listByStatus(
 		userId,
 		serverId,
@@ -111,6 +113,9 @@ export const listPublicShelfPaginated = async (
 	if (!serverId) return { items: [], total: 0 };
 	const userId = await bookShelfRepository.getUserIdByUsername(username);
 	if (!userId) return { items: [], total: 0 };
+	if (!(await membersRepository.isMember(userId, serverId))) {
+		return { items: [], total: 0 };
+	}
 	return bookShelfRepository.listPaginated(
 		userId,
 		serverId,

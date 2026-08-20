@@ -244,8 +244,16 @@ export class ReadListenService {
 		};
 	}
 
-	async listPairings(serverId: string, scope: LibraryScope) {
-		const rows = await this.store.listAllPairRows(serverId);
+	async listPairings(
+		serverId: string,
+		scope: LibraryScope,
+		page: { offset?: number; limit?: number } = {},
+	) {
+		const rows = await this.store.listAllPairRows(
+			serverId,
+			page.offset ?? 0,
+			page.limit ?? 50,
+		);
 		const pairIds = rows.map((row) => row.id);
 		const publicationIds = [
 			...new Set(rows.flatMap((row) => [row.ebookBookId, row.audiobookBookId])),
@@ -284,7 +292,9 @@ export class ReadListenService {
 		scope: LibraryScope;
 	}) {
 		const normalizedQuery = input.query.toLocaleLowerCase();
-		const pairings = await this.listPairings(input.serverId, input.scope);
+		const pairings = await this.listPairings(input.serverId, input.scope, {
+			limit: 200,
+		});
 
 		return pairings
 			.filter((pairing) =>

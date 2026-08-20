@@ -6,6 +6,7 @@ import {
 	BookCardShell,
 	createBookCardShellRowHeightEstimator,
 } from "@/components/books/book-card-shell";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import {
 	CollectionTableHeader,
 	CollectionTableRow,
@@ -14,6 +15,7 @@ import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { m } from "@/paraglide/messages";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
@@ -28,8 +30,7 @@ const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
 	{ value: "recent", label: "Recently added" },
 ];
 
-const publisherBookCount = (count: number) =>
-	`${count} ${count === 1 ? "book" : "books"}`;
+const publisherBookCount = (count: number) => m["media.book_count"]({ count });
 
 export const Route = createFileRoute("/dashboard/publishers/")({
 	component: PublishersPage,
@@ -62,6 +63,8 @@ function PublishersPage() {
 		hasNextPage,
 		fetchNextPage,
 		isFetchingNextPage,
+		isError,
+		refetch,
 	} = useInfiniteQuery(
 		orpc.publishers.list.infiniteOptions({
 			input: (pageParam: number) => ({
@@ -86,21 +89,23 @@ function PublishersPage() {
 
 	return (
 		<CollectionView
-			title="Publishers"
-			subtitle={total ? `${total} publishers` : undefined}
+			title={m["catalog_pages.publishers"]()}
+			subtitle={total ? m["media.item_count"]({ count: total }) : undefined}
 			isLoading={isLoading}
+			isError={isError}
+			errorState={<QueryErrorState onRetry={() => void refetch()} />}
 			isFetching={isFetching}
 			isFetchingNextPage={isFetchingNextPage}
 			search={search}
 			onSearchChange={setSearch}
-			searchPlaceholder="Search publishers…"
-			searchAriaLabel="Search publishers"
+			searchPlaceholder={m["catalog_pages.search_publishers"]()}
+			searchAriaLabel={m["catalog_pages.search_publishers"]()}
 			isSearching={isSearching}
 			query={query}
 			sort={sort}
 			onSortChange={setSort}
 			sortOptions={SORT_OPTIONS}
-			sortAriaLabel="Sort publishers"
+			sortAriaLabel={m["common.sort"]()}
 			hideSortWhileSearching
 			view={view}
 			onViewChange={setView}
@@ -150,14 +155,14 @@ function PublishersPage() {
 			)}
 			emptyState={
 				<EmptyState
-					title="No publishers found"
-					description="Publishers will appear here once your books are enriched with metadata."
+					title={m["catalog_pages.no_publishers"]()}
+					description={m["catalog_pages.metadata_empty"]()}
 				/>
 			}
 			searchEmptyState={
 				<EmptyState
-					title="No matches"
-					description={`No publishers match “${query}”.`}
+					title={m["catalog_pages.no_matches"]()}
+					description={m["catalog_pages.no_query_matches"]({ query })}
 				/>
 			}
 		/>

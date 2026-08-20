@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { ProfilePagination } from "@/components/profile/profile-pagination";
 import type { LikedFormat } from "@/components/profile/profile-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -41,13 +42,23 @@ export function ProfileLikesGrid({
 		setPage(0);
 	}
 
-	const { data: items, isLoading } = useQuery({
+	const {
+		data: items,
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery({
 		...orpc.likedBooks.listLiked.queryOptions({
 			input: { limit: PAGE_SIZE, cursor: page * PAGE_SIZE, format },
 		}),
 		staleTime: 60_000,
 	});
-	const { data: total, isLoading: isCountLoading } = useQuery({
+	const {
+		data: total,
+		isLoading: isCountLoading,
+		isError: isCountError,
+		refetch: refetchCount,
+	} = useQuery({
 		...orpc.likedBooks.count.queryOptions({ input: { format } }),
 		staleTime: 60_000,
 	});
@@ -80,12 +91,18 @@ export function ProfileLikesGrid({
 						size="sm"
 						onClick={() => handleFormatChange(filter.format)}
 					>
-						{filter.label}
+						{filter.format === "books"
+							? m["nav.books"]()
+							: m["nav.audiobooks"]()}
 					</Button>
 				))}
 			</div>
 
-			{isLoading ? (
+			{isError || isCountError ? (
+				<QueryErrorState
+					onRetry={() => void Promise.all([refetch(), refetchCount()])}
+				/>
+			) : isLoading ? (
 				<div className={BOOK_GRID_CLASS}>
 					{SKELETON_KEYS.map((id) => (
 						<BookCardSkeleton key={id} square={isAudiobook} />

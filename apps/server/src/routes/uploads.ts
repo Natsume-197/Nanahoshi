@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { getUserPermissionContext } from "@nanahoshi-v2/api/auth/access.repository";
 import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
@@ -162,14 +163,31 @@ export function mountUploads(app: Hono) {
 			return c.json({ message, skipped }, 400);
 		}
 
-		const { taskId } = await enqueueUploadedFiles({
-			files: written,
-			libraryId,
-			libraryPathId,
-			serverId,
-			libraryName: library.name ?? "library",
-			userId: session.user.id,
-		});
+		let taskId: string;
+		try {
+			({ taskId } = await enqueueUploadedFiles({
+				files: written,
+				libraryId,
+				libraryPathId,
+				serverId,
+				libraryName: library.name ?? "library",
+				userId: session.user.id,
+			}));
+		} catch (err) {
+			await Promise.all(
+				written.map((file) =>
+					fs.promises.unlink(file.absolutePath).catch(() => undefined),
+				),
+			);
+			log.error(
+				{ err, libraryId },
+				"Failed to enqueue uploaded files; rolled back writes",
+			);
+			return c.json(
+				{ message: "Upload processing is temporarily unavailable" },
+				503,
+			);
+		}
 
 		return c.json({
 			uploaded: written.map((f) => f.filename),

@@ -84,6 +84,7 @@ function InviteShell({
 
 function InvitePage() {
 	const { code } = Route.useParams();
+	const { preview: loadedPreview } = Route.useLoaderData();
 	const { error: oauthError } = Route.useSearch();
 	const { session } = Route.useRouteContext();
 	const router = useRouter();
@@ -92,7 +93,12 @@ function InvitePage() {
 		data: preview,
 		isPending,
 		isError,
-	} = useQuery(orpc.inviteLinks.preview.queryOptions({ input: { code } }));
+	} = useQuery({
+		...orpc.inviteLinks.preview.queryOptions({ input: { code } }),
+		// SSR already paid for this public preview. Rendering it immediately avoids
+		// an empty skeleton while client hydration/query restoration catches up.
+		initialData: loadedPreview ?? undefined,
+	});
 	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
 
 	const serverName = preview?.status === "ok" ? preview.serverName : "";

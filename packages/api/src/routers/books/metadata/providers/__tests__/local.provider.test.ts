@@ -18,6 +18,7 @@ const {
 	findFallbackCover,
 	isBlankCover,
 	measureContentForm,
+	sanitizeEmbeddedTitle,
 } = await import("../local-ebook");
 
 function content(chapters: (string | (() => never))[]): HtmlContent {
@@ -47,6 +48,18 @@ async function detailedImage(width: number, height: number): Promise<Buffer> {
 }
 
 describe("local ebook catalog adapter", () => {
+	test("removes absolute source paths embedded as publication titles", () => {
+		expect(
+			sanitizeEmbeddedTitle(
+				"D:\\wwwroot\\converter\\Las_Ventajas_de_ser_Invisible.epub",
+			),
+		).toBe("Las_Ventajas_de_ser_Invisible");
+		expect(sanitizeEmbeddedTitle("/srv/books/The Odyssey.pdf")).toBe(
+			"The Odyssey",
+		);
+		expect(sanitizeEmbeddedTitle("Fate/stay night")).toBe("Fate/stay night");
+	});
+
 	test("rejects near-white declared cover placeholders", async () => {
 		const blank = await sharp({
 			create: {

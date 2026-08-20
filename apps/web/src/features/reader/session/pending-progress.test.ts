@@ -21,8 +21,9 @@ describe("offline reader progress", () => {
 		};
 
 		const queue = enqueuePendingProgress(
-			enqueuePendingProgress({}, second, 200),
+			enqueuePendingProgress({}, second, "user-1", 200),
 			first,
+			"user-1",
 			300,
 		);
 
@@ -35,5 +36,6 @@ describe("offline reader progress", () => {
 		).toBe(65);
 		expect(queue[first.syncOperationId]?.positionIntentAt).toBe(100);
 		expect(queue[second.syncOperationId]?.positionIntentAt).toBe(200);
+		expect(queue[first.syncOperationId]?.ownerId).toBe("user-1");
 	});
 });

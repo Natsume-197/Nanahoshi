@@ -20,6 +20,7 @@ import { OpdsSettings } from "@/components/settings/sections/opds";
 import { RecommendationsSettings } from "@/components/settings/sections/recommendations";
 import { RolesSettings } from "@/components/settings/sections/roles";
 import { StatsSettings } from "@/components/settings/sections/stats";
+import { resolveVisibleOrgSettingsSection } from "@/components/settings/server-settings-access";
 import { SettingsDialogShell } from "@/components/settings/settings-dialog-shell";
 import type {
 	SettingsNavGroup,
@@ -135,17 +136,19 @@ export function ServerSettingsModal({
 				.map((key) => ({ key, label: LABELS[key](), icon: ICONS[key] })),
 		}))
 		.filter((group) => group.items.length > 0);
+	const visibleSection = resolveVisibleOrgSettingsSection(section, canSee);
+	if (!visibleSection) return null;
 
 	return (
 		<SettingsDialogShell
-			title={LABELS[section]()}
+			title={LABELS[visibleSection]()}
 			closeLabel={m["settings.org.close"]()}
 			groups={groups}
-			activeKey={section}
+			activeKey={visibleSection}
 			onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
 			onClose={onClose}
 		>
-			<OrgSettingsContent section={section} intent={intent} />
+			<OrgSettingsContent section={visibleSection} intent={intent} />
 		</SettingsDialogShell>
 	);
 }

@@ -26,6 +26,45 @@ const HEADER_STANDARD_WIDTH = 1500;
 const HEADER_ASPECT_RATIO = 4;
 // AVIF scale — perceptually close to the webp 94 it replaced.
 const HEADER_AVIF_QUALITY = 75;
+const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+
+function exceedsDeclaredSize(c: Context, maxBytes: number): boolean {
+	const raw = c.req.header("content-length");
+	if (!raw) return false;
+	const size = Number(raw);
+	return Number.isFinite(size) && size > maxBytes + MULTIPART_OVERHEAD_BYTES;
+}
+
+async function removeReplacedMedia(
+	url: string | null | undefined,
+	dir: string,
+	requiredPrefix: string,
+): Promise<void> {
+	if (!url) return;
+	let filename: string;
+	try {
+		const parsed = new URL(url);
+		if (parsed.origin !== new URL(env.SERVER_URL).origin) return;
+		filename = path.basename(parsed.pathname);
+	} catch {
+		return;
+	}
+	if (!filename.startsWith(requiredPrefix) || filename.includes("..")) return;
+	const files = await fs.promises.readdir(dir).catch(() => []);
+	// Headers have a full and a 1500w variant sharing userId + timestamp.
+	const headerStem = filename.replace(/-\d+w\.avif$/, "-");
+	await Promise.all(
+		files
+			.filter((candidate) =>
+				dir === headersDir
+					? candidate.startsWith(headerStem)
+					: candidate === filename,
+			)
+			.map((candidate) =>
+				fs.promises.unlink(path.join(dir, candidate)).catch(() => undefined),
+			),
+	);
+}
 
 const AVATAR_FORMATS = new Set(["png", "jpeg", "webp", "avif", "heif"]);
 const ANIMATED_AVATAR_EXTENSIONS: Record<string, string> = {
@@ -66,10 +105,47 @@ export function mountMediaStatic(app: Hono) {
 }
 
 export function mountMediaUploads(app: Hono) {
+	app.post("/api/media/cleanup", async (c) => {
+		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		if (!session?.user) return c.json({ message: "Unauthorized" }, 401);
+		const body = (await c.req.json().catch(() => null)) as {
+			kind?: "avatar" | "header" | "logo" | "background";
+			oldUrl?: string | null;
+		} | null;
+		if (!body?.kind || !body.oldUrl) return c.json({ ok: true });
+
+		if (body.kind === "avatar" || body.kind === "header") {
+			await removeReplacedMedia(
+				body.oldUrl,
+				body.kind === "avatar" ? avatarsDir : headersDir,
+				`${session.user.id}-`,
+			);
+			return c.json({ ok: true });
+		}
+
+		const serverId = session.session.activeOrganizationId;
+		if (!serverId) return c.json({ message: "No active organization" }, 400);
+		const pc = await getUserPermissionContext(session.user.id, serverId, {
+			isAppOwner: session.user.role === "admin",
+		});
+		if (!hasGlobal(pc, "settings", "update")) {
+			return c.json({ message: "Missing permission: settings:update" }, 403);
+		}
+		await removeReplacedMedia(
+			body.oldUrl,
+			body.kind === "logo" ? serverLogosDir : serverBackgroundsDir,
+			`${serverId}-`,
+		);
+		return c.json({ ok: true });
+	});
+
 	app.post("/api/profile/avatar", async (c) => {
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session?.user) {
 			return c.json({ message: "Unauthorized" }, 401);
+		}
+		if (exceedsDeclaredSize(c, MAX_AVATAR_BYTES)) {
+			return c.json({ message: "Image must be 5MB or smaller" }, 413);
 		}
 
 		const formData = await c.req.formData();
@@ -131,6 +207,9 @@ export function mountMediaUploads(app: Hono) {
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session?.user) {
 			return c.json({ message: "Unauthorized" }, 401);
+		}
+		if (exceedsDeclaredSize(c, MAX_HEADER_BYTES)) {
+			return c.json({ message: "Image must be 10MB or smaller" }, 413);
 		}
 
 		const formData = await c.req.formData();
@@ -248,6 +327,12 @@ async function handleServerImage(
 	});
 	if (!hasGlobal(pc, "settings", "update")) {
 		return c.json({ message: "Missing permission: settings:update" }, 403);
+	}
+	if (exceedsDeclaredSize(c, opts.maxBytes)) {
+		return c.json(
+			{ message: `Image must be ${opts.maxLabel} or smaller` },
+			413,
+		);
 	}
 
 	const formData = await c.req.formData();

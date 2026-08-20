@@ -79,10 +79,10 @@ export function getAuditRequestMetadata(headers: Headers): {
 	ipAddress: string | null;
 	device: string | null;
 } {
-	// Deployment proxy is the authority for x-forwarded-for. Keep the complete
-	// value requested by the product rather than deriving a location from it.
 	return {
-		ipAddress: headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+		// Set by the Bun entrypoint from the actual socket peer. Never trust a
+		// forwarding header supplied by the request itself.
+		ipAddress: headers.get("x-nanahoshi-client-ip"),
 		device: headers.get("user-agent"),
 	};
 }

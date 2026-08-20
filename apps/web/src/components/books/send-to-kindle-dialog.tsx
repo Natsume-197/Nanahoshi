@@ -43,7 +43,11 @@ export function SendToKindleDialog({
 		mutationFn: (kindleEmail: string) =>
 			client.kindle.sendToKindle({ bookUuid, kindleEmail }),
 		onSuccess: (_data, kindleEmail) => {
-			localStorage.setItem(KINDLE_EMAIL_KEY, kindleEmail);
+			try {
+				localStorage.setItem(KINDLE_EMAIL_KEY, kindleEmail);
+			} catch {
+				// Sending succeeded; blocked storage must not turn success into a retry.
+			}
 			toast.success(m["toast.kindle_queued"]());
 			onOpenChange(false);
 		},

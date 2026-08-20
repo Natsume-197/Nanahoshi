@@ -159,8 +159,17 @@ export function ProfileSettings() {
 			}
 
 			const url = result.imageUrl;
+			const oldUrl = slot === "avatar" ? profile?.image : profile?.headerImage;
 			if (slot === "avatar") await authClient.updateUser({ image: url });
 			else await client.profile.updateProfile({ headerImage: url });
+			if (oldUrl && oldUrl !== url) {
+				void fetch(`${env.VITE_SERVER_URL}/api/media/cleanup`, {
+					method: "POST",
+					credentials: "include",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ kind: slot, oldUrl }),
+				});
+			}
 		},
 		onSuccess: () => {
 			setEditing(null);

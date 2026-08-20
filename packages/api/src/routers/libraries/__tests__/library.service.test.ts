@@ -356,6 +356,19 @@ describe("library.service — org-scoped authorization", () => {
 	// ─── getLibraries access filtering ───────────────────────────────────────
 
 	describe("getLibraries access filtering", () => {
+		test("never exposes host paths in reader-facing library records", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					{ id: 10, name: "Books", paths: [{ id: 1, path: "/srv/private" }] },
+				]),
+			);
+
+			const [library] = await service.getLibraries("org-A", "ALL");
+
+			expect(library).toEqual({ id: 10, name: "Books" });
+			expect(library).not.toHaveProperty("paths");
+		});
+
 		test("returns all libraries when access is ALL", async () => {
 			mockFindByOrganization.mockImplementation(() =>
 				Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),

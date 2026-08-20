@@ -110,7 +110,12 @@ export async function switchActiveServer(
 	try {
 		// Await setActive so the session's active org actually changes before we
 		// refetch — otherwise queries reload under the previous server.
-		await authClient.organization.setActive({ organizationId: serverId });
+		const { error } = await authClient.organization.setActive({
+			organizationId: serverId,
+		});
+		if (error) {
+			throw new Error(error.message ?? "Could not switch servers.");
+		}
 		client.users.setLastActiveOrg({ serverId }).catch(() => {});
 		if (navigateToDashboard) await navigateToDashboard();
 		// Await the refetch so the loader stays up until the new server's data is

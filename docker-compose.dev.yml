@@ -3,7 +3,7 @@ name: nanahoshi-v2
 services:
   # ── Infrastructure ─────────────────────────────────────────────────
   postgres:
-    image: groonga/pgroonga:latest-alpine-16
+    image: groonga/pgroonga:4.0.8-alpine-16
     container_name: nanahoshi-v2-postgres
     environment:
       POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 5

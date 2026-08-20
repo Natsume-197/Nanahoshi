@@ -2,6 +2,7 @@ import { NotFoundError } from "../../errors";
 import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
+import { membersRepository } from "../members/members.repository";
 import { audiobookShelfRepository } from "./audiobook-shelf.repository";
 
 async function resolveBookId(
@@ -80,6 +81,7 @@ export const listPublicShelf = async (
 	if (!serverId) return [];
 	const userId = await audiobookShelfRepository.getUserIdByUsername(username);
 	if (!userId) return [];
+	if (!(await membersRepository.isMember(userId, serverId))) return [];
 	return audiobookShelfRepository.listByStatus(
 		userId,
 		serverId,
@@ -100,6 +102,9 @@ export const listPublicShelfPaginated = async (
 	if (!serverId) return { items: [], total: 0 };
 	const userId = await audiobookShelfRepository.getUserIdByUsername(username);
 	if (!userId) return { items: [], total: 0 };
+	if (!(await membersRepository.isMember(userId, serverId))) {
+		return { items: [], total: 0 };
+	}
 	return audiobookShelfRepository.listPaginated(
 		userId,
 		serverId,

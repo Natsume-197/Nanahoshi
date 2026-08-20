@@ -17,6 +17,7 @@ import { PAGE_SHELL } from "@/lib/page-layout";
 import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import { formatDate, getErrorMessage } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
@@ -55,6 +56,7 @@ function InvitationsPage() {
 	useMountEffect(() => {
 		if (!token) return;
 		let cancelled = false;
+		let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 		(async () => {
 			const { error } = await authClient.organization.acceptInvitation({
 				invitationId: token,
@@ -62,23 +64,24 @@ function InvitationsPage() {
 			if (cancelled) return;
 			if (error) {
 				setTokenStatus("error");
-				setTokenError(
-					error.message ?? "This invitation link is invalid or has expired.",
-				);
+				setTokenError(error.message ?? m["member_invitations.invalid_desc"]());
 				return;
 			}
 			setTokenStatus("accepted");
-			toast.success("You've joined the server!");
+			toast.success(m["member_invitations.joined"]());
 			qc.removeQueries({ queryKey: ["auth", "session"] });
 			qc.clear();
 			// Remove token from URL cleanly, then redirect to dashboard
-			setTimeout(async () => {
+			redirectTimer = setTimeout(async () => {
+				if (cancelled) return;
 				await router.invalidate();
+				if (cancelled) return;
 				router.navigate({ to: "/dashboard" });
 			}, 1500);
 		})();
 		return () => {
 			cancelled = true;
+			if (redirectTimer) clearTimeout(redirectTimer);
 		};
 	});
 
@@ -97,13 +100,17 @@ function InvitationsPage() {
 			invitationId,
 		});
 		if (error) {
-			toast.error("Failed to accept invitation");
+			toast.error(m["member_invitations.accept_failed"]());
 			return;
 		}
-		toast.success("You've joined the server!");
-		await switchActiveServer(orgId);
-		await router.invalidate();
-		router.navigate({ to: "/dashboard" });
+		toast.success(m["member_invitations.joined"]());
+		try {
+			await switchActiveServer(orgId);
+			await router.invalidate();
+			router.navigate({ to: "/dashboard" });
+		} catch (error) {
+			toast.error(getErrorMessage(error, m["toast.switch_server_failed"]()));
+		}
 	};
 
 	const handleReject = async (invitationId: string) => {
@@ -111,10 +118,12 @@ function InvitationsPage() {
 			invitationId,
 		});
 		if (error) {
-			toast.error(getErrorMessage(error, "Failed to reject invitation"));
+			toast.error(
+				getErrorMessage(error, m["member_invitations.reject_failed"]()),
+			);
 			return;
 		}
-		toast.success("Invitation rejected");
+		toast.success(m["member_invitations.rejected"]());
 		invalidate();
 	};
 
@@ -132,10 +141,10 @@ function InvitationsPage() {
 				</div>
 				<div className="text-center">
 					<p className="font-bold text-xl tracking-tight">
-						Accepting invitation…
+						{m["member_invitations.accepting"]()}
 					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						Just a moment while we add you to the server.
+						{m["member_invitations.accepting_desc"]()}
 					</p>
 				</div>
 			</div>
@@ -146,9 +155,11 @@ function InvitationsPage() {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="text-center">
-					<p className="font-bold text-xl tracking-tight">Welcome aboard! 🎉</p>
+					<p className="font-bold text-xl tracking-tight">
+						{m["member_invitations.welcome"]()}
+					</p>
 					<p className="mt-1 text-muted-foreground text-sm">
-						You've joined the server. Redirecting…
+						{m["member_invitations.welcome_desc"]()}
 					</p>
 				</div>
 			</div>
@@ -159,7 +170,9 @@ function InvitationsPage() {
 		return (
 			<div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-6 p-6">
 				<div className="text-center">
-					<p className="font-bold text-xl tracking-tight">Invalid Invitation</p>
+					<p className="font-bold text-xl tracking-tight">
+						{m["member_invitations.invalid"]()}
+					</p>
 					<p className="mt-1 max-w-xs text-muted-foreground text-sm">
 						{tokenError}
 					</p>
@@ -168,7 +181,7 @@ function InvitationsPage() {
 					variant="outline"
 					onClick={() => router.navigate({ to: "/dashboard" })}
 				>
-					Go to Dashboard
+					{m["member_invitations.dashboard"]()}
 				</Button>
 			</div>
 		);
@@ -177,9 +190,11 @@ function InvitationsPage() {
 	return (
 		<div className={cn(PAGE_SHELL, "space-y-6")}>
 			<div className="space-y-1">
-				<h1 className="font-bold text-2xl tracking-tight">Invitations</h1>
+				<h1 className="font-bold text-2xl tracking-tight">
+					{m["member_invitations.title"]()}
+				</h1>
 				<p className="text-muted-foreground text-sm">
-					Pending invitations to join servers.
+					{m["member_invitations.description"]()}
 				</p>
 			</div>
 
@@ -206,14 +221,16 @@ function InvitationsPage() {
 										{inv.organizationName}
 									</p>
 									<p className="mt-0.5 text-muted-foreground text-xs capitalize">
-										Role: {inv.role}
+										{m["member_invitations.role"]({ role: inv.role })}
 										{inv.expiresAt && (
 											<>
 												{" "}
 												·{" "}
 												{expired
-													? "Expired"
-													: `Expires ${formatDate(inv.expiresAt)}`}
+													? m["member_invitations.expired"]()
+													: m["member_invitations.expires"]({
+															date: formatDate(inv.expiresAt),
+														})}
 											</>
 										)}
 									</p>
@@ -225,14 +242,14 @@ function InvitationsPage() {
 											size="sm"
 											onClick={() => handleAccept(inv.id, inv.serverId)}
 										>
-											Accept
+											{m["member_invitations.accept"]()}
 										</Button>
 										<Button
 											size="sm"
 											variant="outline"
 											onClick={() => handleReject(inv.id)}
 										>
-											Reject
+											{m["member_invitations.reject"]()}
 										</Button>
 									</div>
 								)}
@@ -244,8 +261,8 @@ function InvitationsPage() {
 
 			{!isLoading && pending.length === 0 && (
 				<EmptyState
-					title="No pending invitations"
-					description="When someone invites you to a server, it will show up here."
+					title={m["member_invitations.empty"]()}
+					description={m["member_invitations.empty_desc"]()}
 				/>
 			)}
 		</div>

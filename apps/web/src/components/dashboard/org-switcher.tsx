@@ -97,10 +97,18 @@ export function OrgSwitcher({
 		// Stay on list/index pages (they refetch under the new server); only leave
 		// a catalog detail page, whose entity belongs to the previous server.
 		const leave = isServerScopedDetailPath(location.pathname);
-		await switchActiveServer(
-			orgId,
-			leave ? () => navigate({ to: "/dashboard" }) : undefined,
-		);
+		try {
+			await switchActiveServer(
+				orgId,
+				leave ? () => navigate({ to: "/dashboard" }) : undefined,
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: m["toast.switch_server_failed"](),
+			);
+		}
 	};
 
 	const handleLeave = async () => {

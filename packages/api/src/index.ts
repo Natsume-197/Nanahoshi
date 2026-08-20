@@ -52,10 +52,20 @@ const requireOrg = o.middleware(async ({ context, next }) => {
 			"No active organization. Set an active organization first.",
 		);
 	}
+	// The active organization stored in a session is only a routing hint. A
+	// membership may have been revoked since the session was issued, so never
+	// authorize an org-scoped request from that claim alone.
+	const pc = await getUserPermissionContext(context.session.user.id, serverId, {
+		isAppOwner: context.session.user.role === "admin",
+	});
+	if (!pc.isAppOwner && !pc.isMember) {
+		throw new ForbiddenError("You are no longer a member of this server.");
+	}
 	return next({
 		context: {
 			session: context.session,
 			serverId,
+			pc,
 			req: context.req,
 		},
 	});
@@ -67,11 +77,7 @@ export const orgProcedure = publicProcedure.use(requireOrg);
 // per-library `can()` checks; library-scoped actions also need `can(...)`.
 export function requirePermission(resource: Resource, action: string) {
 	return orgProcedure.use(async ({ context, next }) => {
-		const pc = await getUserPermissionContext(
-			context.session.user.id,
-			context.serverId,
-			{ isAppOwner: context.session.user.role === "admin" },
-		);
+		const pc = context.pc;
 		if (!hasGlobal(pc, resource, action)) {
 			throw new ForbiddenError(`Missing permission: ${resource}:${action}`);
 		}

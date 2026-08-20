@@ -1,6 +1,6 @@
 import type { ReadListenPairing } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
 import { BookOpen, Headphones } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
@@ -256,9 +256,15 @@ function PairGridSkeleton() {
 }
 
 export function ReadListenCatalogPage() {
-	const { data: pairings, isLoading } = useQuery(
-		orpc.readListen.listPairings.queryOptions(),
-	);
+	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+		useInfiniteQuery({
+			...orpc.readListen.listPairings.infiniteOptions({
+				input: (pageParam: number) => ({ offset: pageParam, limit: 30 }),
+				initialPageParam: 0,
+				getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+			}),
+		});
+	const pairings = data?.pages.flatMap((page) => page.items) ?? [];
 	const {
 		view,
 		setView,
@@ -433,6 +439,9 @@ export function ReadListenCatalogPage() {
 				view={view}
 				onViewChange={setView}
 				items={visiblePairings}
+				hasNextPage={hasNextPage}
+				fetchNextPage={() => void fetchNextPage()}
+				isFetchingNextPage={isFetchingNextPage}
 				getKey={(pairing) => pairing.id}
 				gridRowEstimate={({ columnWidth }) => columnWidth * 1.5 + 79}
 				gridSkeleton={<PairGridSkeleton />}

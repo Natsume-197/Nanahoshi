@@ -7,8 +7,10 @@ import {
 	GetReadListenPairingsInput,
 	GetReadListenSessionInput,
 	ImportExistingReadListenAlignmentInput,
+	ListReadListenPairingsInput,
 	RemoveReadListenPairInput,
 	SearchReadListenCandidatesInput,
+	SearchReadListenPairingsInput,
 } from "./read-listen.model";
 import { readListenService } from "./read-listen.service";
 
@@ -40,25 +42,58 @@ export function createReadListenRouter(
 	service: typeof readListenService = readListenService,
 ) {
 	return {
-		listPairings: orgReadProcedure.handler(async ({ context }) => {
-			const pairings = await service.listPairings(
-				context.serverId,
-				context.accessibleLibraryIds,
-			);
-			const visible = await Promise.all(
-				pairings.map(async (pairing) =>
-					(await canReadPublications(context.session, [
-						pairing.ebook.uuid,
-						pairing.audiobook.uuid,
-					]))
-						? pairing
-						: null,
-				),
-			);
-			return visible.filter(
-				(pairing): pairing is NonNullable<typeof pairing> => pairing !== null,
-			);
-		}),
+		listPairings: orgReadProcedure
+			.input(ListReadListenPairingsInput)
+			.handler(async ({ input, context }) => {
+				const pairings = await service.listPairings(
+					context.serverId,
+					context.accessibleLibraryIds,
+					{ offset: input.offset, limit: input.limit + 1 },
+				);
+				const hasMore = pairings.length > input.limit;
+				const visible = await Promise.all(
+					pairings
+						.slice(0, input.limit)
+						.map(async (pairing) =>
+							(await canReadPublications(context.session, [
+								pairing.ebook.uuid,
+								pairing.audiobook.uuid,
+							]))
+								? pairing
+								: null,
+						),
+				);
+				return {
+					items: visible.filter(
+						(pairing): pairing is NonNullable<typeof pairing> =>
+							pairing !== null,
+					),
+					nextOffset: hasMore ? input.offset + input.limit : null,
+				};
+			}),
+
+		searchPairings: orgReadProcedure
+			.input(SearchReadListenPairingsInput)
+			.handler(async ({ input, context }) => {
+				const pairings = await service.searchPairings({
+					...input,
+					serverId: context.serverId,
+					scope: context.accessibleLibraryIds,
+				});
+				const visible = await Promise.all(
+					pairings.map(async (pairing) =>
+						(await canReadPublications(context.session, [
+							pairing.ebook.uuid,
+							pairing.audiobook.uuid,
+						]))
+							? pairing
+							: null,
+					),
+				);
+				return visible.filter(
+					(pairing): pairing is NonNullable<typeof pairing> => pairing !== null,
+				);
+			}),
 
 		getPairings: orgReadProcedure
 			.input(GetReadListenPairingsInput)

@@ -13,7 +13,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { LocaleContext } from "@/context/locale-context";
-import { flushPendingProgress } from "@/features/reader/session/pending-progress";
+import {
+	flushPendingProgress,
+	setPendingProgressOwner,
+} from "@/features/reader/session/pending-progress";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
@@ -61,18 +64,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				charSet: "utf-8",
 			},
 			{
-				// `maximum-scale=1, user-scalable=no` must be in the initial HTML
-				// (setting it later does not re-evaluate the layout viewport). It
-				// stops mobile "shrink-to-fit": the continuous reader lays vertical-rl
-				// columns wider than the screen, and without this the browser zooms
-				// out to fit, ballooning the layout viewport to several screens tall —
-				// which pushes the fixed footer counter off-screen, mis-sizes the
-				// settings overlay, and leaves a phantom Y scrollbar that scrolls on
-				// touch. App-wide zoom-lock is the standard tradeoff for an app-like
-				// reading UI.
 				name: "viewport",
 				content:
-					"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+					"width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
 			},
 			{
 				title: "Nanahoshi",
@@ -177,7 +171,6 @@ function RootDocument() {
 		// the first client render disagree with the SSR HTML (see orpc.ts).
 		setupQueryPersistence();
 		removeLegacyBookStorage();
-		flushPendingProgress();
 	});
 
 	useWindowEvent("online", () => {
@@ -225,6 +218,11 @@ function RootDocument() {
 }
 
 function AuthenticatedSessionLifecycle() {
+	const { session } = Route.useRouteContext();
+	setPendingProgressOwner(session?.user.id ?? null);
+	useMountEffect(() => {
+		flushPendingProgress(session?.user.id ?? null);
+	});
 	useSessionLifecycle();
 	return null;
 }

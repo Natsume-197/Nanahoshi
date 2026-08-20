@@ -12,6 +12,8 @@ export const env = createEnv({
 		DOWNLOAD_SECRET: z.uuid(),
 		COOKIE_DOMAIN: z.string().optional(),
 		SERVER_URL: z.string(),
+		// Exact socket peer IPs allowed to supply X-Forwarded-For. Empty by default.
+		TRUSTED_PROXY_IPS: z.string().default(""),
 
 		// Database
 		DB_HOST: z.string().default("localhost"),

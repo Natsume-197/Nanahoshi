@@ -8,6 +8,7 @@ import {
 	GenreTile,
 	GenreTileSkeletonGrid,
 } from "@/components/catalog/genre-tile";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import {
 	CollectionTableHeader,
@@ -40,9 +41,9 @@ type Facet = "genres" | "tags";
 type Format = "all" | "ebook" | "audiobook";
 
 const SORT_OPTIONS: readonly SortOption<SortMode>[] = [
-	{ value: "name", label: "Name" },
-	{ value: "books", label: "Most books" },
-	{ value: "recent", label: "Recently added" },
+	{ value: "name", label: m["common.title"]() },
+	{ value: "books", label: m["nav.books"]() },
+	{ value: "recent", label: m["library_page.sort_recently_added"]() },
 ];
 
 export const Route = createFileRoute("/dashboard/genres/")({
@@ -112,6 +113,8 @@ function GenresPage() {
 		hasNextPage,
 		fetchNextPage,
 		isFetchingNextPage,
+		isError,
+		refetch,
 	} = useInfiniteQuery(
 		isTags
 			? orpc.tags.list.infiniteOptions({ input: listInput, ...listPagination })
@@ -151,17 +154,25 @@ function GenresPage() {
 				<CollectionSearch
 					value={search}
 					onChange={setSearch}
-					placeholder={isTags ? "Search tags…" : "Search genres…"}
-					ariaLabel={isTags ? "Search tags" : "Search genres"}
+					placeholder={
+						isTags
+							? m["catalog_pages.search_tags"]()
+							: m["catalog_pages.search_genres"]()
+					}
+					ariaLabel={
+						isTags
+							? m["catalog_pages.search_tags"]()
+							: m["catalog_pages.search_genres"]()
+					}
 					className="sm:w-full"
 				/>
 			</FilterField>
-			<FilterField label="Type">
+			<FilterField label={m["catalog_pages.type"]()}>
 				<FilterSelect
 					value={facet}
 					onChange={(v) => setFacet(v as Facet)}
 					options={facetOptions}
-					ariaLabel="Filter by type"
+					ariaLabel={m["catalog_pages.type"]()}
 				/>
 			</FilterField>
 			<FilterField label={m["media.format"]()}>
@@ -188,21 +199,31 @@ function GenresPage() {
 
 	return (
 		<CollectionView
-			title={isTags ? "Tags" : "Genres"}
-			subtitle={total ? `${total} ${isTags ? "tags" : "genres"}` : undefined}
+			title={isTags ? m["catalog_pages.tags"]() : m["catalog_pages.genres"]()}
+			subtitle={total ? m["media.item_count"]({ count: total }) : undefined}
 			isLoading={isLoading}
+			isError={isError}
+			errorState={<QueryErrorState onRetry={() => void refetch()} />}
 			isFetching={isFetching}
 			isFetchingNextPage={isFetchingNextPage}
 			search={search}
 			onSearchChange={setSearch}
-			searchPlaceholder={isTags ? "Search tags…" : "Search genres…"}
-			searchAriaLabel={isTags ? "Search tags" : "Search genres"}
+			searchPlaceholder={
+				isTags
+					? m["catalog_pages.search_tags"]()
+					: m["catalog_pages.search_genres"]()
+			}
+			searchAriaLabel={
+				isTags
+					? m["catalog_pages.search_tags"]()
+					: m["catalog_pages.search_genres"]()
+			}
 			isSearching={isSearching || isAudiobook}
 			query={query}
 			sort={sort}
 			onSortChange={setSort}
 			sortOptions={SORT_OPTIONS}
-			sortAriaLabel={isTags ? "Sort tags" : "Sort genres"}
+			sortAriaLabel={m["common.sort"]()}
 			filterBar={filterBar}
 			view={view}
 			onViewChange={setView}
@@ -240,20 +261,20 @@ function GenresPage() {
 			)}
 			emptyState={
 				<EmptyState
-					title={isTags ? "No tags found" : "No genres found"}
-					description={
+					title={
 						isTags
-							? "Tags will appear here once your books are enriched with metadata."
-							: "Genres will appear here once your books are enriched with metadata."
+							? m["catalog_pages.no_tags"]()
+							: m["catalog_pages.no_genres"]()
 					}
+					description={m["catalog_pages.metadata_empty"]()}
 				/>
 			}
 			searchEmptyState={
 				<EmptyState
-					title="No matches"
+					title={m["catalog_pages.no_matches"]()}
 					description={
 						query
-							? `No ${isTags ? "tags" : "genres"} match “${query}”.`
+							? m["catalog_pages.no_query_matches"]({ query })
 							: m["library_page.no_filter_matches"]()
 					}
 				/>

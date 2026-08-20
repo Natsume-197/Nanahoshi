@@ -33,6 +33,10 @@ export const libraryRouter = {
 		);
 	}),
 
+	getLibrariesWithPaths: requirePermission("library", "managePaths").handler(
+		async ({ context }) => service.getLibrariesWithPaths(context.serverId),
+	),
+
 	getLibrariesOverview: orgReadProcedure.handler(async ({ context }) => {
 		return await service.getLibrariesOverview(
 			context.serverId,
@@ -43,37 +47,40 @@ export const libraryRouter = {
 	getLibraryById: orgReadProcedure
 		.input(GetLibraryByIdInput)
 		.handler(async ({ input, context }) => {
-			return await service.getLibraryById(
-				input.id,
-				context.serverId,
-				context.accessibleLibraryIds,
+			return service.toPublicLibrary(
+				await service.getLibraryById(
+					input.id,
+					context.serverId,
+					context.accessibleLibraryIds,
+				),
 			);
 		}),
 
 	getLibraryByUuid: orgReadProcedure
 		.input(GetLibraryByUuidInput)
 		.handler(async ({ input, context }) => {
-			return await service.getLibraryByUuid(
-				input.uuid,
-				context.serverId,
-				context.accessibleLibraryIds,
+			return service.toPublicLibrary(
+				await service.getLibraryByUuid(
+					input.uuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				),
 			);
 		}),
 
-	getLibraryFolderIssues: orgReadProcedure.handler(async ({ context }) => {
-		return await service.getLibraryFolderIssues(
-			context.serverId,
-			context.accessibleLibraryIds,
-		);
-	}),
+	getLibraryFolderIssues: requirePermission("library", "managePaths").handler(
+		async ({ context }) => {
+			return await service.getLibraryFolderIssues(context.serverId, "ALL");
+		},
+	),
 
-	getLibraryPathHealth: orgReadProcedure
+	getLibraryPathHealth: requirePermission("library", "managePaths")
 		.input(GetPathHealthInput)
 		.handler(async ({ input, context }) => {
 			return await service.getLibraryPathHealth(
 				input.libraryUuid,
 				context.serverId,
-				context.accessibleLibraryIds,
+				"ALL",
 			);
 		}),
 

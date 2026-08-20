@@ -64,7 +64,7 @@ export async function readLocalEbook(
 		]);
 
 		return {
-			title: decodeText(metadata.title),
+			title: sanitizeEmbeddedTitle(decodeText(metadata.title)),
 			subtitle: decodeText(metadata.subtitle) || null,
 			authors: metadata.authors.map(decodeText).filter(Boolean),
 			publisher: decodeText(metadata.publisher) || null,
@@ -331,6 +331,19 @@ export function classifyEbookIdentifiers(
 
 function decodeText(value: string): string {
 	return value ? load(`<span>${value}</span>`)("span").text().trim() : "";
+}
+
+/**
+ * Some conversion tools write their source path into dc:title. Treat only
+ * unmistakable absolute Windows/Unix paths as transport noise; ordinary book
+ * titles containing a slash remain untouched.
+ */
+export function sanitizeEmbeddedTitle(title: string): string {
+	const trimmed = title.trim();
+	if (!/^(?:[a-zA-Z]:[\\/]|\/)/.test(trimmed)) return trimmed;
+
+	const basename = trimmed.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
+	return basename.replace(/\.(?:epub|mobi|azw3?|fb2|pdf|cb[rz7])$/i, "");
 }
 
 function normalizeLanguage(value: string): string {

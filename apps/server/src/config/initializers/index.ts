@@ -3,6 +3,7 @@ import { capabilitiesInitializer } from "./capabilities";
 import { databaseInitializer } from "./database";
 import { imagesInitializer } from "./images";
 import { logHistoryInitializer } from "./log-history";
+import { mediaReconciliationInitializer } from "./media-reconciliation";
 import { ranobedbInitializer } from "./ranobedb";
 import { redisInitializer } from "./redis";
 import type { RuntimeContext, RuntimeInitializer } from "./types";
@@ -19,6 +20,7 @@ export const serverInitializers: RuntimeInitializer[] = [
 	logHistoryInitializer,
 	imagesInitializer,
 	databaseInitializer,
+	mediaReconciliationInitializer,
 ];
 
 // Workers last (they depend on the rest); ranobedb schedules background
@@ -28,6 +30,7 @@ export const workerInitializers: RuntimeInitializer[] = [
 	logHistoryInitializer,
 	imagesInitializer,
 	databaseInitializer,
+	mediaReconciliationInitializer,
 	capabilitiesInitializer,
 	ranobedbInitializer,
 	workersInitializer,

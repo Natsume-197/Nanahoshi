@@ -48,7 +48,7 @@ export function LibrariesSettings({
 		isLoading,
 		isError,
 		refetch,
-	} = useQuery(orpc.libraries.getLibraries.queryOptions());
+	} = useQuery(orpc.libraries.getLibrariesWithPaths.queryOptions());
 	const { data: overviews } = useQuery(
 		orpc.libraries.getLibrariesOverview.queryOptions(),
 	);

@@ -1,3 +1,4 @@
+import { membersRepository } from "@nanahoshi-v2/api/routers/members/members.repository";
 import { auth } from "@nanahoshi-v2/auth";
 import type { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
@@ -44,6 +45,15 @@ export function mountGateway(app: Hono) {
 			const userId = session.user.id;
 			const serverId = session.session.activeOrganizationId ?? "";
 			const role = session.user.role ?? null;
+			if (
+				serverId &&
+				role !== "admin" &&
+				!(await membersRepository.isMember(userId, serverId))
+			) {
+				return {
+					onOpen: (_evt, ws) => ws.close(1008, "Server membership required"),
+				};
+			}
 			const connId = crypto.randomUUID();
 
 			// ns → this connection's handler. The gateway owns it, so a closed
@@ -74,7 +84,17 @@ export function mountGateway(app: Hono) {
 							})
 							.catch(() => {});
 					}
-					tickTimer = setInterval(() => {
+					tickTimer = setInterval(async () => {
+						// Membership can be revoked while a socket is open. Revalidate at
+						// the keepalive boundary so stale sessions stop receiving events.
+						if (
+							serverId &&
+							role !== "admin" &&
+							!(await membersRepository.isMember(userId, serverId))
+						) {
+							ws.close(1008, "Server membership revoked");
+							return;
+						}
 						// App-level keepalive (survives proxy idle timeouts) + module ticks.
 						conn.send("ping", null);
 						for (const h of handlers.values()) {
