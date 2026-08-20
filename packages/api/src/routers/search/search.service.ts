@@ -8,7 +8,7 @@ import * as collectionsService from "../collections/collections.service";
 import { readListenService } from "../read-listen/read-listen.service";
 import { seriesRepository } from "../series/series.repository";
 import { usersRepository } from "../users/users.repository";
-import type { TopHit } from "./search.model";
+import type { TopSearchResults } from "./search.model";
 import { rankTopResults } from "./search.ranking";
 
 // Per-type candidate pool sizes. Small on purpose: the provider already
@@ -28,7 +28,7 @@ export async function topResults(input: {
 	serverId: string;
 	accessibleLibraryIds: LibraryScope;
 	pc: PermissionContext;
-}): Promise<TopHit[]> {
+}): Promise<TopSearchResults> {
 	const { query, limit, userId, serverId, accessibleLibraryIds, pc } = input;
 	const [
 		books,
@@ -106,17 +106,27 @@ export async function topResults(input: {
 		),
 	]);
 
-	return rankTopResults(
-		{
-			books: books.books,
-			series,
-			authors,
-			audiobooks: audiobooks.audiobooks,
-			readListen,
-			collections,
-			users,
-		},
-		query,
-		limit,
-	);
+	const pools = {
+		books: books.books,
+		series,
+		authors,
+		audiobooks: audiobooks.audiobooks,
+		readListen,
+		collections,
+		users,
+	};
+	const availableTypes = [
+		...(pools.books.length ? ["book" as const] : []),
+		...(pools.series.length ? ["series" as const] : []),
+		...(pools.authors.length ? ["author" as const] : []),
+		...(pools.audiobooks.length ? ["audiobook" as const] : []),
+		...(pools.readListen.length ? ["read-listen" as const] : []),
+		...(pools.collections.length ? ["collection" as const] : []),
+		...(pools.users.length ? ["user" as const] : []),
+	];
+
+	return {
+		hits: rankTopResults(pools, query, limit),
+		availableTypes,
+	};
 }

@@ -675,11 +675,11 @@ function SearchPage() {
 		setFilter("all");
 	}
 	const isAll = filter === "all";
-	const { data: topResults, isLoading: isTopLoading } = useQuery({
+	const { data: topSearch, isLoading: isTopLoading } = useQuery({
 		...orpc.search.top.queryOptions({
 			input: { query: normalizedQuery, limit: SEARCH_TOP_RESULTS_LIMIT },
 		}),
-		enabled: shouldSearch && isAll,
+		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
 
@@ -792,7 +792,7 @@ function SearchPage() {
 		void audiobooksFetchNextPage();
 	}, [audiobooksFetchNextPage]);
 	const resultCounts: Record<SearchTypeFilter, number> = {
-		all: topResults?.length ?? 0,
+		all: topSearch?.hits.length ?? 0,
 		books: booksTotal,
 		audiobooks: audiobooksTotal,
 		"read-listen": matchingReadListenPairings.length,
@@ -813,16 +813,32 @@ function SearchPage() {
 					query: normalizedQuery,
 				});
 
+	const availableTypes = new Set(topSearch?.availableTypes);
 	const filterOptions = [
-		{ key: "all", label: m["search.all"]() },
-		{ key: "books", label: m["search.books"]() },
-		{ key: "audiobooks", label: m["search.audiobooks"]() },
-		{ key: "read-listen", label: m["nav.read_listen"]() },
-		{ key: "series", label: m["nav.series"]() },
-		{ key: "authors", label: m["search.authors"]() },
-		{ key: "collections", label: m["search.collections"]() },
-		{ key: "users", label: m["search.users"]() },
-	] as const;
+		{ key: "all", label: m["search.all"](), resultType: null },
+		{ key: "books", label: m["search.books"](), resultType: "book" },
+		{
+			key: "audiobooks",
+			label: m["search.audiobooks"](),
+			resultType: "audiobook",
+		},
+		{
+			key: "read-listen",
+			label: m["nav.read_listen"](),
+			resultType: "read-listen",
+		},
+		{ key: "series", label: m["nav.series"](), resultType: "series" },
+		{ key: "authors", label: m["search.authors"](), resultType: "author" },
+		{
+			key: "collections",
+			label: m["search.collections"](),
+			resultType: "collection",
+		},
+		{ key: "users", label: m["search.users"](), resultType: "user" },
+	].filter(
+		(option) =>
+			option.resultType === null || availableTypes.has(option.resultType),
+	);
 
 	return (
 		<div className={cn(PAGE_GUTTER, "mx-auto w-full py-6 md:py-8")}>
@@ -871,10 +887,10 @@ function SearchPage() {
 				{isAll &&
 					(isTopLoading ? (
 						<ResultListSkeleton />
-					) : topResults && topResults.length > 0 ? (
+					) : topSearch && topSearch.hits.length > 0 ? (
 						<BookContextMenuRoot>
 							<ul className="divide-y divide-border/60">
-								{topResults.map((hit) => (
+								{topSearch.hits.map((hit) => (
 									<RankedResultRow key={searchResultKey(hit)} hit={hit} />
 								))}
 							</ul>

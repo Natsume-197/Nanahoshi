@@ -109,7 +109,7 @@ export function DashboardHeaderSearch() {
 	const mode: "search" | "recent" =
 		normalizedQuery.length > 0 ? "search" : "recent";
 
-	const { data: topHits, isFetching: isTopFetching } = useQuery({
+	const { data: topSearch, isFetching: isTopFetching } = useQuery({
 		...topSearchQueryOptions(debouncedQuery),
 		enabled: shouldSearch,
 	});
@@ -121,10 +121,10 @@ export function DashboardHeaderSearch() {
 		normalizedQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH &&
 		(isTopFetching || debouncedQuery !== normalizedQuery);
 
-	const hits = topHits ?? [];
+	const hits = topSearch?.hits ?? [];
 	const hasResults = !isSearchPending && hits.length > 0;
 	const noResults =
-		!isSearchPending && shouldSearch && hits.length === 0 && topHits != null;
+		!isSearchPending && shouldSearch && hits.length === 0 && topSearch != null;
 
 	// Flat options list drives keyboard navigation; render order matches it.
 	const options: SearchOption[] =

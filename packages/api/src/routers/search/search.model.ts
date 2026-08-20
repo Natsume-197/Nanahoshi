@@ -58,3 +58,9 @@ export type TopReadListenPublication = {
 	authors: { name: string }[];
 	narrators?: { name: string }[];
 };
+
+export type TopSearchResults = {
+	hits: TopHit[];
+	/** Types with at least one eligible candidate before the top-N limit. */
+	availableTypes: TopHit["type"][];
+};
