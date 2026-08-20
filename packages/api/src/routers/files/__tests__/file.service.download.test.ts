@@ -53,6 +53,7 @@ const { audiobookRepository } = await import(
 const { audiobookMetadataRepository } = await import(
 	"../../audiobooks/metadata/metadata.repository"
 );
+const { bookRepository } = await import("../../books/book.repository");
 
 // ─── Singleton patching (restored after each test; mock.module leaks) ────────
 
@@ -61,6 +62,7 @@ const originals = {
 	listAudioFiles: audiobookRepository.listAudioFiles,
 	getAudioFile: audiobookRepository.getAudioFile,
 	findByBookId: audiobookMetadataRepository.findByBookId,
+	listBySeriesUuid: bookRepository.listBySeriesUuid,
 };
 
 afterEach(() => {
@@ -68,6 +70,7 @@ afterEach(() => {
 	audiobookRepository.listAudioFiles = originals.listAudioFiles;
 	audiobookRepository.getAudioFile = originals.getAudioFile;
 	audiobookMetadataRepository.findByBookId = originals.findByBookId;
+	bookRepository.listBySeriesUuid = originals.listBySeriesUuid;
 	existingPaths.clear();
 });
 
@@ -364,6 +367,40 @@ describe("getFileDownload", () => {
 		expect(result?.filename).toBe("My Book.zip");
 		expect(result?.mediaType).toBe("audiobook");
 		expect(result?.url).toContain(`/download/${UUID}?exp=`);
+	});
+});
+
+describe("getSeriesZipEntries", () => {
+	test("skips a stale catalog entry whose source file is missing", async () => {
+		const present = stubBook({
+			uuid: "550e8400-e29b-41d4-a716-446655440001",
+			filename: "present.epub",
+			relativePath: "series/present.epub",
+		});
+		const missing = stubBook({
+			uuid: "550e8400-e29b-41d4-a716-446655440002",
+			filename: "missing.epub",
+			relativePath: "series/missing.epub",
+		});
+		bookRepository.listBySeriesUuid = mock(
+			async () =>
+				[{ uuid: present.uuid }, { uuid: missing.uuid }] as Awaited<
+					ReturnType<typeof originals.listBySeriesUuid>
+				>,
+		);
+		fileRepository.findBookByUuid = mock(async (uuid: string) =>
+			uuid === present.uuid ? present : missing,
+		);
+		existingPaths.add(path.join("/library", "series/present.epub"));
+
+		expect(await service.getSeriesZipEntries("series-uuid", SERVER_ID)).toEqual(
+			[
+				{
+					filename: "present.epub",
+					fullPath: path.join("/library", "series/present.epub"),
+				},
+			],
+		);
 	});
 });
 

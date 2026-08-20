@@ -78,6 +78,7 @@ import {
 	getCoverSrcSet,
 	getCoverUrl,
 } from "@/utils/covers";
+import { downloadFromUrl } from "@/utils/download";
 import {
 	formatDate,
 	formatFileSize,
@@ -482,10 +483,10 @@ function HeroActions({
 		if (isDownloading) return;
 		try {
 			setIsDownloading(true);
-			const { url } = await client.files.getSignedDownloadUrl({
+			const { url, filename } = await client.files.getSignedDownloadUrl({
 				uuid: bookUuid,
 			});
-			window.open(url, "_blank", "noopener,noreferrer");
+			downloadFromUrl(url, filename);
 		} catch (error) {
 			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
 		} finally {

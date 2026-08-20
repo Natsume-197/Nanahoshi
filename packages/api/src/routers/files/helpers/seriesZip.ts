@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { type FileHandle, open } from "node:fs/promises";
 import path from "node:path";
 import { Zip, ZipPassThrough } from "fflate";
 import type { SeriesZipEntry } from "../file.service";
@@ -31,11 +31,25 @@ export function createSeriesZipStream(
 
 	const pump = async () => {
 		for (const entry of entries) {
+			let handle: FileHandle;
+			try {
+				handle = await open(entry.fullPath, "r");
+			} catch {
+				// The catalog can become stale between URL creation and streaming.
+				// Skip a missing entry before writing its ZIP header.
+				continue;
+			}
 			const file = new ZipPassThrough(entry.filename);
 			zip.add(file);
-			for await (const chunk of createReadStream(entry.fullPath)) {
-				await waitForDrain();
-				file.push(new Uint8Array(chunk as Buffer));
+			try {
+				for await (const chunk of handle.createReadStream({
+					autoClose: false,
+				})) {
+					await waitForDrain();
+					file.push(new Uint8Array(chunk as Buffer));
+				}
+			} finally {
+				await handle.close();
 			}
 			file.push(new Uint8Array(0), true);
 		}

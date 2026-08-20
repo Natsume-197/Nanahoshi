@@ -9,6 +9,7 @@ import type { SortOption } from "@/components/shared/sort-select";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
+import { downloadFromUrl } from "@/utils/download";
 import type { BookSortMode } from "@/utils/filter-sort-books";
 import { formatAvgRating, getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
@@ -72,10 +73,10 @@ function SeriesDetailPage() {
 		if (isDownloading) return;
 		try {
 			setIsDownloading(true);
-			const { url } = await client.files.getSeriesDownloadUrl({
+			const { url, filename } = await client.files.getSeriesDownloadUrl({
 				seriesUuid: uuid,
 			});
-			window.open(url, "_blank", "noopener,noreferrer");
+			downloadFromUrl(url, filename);
 		} catch (error) {
 			toast.error(
 				error instanceof Error

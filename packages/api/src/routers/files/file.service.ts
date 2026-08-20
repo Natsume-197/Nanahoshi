@@ -240,6 +240,12 @@ export const getSeriesZipEntries = async (
 	for (const book of books) {
 		const file = await getFileInfo(book.uuid, serverId);
 		if (!file) continue;
+		try {
+			await fs.access(file.fullPath);
+		} catch {
+			// A stale scan row must not abort the complete series download.
+			continue;
+		}
 		entries.push({ filename: file.filename, fullPath: file.fullPath });
 	}
 	return dedupeZipEntries(entries);
@@ -276,6 +282,7 @@ export const getSeriesDownload = async (
 
 	return {
 		url: generateSeriesDownloadUrl(seriesUuid),
+		filename: zipFilename(seriesName, "series"),
 		fileCount: entries.length,
 		seriesName,
 	};

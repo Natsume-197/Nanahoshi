@@ -9,6 +9,7 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
+import { downloadFromUrl } from "@/utils/download";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 import {
@@ -362,11 +363,11 @@ export function useBookContextMenuActions(
 
 	const handleDownload = useCallback(async () => {
 		try {
-			const { url } = await client.files.getSignedDownloadUrl({
+			const { url, filename } = await client.files.getSignedDownloadUrl({
 				uuid: bookUuid,
 			});
 
-			window.open(url, "_blank");
+			downloadFromUrl(url, filename);
 		} catch (error) {
 			toast.error(getErrorMessage(error, m["toast.download_failed"]()));
 		}
