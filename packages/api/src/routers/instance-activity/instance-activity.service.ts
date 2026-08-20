@@ -1,6 +1,9 @@
 import { recordSecurityAuditEvent } from "@nanahoshi-v2/auth/security-audit";
 import { db } from "@nanahoshi-v2/db";
-import { securityAuditEvent } from "@nanahoshi-v2/db/schema/general";
+import {
+	downloadDeliveryEvent,
+	securityAuditEvent,
+} from "@nanahoshi-v2/db/schema/general";
 import { lt } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import {
@@ -21,14 +24,16 @@ export async function listInstanceActivity(input: {
 	cursor?: number;
 	limit: number;
 }) {
-	const [activePlayback, auditRows] = await Promise.all([
+	const [activePlayback, auditRows, downloads] = await Promise.all([
 		listActivePlayback(),
 		instanceActivityRepository.listAudit(input),
+		instanceActivityRepository.listDownloads({ limit: input.limit }),
 	]);
 	const rows = auditRows.slice(0, input.limit);
 	return {
 		activePlayback,
 		audit: rows,
+		downloads,
 		nextCursor:
 			auditRows.length > input.limit ? (rows.at(-1)?.id ?? null) : null,
 	};
@@ -69,22 +74,29 @@ export async function revokeSession(input: {
 	return { revoked: true };
 }
 
-export async function purgeExpiredSecurityAuditEvents(): Promise<void> {
+export async function purgeExpiredInstanceActivityEvents(): Promise<void> {
 	const cutoff = new Date(Date.now() - RETENTION_MS).toISOString();
 	try {
-		await db
-			.delete(securityAuditEvent)
-			.where(lt(securityAuditEvent.createdAt, cutoff));
+		await Promise.all([
+			db
+				.delete(securityAuditEvent)
+				.where(lt(securityAuditEvent.createdAt, cutoff)),
+			db
+				.delete(downloadDeliveryEvent)
+				.where(lt(downloadDeliveryEvent.createdAt, cutoff)),
+		]);
 	} catch (err) {
-		log.error({ err, cutoff }, "Failed to purge expired security audit events");
+		log.error({ err, cutoff }, "Failed to purge expired instance activity");
 	}
 }
 
-export function startSecurityAuditRetention(): { close: () => Promise<void> } {
-	void purgeExpiredSecurityAuditEvents();
+export function startInstanceActivityRetention(): {
+	close: () => Promise<void>;
+} {
+	void purgeExpiredInstanceActivityEvents();
 	const timer = setInterval(
 		() => {
-			void purgeExpiredSecurityAuditEvents();
+			void purgeExpiredInstanceActivityEvents();
 		},
 		24 * 60 * 60 * 1000,
 	);

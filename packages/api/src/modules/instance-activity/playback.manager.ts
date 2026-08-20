@@ -26,7 +26,8 @@ const INSTANCE_ACTIVITY_CHANNEL = "instance-activity:updates";
 
 export type InstanceActivityEvent =
 	| { kind: "playback_changed"; sessionId: string }
-	| { kind: "audit_changed" };
+	| { kind: "audit_changed" }
+	| { kind: "download_changed" };
 
 type ActivityCallback = (event: InstanceActivityEvent) => void;
 const subscribers = new Set<ActivityCallback>();

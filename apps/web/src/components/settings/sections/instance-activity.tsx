@@ -6,6 +6,7 @@ import {
 	CaretRight,
 	CheckCircle,
 	Desktop,
+	DownloadSimple,
 	Funnel,
 	Headphones,
 	MagnifyingGlass,
@@ -92,6 +93,149 @@ type SecurityAuditEntry = {
 	serverId: string | null;
 	source: string;
 };
+
+type DownloadHistoryEntry = {
+	id: number;
+	createdAt: string;
+	deliveryKind: "ebook" | "audiobook" | "audio_file" | "series";
+	source: "web" | "opds" | "api";
+	userId: string;
+	userName: string | null;
+	serverId: string;
+	serverName: string | null;
+	itemTitle: string;
+	filename: string;
+	fileCount: number;
+	device: string | null;
+	ipAddress: string | null;
+};
+
+function deliveryKindLabel(kind: DownloadHistoryEntry["deliveryKind"]) {
+	const labels = {
+		ebook: m["settings.activity.download_kind_ebook"],
+		audiobook: m["settings.activity.download_kind_audiobook"],
+		audio_file: m["settings.activity.download_kind_audio_file"],
+		series: m["settings.activity.download_kind_series"],
+	};
+	return labels[kind]();
+}
+
+const downloadColumnHelper = createColumnHelper<
+	DataTableFeatures,
+	DownloadHistoryEntry
+>();
+
+const downloadColumns = downloadColumnHelper.columns([
+	downloadColumnHelper.accessor("createdAt", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.time"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<time
+				dateTime={row.original.createdAt}
+				className="text-muted-foreground text-xs tabular-nums"
+			>
+				{formatDetailedDate(row.original.createdAt)}
+			</time>
+		),
+	}),
+	downloadColumnHelper.accessor("userName", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.user"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<span className="block max-w-40 truncate font-medium">
+				{row.original.userName ?? row.original.userId}
+			</span>
+		),
+	}),
+	downloadColumnHelper.accessor("itemTitle", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.download_item"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<span className="block max-w-56 truncate font-medium">
+				{row.original.itemTitle}
+			</span>
+		),
+	}),
+	downloadColumnHelper.accessor("deliveryKind", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.download_type"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<Badge variant="outline">
+				{deliveryKindLabel(row.original.deliveryKind)}
+			</Badge>
+		),
+	}),
+	downloadColumnHelper.accessor("filename", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.download_file"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<div className="max-w-56">
+				<p className="truncate text-sm">{row.original.filename}</p>
+				{row.original.fileCount > 1 && (
+					<p className="text-muted-foreground text-xs">
+						{m["settings.activity.download_files"]({
+							count: row.original.fileCount,
+						})}
+					</p>
+				)}
+			</div>
+		),
+	}),
+	downloadColumnHelper.display({
+		id: "request",
+		header: () => m["settings.activity.device"](),
+		cell: ({ row }) => (
+			<div className="max-w-48 text-muted-foreground text-xs">
+				<p className="truncate">{row.original.device ?? "—"}</p>
+				<p className="truncate font-mono">{row.original.ipAddress ?? "—"}</p>
+			</div>
+		),
+	}),
+	downloadColumnHelper.accessor("serverName", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.server"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<span className="block max-w-36 truncate text-muted-foreground">
+				{row.original.serverName ?? row.original.serverId}
+			</span>
+		),
+	}),
+	downloadColumnHelper.accessor("source", {
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={m["settings.activity.source"]()}
+			/>
+		),
+		cell: ({ row }) => (
+			<Badge variant="outline">{sourceLabel(row.original.source)}</Badge>
+		),
+	}),
+]);
 
 const auditColumnHelper = createColumnHelper<
 	DataTableFeatures,
@@ -251,6 +395,7 @@ export function InstanceActivitySettings() {
 	};
 	const active = activityQuery.data?.activePlayback ?? [];
 	const audit = activityQuery.data?.audit ?? [];
+	const downloads = activityQuery.data?.downloads ?? [];
 
 	return (
 		<section
@@ -382,6 +527,45 @@ export function InstanceActivitySettings() {
 						</Table>
 					)}
 				</div>
+			</section>
+
+			<section
+				className="flex flex-col gap-4"
+				aria-labelledby="download-history-title"
+			>
+				<div className="flex flex-col gap-1">
+					<h3
+						id="download-history-title"
+						className="flex items-center gap-2 font-semibold text-foreground text-lg"
+					>
+						<DownloadSimple
+							aria-hidden="true"
+							className="size-5 text-primary"
+						/>
+						{m["settings.activity.download_title"]()}
+					</h3>
+					<p className="text-muted-foreground text-sm leading-relaxed">
+						{m["settings.activity.download_desc"]()}
+					</p>
+				</div>
+				<DataTable
+					features={dataTableFeatures}
+					tableLabel={m["settings.activity.download_title"]()}
+					columns={downloadColumns}
+					data={downloads}
+					getRowId={(entry) => String(entry.id)}
+					isLoading={activityQuery.isLoading}
+					pageSize={25}
+					paginationLabels={{
+						page: (page, pageCount) =>
+							m["settings.activity.page"]({ page, pageCount }),
+						previous: m["settings.activity.previous_page"](),
+						next: m["settings.activity.next_page"](),
+					}}
+					emptyState={{
+						description: m["settings.activity.empty_downloads"](),
+					}}
+				/>
 			</section>
 
 			<section

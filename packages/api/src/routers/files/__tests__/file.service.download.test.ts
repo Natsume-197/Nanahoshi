@@ -162,6 +162,7 @@ describe("getDownloadPayload — ebooks", () => {
 		expect(payload).toEqual({
 			kind: "file",
 			mediaType: "ebook",
+			itemTitle: "book.epub",
 			filename: "book.epub",
 			mimetype: "application/epub+zip",
 			fullPath: path.join("/library", "novels/book.epub"),
@@ -220,6 +221,7 @@ describe("getDownloadPayload — audiobooks", () => {
 		expect(payload).toEqual({
 			kind: "file",
 			mediaType: "audiobook",
+			itemTitle: "book.m4b",
 			filename: "book.m4b",
 			mimetype: "audio/mp4",
 			fullPath: "/library/audio/book.m4b",
@@ -239,6 +241,7 @@ describe("getDownloadPayload — audiobooks", () => {
 		expect(payload).toEqual({
 			kind: "zip",
 			mediaType: "audiobook",
+			itemTitle: "My Book",
 			zipName: "My Book.zip",
 			entries: [
 				{ filename: "chapter 01.mp3", fullPath: "/a/chapter 01.mp3" },

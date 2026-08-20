@@ -1,6 +1,9 @@
 import { db } from "@nanahoshi-v2/db";
 import { session, user } from "@nanahoshi-v2/db/schema/auth";
-import { securityAuditEvent } from "@nanahoshi-v2/db/schema/general";
+import {
+	downloadDeliveryEvent,
+	securityAuditEvent,
+} from "@nanahoshi-v2/db/schema/general";
 import { and, desc, eq, ilike, lt } from "drizzle-orm";
 
 export class InstanceActivityRepository {
@@ -34,6 +37,32 @@ export class InstanceActivityRepository {
 			)
 			.orderBy(desc(securityAuditEvent.id))
 			.limit(input.limit + 1);
+	}
+
+	listDownloads(input: {
+		userId?: string;
+		device?: string;
+		serverId?: string;
+		limit: number;
+	}) {
+		return db
+			.select()
+			.from(downloadDeliveryEvent)
+			.where(
+				and(
+					input.userId
+						? eq(downloadDeliveryEvent.userId, input.userId)
+						: undefined,
+					input.device
+						? ilike(downloadDeliveryEvent.device, `%${input.device}%`)
+						: undefined,
+					input.serverId
+						? eq(downloadDeliveryEvent.serverId, input.serverId)
+						: undefined,
+				),
+			)
+			.orderBy(desc(downloadDeliveryEvent.id))
+			.limit(input.limit);
 	}
 
 	async getSessionForRevocation(sessionId: string) {

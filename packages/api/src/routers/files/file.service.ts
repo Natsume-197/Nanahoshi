@@ -83,6 +83,7 @@ export type DownloadPayload =
 	| {
 			kind: "file";
 			mediaType: "ebook" | "audiobook";
+			itemTitle: string;
 			filename: string;
 			mimetype: string;
 			fullPath: string;
@@ -91,6 +92,7 @@ export type DownloadPayload =
 	| {
 			kind: "zip";
 			mediaType: "audiobook";
+			itemTitle: string;
 			zipName: string;
 			entries: SeriesZipEntry[];
 	  };
@@ -128,7 +130,14 @@ export const getDownloadPayload = async (
 
 	if (b.libraryMediaType !== "audiobook") {
 		const file = await resolveEbookFileInfo(b);
-		return file ? { kind: "file", mediaType: "ebook", ...file } : null;
+		return file
+			? {
+					kind: "file",
+					mediaType: "ebook",
+					itemTitle: b.title?.trim() || b.filename,
+					...file,
+				}
+			: null;
 	}
 
 	const audioFiles = await audiobookRepository.listAudioFiles(b.id);
@@ -139,6 +148,7 @@ export const getDownloadPayload = async (
 		return {
 			kind: "file",
 			mediaType: "audiobook",
+			itemTitle: b.title?.trim() || b.filename,
 			filename: downloadFilename(b.title, first.filename),
 			mimetype: first.mimeType || "application/octet-stream",
 			fullPath: first.path,
@@ -156,6 +166,7 @@ export const getDownloadPayload = async (
 	return {
 		kind: "zip",
 		mediaType: "audiobook",
+		itemTitle: b.title?.trim() || b.filename,
 		zipName: zipFilename(b.title ?? b.filename),
 		entries: dedupeZipEntries(entries),
 	};

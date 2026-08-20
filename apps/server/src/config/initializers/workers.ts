@@ -121,10 +121,10 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 
 		workers.push(await startTaskProgressListeners());
-		const { startSecurityAuditRetention } = await import(
+		const { startInstanceActivityRetention } = await import(
 			"@nanahoshi-v2/api/routers/instance-activity/instance-activity.service"
 		);
-		workers.push(startSecurityAuditRetention());
+		workers.push(startInstanceActivityRetention());
 	},
 	shutdown: async () => {
 		// The shared Redis initializer closes the connection after every worker

@@ -355,10 +355,12 @@ export class AudiobookRepository {
 				discNumber: audioFile.discNumber,
 				trackNumber: audioFile.trackNumber,
 				createdAt: audioFile.createdAt,
+				bookTitle: audiobookMetadata.title,
 			})
 			.from(audioFile)
 			.innerJoin(book, eq(book.id, audioFile.bookId))
 			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(and(...conditions))
 			.limit(1);
 

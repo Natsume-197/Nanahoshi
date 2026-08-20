@@ -8,6 +8,10 @@ import {
 import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
 import { createContext } from "@nanahoshi-v2/api/context";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
+import {
+	type DownloadDeliveryInput,
+	recordDownloadDeliveryEvent,
+} from "@nanahoshi-v2/api/modules/instance-activity/download-delivery";
 import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
 import {
 	getDownloadPayload,
@@ -28,12 +32,21 @@ import {
 	resolveOrgFromApiKey,
 } from "@nanahoshi-v2/api/routers/opds/opds.auth";
 import { auth } from "@nanahoshi-v2/auth";
+import { getAuditRequestMetadata } from "@nanahoshi-v2/auth/security-audit";
 import type { Hono } from "hono";
 import { attachmentContentDisposition } from "../lib/content-disposition";
 import { asBody } from "../lib/node-stream";
 import { serveRangedFile } from "../lib/ranged-file";
 
 const log = logger.child({ component: "downloads-routes" });
+
+function recordDelivery(
+	headers: Headers,
+	input: Omit<DownloadDeliveryInput, "device" | "ipAddress">,
+): void {
+	const request = getAuditRequestMetadata(headers);
+	void recordDownloadDeliveryEvent({ ...input, ...request });
+}
 
 export function mountDownloads(app: Hono) {
 	app.get("/read/:uuid", async (c) => {
@@ -89,12 +102,17 @@ export function mountDownloads(app: Hono) {
 		// Try Basic Auth first (OPDS clients), then fall back to cookie session.
 		let serverId: string | undefined;
 		let authSession: Parameters<typeof canAccessBookAction>[0] = null;
+		let deliveryUser: DownloadDeliveryInput["user"] | null = null;
+		let deliverySessionId: string | null = null;
+		let deliverySource: DownloadDeliveryInput["source"] = "web";
 		const apiKey = parseBasicAuthKey(c.req.header("Authorization"));
 		if (apiKey) {
 			try {
 				const user = await resolveOrgFromApiKey(auth, apiKey);
 				if (user) {
 					serverId = user.serverId;
+					deliveryUser = { id: user.userId };
+					deliverySource = "opds";
 					authSession = {
 						user: { id: user.userId },
 						session: { activeOrganizationId: user.serverId },
@@ -110,6 +128,11 @@ export function mountDownloads(app: Hono) {
 			if (ctx.session?.user) {
 				serverId = ctx.session.session.activeOrganizationId ?? undefined;
 				authSession = ctx.session;
+				deliveryUser = {
+					id: ctx.session.user.id,
+					name: ctx.session.user.name,
+				};
+				deliverySessionId = ctx.session.session.id;
 			}
 		}
 
@@ -133,7 +156,19 @@ export function mountDownloads(app: Hono) {
 			return c.text("Forbidden", 403);
 		}
 
+		if (!deliveryUser) return c.text("Unauthorized", 401);
+
 		if (payload.kind === "zip") {
+			recordDelivery(c.req.raw.headers, {
+				deliveryKind: "audiobook",
+				source: deliverySource,
+				user: deliveryUser,
+				sessionId: deliverySessionId,
+				server: { id: serverId },
+				item: { uuid, title: payload.itemTitle },
+				filename: payload.zipName,
+				fileCount: payload.entries.length,
+			});
 			return c.body(createSeriesZipStream(payload.entries), 200, {
 				"Content-Type": "application/zip",
 				"Content-Disposition": attachmentContentDisposition(payload.zipName),
@@ -143,6 +178,15 @@ export function mountDownloads(app: Hono) {
 		try {
 			const stats = statSync(payload.fullPath);
 			const stream = createReadStream(payload.fullPath);
+			recordDelivery(c.req.raw.headers, {
+				deliveryKind: payload.mediaType === "audiobook" ? "audiobook" : "ebook",
+				source: deliverySource,
+				user: deliveryUser,
+				sessionId: deliverySessionId,
+				server: { id: serverId },
+				item: { uuid, title: payload.itemTitle },
+				filename: payload.filename,
+			});
 
 			return c.body(asBody(stream), 200, {
 				"Content-Length": stats.size.toString(),
@@ -200,6 +244,15 @@ export function mountDownloads(app: Hono) {
 		try {
 			const stats = statSync(file.path);
 			const stream = createReadStream(file.path);
+			recordDelivery(c.req.raw.headers, {
+				deliveryKind: "audio_file",
+				source: "web",
+				user: { id: ctx.session.user.id, name: ctx.session.user.name },
+				sessionId: ctx.session.session.id,
+				server: { id: serverId },
+				item: { uuid, title: file.bookTitle ?? file.filename },
+				filename: file.filename,
+			});
 
 			return c.body(asBody(stream), 200, {
 				"Content-Length": stats.size.toString(),
@@ -225,6 +278,9 @@ export function mountDownloads(app: Hono) {
 		}
 
 		const ctx = await createContext({ context: c });
+		if (!ctx.session?.user) {
+			return c.text("Unauthorized", 401);
+		}
 		const access = await resolveLibraryAccess(ctx.session);
 		if (!access) {
 			return c.text("Unauthorized", 401);
@@ -241,6 +297,16 @@ export function mountDownloads(app: Hono) {
 		if (entries.length === 0) {
 			return c.text("Not found", 404);
 		}
+		recordDelivery(c.req.raw.headers, {
+			deliveryKind: "series",
+			source: "web",
+			user: { id: ctx.session.user.id, name: ctx.session.user.name },
+			sessionId: ctx.session.session.id,
+			server: { id: access.serverId },
+			item: { uuid: seriesUuid, title: seriesName },
+			filename: zipFilename(seriesName, "series"),
+			fileCount: entries.length,
+		});
 
 		return c.body(createSeriesZipStream(entries), 200, {
 			"Content-Type": "application/zip",

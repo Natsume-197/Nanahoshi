@@ -88,6 +88,54 @@ export const securityAuditEvent = pgTable(
 	],
 );
 
+/**
+ * Append-only record of an authorized download delivery. Like security audit
+ * rows, snapshots deliberately have no foreign keys so catalog cleanup cannot
+ * rewrite administrative history.
+ */
+export const downloadDeliveryEvent = pgTable(
+	"download_delivery_event",
+	{
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		deliveryKind: text("delivery_kind")
+			.$type<"ebook" | "audiobook" | "audio_file" | "series">()
+			.notNull(),
+		source: text("source").$type<"web" | "opds" | "api">().notNull(),
+		userId: text("user_id").notNull(),
+		userName: text("user_name"),
+		sessionId: text("session_id"),
+		serverId: text("server_id").notNull(),
+		serverName: text("server_name"),
+		itemUuid: text("item_uuid").notNull(),
+		itemTitle: text("item_title").notNull(),
+		filename: text("filename").notNull(),
+		fileCount: integer("file_count").default(1).notNull(),
+		device: text("device"),
+		ipAddress: text("ip_address"),
+	},
+	(table) => [
+		index("download_delivery_event_created_at_idx").on(table.createdAt.desc()),
+		index("download_delivery_event_user_created_at_idx").on(
+			table.userId,
+			table.createdAt.desc(),
+		),
+		index("download_delivery_event_server_created_at_idx").on(
+			table.serverId,
+			table.createdAt.desc(),
+		),
+		index("download_delivery_event_item_created_at_idx").on(
+			table.itemUuid,
+			table.createdAt.desc(),
+		),
+	],
+);
+
 // Per-organization (tenant) settings. Behavioral/credential metadata-source
 // config (Amazon domain+cookie, RanobeDB provider toggle) lives here so it
 // can't leak across tenants the way a single global app_settings row would.

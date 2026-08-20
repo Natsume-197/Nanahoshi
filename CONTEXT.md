@@ -24,6 +24,10 @@ _Avoid_: Audit actor, initiator, event author
 The technical condition in which a Security Audit Event cannot be persisted. It emits a structured server error but never blocks the user action that caused it; the absent event is an explicit gap rather than a fabricated audit record.
 _Avoid_: Authentication failure, audit event, user-facing security notification
 
+**Download Delivery Event**:
+An immutable administrative record that Nanahoshi authorized and began delivering a downloadable ebook, audiobook file, audiobook archive, or Media Series archive to a member. It snapshots the member, server, catalog item, delivered filename, request source, device and IP address, and is retained for 90 days; it does not claim that the client received every byte because completion occurs outside the server's observable boundary.
+_Avoid_: Security Audit Event, reading activity, completed download
+
 **Instance Activity Console**:
 The global administrative surface that lists Playback Sessions and Security Audit Events across every server. In its first version only the global Nanahoshi administrator may access it; organization roles and owners have no access.
 _Avoid_: Server dashboard, member activity rail, organization settings
