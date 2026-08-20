@@ -50,7 +50,8 @@ function readQueue(): PendingQueue {
 			Object.entries(stored).flatMap(([legacyKey, entry]) => {
 				if (entry.savedAt < Date.now() - PENDING_RETENTION_MS) return [];
 				// Pre-ownership entries cannot safely be attributed on a shared device.
-				if (!("ownerId" in entry) || typeof entry.ownerId !== "string") return [];
+				if (!("ownerId" in entry) || typeof entry.ownerId !== "string")
+					return [];
 				const syncOperationId = entry.syncOperationId ?? legacyKey;
 				return [[syncOperationId, { ...entry, syncOperationId }]];
 			}),
