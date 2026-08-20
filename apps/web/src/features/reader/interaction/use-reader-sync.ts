@@ -1,10 +1,9 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { claimReadingTimeSlice } from "@/features/reader/renderers/shared/reading-time-slice";
 import { markPendingProgress } from "@/features/reader/session/pending-progress";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import {
 	invalidateReadingProgress,
@@ -25,7 +24,6 @@ interface UseReaderSyncOptions {
 }
 
 const SYNC_INTERVAL_MS = 60_000;
-const INITIAL_SYNC_DELAY_MS = 5_000;
 const COMPLETION_THRESHOLD = 0.9;
 
 export function useReaderSync({
@@ -117,13 +115,12 @@ export function useReaderSync({
 		}
 	}, SYNC_INTERVAL_MS);
 
-	// Initial delayed sync (marks the book as "reading")
-	useMountEffect(() => {
-		const initialTimeout = setTimeout(() => {
-			syncRef.current?.();
-		}, INITIAL_SYNC_DELAY_MS);
-		return () => clearTimeout(initialTimeout);
-	});
+	const wasEnabledRef = useRef(false);
+	useEffect(() => {
+		const started = enabled && !wasEnabledRef.current;
+		wasEnabledRef.current = enabled;
+		if (started) syncRef.current?.();
+	}, [enabled]);
 
 	// Sync on page close. beforeunload rarely fires on mobile, so pagehide
 	// (which also covers bfcache freezes) is the one that matters there.

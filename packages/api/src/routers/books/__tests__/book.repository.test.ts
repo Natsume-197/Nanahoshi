@@ -343,6 +343,36 @@ describe("BookRepository", () => {
 		expect(exists).toBe(false);
 	});
 
+	test("getTitleById() resolves an audiobook title from audiobook metadata", async () => {
+		selectResult = [
+			{
+				ebookTitle: null,
+				audiobookTitle: "Dune",
+				filename: "Dune - chapter 01.m4b",
+			},
+		];
+
+		const title = await repo.getTitleById(7);
+
+		expect(title).toBe("Dune");
+		const chain = mockSelect.mock.results.at(-1)?.value as {
+			leftJoin: { mock: { calls: unknown[][] } };
+		};
+		expect(chain.leftJoin.mock.calls).toHaveLength(2);
+	});
+
+	test("getTitleById() does not expose a filename when metadata has no title", async () => {
+		selectResult = [
+			{
+				ebookTitle: null,
+				audiobookTitle: null,
+				filename: "raw-upload-name.epub",
+			},
+		];
+
+		expect(await repo.getTitleById(7)).toBeNull();
+	});
+
 	test("removeBook() returns true when a row is deleted", async () => {
 		deleteRowCount = 1;
 		const result = await repo.removeBook(1);

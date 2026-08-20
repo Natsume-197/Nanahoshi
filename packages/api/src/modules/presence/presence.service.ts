@@ -17,10 +17,10 @@ export async function markBookActivity(
 			bookRepository.getTitleById(bookId),
 			profileRepository.getShareReadingActivity(userId),
 		]);
-		if (!shareActivity) return;
+		if (!shareActivity || !title) return;
 		await presence.markActivity(userId, kind, {
 			uuid: bookUuid,
-			title: title ?? "",
+			title,
 		});
 	} catch {}
 }

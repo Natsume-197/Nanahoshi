@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useInterval } from "@/hooks/use-interval";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { client } from "@/utils/orpc";
 
@@ -15,6 +16,13 @@ function setIdle(idle: boolean) {
 export function usePresenceIdle() {
 	const lastActivityRef = useRef(Date.now());
 	const isIdleRef = useRef(false);
+
+	// The server-side idle lease can outlive this component across full-page
+	// reader navigation. Reconcile on every mount instead of trusting a fresh
+	// local ref that has no knowledge of the previous route's state.
+	useMountEffect(() => {
+		setIdle(false);
+	});
 
 	const markActive = () => {
 		lastActivityRef.current = Date.now();

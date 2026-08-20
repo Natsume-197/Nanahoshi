@@ -80,10 +80,14 @@ export function MembersList({
 	onNavigate?: () => void;
 	className?: string;
 } = {}) {
-	// Fully push-driven: every presence transition arrives live over the gateway
-	// WebSocket (usePresenceEvents patches this cache). No polling — the snapshot
-	// only refetches on mount, window focus, and gateway (re)connect.
-	const membersQuery = useQuery(orpc.members.withPresence.queryOptions());
+	// Gateway events patch the cache immediately. A low-frequency snapshot is a
+	// recovery net for abrupt process/network loss, where no final event exists.
+	const membersQuery = useQuery({
+		...orpc.members.withPresence.queryOptions(),
+		// Push events are primary. This bounded snapshot is the recovery path for
+		// abrupt process/network loss where no final offline event can be emitted.
+		refetchInterval: 60_000,
+	});
 	const scrollRef = useRef<HTMLDivElement>(null);
 
 	const members = membersQuery.data;

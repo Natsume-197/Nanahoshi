@@ -79,6 +79,7 @@ import { ReaderSettingsOverlay } from "@/features/reader/ui/settings/reader-sett
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
+import { usePresenceIdle } from "@/hooks/use-presence-idle";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -240,6 +241,7 @@ export function ReaderScreen({
 	// otherwise drop the presence connection and flip the user to "away" mid-read.
 	// Keeping the SSE alive here holds them "online" (and "reading" via the sync).
 	usePresenceEvents();
+	usePresenceIdle();
 
 	const [profilesStore, setProfilesStore] =
 		useState<ReaderProfilesStore>(loadProfilesStore);

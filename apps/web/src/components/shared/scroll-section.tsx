@@ -83,22 +83,37 @@ export function ScrollSection({
 
 	const lastGeometryRef = useRef({ scrollLeft: 0, clientWidth: 0 });
 
-	const updateScrollState = useCallback((el: HTMLElement) => {
-		const scrollLeft = el.scrollLeft;
-		const clientWidth = el.clientWidth;
-		const scrollWidth = el.scrollWidth;
-		lastGeometryRef.current = { scrollLeft, clientWidth };
-		const nextState = {
-			canScrollLeft: scrollLeft > 2,
-			canScrollRight: scrollLeft + clientWidth < scrollWidth - 2,
-		};
-		setScrollState((prev) =>
-			prev.canScrollLeft === nextState.canScrollLeft &&
-			prev.canScrollRight === nextState.canScrollRight
-				? prev
-				: nextState,
-		);
+	const updateEdgeCardDimming = useCallback((el: HTMLElement) => {
+		const rail = el.getBoundingClientRect();
+		for (const card of el.children) {
+			const cardBounds = card.getBoundingClientRect();
+			card.toggleAttribute(
+				"data-carousel-edge-card",
+				cardBounds.left < rail.left - 1 || cardBounds.right > rail.right + 1,
+			);
+		}
 	}, []);
+
+	const updateScrollState = useCallback(
+		(el: HTMLElement) => {
+			const scrollLeft = el.scrollLeft;
+			const clientWidth = el.clientWidth;
+			const scrollWidth = el.scrollWidth;
+			lastGeometryRef.current = { scrollLeft, clientWidth };
+			updateEdgeCardDimming(el);
+			const nextState = {
+				canScrollLeft: scrollLeft > 2,
+				canScrollRight: scrollLeft + clientWidth < scrollWidth - 2,
+			};
+			setScrollState((prev) =>
+				prev.canScrollLeft === nextState.canScrollLeft &&
+				prev.canScrollRight === nextState.canScrollRight
+					? prev
+					: nextState,
+			);
+		},
+		[updateEdgeCardDimming],
+	);
 
 	// Ref callback: setup observers on attach, cleanup on detach
 	const scrollRef = useCallback(
@@ -237,11 +252,15 @@ export function ScrollSection({
 						onClick={() => scroll("left")}
 						aria-label={m["scroll.left"]()}
 						className={cn(
-							`absolute ${arrowTopClass} start-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex`,
+							`absolute ${arrowTopClass} start-1 z-10 hidden size-11 -translate-y-1/2 items-center justify-center text-foreground drop-shadow-[0_1px_3px_rgb(0_0_0/0.65)] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[opacity,transform] motion-safe:duration-150 motion-safe:active:scale-[0.96] md:flex`,
 							arrowRevealClass,
 						)}
 					>
-						<CaretLeft aria-hidden className="size-4" />
+						<CaretLeft
+							aria-hidden
+							className="size-7 text-white drop-shadow-[0_0_2px_rgb(0_0_0/0.95)]"
+							weight="bold"
+						/>
 					</button>
 				)}
 				<section
@@ -251,7 +270,7 @@ export function ScrollSection({
 					onKeyDown={handleRailKeyDown}
 					className={cn(
 						PAGE_GUTTER,
-						"scrollbar-none overflow-x-auto overscroll-x-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:py-2",
+						"scrollbar-none overflow-x-auto overscroll-x-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:py-2 [&>[data-carousel-edge-card]]:brightness-[0.8] [&>[data-carousel-edge-card]]:transition-[filter] motion-safe:[&>[data-carousel-edge-card]]:duration-150",
 						isResume
 							? // The next card peeks on narrow rails; wider containers
 								// add columns only when the square cover still leaves room
@@ -271,11 +290,15 @@ export function ScrollSection({
 						onClick={() => scroll("right")}
 						aria-label={m["scroll.right"]()}
 						className={cn(
-							`absolute ${arrowTopClass} end-3 z-10 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 shadow-card backdrop-blur-sm hover:bg-card hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[background-color,opacity,scale,box-shadow] motion-safe:duration-150 motion-safe:active:scale-[0.96] motion-safe:hover:scale-105 md:flex`,
+							`absolute ${arrowTopClass} end-1 z-10 hidden size-11 -translate-y-1/2 items-center justify-center text-foreground drop-shadow-[0_1px_3px_rgb(0_0_0/0.65)] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 motion-safe:transition-[opacity,transform] motion-safe:duration-150 motion-safe:active:scale-[0.96] md:flex`,
 							arrowRevealClass,
 						)}
 					>
-						<CaretRight aria-hidden className="size-4" />
+						<CaretRight
+							aria-hidden
+							className="size-7 text-white drop-shadow-[0_0_2px_rgb(0_0_0/0.95)]"
+							weight="bold"
+						/>
 					</button>
 				)}
 			</div>

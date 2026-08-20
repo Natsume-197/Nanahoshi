@@ -1,8 +1,7 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	invalidateListeningProgress,
 	invalidateRecommendations,
@@ -19,7 +18,6 @@ interface UsePlayerSyncOptions {
 }
 
 const SYNC_INTERVAL_MS = 60_000;
-const INITIAL_SYNC_DELAY_MS = 5_000;
 const COMPLETION_THRESHOLD = 0.95;
 
 export function usePlayerSync({
@@ -37,7 +35,7 @@ export function usePlayerSync({
 	bookUuidRef.current = bookUuid;
 	const getPlaybackStateRef = useRef(getPlaybackState);
 	getPlaybackStateRef.current = getPlaybackState;
-	const syncProgress = useCallback(async () => {
+	const performSync = useCallback(async () => {
 		if (!enabledRef.current) return;
 
 		try {
@@ -70,6 +68,16 @@ export function usePlayerSync({
 			console.error("Failed to sync listening progress:", err);
 		}
 	}, []);
+	const queueRef = useRef<Promise<void>>(Promise.resolve());
+	const enqueue = useCallback((operation: () => Promise<void>) => {
+		const queued = queueRef.current.then(operation, operation);
+		queueRef.current = queued.catch(() => {});
+		return queued;
+	}, []);
+	const syncProgress = useCallback(
+		() => enqueue(performSync),
+		[enqueue, performSync],
+	);
 
 	syncRef.current = syncProgress;
 
@@ -86,12 +94,23 @@ export function usePlayerSync({
 		}
 	}, SYNC_INTERVAL_MS);
 
-	useMountEffect(() => {
-		const initialTimeout = setTimeout(() => {
-			syncRef.current?.();
-		}, INITIAL_SYNC_DELAY_MS);
-		return () => clearTimeout(initialTimeout);
-	});
+	const previousSessionRef = useRef({ enabled: false, bookUuid: "" });
+	useEffect(() => {
+		const previous = previousSessionRef.current;
+		const started =
+			enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
+		const stopped = previous.enabled && !enabled;
+		previousSessionRef.current = { enabled, bookUuid };
+
+		if (started) syncRef.current?.();
+		if (stopped) {
+			enqueue(() =>
+				client.presence
+					.clearActivity({ context: { keepalive: true } })
+					.catch(() => {}),
+			);
+		}
+	}, [bookUuid, enabled, enqueue]);
 
 	// Sync on unmount, then clear "listening" presence (see the hook for the
 	// sync-before-clear ordering).

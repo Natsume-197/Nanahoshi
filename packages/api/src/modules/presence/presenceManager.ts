@@ -206,9 +206,10 @@ function cancelPendingOffline(userId: string): void {
 	}
 }
 
-// Used both on SSE connect and on the 30s ping loop. SADD + EXPIRE is idempotent
-// (re-adds the conn if the set expired during a hiccup); publishes "online" only
-// when the set goes from empty to non-empty. No-op while invisible.
+// Used both on gateway connect and on the 30s ping loop. SADD + EXPIRE is
+// idempotent (re-adds the conn if the set expired during a hiccup). The same
+// pipeline also reads activity + idle so an expired lease produces its fallback
+// event on the next heartbeat; publish() suppresses unchanged states.
 export async function heartbeatOnline(
 	userId: string,
 	connId: string,
@@ -225,13 +226,22 @@ export async function heartbeatOnline(
 		.expire(CONNS_KEY(userId), ONLINE_TTL)
 		.expire(IDLE_KEY(userId), ONLINE_TTL)
 		.scard(CONNS_KEY(userId))
+		.get(ACTIVITY_KEY(userId))
+		.exists(IDLE_KEY(userId))
 		.exec();
 	if (!res) return;
-	const added = res[0]?.[1] as number;
 	const size = res[3]?.[1] as number;
-	if (added === 1 && size === 1) {
-		publish(await currentEvent(userId, status));
-	}
+	const activityRaw = res[4]?.[1];
+	const idle = res[5]?.[1] === 1;
+	publish(
+		toEvent(
+			userId,
+			size > 0,
+			parseActivity(typeof activityRaw === "string" ? activityRaw : null),
+			idle,
+			status,
+		),
+	);
 }
 
 export async function clearConnection(

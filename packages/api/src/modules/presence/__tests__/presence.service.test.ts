@@ -64,6 +64,12 @@ describe("markBookActivity", () => {
 		expect(markActivityMock).not.toHaveBeenCalled();
 	});
 
+	test("never exposes a filename placeholder when metadata has no title", async () => {
+		title = null;
+		await markBookActivity("u1", 7, "uuid-7", "listening");
+		expect(markActivityMock).not.toHaveBeenCalled();
+	});
+
 	test("is best-effort: a lookup failure never throws", async () => {
 		titleSpy.mockImplementationOnce(() => Promise.reject(new Error("db down")));
 		await markBookActivity("u1", 7, "uuid-7", "listening");

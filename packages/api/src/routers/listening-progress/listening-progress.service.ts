@@ -50,22 +50,24 @@ export const saveProgress = async (
 			void bookRepository
 				.getTitleById(bookId)
 				.then((bookTitle) =>
-					markActivePlayback({
-						sessionId: session.sessionId,
-						userId,
-						userName: session.userName,
-						userImage: session.userImage,
-						device: session.device,
-						ipAddress: session.ipAddress,
-						serverId,
-						bookUuid,
-						bookTitle: bookTitle ?? bookRecord.filename,
-						kind: "listening",
-						progress:
-							result.durationSeconds && result.durationSeconds > 0
-								? (result.currentTimeSeconds ?? 0) / result.durationSeconds
-								: null,
-					}),
+					bookTitle
+						? markActivePlayback({
+								sessionId: session.sessionId,
+								userId,
+								userName: session.userName,
+								userImage: session.userImage,
+								device: session.device,
+								ipAddress: session.ipAddress,
+								serverId,
+								bookUuid,
+								bookTitle,
+								kind: "listening",
+								progress:
+									result.durationSeconds && result.durationSeconds > 0
+										? (result.currentTimeSeconds ?? 0) / result.durationSeconds
+										: null,
+							})
+						: undefined,
 				)
 				.catch(() => {});
 	}

@@ -1,5 +1,4 @@
 import { env } from "@nanahoshi-v2/env/web";
-import { useRouter } from "@tanstack/react-router";
 import {
 	createContext,
 	type ReactNode,
@@ -53,7 +52,6 @@ import { nextTrackPosition } from "@/components/audio-player/track-transition";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { invalidateListeningProgress } from "@/lib/invalidate-progress";
 import { formatChapterLabel, getActiveChapterIndex } from "@/utils/chapters";
 import { formatNames } from "@/utils/format";
 import { client } from "@/utils/orpc";
@@ -185,9 +183,7 @@ const AudioPlayerLoadingContext = createContext<string | null>(null);
 const AudioPlayerExpandedContext = createContext(false);
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
-	const router = useRouter();
 	const audioRef = useRef<HTMLAudioElement | null>(null);
-	const hasMarkedListeningRef = useRef(false);
 
 	const [audiobook, setAudiobook] = useState<AudiobookPlayerData | null>(null);
 	const [isPlaying, setIsPlaying] = useState(false);
@@ -301,7 +297,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 	usePlayerSync({
 		bookUuid: audiobook?.uuid ?? "",
-		enabled: !!audiobook && !isLoading,
+		enabled: !!audiobook && isPlaying && !isLoading,
 		getPlaybackState,
 	});
 
@@ -500,7 +496,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			// element quiet.
 			audio.playbackRate = speedRef.current;
 			audio.volume = volumeRef.current;
-			hasMarkedListeningRef.current = false;
 			userSeekedRef.current = false;
 			mediaChapterRef.current = -1;
 			mediaSecondRef.current = -1;
@@ -581,24 +576,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 						if (autoplay) audio.play().catch(() => {});
 					});
 			}
-
-			// Mark as listening (only on a real play; a reload-restore is already
-			// "listening" and shouldn't re-write status / invalidate the router).
-			if (autoplay && !hasMarkedListeningRef.current) {
-				hasMarkedListeningRef.current = true;
-				client.listeningProgress
-					.saveProgress({
-						bookUuid: ab.uuid,
-						status: "listening",
-					})
-					.then(() => {
-						invalidateListeningProgress();
-						router.invalidate();
-					})
-					.catch(() => {});
-			}
 		},
-		[computeFileOffsets, getStreamUrl, router, retry],
+		[computeFileOffsets, getStreamUrl, retry],
 	);
 
 	// Restore the last active audiobook after a full page reload: bring the mini
@@ -812,7 +791,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		setLoadingUuid(null);
 		setPlaybackError(false);
 		bufferingRef.current?.resume();
-		hasMarkedListeningRef.current = false;
 		persistActiveBook(null);
 	}, []);
 

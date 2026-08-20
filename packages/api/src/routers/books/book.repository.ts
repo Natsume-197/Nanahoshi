@@ -200,16 +200,21 @@ export class BookRepository {
 		return result?.id ?? null;
 	}
 
-	// Display title for a book (metadata title, falling back to the filename).
+	// Metadata display title for either media kind. Presence must never expose a
+	// raw upload filename as if it were the publication title.
 	async getTitleById(bookId: number): Promise<string | null> {
 		const [result] = await db
-			.select({ title: bookMetadata.title, filename: book.filename })
+			.select({
+				ebookTitle: bookMetadata.title,
+				audiobookTitle: audiobookMetadata.title,
+			})
 			.from(book)
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(eq(book.id, bookId))
 			.limit(1);
 		if (!result) return null;
-		return result.title ?? result.filename;
+		return result.audiobookTitle ?? result.ebookTitle ?? null;
 	}
 
 	// Resolves a book's owning org (via its library), unscoped — recovers the
