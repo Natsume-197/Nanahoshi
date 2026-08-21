@@ -1,13 +1,16 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
+	Bookmark,
 	BookOpen,
 	Check,
 	Clock,
 	Headphones,
 	Heart,
+	PlayCircle,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
+import type { LibraryFormat } from "@/lib/library-format";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { CollectionArtwork } from "./collection-card";
@@ -31,13 +34,30 @@ const AUDIOBOOK_BUCKET_META: Record<
 	completed: { icon: Check, label: () => m["book.shelf_completed"]() },
 };
 
+const NEUTRAL_BUCKET_META: Record<
+	ShelfBucket,
+	{ icon: Icon; label: () => string }
+> = {
+	want: { icon: Bookmark, label: () => m["book.shelf_want_to_start"]() },
+	reading: { icon: PlayCircle, label: () => m["book.shelf_in_progress"]() },
+	backlog: { icon: Clock, label: () => m["book.shelf_backlog"]() },
+	completed: { icon: Check, label: () => m["book.shelf_completed"]() },
+};
+
+export function shelfBucketMeta(
+	status: ShelfBucket,
+	mediaType: LibraryFormat = "ebook",
+): { icon: Icon; label: () => string } {
+	if (mediaType === "audiobook") return AUDIOBOOK_BUCKET_META[status];
+	if (mediaType === "all") return NEUTRAL_BUCKET_META[status];
+	return BUCKET_META[status];
+}
+
 export function shelfBucketLabel(
 	status: ShelfBucket,
-	mediaType: "ebook" | "audiobook" = "ebook",
+	mediaType: LibraryFormat = "ebook",
 ): string {
-	return (mediaType === "audiobook" ? AUDIOBOOK_BUCKET_META : BUCKET_META)[
-		status
-	].label();
+	return shelfBucketMeta(status, mediaType).label();
 }
 
 // A pinned "system list" tile: same square mosaic + name + subtitle as a
@@ -60,6 +80,7 @@ export function ShelfCard({
 		<Link
 			to="/dashboard/shelves/$status"
 			params={{ status }}
+			search={{ mediaType: "all" }}
 			preload="intent"
 			className={cn(
 				"flex flex-col gap-3 rounded-lg p-2 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",

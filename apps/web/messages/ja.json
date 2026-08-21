@@ -1552,6 +1552,8 @@
 		"shelf_want_to_listen": "聴きたい",
 		"shelf_reading": "読書中",
 		"shelf_listening": "聴いている",
+		"shelf_want_to_start": "これから",
+		"shelf_in_progress": "進行中",
 		"shelf_backlog": "あとで読む",
 		"shelf_completed": "完了",
 		"shelf": "本棚",

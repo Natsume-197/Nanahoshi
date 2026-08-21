@@ -11,6 +11,7 @@ import { ShelfListItem } from "@/components/shared/shelf-card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
+import { collectionMatchesFormat } from "@/lib/library-format";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -45,17 +46,10 @@ function CollectionsPage() {
 
 	const pageLoading = isLoading || shelvesLoading;
 	const ebookCollections =
-		collections?.filter((item) => {
-			const hasFormatCounts =
-				typeof item.ebookCount === "number" &&
-				typeof item.audiobookCount === "number";
-
-			return (
-				!hasFormatCounts || item.ebookCount > 0 || item.audiobookCount === 0
-			);
-		}) ?? [];
+		collections?.filter((item) => collectionMatchesFormat(item, "ebook")) ?? [];
 	const audiobookCollections =
-		collections?.filter((item) => (item.audiobookCount ?? 0) > 0) ?? [];
+		collections?.filter((item) => collectionMatchesFormat(item, "audiobook")) ??
+		[];
 
 	const renderLists = (mediaType: "ebook" | "audiobook") => {
 		const isAudiobook = mediaType === "audiobook";

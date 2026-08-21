@@ -13,6 +13,39 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant coarse (@media (pointer: coarse));
 @custom-variant short (@media (max-height: 26rem));
+@custom-variant rail-expanded (html[data-rail="expanded"] &);
+
+@keyframes rail-open {
+	from {
+		opacity: 0;
+		transform: translateX(-0.5rem);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes rail-close {
+	from {
+		opacity: 0;
+		transform: translateX(0.5rem);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	html[data-rail-anim="opening"] [data-rail-content] {
+		animation: rail-open 170ms var(--ease-out-quart) 110ms both;
+	}
+
+	html[data-rail-anim="closing"] [data-rail-content] {
+		animation: rail-close 170ms var(--ease-out-quart) 110ms both;
+	}
+}
 
 :root {
 	color-scheme: light;
@@ -125,18 +158,23 @@
 		var(--sidebar-foreground) 68%,
 		var(--sidebar)
 	);
+	--rail-width: 5.5rem;
+	--rail-item-inset: calc((5.5rem - 2.25rem) / 2);
+	/* Notifications and members share one overlay width: they toggle from
+	   adjacent buttons, so a width per panel would read as the chrome
+	   resizing rather than swapping contents. Wider than the expanded app
+	   rail — notification rows carry a title, a timestamp and a progress
+	   bar, and 15rem wraps them. */
+	--overlay-rail-width: 20rem;
+}
+
+html[data-rail="expanded"] {
+	--rail-width: 15rem;
 }
 
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	/* Sampled off Discord's dark theme (2026 build), then the whole ladder
-	   taken down 0.016 L on the user's ask — the steps between surfaces are
-	   Discord's, the floor is a notch below it. Near-black on a whisper of hue
-	   286 (chroma 0.004 on the chrome, 0.0095 on the sheet), an order of
-	   magnitude below where that hue starts reading lavender; ink stays pure
-	   neutral. Hover and border steps are white veils rather than fixed
-	   values, so they keep their weight on whichever surface they land on. */
 	--background: oklch(0.225 0.0095 286);
 	--foreground: oklch(0.9551 0 90);
 	--reading: oklch(0.917 0 90);
@@ -171,13 +209,6 @@
 	--destructive-foreground: oklch(0.98 0 0);
 	--border: rgba(255, 255, 255, 0.1);
 	--input: oklch(0.216 0.006 286);
-	/* A veil rather than a fixed fill: the ladder is tight enough that any
-	   solid value reads on one rung and vanishes on the next — the header
-	   search sits on the chrome, a settings field on a card. It lifts rather
-	   than sinks, because the chrome is near-black already and a well there
-	   just reads as a hole; kept low so a field in a dialog never becomes the
-	   brightest thing on screen. --input stays solid for the borders and tracks
-	   derived from it. */
 	--control: rgba(255, 255, 255, 0.03);
 	--ring: oklch(0.7641 0 0);
 	--chart-1: oklch(0.9551 0 0);
@@ -185,8 +216,6 @@
 	--chart-3: oklch(0.6805 0 90);
 	--chart-4: oklch(0.5432 0 90);
 	--chart-5: oklch(0.4059 0 90);
-	/* Chrome sits below the raised content sheet (-0.027 L), the same split
-	   Discord runs between its channel list and the chat pane. */
 	--sidebar: oklch(0.198 0.004 286);
 	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
@@ -493,6 +522,16 @@
 	background-position: top left;
 	background-size: 100vw 100svh;
 	background-attachment: fixed;
+}
+
+@utility chrome-notch {
+	inline-size: var(--radius-2xl);
+	block-size: var(--radius-2xl);
+	mask-image: radial-gradient(
+		circle var(--radius-2xl) at 0 100%,
+		transparent 0 96%,
+		#000 100%
+	);
 }
 
 @keyframes skeleton-pulse {

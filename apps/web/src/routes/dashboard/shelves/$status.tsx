@@ -9,9 +9,16 @@ import {
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
+	FilterBar,
+	FilterField,
+	type FilterOption,
+	FilterSelect,
+} from "@/components/shared/filter-bar";
+import {
 	type ShelfBucket,
 	shelfBucketLabel,
 } from "@/components/shared/shelf-card";
+import { parseLibraryFormat } from "@/lib/library-format";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -31,7 +38,7 @@ function isShelfBucket(value: string): value is ShelfBucket {
 
 export const Route = createFileRoute("/dashboard/shelves/$status")({
 	validateSearch: (search: Record<string, unknown>) => ({
-		mediaType: search.mediaType === "audiobook" ? "audiobook" : "ebook",
+		mediaType: parseLibraryFormat(search.mediaType),
 	}),
 	component: ShelfPage,
 });
@@ -40,6 +47,14 @@ function ShelfPage() {
 	const { status } = Route.useParams();
 	const { mediaType } = Route.useSearch();
 	const isValid = isShelfBucket(status);
+
+	const navigate = Route.useNavigate();
+
+	const formatOptions: readonly FilterOption[] = [
+		{ value: "all", label: m["media.all_formats"]() },
+		{ value: "ebook", label: m["search.books"]() },
+		{ value: "audiobook", label: m["search.audiobooks"]() },
+	];
 
 	const query = useQuery({
 		...orpc.shelves.list.queryOptions({
@@ -77,6 +92,22 @@ function ShelfPage() {
 						}
 						loading={query.isFetching && !query.isLoading}
 					/>
+
+					<FilterBar>
+						<FilterField label={m["media.format"]()}>
+							<FilterSelect
+								value={mediaType}
+								onChange={(value) =>
+									navigate({
+										search: { mediaType: parseLibraryFormat(value) },
+										replace: true,
+									})
+								}
+								options={formatOptions}
+								ariaLabel={m["media.format"]()}
+							/>
+						</FilterField>
+					</FilterBar>
 
 					{query.isLoading && (
 						<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">

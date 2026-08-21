@@ -28,7 +28,6 @@ import {
 } from "@/components/notifications/notification-bell";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
 	useAudioPlayerBook,
 	useAudioPlayerExpanded,
@@ -399,15 +398,11 @@ export function DashboardLayout() {
 					</header>
 				)}
 
-				<SidebarProvider
+				<div
+					data-slot="dashboard-workspace"
 					inert={playerExpanded}
-					// gap: the chrome shows between the rail and the content as a
-					// channel, so the rail reads as its own panel rather than an
-					// extension of the sheet.
-					className="theme-gradient-surface min-h-0 flex-1 bg-sidebar [transform:translateZ(0)] md:gap-2"
+					className="theme-gradient-surface flex min-h-0 w-full flex-1 bg-sidebar [transform:translateZ(0)] md:gap-2"
 				>
-					{/* One fixed chrome column. It doesn't collapse; below md it steps
-					    aside entirely for the bottom tab bar. */}
 					{!standalone && (
 						<div className="hidden shrink-0 md:flex">
 							<DashboardAppRail
@@ -417,7 +412,7 @@ export function DashboardLayout() {
 						</div>
 					)}
 
-					<SidebarInset className="relative min-h-0 bg-transparent">
+					<div className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col bg-transparent">
 						{/* Content panel: the app chrome (navbar + sidebars) shares the
 					    sidebar surface; routed content sits on the raised sheet. A
 					    standalone route has no chrome to sit under, so it drops the
@@ -476,8 +471,8 @@ export function DashboardLayout() {
 								</>
 							)}
 						</div>
-					</SidebarInset>
-				</SidebarProvider>
+					</div>
+				</div>
 
 				{/* Fixed bottom chrome gets a real row in the dashboard layout. This
 				    keeps the workspace and its scrollbar above the player/navigation

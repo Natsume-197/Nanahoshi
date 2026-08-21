@@ -15,8 +15,11 @@ describe("notification rail", () => {
 		expect(notifications).toContain("export function NotificationRail");
 		expect(notifications).toContain('mode="rail"');
 		expect(notifications).toContain(
-			'className={cn(\n\t\t\t\t\t"theme-gradient-surface absolute',
+			'className={cn(\n\t\t\t\t\t"absolute inset-y-0 right-0',
 		);
+		// The rail floats over the content sheet, so it carries the corner the
+		// sheet can't round itself.
+		expect(notifications).toContain("<ChromeNotch />");
 		expect(notifications).not.toContain("PopoverContent");
 	});
 

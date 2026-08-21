@@ -81,7 +81,7 @@ export function OrgSwitcher({
 	if (isPending && initialOrganizations === undefined) {
 		return (
 			// The trigger's geometry, so nothing shifts when the org list resolves.
-			<div className="flex h-10 items-center gap-2 md:h-12 md:gap-3 md:ps-[calc((5.5rem-2.25rem)/2)]">
+			<div className="flex h-10 items-center gap-2 md:h-12 md:gap-3 md:ps-[var(--rail-item-inset)]">
 				<Skeleton className="size-8 rounded-lg md:size-9" />
 				<Skeleton className="h-4 w-24 rounded-lg md:w-32" />
 			</div>
@@ -143,14 +143,7 @@ export function OrgSwitcher({
 	const trigger = (
 		<Button
 			variant="ghost"
-			// From md up this is the rail column's first block, so it follows the
-			// rail's rules: highlight on the chip, never on the label, and the badge
-			// centred the way the rail centres a 2.25rem chip in its 5.5rem column
-			// (border-0 — a 1px border would push it off that axis). Below md there
-			// is no rail, so it drops that offset and shrinks to navbar scale, and
-			// takes the full width it's given so the server name gets every pixel
-			// the icon cluster doesn't need.
-			className="group h-10 w-full min-w-0 max-w-full justify-start gap-2 rounded-lg border-0 py-0 ps-0 pe-1 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:h-12 md:w-fit md:max-w-72 md:gap-3 md:ps-[calc((5.5rem-2.25rem)/2)] md:pe-3 dark:hover:bg-transparent"
+			className="group h-10 w-full min-w-0 max-w-full justify-start gap-2 rounded-lg border-0 py-0 ps-0 pe-1 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:h-12 md:w-fit md:max-w-72 md:gap-3 md:ps-[var(--rail-item-inset)] md:pe-3 dark:hover:bg-transparent"
 		>
 			{/* Ring, not padding: the halo grows outside the tile without moving it. */}
 			<span className="grid rounded-lg ring-sidebar-accent/60 transition-[box-shadow] duration-150 ease-out-quart group-hover:ring-4 group-aria-expanded:ring-4">

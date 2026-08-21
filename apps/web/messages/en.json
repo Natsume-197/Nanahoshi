@@ -1565,6 +1565,8 @@
 		"shelf_want_to_listen": "Want to listen",
 		"shelf_reading": "Reading",
 		"shelf_listening": "Listening",
+		"shelf_want_to_start": "Want to start",
+		"shelf_in_progress": "In progress",
 		"shelf_backlog": "Backlog",
 		"shelf_completed": "Completed",
 		"shelf": "Shelf",

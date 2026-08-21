@@ -1,4 +1,5 @@
 import { CaretLeft } from "@phosphor-icons/react";
+import { ChromeNotch } from "@/components/layout/chrome-notch";
 import { MembersList } from "@/components/shared/members-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,15 +45,20 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 			<aside
 				aria-hidden={!open}
 				inert={!open}
+				// The notch column is part of the rail's own box, so sliding out
+				// takes it along instead of stranding it over the content.
 				className={cn(
-					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-72 flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					"absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[calc(var(--overlay-rail-width)+var(--radius-2xl))] max-w-full transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
 					open
 						? "pointer-events-auto translate-x-0"
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
-					<MembersList />
+				<ChromeNotch />
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-sidebar text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)]">
+					<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
+						<MembersList />
+					</div>
 				</div>
 			</aside>
 
@@ -62,7 +68,7 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 						side="right"
 						showCloseButton={false}
 						overlayClassName="hidden"
-						className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
+						className="mobile-screen-sheet inset-0 bg-sidebar p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 					>
 						<SheetHeader className="grid shrink-0 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 border-b ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-[calc(var(--safe-area-top)+0.5rem)] pb-2 text-center">
 							<Button

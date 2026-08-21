@@ -132,14 +132,16 @@ describe("expanded player motion", () => {
 	});
 
 	it("keeps dashboard scrolling above the fixed bottom chrome", () => {
-		const sidebarEnd = dashboardLayout.indexOf("</SidebarProvider>");
+		const workspaceStart = dashboardLayout.indexOf(
+			'data-slot="dashboard-workspace"',
+		);
 		const reserve = dashboardLayout.indexOf(
 			'data-slot="dashboard-bottom-chrome-reserve"',
 		);
 		const mobileNav = dashboardLayout.indexOf("<MobileBottomNav");
 
-		expect(sidebarEnd).toBeGreaterThan(-1);
-		expect(reserve).toBeGreaterThan(sidebarEnd);
+		expect(workspaceStart).toBeGreaterThan(-1);
+		expect(reserve).toBeGreaterThan(workspaceStart);
 		expect(mobileNav).toBeGreaterThan(reserve);
 		expect(dashboardLayout).toContain(
 			"h-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom))] shrink-0 bg-sidebar md:h-[var(--desktop-player-offset)]",

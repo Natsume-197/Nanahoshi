@@ -4,6 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { flushSync } from "react-dom";
+import { ChromeNotch } from "@/components/layout/chrome-notch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,16 +119,21 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 				aria-label={m["notifications.title"]()}
 				aria-hidden={!open}
 				inert={!open}
+				// The notch column is part of the rail's own box, so sliding out
+				// takes it along instead of stranding it over the content.
 				className={cn(
-					"theme-gradient-surface absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[26rem] max-w-full flex-col overflow-hidden border-border border-l bg-background text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)] transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					"absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[calc(var(--overlay-rail-width)+var(--radius-2xl))] max-w-full transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
 					open
 						? "pointer-events-auto translate-x-0"
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				{!isSheet && (
-					<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
-				)}
+				<ChromeNotch />
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-sidebar text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)]">
+					{!isSheet && (
+						<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
+					)}
+				</div>
 			</aside>
 
 			{isSheet && (
@@ -136,7 +142,7 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 						side="right"
 						showCloseButton={false}
 						overlayClassName="hidden"
-						className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
+						className="mobile-screen-sheet inset-0 bg-sidebar p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 					>
 						<NotificationPanel
 							active={open}
