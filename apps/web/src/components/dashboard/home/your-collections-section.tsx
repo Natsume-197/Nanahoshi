@@ -1,35 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
-import {
-	CollectionCard,
-	CollectionCardSkeleton,
-} from "@/components/shared/collection-card";
+import { CollectionCard } from "@/components/shared/collection-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+import { CollectionsSectionSkeleton } from "./home-section-placeholder";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 
 const COLLECTION_LIMIT = 10;
 const COLLECTION_CARD_CLASS =
 	"w-[168px] min-w-[168px] shrink-0 sm:w-[184px] sm:min-w-[184px] lg:w-[200px] lg:min-w-[200px]";
-const SKELETON_KEYS = Array.from(
-	{ length: 6 },
-	(_, index) => `collection-skeleton-${index}`,
-);
-
-function CollectionsSkeleton(): JSX.Element {
-	return (
-		<ScrollSection
-			title={<Skeleton as="span" className="inline-block h-7 w-40 rounded" />}
-		>
-			{SKELETON_KEYS.map((key) => (
-				<CollectionCardSkeleton key={key} className={COLLECTION_CARD_CLASS} />
-			))}
-		</ScrollSection>
-	);
-}
-
 export const YourCollectionsSection = memo(
 	function YourCollectionsSection(): JSX.Element | null {
 		const { can, isLoading: abilitiesLoading } = useAbilities();
@@ -39,12 +23,26 @@ export const YourCollectionsSection = memo(
 			staleTime: 30_000,
 			enabled: !abilitiesLoading && canReadCollections,
 		});
-
-		if (abilitiesLoading || !canReadCollections) return null;
-		if (isLoading) return <CollectionsSkeleton />;
 		const nonEmptyCollections = collections?.filter(
 			(collection) => collection.bookCount > 0,
 		);
+		const loading = abilitiesLoading || (canReadCollections && isLoading);
+		useReportHomeSectionStatus(
+			loading
+				? "loading"
+				: canReadCollections && (nonEmptyCollections?.length ?? 0) > 0
+					? "populated"
+					: "empty",
+		);
+		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
+
+		if (abilitiesLoading) {
+			return showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null;
+		}
+		if (!canReadCollections) return null;
+		if (isLoading) {
+			return showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null;
+		}
 		if (!nonEmptyCollections || nonEmptyCollections.length === 0) return null;
 
 		return (

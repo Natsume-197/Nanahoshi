@@ -6,6 +6,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
 export const RecentlyAddedSection = memo(
@@ -20,10 +24,6 @@ export const RecentlyAddedSection = memo(
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
-
-		if (booksQuery.isLoading || audiobooksQuery.isLoading) {
-			return <SectionSkeleton />;
-		}
 
 		const entries = [
 			...(booksQuery.data ?? []).map((book) => ({
@@ -45,6 +45,13 @@ export const RecentlyAddedSection = memo(
 					new Date(a.createdAt ?? 0).getTime(),
 			)
 			.slice(0, DASHBOARD_LIMIT);
+		const isLoading = booksQuery.isLoading || audiobooksQuery.isLoading;
+		useReportHomeSectionStatus(
+			isLoading ? "loading" : entries.length > 0 ? "populated" : "empty",
+		);
+		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
+
+		if (isLoading) return showLoadingPlaceholder ? <SectionSkeleton /> : null;
 
 		if (entries.length === 0) return null;
 		const usesSquareCoverFrame = entries.every(

@@ -7,6 +7,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 import { RandomRefreshButton } from "./random-refresh-button";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
@@ -26,6 +30,10 @@ export const RandomAudiobooksSection = memo(
 			refetchOnReconnect: false,
 		});
 		const [isRefreshing, setIsRefreshing] = useState(false);
+		useReportHomeSectionStatus(
+			isLoading ? "loading" : audiobooks?.length ? "populated" : "empty",
+		);
+		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 		const handleRefresh = useCallback((): void => {
 			if (isRefreshing) return;
@@ -50,7 +58,9 @@ export const RandomAudiobooksSection = memo(
 				});
 		}, [isRefreshing, queryClient, randomAudiobooks.queryKey]);
 
-		if (isLoading) return <SectionSkeleton square />;
+		if (isLoading) {
+			return showLoadingPlaceholder ? <SectionSkeleton square /> : null;
+		}
 		if (!audiobooks || audiobooks.length === 0) return null;
 
 		const title = m["home.random_audiobooks"]();

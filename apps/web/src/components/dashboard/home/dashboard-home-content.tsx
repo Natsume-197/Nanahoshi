@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type JSX, memo, useEffect, useRef, useState } from "react";
+import { type JSX, memo, startTransition, useCallback, useState } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import {
 	type HomeSectionId,
@@ -14,12 +14,23 @@ import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
+import { HomeSectionPlaceholder } from "./home-section-placeholder";
+import {
+	type HomeSectionStatus,
+	HomeSectionStatusProvider,
+} from "./home-section-status";
 import { PopularSection } from "./popular-section";
+import {
+	getHomePrioritySectionCount,
+	getNextHomeSectionCount,
+	getProgressiveHomePhase,
+	HOME_PRIORITY_SECTION_COUNT,
+} from "./progressive-home-sections";
+import { ProgressiveSectionFooter } from "./progressive-section-footer";
 import { RandomAudiobooksSection } from "./random-audiobooks-section";
 import { RandomBooksSection } from "./random-books-section";
 import { RecentlyAddedSection } from "./recently-added-section";
 import { RecommendationsSection } from "./recommendation-mixes";
-import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";
 import { YourCollectionsSection } from "./your-collections-section";
 
 // Shared by every home state so they all start at the same place on the panel.
@@ -42,49 +53,65 @@ function DashboardHomeSkeleton({
 			<div className={HOME_SECTION_STACK_CLASS}>
 				{layout
 					.filter((item) => item.visible)
-					.slice(0, 4)
-					.map((item) =>
-						item.id === "continue" ? (
-							<ResumeSectionSkeleton key={item.id} />
-						) : (
-							<SectionSkeleton
-								key={item.id}
-								square={
-									item.id === "audiobooks-for-you" ||
-									item.id === "audiobook-series" ||
-									item.id === "random-audiobooks"
-								}
-							/>
-						),
-					)}
+					.slice(0, HOME_PRIORITY_SECTION_COUNT)
+					.map((item) => (
+						<HomeSectionPlaceholder key={item.id} id={item.id} />
+					))}
 			</div>
 		</div>
 	);
 }
 
-function HomeSection({ id }: { id: HomeSectionId }): JSX.Element {
+function HomeSection({
+	id,
+	onStatus,
+	suppressLoadingPlaceholder,
+}: {
+	id: HomeSectionId;
+	onStatus: (status: HomeSectionStatus) => void;
+	suppressLoadingPlaceholder: boolean;
+}): JSX.Element {
+	let section: JSX.Element;
 	switch (id) {
 		case "continue":
-			return <ContinueSection />;
+			section = <ContinueSection />;
+			break;
 		case "books-for-you":
-			return <RecommendationsSection format="books" />;
+			section = <RecommendationsSection format="books" />;
+			break;
 		case "audiobooks-for-you":
-			return <RecommendationsSection format="audiobooks" />;
+			section = <RecommendationsSection format="audiobooks" />;
+			break;
 		case "popular":
-			return <PopularSection format="all" />;
+			section = <PopularSection format="all" />;
+			break;
 		case "your-collections":
-			return <YourCollectionsSection />;
+			section = <YourCollectionsSection />;
+			break;
 		case "recently-added":
-			return <RecentlyAddedSection />;
+			section = <RecentlyAddedSection />;
+			break;
 		case "book-series":
-			return <BookSeriesSection />;
+			section = <BookSeriesSection />;
+			break;
 		case "audiobook-series":
-			return <AudiobookSeriesSection />;
+			section = <AudiobookSeriesSection />;
+			break;
 		case "random-books":
-			return <RandomBooksSection />;
+			section = <RandomBooksSection />;
+			break;
 		case "random-audiobooks":
-			return <RandomAudiobooksSection />;
+			section = <RandomAudiobooksSection />;
+			break;
 	}
+	return (
+		<HomeSectionStatusProvider
+			onStatus={onStatus}
+			suppressLoadingPlaceholder={suppressLoadingPlaceholder}
+		>
+			{section}
+		</HomeSectionStatusProvider>
+	);
 }
 
 function OrderedHomeSections({
@@ -92,58 +119,114 @@ function OrderedHomeSections({
 }: {
 	layout: readonly HomeSectionPreference[];
 }): JSX.Element {
+	const sections = layout.filter((item) => item.visible);
+	const priorityCount = getHomePrioritySectionCount(sections.length);
+	const [rawActiveCount, setRawActiveCount] = useState(
+		HOME_PRIORITY_SECTION_COUNT,
+	);
+	const [statuses, setStatuses] = useState<
+		Partial<Record<HomeSectionId, HomeSectionStatus>>
+	>({});
+	const emptyPriorityCount = sections
+		.slice(0, priorityCount)
+		.reduce(
+			(count, section) => count + (statuses[section.id] === "empty" ? 1 : 0),
+			0,
+		);
+	// Empty priority sections don't take up visible space, so pull in extra
+	// deferred sections to backfill them; clamp both bounds to the current layout.
+	const activeCount = Math.min(
+		Math.max(rawActiveCount, priorityCount, priorityCount + emptyPriorityCount),
+		sections.length,
+	);
+	const lastActiveIndex = activeCount - 1;
+	const lastActive = sections[lastActiveIndex];
+	const lastStatus = lastActive ? statuses[lastActive.id] : undefined;
+	const hasPendingDeferred = sections
+		.slice(priorityCount, activeCount)
+		.some((section) => {
+			const status = statuses[section.id];
+			return status === undefined || status === "loading";
+		});
+	const phase = getProgressiveHomePhase({
+		activeCount,
+		totalCount: sections.length,
+		priorityCount,
+		lastStatus,
+		hasPendingDeferred,
+	});
+
+	const reportStatus = useCallback(
+		(id: HomeSectionId, status: HomeSectionStatus) => {
+			startTransition(() => {
+				setStatuses((current) =>
+					current[id] === status ? current : { ...current, [id]: status },
+				);
+			});
+		},
+		[],
+	);
+
+	const canRequestNext = phase === "waiting-for-viewport";
+	const isLoadingDeferred = phase === "loading" && activeCount > priorityCount;
+
 	return (
 		<>
-			{layout.map((item, index) =>
-				item.visible ? (
-					<DeferredHomeSection
-						key={item.id}
-						id={item.id}
-						priority={index < 2}
-					/>
-				) : null,
-			)}
+			{sections.slice(0, activeCount).map((item, index) => (
+				<ProgressiveHomeSection
+					key={item.id}
+					id={item.id}
+					deferred={index >= priorityCount}
+					populated={statuses[item.id] === "populated"}
+					onStatus={reportStatus}
+				/>
+			))}
+			<ProgressiveSectionFooter
+				key={activeCount}
+				loading={isLoadingDeferred}
+				observe={canRequestNext}
+				onVisible={() =>
+					startTransition(() => {
+						setRawActiveCount((count) =>
+							getNextHomeSectionCount(count, sections.length),
+						);
+					})
+				}
+			/>
 		</>
 	);
 }
 
-function DeferredHomeSection({
+function ProgressiveHomeSection({
 	id,
-	priority,
+	deferred,
+	populated,
+	onStatus,
 }: {
 	id: HomeSectionId;
-	priority: boolean;
-}) {
-	const ref = useRef<HTMLDivElement>(null);
-	const [active, setActive] = useState(priority);
-
-	useEffect(() => {
-		if (active || !ref.current) return;
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (!entry?.isIntersecting) return;
-				setActive(true);
-				observer.disconnect();
-			},
-			{ rootMargin: "800px 0px" },
-		);
-		observer.observe(ref.current);
-		return () => observer.disconnect();
-	}, [active]);
-
+	deferred: boolean;
+	populated: boolean;
+	onStatus: (id: HomeSectionId, status: HomeSectionStatus) => void;
+}): JSX.Element {
+	const report = useCallback(
+		(status: HomeSectionStatus) => onStatus(id, status),
+		[id, onStatus],
+	);
+	const hidden = deferred && !populated;
 	return (
-		<div ref={ref}>
-			{active ? (
-				<HomeSection id={id} />
-			) : (
-				<SectionSkeleton
-					square={
-						id === "audiobooks-for-you" ||
-						id === "audiobook-series" ||
-						id === "random-audiobooks"
-					}
-				/>
+		<div
+			className={cn(
+				hidden && "hidden",
+				deferred &&
+					populated &&
+					"fade-in-0 slide-in-from-bottom-1 animate-in duration-200 ease-out-quart motion-reduce:animate-none",
 			)}
+		>
+			<HomeSection
+				id={id}
+				onStatus={report}
+				suppressLoadingPlaceholder={deferred}
+			/>
 		</div>
 	);
 }

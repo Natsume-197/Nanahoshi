@@ -8,6 +8,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { progressPercent } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 import { resumeCardMeta } from "./resume-meta";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
@@ -20,10 +24,6 @@ export const ContinueSection = memo(
 				input: { limit: DASHBOARD_LIMIT },
 			}),
 		);
-
-		if (readingQuery.isLoading || listeningQuery.isLoading) {
-			return <ResumeSectionSkeleton />;
-		}
 
 		const entries = [
 			...(readingQuery.data ?? []).map((entry) => ({
@@ -63,6 +63,15 @@ export const ContinueSection = memo(
 					new Date(a.lastActivityAt ?? 0).getTime(),
 			)
 			.slice(0, DASHBOARD_LIMIT);
+		const isLoading = readingQuery.isLoading || listeningQuery.isLoading;
+		useReportHomeSectionStatus(
+			isLoading ? "loading" : entries.length > 0 ? "populated" : "empty",
+		);
+		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
+
+		if (isLoading) {
+			return showLoadingPlaceholder ? <ResumeSectionSkeleton /> : null;
+		}
 
 		if (entries.length === 0) return null;
 

@@ -6,6 +6,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
 type PopularFormat = "all" | "books" | "audiobooks";
@@ -20,8 +24,17 @@ export const PopularSection = memo(function PopularSection({
 			input: { format, limit: DASHBOARD_LIMIT },
 		}),
 	);
+	const hasContent = Boolean(data?.enabled && data.items.length > 0);
+	useReportHomeSectionStatus(
+		isLoading ? "loading" : hasContent ? "populated" : "empty",
+	);
+	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
-	if (isLoading) return <SectionSkeleton square={format === "audiobooks"} />;
+	if (isLoading) {
+		return showLoadingPlaceholder ? (
+			<SectionSkeleton square={format === "audiobooks"} />
+		) : null;
+	}
 	if (!data?.enabled || data.items.length === 0) return null;
 
 	const title =

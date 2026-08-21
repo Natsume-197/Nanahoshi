@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { type JSX, memo } from "react";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
-import { DASHBOARD_LIMIT } from "./section-skeleton";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
+import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 import { type SeriesEntry, SeriesSection } from "./series-section";
 
 export const AudiobookSeriesSection = memo(
@@ -18,8 +22,14 @@ export const AudiobookSeriesSection = memo(
 			refetchOnWindowFocus: false,
 			refetchOnReconnect: false,
 		});
+		useReportHomeSectionStatus(
+			isLoading ? "loading" : series?.length ? "populated" : "empty",
+		);
+		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
-		if (isLoading) return null;
+		if (isLoading) {
+			return showLoadingPlaceholder ? <SectionSkeleton square /> : null;
+		}
 		if (!series || series.length === 0) return null;
 
 		const entries: SeriesEntry[] = series.map((s) => ({

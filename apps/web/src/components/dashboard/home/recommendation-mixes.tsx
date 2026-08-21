@@ -6,6 +6,10 @@ import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 import { DashboardContextMenuBook } from "./dashboard-context-menu-book";
+import {
+	useHomeSectionLoadingPlaceholder,
+	useReportHomeSectionStatus,
+} from "./home-section-status";
 import { mergeRecommendationMixes } from "./recommendation-mixes-utils";
 import { DASHBOARD_LIMIT, SectionSkeleton } from "./section-skeleton";
 
@@ -33,8 +37,22 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 		format === "books"
 			? m["recs.books_for_you"]()
 			: m["recs.audiobooks_for_you"]();
+	const hasContent =
+		!isLoading &&
+		Boolean(data?.enabled) &&
+		(data?.mixes.length ?? 0) > 0 &&
+		items.length > 0 &&
+		!items.every((item) => item.reason.type === "popular");
+	useReportHomeSectionStatus(
+		isLoading ? "loading" : hasContent ? "populated" : "empty",
+	);
+	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
-	if (isLoading) return <SectionSkeleton square={format === "audiobooks"} />;
+	if (isLoading) {
+		return showLoadingPlaceholder ? (
+			<SectionSkeleton square={format === "audiobooks"} />
+		) : null;
+	}
 	if (!data?.enabled || data.mixes.length === 0) return null;
 	if (items.length === 0) return null;
 	// A new user may receive the server ranking as the API's cold-start fallback.
