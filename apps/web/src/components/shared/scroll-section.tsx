@@ -41,6 +41,24 @@ interface ScrollState {
 	canScrollRight: boolean;
 }
 
+type HorizontalBounds = {
+	left: number;
+	right: number;
+};
+
+const EDGE_CARD_DIM_THRESHOLD = 0.35;
+
+export function shouldDimCarouselEdgeCard(
+	rail: HorizontalBounds,
+	card: HorizontalBounds,
+): boolean {
+	const width = card.right - card.left;
+	if (width <= 0) return false;
+	const clippedWidth =
+		Math.max(0, rail.left - card.left) + Math.max(0, card.right - rail.right);
+	return clippedWidth / width >= EDGE_CARD_DIM_THRESHOLD;
+}
+
 export function getCarouselScrollBehavior(
 	prefersReducedMotion: boolean,
 ): ScrollBehavior {
@@ -89,7 +107,7 @@ export function ScrollSection({
 			const cardBounds = card.getBoundingClientRect();
 			card.toggleAttribute(
 				"data-carousel-edge-card",
-				cardBounds.left < rail.left - 1 || cardBounds.right > rail.right + 1,
+				shouldDimCarouselEdgeCard(rail, cardBounds),
 			);
 		}
 	}, []);

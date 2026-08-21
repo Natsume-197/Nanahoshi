@@ -200,6 +200,9 @@ export function BookCardShell({
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
 	const inCarousel = useInSweepScroll();
 	const inSweepScroll = inVirtualizedGrid || inCarousel;
+	const coverRevealMotionClass = inCarousel
+		? "motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-out"
+		: "motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]";
 	const resolvedLinkProps =
 		inSweepScroll &&
 		(linkProps.preload === undefined || linkProps.preload === "intent")
@@ -256,7 +259,9 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"scale-[0.985] rounded-md opacity-0 outline outline-1 outline-[var(--image-outline)] -outline-offset-1 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
+						"rounded-md opacity-0 outline outline-1 outline-[var(--image-outline)] -outline-offset-1",
+						!inCarousel && "scale-[0.985]",
+						coverRevealMotionClass,
 						isHorizontal
 							? cn(
 									"h-full shadow-black/25 shadow-lg",

@@ -14,7 +14,10 @@ export const DASHBOARD_BOOK_TILE_CLASS =
 export const DASHBOARD_AUDIOBOOK_TILE_CLASS =
 	"w-[150px] min-w-[150px] sm:w-[165px] sm:min-w-[165px] lg:w-[180px] lg:min-w-[180px]";
 
-const SKELETON_IDS = Array.from({ length: 12 }, (_, i) => `skeleton-${i}`);
+const SKELETON_IDS = Array.from(
+	{ length: DASHBOARD_LIMIT },
+	(_, i) => `skeleton-${i}`,
+);
 const RESUME_SKELETON_IDS = Array.from(
 	{ length: 4 },
 	(_, i) => `resume-skeleton-${i}`,
