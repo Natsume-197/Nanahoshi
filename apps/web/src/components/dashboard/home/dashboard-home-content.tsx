@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { type JSX, memo, startTransition, useCallback, useState } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import {
@@ -7,6 +8,7 @@ import {
 	useHomeLayout,
 } from "@/lib/home-layout-store";
 import { PAGE_GUTTER } from "@/lib/page-layout";
+import { getLocationRestoreKey } from "@/lib/scroll-restoration";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -14,6 +16,12 @@ import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueSection } from "./continue-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
+import {
+	getHomeProgressiveSnapshot,
+	reportHomeSectionStatus,
+	revealNextHomeSectionBatch,
+	useHomeProgressiveSnapshot,
+} from "./home-progressive-state";
 import { HomeSectionPlaceholder } from "./home-section-placeholder";
 import {
 	type HomeSectionStatus,
@@ -22,7 +30,7 @@ import {
 import { PopularSection } from "./popular-section";
 import {
 	getHomePrioritySectionCount,
-	getNextHomeSectionCount,
+	getOrderedVisibleSectionIds,
 	getProgressiveHomePhase,
 	HOME_PRIORITY_SECTION_COUNT,
 } from "./progressive-home-sections";
@@ -116,17 +124,22 @@ function HomeSection({
 
 function OrderedHomeSections({
 	layout,
+	restoreKey,
 }: {
 	layout: readonly HomeSectionPreference[];
+	restoreKey: string;
 }): JSX.Element {
 	const sections = layout.filter((item) => item.visible);
 	const priorityCount = getHomePrioritySectionCount(sections.length);
-	const [rawActiveCount, setRawActiveCount] = useState(
-		HOME_PRIORITY_SECTION_COUNT,
+	const { rawActiveCount, statuses } = useHomeProgressiveSnapshot(restoreKey);
+	const [restoredPopulatedIds] = useState(
+		() =>
+			new Set(
+				Object.entries(getHomeProgressiveSnapshot(restoreKey).statuses)
+					.filter(([, status]) => status === "populated")
+					.map(([id]) => id as HomeSectionId),
+			),
 	);
-	const [statuses, setStatuses] = useState<
-		Partial<Record<HomeSectionId, HomeSectionStatus>>
-	>({});
 	const emptyPriorityCount = sections
 		.slice(0, priorityCount)
 		.reduce(
@@ -148,6 +161,12 @@ function OrderedHomeSections({
 			const status = statuses[section.id];
 			return status === undefined || status === "loading";
 		});
+	const orderedVisibleIds = new Set(
+		getOrderedVisibleSectionIds(
+			sections.slice(priorityCount, activeCount).map((section) => section.id),
+			statuses,
+		),
+	);
 	const phase = getProgressiveHomePhase({
 		activeCount,
 		totalCount: sections.length,
@@ -159,16 +178,21 @@ function OrderedHomeSections({
 	const reportStatus = useCallback(
 		(id: HomeSectionId, status: HomeSectionStatus) => {
 			startTransition(() => {
-				setStatuses((current) =>
-					current[id] === status ? current : { ...current, [id]: status },
-				);
+				reportHomeSectionStatus(restoreKey, id, status);
 			});
 		},
-		[],
+		[restoreKey],
 	);
 
 	const canRequestNext = phase === "waiting-for-viewport";
 	const isLoadingDeferred = phase === "loading" && activeCount > priorityCount;
+	const requestNext = useCallback(
+		() =>
+			startTransition(() => {
+				revealNextHomeSectionBatch(restoreKey, sections.length);
+			}),
+		[restoreKey, sections.length],
+	);
 
 	return (
 		<>
@@ -177,7 +201,8 @@ function OrderedHomeSections({
 					key={item.id}
 					id={item.id}
 					deferred={index >= priorityCount}
-					populated={statuses[item.id] === "populated"}
+					populated={index < priorityCount || orderedVisibleIds.has(item.id)}
+					animateReveal={!restoredPopulatedIds.has(item.id)}
 					onStatus={reportStatus}
 				/>
 			))}
@@ -185,27 +210,23 @@ function OrderedHomeSections({
 				key={activeCount}
 				loading={isLoadingDeferred}
 				observe={canRequestNext}
-				onVisible={() =>
-					startTransition(() => {
-						setRawActiveCount((count) =>
-							getNextHomeSectionCount(count, sections.length),
-						);
-					})
-				}
+				onVisible={requestNext}
 			/>
 		</>
 	);
 }
 
-function ProgressiveHomeSection({
+const ProgressiveHomeSection = memo(function ProgressiveHomeSection({
 	id,
 	deferred,
 	populated,
+	animateReveal,
 	onStatus,
 }: {
 	id: HomeSectionId;
 	deferred: boolean;
 	populated: boolean;
+	animateReveal: boolean;
 	onStatus: (id: HomeSectionId, status: HomeSectionStatus) => void;
 }): JSX.Element {
 	const report = useCallback(
@@ -219,6 +240,7 @@ function ProgressiveHomeSection({
 				hidden && "hidden",
 				deferred &&
 					populated &&
+					animateReveal &&
 					"fade-in-0 slide-in-from-bottom-1 animate-in duration-200 ease-out-quart motion-reduce:animate-none",
 			)}
 		>
@@ -229,11 +251,17 @@ function ProgressiveHomeSection({
 			/>
 		</div>
 	);
-}
+});
 
 export const DashboardHomeContent = memo(
 	function DashboardHomeContent(): JSX.Element {
 		const layout = useHomeLayout();
+		const router = useRouter();
+		// Freeze the history entry for this mount: during navigation
+		// router.latestLocation changes before this outgoing page unmounts.
+		const [restoreKey] = useState(() =>
+			getLocationRestoreKey(router.latestLocation),
+		);
 
 		// Format availability is still the cheapest way to distinguish an empty
 		// server before mounting the personalized mixed dashboard.
@@ -262,7 +290,7 @@ export const DashboardHomeContent = memo(
 			<BookContextMenuRoot>
 				<div className={cn(PAGE_GUTTER, HOME_SHELL_CLASS)}>
 					<div className={HOME_SECTION_STACK_CLASS}>
-						<OrderedHomeSections layout={layout} />
+						<OrderedHomeSections layout={layout} restoreKey={restoreKey} />
 					</div>
 				</div>
 			</BookContextMenuRoot>

@@ -3,10 +3,25 @@ import {
 	getHomePrefetchDistance,
 	getHomePrioritySectionCount,
 	getNextHomeSectionCount,
+	getOrderedVisibleSectionIds,
 	getProgressiveHomePhase,
 } from "./progressive-home-sections";
 
 describe("getProgressiveHomePhase", () => {
+	test("does not reveal a later carousel before earlier carousels settle", () => {
+		expect(
+			getOrderedVisibleSectionIds(["recently-added", "book-series"], {
+				"book-series": "populated",
+			}),
+		).toEqual([]);
+
+		expect(
+			getOrderedVisibleSectionIds(["recently-added", "book-series"], {
+				"recently-added": "empty",
+				"book-series": "populated",
+			}),
+		).toEqual(["book-series"]);
+	});
 	test("reserves four real section skeletons for the initial viewport", () => {
 		expect(getHomePrioritySectionCount(10)).toBe(4);
 		expect(getHomePrioritySectionCount(3)).toBe(3);

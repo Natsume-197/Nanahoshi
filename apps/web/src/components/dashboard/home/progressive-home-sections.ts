@@ -14,6 +14,24 @@ export function getNextHomeSectionCount(
 	return Math.min(activeCount + HOME_SECTION_BATCH_SIZE, totalCount);
 }
 
+/**
+ * Queries within a batch run in parallel, but their UI commits in layout
+ * order. Empty sections do not occupy a slot and therefore do not block the
+ * next populated section.
+ */
+export function getOrderedVisibleSectionIds<T extends string>(
+	sectionIds: readonly T[],
+	statuses: Partial<Record<T, HomeSectionStatus>>,
+): T[] {
+	const visible: T[] = [];
+	for (const id of sectionIds) {
+		const status = statuses[id];
+		if (status === undefined || status === "loading") break;
+		if (status === "populated") visible.push(id);
+	}
+	return visible;
+}
+
 export function getHomePrefetchDistance(viewportHeight: number): number {
 	return Math.max(1200, Math.round(viewportHeight * 1.5));
 }

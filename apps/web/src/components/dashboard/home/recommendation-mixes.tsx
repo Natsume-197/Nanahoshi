@@ -25,10 +25,9 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 	});
 	const { data, isLoading } = useQuery({
 		...recommendationsQuery,
-		// Re-evaluate rotation on a new dashboard visit. The in-memory result stays
-		// stable while the section remains mounted; focus/reconnect never reshuffle it.
-		staleTime: 0,
-		refetchOnMount: "always",
+		// Back-navigation should reuse the recommendation work already in cache.
+		// A later dashboard visit may still rotate the mixes after this short window.
+		staleTime: 60_000,
 		refetchOnWindowFocus: false,
 		refetchOnReconnect: false,
 	});
