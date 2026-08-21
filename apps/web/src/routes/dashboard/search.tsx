@@ -1,5 +1,5 @@
-import type { ReadListenPairing } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
 import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
+import type { TopResultPools } from "@nanahoshi-v2/api/routers/search/search.ranking";
 import {
 	BookOpen,
 	Books,
@@ -36,7 +36,10 @@ import {
 	readUiSnapshot,
 	saveUiSnapshot,
 } from "@/lib/scroll-restoration";
-import { searchResultKey } from "@/lib/search-result-batches";
+import {
+	rankSearchResultBatches,
+	searchResultKey,
+} from "@/lib/search-result-batches";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -553,7 +556,9 @@ function SearchEmptyState({
 	);
 }
 
-function pairingMatchesQuery(pairing: ReadListenPairing, query: string) {
+type ReadListenSearchResult = Extract<TopHit, { type: "read-listen" }>;
+
+function pairingMatchesQuery(pairing: ReadListenSearchResult, query: string) {
 	const haystack = [
 		pairing.ebook.title,
 		pairing.ebook.filename,
@@ -561,14 +566,12 @@ function pairingMatchesQuery(pairing: ReadListenPairing, query: string) {
 		pairing.audiobook.title,
 		pairing.audiobook.filename,
 		...pairing.audiobook.authors.map((author) => author.name),
-		...pairing.audiobook.narrators.map((narrator) => narrator.name),
+		...(pairing.audiobook.narrators ?? []).map((narrator) => narrator.name),
 	]
 		.join(" ")
 		.toLocaleLowerCase();
 	return haystack.includes(query.toLocaleLowerCase());
 }
-
-type ReadListenSearchResult = Extract<TopHit, { type: "read-listen" }>;
 
 function ReadListenArtwork({ pairing }: { pairing: ReadListenSearchResult }) {
 	const ebookCover = getCoverFilename(pairing.ebook.cover);
@@ -733,7 +736,7 @@ function SearchPage() {
 			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-		enabled: shouldSearch && filter === "books",
+		enabled: shouldSearch && (isAll || filter === "books"),
 		staleTime: 60_000,
 	});
 	const {
@@ -752,7 +755,7 @@ function SearchPage() {
 			}),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
-		enabled: shouldSearch && filter === "audiobooks",
+		enabled: shouldSearch && (isAll || filter === "audiobooks"),
 		staleTime: 60_000,
 	});
 
@@ -770,9 +773,9 @@ function SearchPage() {
 	const collections = collectionsData ?? [];
 	const matchingReadListenPairings = useMemo(
 		() =>
-			(readListenPairings ?? []).filter((pairing) =>
-				pairingMatchesQuery(pairing, normalizedQuery),
-			),
+			(readListenPairings ?? [])
+				.map((pairing) => ({ ...pairing, type: "read-listen" as const }))
+				.filter((pairing) => pairingMatchesQuery(pairing, normalizedQuery)),
 		[readListenPairings, normalizedQuery],
 	);
 	const booksTotal = booksData?.pages[0]?.pagination.totalHits ?? books.length;
@@ -793,8 +796,57 @@ function SearchPage() {
 	const fetchMoreAudiobooks = useCallback(() => {
 		void audiobooksFetchNextPage();
 	}, [audiobooksFetchNextPage]);
+	const fetchMoreAll = useCallback(() => {
+		if (booksHasNextPage) fetchMoreBooks();
+		if (audiobooksHasNextPage) fetchMoreAudiobooks();
+	}, [
+		booksHasNextPage,
+		audiobooksHasNextPage,
+		fetchMoreBooks,
+		fetchMoreAudiobooks,
+	]);
+	const rankedResults = useMemo(() => {
+		const bookPages = booksData?.pages ?? [];
+		const audiobookPages = audiobooksData?.pages ?? [];
+		const batches: TopResultPools[] = [];
+		const pageCount = Math.max(bookPages.length, audiobookPages.length);
+
+		for (let index = 0; index < pageCount; index += 1) {
+			const bookPage = bookPages[index];
+			if (bookPage) {
+				batches.push({
+					books: bookPage.books,
+					audiobooks: [],
+					series: [],
+					authors: [],
+					readListen: [],
+					collections: [],
+					users: [],
+				});
+			}
+
+			const audiobookPage = audiobookPages[index];
+			if (audiobookPage) {
+				batches.push({
+					books: [],
+					audiobooks: audiobookPage.audiobooks,
+					series: [],
+					authors: [],
+					readListen: [],
+					collections: [],
+					users: [],
+				});
+			}
+		}
+
+		return rankSearchResultBatches(
+			batches,
+			normalizedQuery,
+			topSearch?.hits ?? [],
+		);
+	}, [booksData, audiobooksData, normalizedQuery, topSearch]);
 	const resultCounts: Record<SearchTypeFilter, number> = {
-		all: topSearch?.hits.length ?? 0,
+		all: rankedResults.length,
 		books: booksTotal,
 		audiobooks: audiobooksTotal,
 		"read-listen": matchingReadListenPairings.length,
@@ -816,28 +868,34 @@ function SearchPage() {
 				});
 
 	const availableTypes = new Set(topSearch?.availableTypes);
-	const filterOptions = [
-		{ key: "all", label: m["search.all"](), resultType: null },
-		{ key: "books", label: m["search.books"](), resultType: "book" },
-		{
-			key: "audiobooks",
-			label: m["search.audiobooks"](),
-			resultType: "audiobook",
-		},
-		{
-			key: "read-listen",
-			label: m["nav.read_listen"](),
-			resultType: "read-listen",
-		},
-		{ key: "series", label: m["nav.series"](), resultType: "series" },
-		{ key: "authors", label: m["search.authors"](), resultType: "author" },
-		{
-			key: "collections",
-			label: m["search.collections"](),
-			resultType: "collection",
-		},
-		{ key: "users", label: m["search.users"](), resultType: "user" },
-	].filter(
+	const filterOptions = (
+		[
+			{ key: "all", label: m["search.all"](), resultType: null },
+			{ key: "books", label: m["search.books"](), resultType: "book" },
+			{
+				key: "audiobooks",
+				label: m["search.audiobooks"](),
+				resultType: "audiobook",
+			},
+			{
+				key: "read-listen",
+				label: m["nav.read_listen"](),
+				resultType: "read-listen",
+			},
+			{ key: "series", label: m["nav.series"](), resultType: "series" },
+			{ key: "authors", label: m["search.authors"](), resultType: "author" },
+			{
+				key: "collections",
+				label: m["search.collections"](),
+				resultType: "collection",
+			},
+			{ key: "users", label: m["search.users"](), resultType: "user" },
+		] satisfies Array<{
+			key: SearchTypeFilter;
+			label: string;
+			resultType: TopHit["type"] | null;
+		}>
+	).filter(
 		(option) =>
 			option.resultType === null || availableTypes.has(option.resultType),
 	);
@@ -887,17 +945,25 @@ function SearchPage() {
 				)}
 
 				{isAll &&
-					(isTopLoading ? (
+					(isSearchLoading ? (
 						<ResultListSkeleton />
-					) : topSearch && topSearch.hits.length > 0 ? (
+					) : rankedResults.length > 0 ? (
 						<BookContextMenuRoot>
 							<ul className="divide-y divide-border/60">
-								{topSearch.hits.map((hit) => (
+								{rankedResults.map((hit) => (
 									<RankedResultRow key={searchResultKey(hit)} hit={hit} />
 								))}
 							</ul>
 						</BookContextMenuRoot>
 					) : null)}
+
+				{isAll && (
+					<InfiniteResultsLoader
+						hasNextPage={booksHasNextPage || audiobooksHasNextPage}
+						isFetching={booksIsFetchingNextPage || audiobooksIsFetchingNextPage}
+						onLoadMore={fetchMoreAll}
+					/>
+				)}
 
 				{filter === "books" &&
 					(isBooksLoading ? (
