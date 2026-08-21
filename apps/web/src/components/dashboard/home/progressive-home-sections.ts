@@ -32,6 +32,15 @@ export function getOrderedVisibleSectionIds<T extends string>(
 	return visible;
 }
 
+/** Empty wrappers must not participate in the home section stack's flex gap. */
+export function getProgressiveHomeSectionHidden(
+	deferred: boolean,
+	populated: boolean,
+	status: HomeSectionStatus | undefined,
+): boolean {
+	return status === "empty" || (deferred && !populated);
+}
+
 type HomePrefetchEnvironment = {
 	effectiveType?: string;
 	saveData?: boolean;

@@ -5,7 +5,24 @@ import {
 	getNextHomeSectionCount,
 	getOrderedVisibleSectionIds,
 	getProgressiveHomePhase,
+	getProgressiveHomeSectionHidden,
 } from "./progressive-home-sections";
+
+describe("getProgressiveHomeSectionHidden", () => {
+	test("removes empty section wrappers from the layout", () => {
+		expect(getProgressiveHomeSectionHidden(false, true, "empty")).toBe(true);
+	});
+
+	test("keeps populated sections visible", () => {
+		expect(getProgressiveHomeSectionHidden(false, true, "populated")).toBe(
+			false,
+		);
+	});
+
+	test("keeps unrevealed deferred sections hidden", () => {
+		expect(getProgressiveHomeSectionHidden(true, false, "loading")).toBe(true);
+	});
+});
 
 describe("getProgressiveHomePhase", () => {
 	test("does not reveal a later carousel before earlier carousels settle", () => {

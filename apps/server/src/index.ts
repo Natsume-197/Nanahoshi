@@ -1,6 +1,7 @@
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { env } from "@nanahoshi-v2/env/server";
 import { buildApp } from "./app";
+import { prepareClientIpRequest } from "./config/client-ip-request";
 import { withHttpRequestLimits } from "./config/http-options";
 import {
 	runInitializers,
@@ -12,6 +13,11 @@ import { websocket } from "./gateway/gateway";
 
 const app = buildApp();
 const context: RuntimeContext = { app };
+const trustedProxyIps = new Set(
+	env.TRUSTED_PROXY_IPS.split(",")
+		.map((ip) => ip.trim())
+		.filter(Boolean),
+);
 
 await runInitializers(context, serverInitializers);
 
@@ -37,22 +43,11 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 
 export default withHttpRequestLimits({
 	fetch(request: Request, server: Bun.Server<unknown>) {
-		const headers = new Headers(request.headers);
-		headers.delete("x-nanahoshi-client-ip");
 		const peer = server.requestIP(request);
-		if (peer?.address) {
-			const trusted = new Set(
-				env.TRUSTED_PROXY_IPS.split(",")
-					.map((ip) => ip.trim())
-					.filter(Boolean),
-			);
-			const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-			headers.set(
-				"x-nanahoshi-client-ip",
-				trusted.has(peer.address) && forwarded ? forwarded : peer.address,
-			);
-		}
-		return app.fetch(new Request(request, { headers }), server);
+		return app.fetch(
+			prepareClientIpRequest(request, peer?.address, trustedProxyIps),
+			server,
+		);
 	},
 	websocket,
 });

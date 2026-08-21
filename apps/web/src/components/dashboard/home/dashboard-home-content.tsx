@@ -32,6 +32,7 @@ import {
 	getHomePrioritySectionCount,
 	getOrderedVisibleSectionIds,
 	getProgressiveHomePhase,
+	getProgressiveHomeSectionHidden,
 	HOME_PRIORITY_SECTION_COUNT,
 } from "./progressive-home-sections";
 import { ProgressiveSectionFooter } from "./progressive-section-footer";
@@ -202,6 +203,7 @@ function OrderedHomeSections({
 					id={item.id}
 					deferred={index >= priorityCount}
 					populated={index < priorityCount || orderedVisibleIds.has(item.id)}
+					status={statuses[item.id]}
 					animateReveal={!restoredPopulatedIds.has(item.id)}
 					onStatus={reportStatus}
 				/>
@@ -220,12 +222,14 @@ const ProgressiveHomeSection = memo(function ProgressiveHomeSection({
 	id,
 	deferred,
 	populated,
+	status,
 	animateReveal,
 	onStatus,
 }: {
 	id: HomeSectionId;
 	deferred: boolean;
 	populated: boolean;
+	status: HomeSectionStatus | undefined;
 	animateReveal: boolean;
 	onStatus: (id: HomeSectionId, status: HomeSectionStatus) => void;
 }): JSX.Element {
@@ -233,7 +237,7 @@ const ProgressiveHomeSection = memo(function ProgressiveHomeSection({
 		(status: HomeSectionStatus) => onStatus(id, status),
 		[id, onStatus],
 	);
-	const hidden = deferred && !populated;
+	const hidden = getProgressiveHomeSectionHidden(deferred, populated, status);
 	return (
 		<div
 			className={cn(
