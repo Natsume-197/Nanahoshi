@@ -2282,6 +2282,7 @@
 		"alignment_detection_failed": "アラインメントを確認できませんでした。サーバーが元ファイルを読み取れることを確認して、もう一度お試しください。",
 		"generate_alignment": "アラインメントを生成",
 		"regenerate_alignment": "更新済みアラインメントを生成",
+		"retry_generation": "生成を再試行",
 		"generating_alignment": "Honomiyaで生成中…",
 		"generation_started": "Honomiyaでの生成を開始しました。処理中にこのページを離れてもかまいません。",
 		"generation_already_running": "このアラインメントはすでに生成中です。",

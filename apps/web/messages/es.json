@@ -2317,6 +2317,7 @@
 		"alignment_detection_failed": "No se pudo comprobar la alineación. Verifica que el servidor pueda leer los archivos de origen e inténtalo de nuevo.",
 		"generate_alignment": "Generar alineación",
 		"regenerate_alignment": "Generar alineación actualizada",
+		"retry_generation": "Reintentar generación",
 		"generating_alignment": "Generando con Honomiya…",
 		"generation_started": "La generación con Honomiya comenzó. Puedes salir de esta página mientras se procesa.",
 		"generation_already_running": "Esta alineación ya se está generando.",

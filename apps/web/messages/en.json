@@ -2317,6 +2317,7 @@
 		"alignment_detection_failed": "Unable to inspect the alignment. Check that the server can read the source files and try again.",
 		"generate_alignment": "Generate alignment",
 		"regenerate_alignment": "Generate updated alignment",
+		"retry_generation": "Retry generation",
 		"generating_alignment": "Generating with Honomiya…",
 		"generation_started": "Honomiya generation started. You can leave this page while it runs.",
 		"generation_already_running": "This alignment is already being generated.",

@@ -455,6 +455,9 @@ export function ReadListenSection({
 						const isGenerationRunning =
 							pairing.generation?.status === "queued" ||
 							pairing.generation?.status === "running";
+						const hasFailedGeneration = pairing.generation?.status === "failed";
+						const canStartGeneration =
+							alignment.status !== "ready" || hasFailedGeneration;
 						const isStartingGeneration =
 							generateAlignmentMutation.isPending &&
 							generateAlignmentMutation.variables === pairing.id;
@@ -500,7 +503,7 @@ export function ReadListenSection({
 													? m["read_listen.status_stale"]()
 													: m["read_listen.status_not_imported"]()}
 										</Badge>
-										{canManagePairings && alignment.status !== "ready" && (
+										{canManagePairings && canStartGeneration && (
 											<Button
 												size="sm"
 												disabled={
@@ -526,9 +529,11 @@ export function ReadListenSection({
 												)}
 												{isGenerationRunning || isStartingGeneration
 													? m["read_listen.generating_alignment"]()
-													: alignment.status === "stale"
-														? m["read_listen.regenerate_alignment"]()
-														: m["read_listen.generate_alignment"]()}
+													: hasFailedGeneration
+														? m["read_listen.retry_generation"]()
+														: alignment.status === "stale"
+															? m["read_listen.regenerate_alignment"]()
+															: m["read_listen.generate_alignment"]()}
 											</Button>
 										)}
 										{canManagePairings && alignment.status !== "ready" && (
