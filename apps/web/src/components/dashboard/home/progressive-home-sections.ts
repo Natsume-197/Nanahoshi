@@ -1,7 +1,7 @@
 import type { HomeSectionStatus } from "./home-section-status";
 
 export const HOME_PRIORITY_SECTION_COUNT = 4;
-export const HOME_SECTION_BATCH_SIZE = 2;
+export const HOME_SECTION_BATCH_SIZE = 3;
 
 export function getHomePrioritySectionCount(totalCount: number): number {
 	return Math.min(HOME_PRIORITY_SECTION_COUNT, totalCount);
@@ -32,8 +32,35 @@ export function getOrderedVisibleSectionIds<T extends string>(
 	return visible;
 }
 
-export function getHomePrefetchDistance(viewportHeight: number): number {
-	return Math.max(1200, Math.round(viewportHeight * 1.5));
+type HomePrefetchEnvironment = {
+	effectiveType?: string;
+	saveData?: boolean;
+	scrollVelocity?: number;
+};
+
+export function getHomePrefetchDistance(
+	viewportHeight: number,
+	{ effectiveType, saveData, scrollVelocity = 0 }: HomePrefetchEnvironment = {},
+): number {
+	if (saveData) return Math.max(800, Math.round(viewportHeight));
+	let baseDistance: number;
+	let maxVelocityLookahead: number;
+	if (effectiveType === "slow-2g" || effectiveType === "2g") {
+		baseDistance = Math.max(1000, Math.round(viewportHeight * 1.25));
+		maxVelocityLookahead = viewportHeight * 0.5;
+	} else if (effectiveType === "3g") {
+		baseDistance = Math.max(2000, Math.round(viewportHeight * 2.5));
+		maxVelocityLookahead = viewportHeight * 1.5;
+	} else {
+		baseDistance = Math.max(3200, Math.round(viewportHeight * 4));
+		maxVelocityLookahead = viewportHeight * 3;
+	}
+	// px/ms × 1000ms estimates how far the user will travel in the next second.
+	const velocityLookahead = Math.min(
+		maxVelocityLookahead,
+		Math.max(0, scrollVelocity) * 1000,
+	);
+	return Math.round(baseDistance + velocityLookahead);
 }
 
 export type ProgressiveHomePhase =

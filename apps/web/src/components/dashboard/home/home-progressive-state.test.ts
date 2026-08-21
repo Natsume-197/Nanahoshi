@@ -20,7 +20,7 @@ describe("home progressive state restoration", () => {
 
 		// A new dashboard mount reads the same history entry synchronously.
 		expect(getHomeProgressiveSnapshot(locationKey)).toEqual({
-			rawActiveCount: 8,
+			rawActiveCount: 10,
 			statuses: { popular: "populated" },
 		});
 	});

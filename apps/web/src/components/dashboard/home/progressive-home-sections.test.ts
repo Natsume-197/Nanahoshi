@@ -27,14 +27,27 @@ describe("getProgressiveHomePhase", () => {
 		expect(getHomePrioritySectionCount(3)).toBe(3);
 	});
 
-	test("loads subsequent sections in batches of two", () => {
-		expect(getNextHomeSectionCount(4, 10)).toBe(6);
+	test("loads subsequent sections in batches of three", () => {
+		expect(getNextHomeSectionCount(4, 10)).toBe(7);
 		expect(getNextHomeSectionCount(9, 10)).toBe(10);
 	});
 
-	test("prefetches at least 1200px ahead and scales with tall viewports", () => {
-		expect(getHomePrefetchDistance(720)).toBe(1200);
-		expect(getHomePrefetchDistance(1080)).toBe(1620);
+	test("adapts prefetch distance to viewport and connection quality", () => {
+		expect(getHomePrefetchDistance(720)).toBe(3200);
+		expect(getHomePrefetchDistance(1080)).toBe(4320);
+		expect(getHomePrefetchDistance(720, { effectiveType: "3g" })).toBe(2000);
+		expect(getHomePrefetchDistance(1080, { effectiveType: "2g" })).toBe(1350);
+		expect(getHomePrefetchDistance(720, { saveData: true })).toBe(800);
+		expect(getHomePrefetchDistance(720, { scrollVelocity: 1.5 })).toBe(4700);
+		expect(
+			getHomePrefetchDistance(720, {
+				effectiveType: "3g",
+				scrollVelocity: 3,
+			}),
+		).toBe(3080);
+		expect(
+			getHomePrefetchDistance(720, { saveData: true, scrollVelocity: 3 }),
+		).toBe(800);
 	});
 
 	test("waits for the viewport before querying the next section", () => {
@@ -49,10 +62,10 @@ describe("getProgressiveHomePhase", () => {
 		).toBe("waiting-for-viewport");
 	});
 
-	test("waits for both members of a batch to settle", () => {
+	test("waits for every member of a batch to settle", () => {
 		expect(
 			getProgressiveHomePhase({
-				activeCount: 6,
+				activeCount: 7,
 				totalCount: 10,
 				priorityCount: 4,
 				lastStatus: "populated",
@@ -64,7 +77,7 @@ describe("getProgressiveHomePhase", () => {
 	test("prefetches the next batch after populated or empty sections settle", () => {
 		expect(
 			getProgressiveHomePhase({
-				activeCount: 6,
+				activeCount: 7,
 				totalCount: 10,
 				priorityCount: 4,
 				lastStatus: "empty",

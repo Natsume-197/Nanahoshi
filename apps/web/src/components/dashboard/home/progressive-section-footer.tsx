@@ -4,6 +4,13 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { m } from "@/paraglide/messages";
 import { getHomePrefetchDistance } from "./progressive-home-sections";
 
+type NavigatorWithConnection = Navigator & {
+	connection?: {
+		effectiveType?: string;
+		saveData?: boolean;
+	};
+};
+
 // Mounted only while `observe` is true, so the observer setup/teardown can be
 // a plain mount effect instead of a guarded, dependency-driven one.
 function FooterViewportObserver({
@@ -14,17 +21,74 @@ function FooterViewportObserver({
 	const ref = useRef<HTMLDivElement>(null);
 	useMountEffect(() => {
 		if (!ref.current) return;
-		const prefetchDistance = getHomePrefetchDistance(window.innerHeight);
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (!entry?.isIntersecting) return;
-				onVisible();
-				observer.disconnect();
-			},
-			{ rootMargin: `${prefetchDistance}px 0px` },
-		);
-		observer.observe(ref.current);
-		return () => observer.disconnect();
+		const { connection } = navigator as NavigatorWithConnection;
+		let observer: IntersectionObserver | undefined;
+		let observedDistance = 0;
+		let lastPosition: number | undefined;
+		let lastTimestamp: number | undefined;
+		let smoothedVelocity = 0;
+		let animationFrame: number | undefined;
+		let triggered = false;
+
+		const observeAtDistance = (distance: number) => {
+			if (triggered) return;
+			if (observer && Math.abs(distance - observedDistance) < 400) return;
+			observer?.disconnect();
+			observedDistance = distance;
+			observer = new IntersectionObserver(
+				([entry]) => {
+					if (!entry?.isIntersecting || triggered) return;
+					triggered = true;
+					onVisible();
+					observer?.disconnect();
+				},
+				{ rootMargin: `${distance}px 0px` },
+			);
+			if (ref.current) observer.observe(ref.current);
+		};
+
+		const updateDistance = () => {
+			animationFrame = undefined;
+			observeAtDistance(
+				getHomePrefetchDistance(window.innerHeight, {
+					effectiveType: connection?.effectiveType,
+					saveData: connection?.saveData,
+					scrollVelocity: smoothedVelocity,
+				}),
+			);
+		};
+
+		const handleScroll = (event: Event) => {
+			if (triggered) return;
+			const now = performance.now();
+			const position =
+				event.target instanceof Element
+					? event.target.scrollTop
+					: window.scrollY;
+			if (lastPosition !== undefined && lastTimestamp !== undefined) {
+				const elapsed = now - lastTimestamp;
+				if (elapsed > 0) {
+					const velocity = Math.abs(position - lastPosition) / elapsed;
+					smoothedVelocity = smoothedVelocity * 0.7 + velocity * 0.3;
+				}
+			}
+			lastPosition = position;
+			lastTimestamp = now;
+			if (animationFrame === undefined) {
+				animationFrame = requestAnimationFrame(updateDistance);
+			}
+		};
+
+		updateDistance();
+		window.addEventListener("scroll", handleScroll, {
+			capture: true,
+			passive: true,
+		});
+		return () => {
+			observer?.disconnect();
+			window.removeEventListener("scroll", handleScroll, { capture: true });
+			if (animationFrame !== undefined) cancelAnimationFrame(animationFrame);
+		};
 	});
 	return <div ref={ref} className="absolute inset-0" />;
 }
