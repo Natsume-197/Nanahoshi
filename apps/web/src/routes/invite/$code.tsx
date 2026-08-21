@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { buildInviteHead } from "@/lib/invite-meta";
+import { resolveInviteSignupState } from "@/lib/invite-signup-state";
 import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
@@ -35,18 +36,20 @@ export const Route = createFileRoute("/invite/$code")({
 		// the client the fetch goes through the cache, so the component's useQuery
 		// reuses this same request instead of firing a second one.
 		try {
-			const preview =
+			const [preview, sso] = await Promise.all([
 				typeof window === "undefined"
-					? await client.inviteLinks.preview({ code: params.code })
-					: await queryClient.ensureQueryData(
+					? client.inviteLinks.preview({ code: params.code })
+					: queryClient.ensureQueryData(
 							orpc.inviteLinks.preview.queryOptions({
 								input: { code: params.code },
 							}),
-						);
-			return { preview };
+						),
+				client.setup.ssoStatus(),
+			]);
+			return { preview, sso };
 		} catch {
 			// Meta tags are best-effort; the component's own query surfaces errors.
-			return { preview: null };
+			return { preview: null, sso: null };
 		}
 	},
 	head: ({ loaderData }) => buildInviteHead(loaderData?.preview),
@@ -84,7 +87,7 @@ function InviteShell({
 
 function InvitePage() {
 	const { code } = Route.useParams();
-	const { preview: loadedPreview } = Route.useLoaderData();
+	const { preview: loadedPreview, sso: loadedSso } = Route.useLoaderData();
 	const { error: oauthError } = Route.useSearch();
 	const { session } = Route.useRouteContext();
 	const router = useRouter();
@@ -99,14 +102,20 @@ function InvitePage() {
 		// an empty skeleton while client hydration/query restoration catches up.
 		initialData: loadedPreview ?? undefined,
 	});
-	const { data: sso } = useQuery(orpc.setup.ssoStatus.queryOptions());
+	const { data: sso } = useQuery({
+		...orpc.setup.ssoStatus.queryOptions(),
+		initialData: loadedSso ?? undefined,
+		staleTime: 0,
+	});
 
 	const serverName = preview?.status === "ok" ? preview.serverName : "";
 
 	// Which registration paths the instance offers to a visitor without account.
-	const signupClosed = sso?.signup.policy === "closed";
-	const emailSignUp = !signupClosed && (sso?.signup.email ?? false);
-	const discordSignUp = !signupClosed && (sso?.signup.discord ?? false);
+	const signupState = resolveInviteSignupState(sso?.signup);
+	const signupClosed = signupState.status === "closed";
+	const emailSignUp = signupState.status === "available" && signupState.email;
+	const discordSignUp =
+		signupState.status === "available" && signupState.discord;
 	const requiresDiscord = preview?.status === "ok" && preview.requiresDiscord;
 
 	const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${code}`;
@@ -219,7 +228,12 @@ function InvitePage() {
 			</div>
 			{!session ? (
 				<>
-					{signupClosed || (!emailSignUp && !discordSignUp) ? (
+					{signupState.status === "loading" ? (
+						<div className="mt-8 space-y-2">
+							<Skeleton className="h-10 w-full" />
+							<Skeleton className="mx-auto h-4 w-48" />
+						</div>
+					) : signupClosed ? (
 						<p className="mt-8 rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
 							{m["invite.signup_closed"]()}
 						</p>
