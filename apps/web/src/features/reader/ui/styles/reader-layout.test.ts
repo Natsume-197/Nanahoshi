@@ -249,8 +249,15 @@ describe("reader layout", () => {
 		);
 		expect(quickSettings).toContain(">Create theme<");
 		expect(quickSettings).toContain("ReaderCustomThemeDialog");
-		expect(customThemeEditor).toContain("Reading preview");
+		expect(customThemeEditor).not.toContain("Reading preview");
+		expect(customThemeEditor).toContain("onPreview");
+		expect(customThemeEditor).toContain("Restore");
 		expect(customThemeEditor).toContain('aria-modal="true"');
+		expect(customThemeEditor).toContain(
+			"backgroundColor: theme.backgroundColor",
+		);
+		expect(customThemeEditor).toContain("saturation and brightness");
+		expect(customThemeEditor).toContain("RGB value");
 		expect(readerScreen).toContain("profiles={profilesStore.profiles}");
 		expect(readerScreen).toContain(
 			"onCustomThemesChange={handleCustomThemesChange}",

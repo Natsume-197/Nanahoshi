@@ -97,6 +97,13 @@ type QuickSettingsCategory =
 	| "layout"
 	| "behaviour";
 
+const CUSTOM_THEME_PREVIEW_ID = "__nanahoshi-theme-preview__";
+
+interface CustomThemeDialogState {
+	selectedTheme: string;
+	previousTheme: string;
+}
+
 function QuickSettingsSection({
 	title,
 	showTitle = true,
@@ -169,18 +176,23 @@ export function ReaderQuickSettings({
 		name: string;
 	} | null>(null);
 	const [newProfileName, setNewProfileName] = useState("");
-	const [customThemeDialog, setCustomThemeDialog] = useState<string | null>(
-		null,
-	);
+	const [customThemeDialog, setCustomThemeDialog] =
+		useState<CustomThemeDialogState | null>(null);
 
 	useEffect(() => {
 		if (!open) {
 			setSelectedCategory(null);
 			setProfileRename(null);
 			setNewProfileName("");
-			setCustomThemeDialog(null);
+			if (customThemeDialog) {
+				const next = { ...customThemes };
+				delete next[CUSTOM_THEME_PREVIEW_ID];
+				onCustomThemesChange(next);
+				onChange({ theme: customThemeDialog.previousTheme });
+				setCustomThemeDialog(null);
+			}
 		}
-	}, [open]);
+	}, [customThemeDialog, customThemes, onChange, onCustomThemesChange, open]);
 
 	const commitProfileRename = () => {
 		if (profileRename) {
@@ -196,7 +208,7 @@ export function ReaderQuickSettings({
 
 	const themeIds = [
 		...readerThemes.map((readerTheme) => readerTheme.id),
-		...Object.keys(customThemes),
+		...Object.keys(customThemes).filter((id) => id !== CUSTOM_THEME_PREVIEW_ID),
 	];
 
 	const handleCustomThemeSave = (
@@ -205,10 +217,28 @@ export function ReaderQuickSettings({
 		previousName: string,
 	) => {
 		const next = { ...customThemes };
+		delete next[CUSTOM_THEME_PREVIEW_ID];
 		if (previousName && previousName !== name) delete next[previousName];
 		next[name] = colors;
 		onCustomThemesChange(next);
 		onChange({ theme: name });
+		setCustomThemeDialog(null);
+	};
+
+	const handleCustomThemePreview = (colors: ReaderThemeColors) => {
+		onCustomThemesChange({
+			...customThemes,
+			[CUSTOM_THEME_PREVIEW_ID]: colors,
+		});
+		onChange({ theme: CUSTOM_THEME_PREVIEW_ID });
+	};
+
+	const handleCustomThemeDialogClose = () => {
+		if (!customThemeDialog) return;
+		const next = { ...customThemes };
+		delete next[CUSTOM_THEME_PREVIEW_ID];
+		onCustomThemesChange(next);
+		onChange({ theme: customThemeDialog.previousTheme });
 		setCustomThemeDialog(null);
 	};
 
@@ -520,7 +550,12 @@ export function ReaderQuickSettings({
 								type="button"
 								className="flex h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl p-2 text-sm outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 								style={{ backgroundColor: mix(6), color: mix(72) }}
-								onClick={() => setCustomThemeDialog("")}
+								onClick={() =>
+									setCustomThemeDialog({
+										selectedTheme: "",
+										previousTheme: settings.theme,
+									})
+								}
 							>
 								<Plus aria-hidden="true" className="size-5" weight="bold" />
 								<span className="font-medium text-[11px]">Create theme</span>
@@ -540,7 +575,12 @@ export function ReaderQuickSettings({
 									title="Edit custom theme"
 									className="flex size-10 cursor-pointer items-center justify-center rounded-full outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 									style={{ backgroundColor: mix(7) }}
-									onClick={() => setCustomThemeDialog(settings.theme)}
+									onClick={() =>
+										setCustomThemeDialog({
+											selectedTheme: settings.theme,
+											previousTheme: settings.theme,
+										})
+									}
 								>
 									<PencilSimple aria-hidden="true" className="size-4" />
 								</button>
@@ -983,11 +1023,12 @@ export function ReaderQuickSettings({
 			{customThemeDialog !== null && (
 				<ReaderCustomThemeDialog
 					theme={theme}
-					selectedTheme={customThemeDialog}
+					selectedTheme={customThemeDialog.selectedTheme}
 					existingThemes={themeIds}
 					customThemes={customThemes}
 					onSave={handleCustomThemeSave}
-					onClose={() => setCustomThemeDialog(null)}
+					onPreview={handleCustomThemePreview}
+					onClose={handleCustomThemeDialogClose}
 				/>
 			)}
 
