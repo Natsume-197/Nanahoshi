@@ -1,12 +1,20 @@
 import { db } from "@nanahoshi-v2/db";
 import { invitation } from "@nanahoshi-v2/db/schema/auth";
-import { appSettings, invitationLink } from "@nanahoshi-v2/db/schema/general";
+import {
+	appSettings,
+	discordAccessRule,
+	invitationLink,
+} from "@nanahoshi-v2/db/schema/general";
 import { and, eq, gt } from "drizzle-orm";
 import {
 	getRegistrationSettings,
 	type SignUpMethod,
 } from "./registration-settings";
-import { evaluateSignUpGate, type SignUpVerdict } from "./signup-gate.rules";
+import {
+	evaluateSignUpGate,
+	isInviteLinkUsable,
+	type SignUpVerdict,
+} from "./signup-gate.rules";
 
 /**
  * Decides whether a sign-up may proceed: always before first setup (the setup
@@ -37,6 +45,7 @@ export async function checkSignUp(opts: {
 	// Policy/method denials don't depend on invitations — skip those lookups.
 	const early = evaluateSignUpGate({
 		...base,
+		method: opts.method,
 		inviteLink: null,
 		hasPendingInvitation: false,
 	});
@@ -50,6 +59,7 @@ export async function checkSignUp(opts: {
 				expiresAt: invitationLink.expiresAt,
 				maxUses: invitationLink.maxUses,
 				useCount: invitationLink.useCount,
+				serverId: invitationLink.serverId,
 			})
 			.from(invitationLink)
 			.where(eq(invitationLink.code, opts.inviteCode))
@@ -57,10 +67,10 @@ export async function checkSignUp(opts: {
 		inviteLink = link ?? null;
 	}
 
-	let hasPendingInvitation = false;
+	let pendingInvitationServerId: string | null = null;
 	if (opts.email) {
 		const [pending] = await db
-			.select({ id: invitation.id })
+			.select({ organizationId: invitation.organizationId })
 			.from(invitation)
 			.where(
 				and(
@@ -70,8 +80,35 @@ export async function checkSignUp(opts: {
 				),
 			)
 			.limit(1);
-		hasPendingInvitation = Boolean(pending);
+		pendingInvitationServerId = pending?.organizationId ?? null;
 	}
 
-	return evaluateSignUpGate({ ...base, inviteLink, hasPendingInvitation });
+	// Match the existing gate's precedence: a pending direct invitation is the
+	// credential when present; otherwise a usable link is. An unrelated stale
+	// link must not make another invitation require Discord.
+	const invitedServerId =
+		pendingInvitationServerId ??
+		(inviteLink && isInviteLinkUsable(inviteLink) ? inviteLink.serverId : null);
+	let requiresDiscord = false;
+	if (invitedServerId) {
+		const [rule] = await db
+			.select({ id: discordAccessRule.id })
+			.from(discordAccessRule)
+			.where(
+				and(
+					eq(discordAccessRule.serverId, invitedServerId),
+					eq(discordAccessRule.enabled, true),
+				),
+			)
+			.limit(1);
+		requiresDiscord = Boolean(rule);
+	}
+
+	return evaluateSignUpGate({
+		...base,
+		method: opts.method,
+		requiresDiscord,
+		inviteLink,
+		hasPendingInvitation: Boolean(pendingInvitationServerId),
+	});
 }

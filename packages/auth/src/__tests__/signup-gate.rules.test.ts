@@ -25,6 +25,7 @@ function gate(overrides: Partial<SignUpGateInput> = {}): SignUpGateInput {
 		configured: true,
 		policy: "invite-only",
 		methodEnabled: true,
+		method: "email",
 		inviteLink: null,
 		hasPendingInvitation: false,
 		now: NOW,
@@ -104,6 +105,22 @@ describe("evaluateSignUpGate", () => {
 		expect(evaluateSignUpGate(gate({ hasPendingInvitation: true }))).toEqual({
 			allowed: true,
 		});
+	});
+
+	test("requires Discord OAuth for a Discord-gated invitation", () => {
+		expect(
+			evaluateSignUpGate(gate({ requiresDiscord: true, inviteLink: link() })),
+		).toEqual({ allowed: false, reason: "discord_required" });
+
+		expect(
+			evaluateSignUpGate(
+				gate({
+					requiresDiscord: true,
+					method: "discord",
+					inviteLink: link(),
+				}),
+			),
+		).toEqual({ allowed: true });
 	});
 
 	test("closed policy rejects even with a usable invite link", () => {

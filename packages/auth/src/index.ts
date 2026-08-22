@@ -1,6 +1,10 @@
 import { apiKey } from "@better-auth/api-key";
 import { db } from "@nanahoshi-v2/db";
 import * as schema from "@nanahoshi-v2/db/schema/auth";
+import {
+	discordAccessRule,
+	invitationLink,
+} from "@nanahoshi-v2/db/schema/general";
 import { env } from "@nanahoshi-v2/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -11,8 +15,9 @@ import {
 	organization,
 	username,
 } from "better-auth/plugins";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
 import { provisionOidcUser } from "./oidc-provisioning";
@@ -30,6 +35,7 @@ import {
 } from "./security-audit";
 import { checkSignUp } from "./signup-gate";
 import type { SignUpDenialReason } from "./signup-gate.rules";
+import { isInviteLinkUsable } from "./signup-gate.rules";
 
 const isProd = env.ENVIRONMENT === "production";
 
@@ -42,6 +48,7 @@ const OAUTH_DENIAL_CODES: Record<SignUpDenialReason, string> = {
 	closed: "signup_closed",
 	method_disabled: "signup_method_disabled",
 	invite_required: "invite_required",
+	discord_required: "discord_required",
 };
 
 const EMAIL_DENIAL_MESSAGES: Record<SignUpDenialReason, string> = {
@@ -49,6 +56,8 @@ const EMAIL_DENIAL_MESSAGES: Record<SignUpDenialReason, string> = {
 	method_disabled: "Email sign-up is disabled on this server.",
 	invite_required:
 		"Sign-ups on this server require an invitation. Ask an administrator for an invite link.",
+	discord_required:
+		"This invitation requires Discord. Continue with Discord so we can verify your server membership before creating your account.",
 };
 
 const crossSubDomainCookies =
@@ -66,6 +75,109 @@ type AuthenticatedAuditSession = {
 	user: { id: string; name: string; email: string };
 	session: { id: string; activeOrganizationId?: string | null };
 };
+
+type DiscordOAuthProfile = {
+	id: string;
+	username: string;
+	global_name: string | null;
+	discriminator: string;
+	avatar: string | null;
+	email: string | null;
+	verified: boolean;
+};
+
+/**
+ * Fetches the Discord identity before Better Auth creates its local user row.
+ * This is deliberately separate from the stored-account access check below:
+ * during a first social sign-in no Nanahoshi account exists yet.
+ */
+async function fetchDiscordProfile(
+	accessToken: string,
+): Promise<DiscordOAuthProfile | null> {
+	const res = await fetch("https://discord.com/api/v10/users/@me", {
+		headers: { Authorization: `Bearer ${accessToken}` },
+	});
+	if (!res.ok) return null;
+	return (await res.json()) as DiscordOAuthProfile;
+}
+
+function discordProfileImage(profile: DiscordOAuthProfile): string {
+	if (profile.avatar) {
+		const format = profile.avatar.startsWith("a_") ? "gif" : "png";
+		return `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.${format}`;
+	}
+	const fallback =
+		profile.discriminator === "0"
+			? Number(BigInt(profile.id) >> BigInt(22)) % 6
+			: Number.parseInt(profile.discriminator, 10) % 5;
+	return `https://cdn.discordapp.com/embed/avatars/${fallback}.png`;
+}
+
+/** Existing users still sign in normally; this guard protects only new accounts. */
+async function hasExistingDiscordIdentity(profile: DiscordOAuthProfile) {
+	const byDiscord = and(
+		eq(schema.account.providerId, "discord"),
+		eq(schema.account.accountId, profile.id),
+	);
+	const [existing] = await db
+		.select({ id: schema.user.id })
+		.from(schema.user)
+		.leftJoin(schema.account, eq(schema.account.userId, schema.user.id))
+		.where(
+			profile.email
+				? or(byDiscord, eq(schema.user.email, profile.email.toLowerCase()))
+				: byDiscord,
+		)
+		.limit(1);
+	return Boolean(existing);
+}
+
+/**
+ * Uses the fresh OAuth token to validate a Discord-gated invite before the
+ * provider hands control back to Better Auth's user-creation path.
+ */
+async function newDiscordInviteSatisfiesRules(
+	accessToken: string,
+): Promise<boolean> {
+	const inviteCode = inviteCodeFromOAuthState(await getOAuthState());
+	if (!inviteCode) return true;
+
+	const [link] = await db
+		.select({
+			serverId: invitationLink.serverId,
+			revokedAt: invitationLink.revokedAt,
+			expiresAt: invitationLink.expiresAt,
+			maxUses: invitationLink.maxUses,
+			useCount: invitationLink.useCount,
+		})
+		.from(invitationLink)
+		.where(eq(invitationLink.code, inviteCode))
+		.limit(1);
+	if (!link || !isInviteLinkUsable(link)) return true;
+
+	const rules = await db
+		.select({
+			guildId: discordAccessRule.guildId,
+			roleId: discordAccessRule.roleId,
+		})
+		.from(discordAccessRule)
+		.where(
+			and(
+				eq(discordAccessRule.serverId, link.serverId),
+				eq(discordAccessRule.enabled, true),
+			),
+		);
+	if (rules.length === 0) return true;
+
+	return await satisfiesDiscordAccessRules(rules, async (guildId) => {
+		const res = await fetch(
+			`https://discord.com/api/v10/users/@me/guilds/${guildId}/member`,
+			{ headers: { Authorization: `Bearer ${accessToken}` } },
+		);
+		if (!res.ok) return null;
+		return (await res.json()) as { roles?: string[] };
+	});
+}
 
 function recordAuthenticatedAuditEvent(
 	eventType: Extract<
@@ -399,9 +511,36 @@ const authConfig = {
 					clientId: env.DISCORD_CLIENT_ID,
 					clientSecret: env.DISCORD_CLIENT_SECRET,
 					scope: ["identify", "email", "guilds", "guilds.members.read"],
-					// Discord does not map a username by default, but our user table
-					// requires one. Preserve modern unique Discord usernames as-is.
-					mapProfileToUser: mapDiscordProfileToUser,
+					// The provider resolves this before Better Auth creates a user. A
+					// Discord-gated invite therefore cannot leave an ineligible new
+					// account behind: the fresh OAuth token is checked first.
+					getUserInfo: async (tokens) => {
+						if (!tokens.accessToken) return null;
+						const profile = await fetchDiscordProfile(tokens.accessToken);
+						if (!profile?.email) return null;
+
+						const existing = await hasExistingDiscordIdentity(profile);
+						if (!existing) {
+							const allowed = await newDiscordInviteSatisfiesRules(
+								tokens.accessToken,
+							);
+							if (!allowed) return null;
+						}
+
+						return {
+							user: {
+								id: profile.id,
+								name: profile.global_name || profile.username,
+								email: profile.email,
+								emailVerified: profile.verified,
+								image: discordProfileImage(profile),
+								// Discord does not map a username by default, but our user
+								// table requires one. Preserve modern unique names as-is.
+								...mapDiscordProfileToUser(profile),
+							},
+							data: profile,
+						};
+					},
 				},
 			},
 		}),

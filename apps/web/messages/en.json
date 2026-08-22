@@ -775,6 +775,7 @@
 			"invite_required": "Creating an account with Discord requires an invitation. Open your invite link and start again from there.",
 			"signup_closed": "This instance isn't accepting new accounts right now.",
 			"method_disabled": "Creating an account with Discord is disabled on this server.",
+			"discord_access_required": "You don't meet this server's Discord requirements. Join the required Discord server and get the required role, then try again.",
 			"cancelled": "The sign-in was cancelled before it finished.",
 			"account_not_linked": "An account with this email already exists but couldn't be linked automatically. Sign in with your email and password, then connect Discord from Settings → Account.",
 			"account_already_linked": "That Discord account is already linked to a different user.",

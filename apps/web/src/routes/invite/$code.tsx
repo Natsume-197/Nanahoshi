@@ -259,25 +259,16 @@ function InvitePage() {
 						<p className="mt-8 rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
 							{m["invite.signup_closed"]()}
 						</p>
-					) : requiresDiscord && discordSignUp ? (
+					) : requiresDiscord ? (
 						<>
 							<p className="mt-8 text-muted-foreground text-sm">
 								{m["invite.requires_discord"]()}
 							</p>
-							<Button className="mt-3 w-full" onClick={startDiscordSignUp}>
-								<DiscordIcon className="mr-2 size-4" />
-								{m["invite.continue_discord"]()}
-							</Button>
-							{emailSignUp && (
-								<p className="mt-4 text-muted-foreground text-sm">
-									<Link
-										to="/sign-up"
-										search={{ redirect: `/invite/${code}?join=1` }}
-										className="font-medium text-foreground underline-offset-4 hover:underline"
-									>
-										{m["invite.create_account_email"]()}
-									</Link>
-								</p>
+							{discordSignUp && (
+								<Button className="mt-3 w-full" onClick={startDiscordSignUp}>
+									<DiscordIcon className="mr-2 size-4" />
+									{m["invite.continue_discord"]()}
+								</Button>
 							)}
 						</>
 					) : emailSignUp ? (

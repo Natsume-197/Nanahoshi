@@ -9,6 +9,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, () => string> = {
 	invite_required: m["auth.oauth_err.invite_required"],
 	signup_closed: m["auth.oauth_err.signup_closed"],
 	signup_method_disabled: m["auth.oauth_err.method_disabled"],
+	unable_to_get_user_info: m["auth.oauth_err.discord_access_required"],
 	access_denied: m["auth.oauth_err.cancelled"],
 	account_not_linked: m["auth.oauth_err.account_not_linked"],
 	account_already_linked_to_different_user:

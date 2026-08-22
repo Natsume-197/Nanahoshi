@@ -37,7 +37,8 @@ export function normalizeRegistrationSettings(
 export type SignUpDenialReason =
 	| "closed"
 	| "method_disabled"
-	| "invite_required";
+	| "invite_required"
+	| "discord_required";
 
 export type SignUpVerdict =
 	| { allowed: true }
@@ -57,6 +58,10 @@ export type SignUpGateInput = {
 	policy: RegistrationPolicy;
 	/** Is the sign-up method being used (email, Discord, …) enabled for registration? */
 	methodEnabled: boolean;
+	/** Sign-up method attempting to use this invitation. */
+	method: SignUpMethod;
+	/** The invited server has Discord access rules and therefore needs Discord OAuth. */
+	requiresDiscord?: boolean;
 	/** The invite link matching the code the client presented, if any. */
 	inviteLink: InviteLinkState | null;
 	/** Does a pending (unexpired) email invitation exist for this email? */
@@ -84,8 +89,16 @@ export function evaluateSignUpGate(input: SignUpGateInput): SignUpVerdict {
 	if (!input.methodEnabled) {
 		return { allowed: false, reason: "method_disabled" };
 	}
-	if (input.hasPendingInvitation) return { allowed: true };
+	if (input.hasPendingInvitation) {
+		if (input.requiresDiscord && input.method !== "discord") {
+			return { allowed: false, reason: "discord_required" };
+		}
+		return { allowed: true };
+	}
 	if (input.inviteLink && isInviteLinkUsable(input.inviteLink, input.now)) {
+		if (input.requiresDiscord && input.method !== "discord") {
+			return { allowed: false, reason: "discord_required" };
+		}
 		return { allowed: true };
 	}
 	return { allowed: false, reason: "invite_required" };

@@ -775,6 +775,7 @@
 			"invite_required": "Crear una cuenta con Discord requiere una invitación. Abre tu enlace de invitación y empieza desde ahí.",
 			"signup_closed": "Esta instancia no acepta cuentas nuevas ahora mismo.",
 			"method_disabled": "Crear una cuenta con Discord está desactivado en este servidor.",
+			"discord_access_required": "No cumples los requisitos de Discord de este servidor. Únete al servidor de Discord requerido y consigue el rol necesario antes de volver a intentarlo.",
 			"cancelled": "El inicio de sesión se canceló antes de terminar.",
 			"account_not_linked": "Ya existe una cuenta con este correo pero no se pudo vincular automáticamente. Inicia sesión con tu correo y contraseña, y conecta Discord desde Ajustes → Cuenta.",
 			"account_already_linked": "Esa cuenta de Discord ya está vinculada a otro usuario.",
