@@ -18,6 +18,7 @@ import { BookReaderFocus } from "@/features/reader/renderers/focus/book-reader-f
 import { BookReaderPaginated } from "@/features/reader/renderers/paginated/book-reader-paginated";
 import { BookReaderPdf } from "@/features/reader/renderers/pdf/book-reader-pdf";
 import { BookReaderVisual } from "@/features/reader/renderers/visual/book-reader-visual";
+import { useTextReaderDocument } from "@/features/reader/session/use-text-reader-document";
 
 interface ReaderEngineProps {
 	bookUuid: string;
@@ -75,6 +76,14 @@ export function ReaderEngine({
 	lazyBook,
 	onPdfDocumentReady,
 }: ReaderEngineProps) {
+	const textDocument = useTextReaderDocument({
+		enabled: presentation.contentKind === "text",
+		bookUuid,
+		htmlContent,
+		language: book.language,
+		sections: book.sections,
+	});
+
 	if (presentation.renderer === "pdf") {
 		if (!pdfSource) return null;
 		return (
@@ -161,8 +170,8 @@ export function ReaderEngine({
 		return (
 			<BookReaderFocus
 				{...sharedProps}
-				bookUuid={bookUuid}
-				language={book.language}
+				focusDocument={textDocument.document}
+				preparationError={textDocument.error}
 				onExitFocus={onExitFocus}
 			/>
 		);

@@ -27,7 +27,7 @@ import {
 	type ReaderLayoutScheduler,
 	useReaderSurfaceResize,
 } from "@/features/reader/session/reader-layout";
-import { createReaderPositionCore } from "@/features/reader/session/reader-position";
+import { createTextReaderSession } from "@/features/reader/session/text-reader-session";
 import { ReaderLoadingOverlay } from "@/features/reader/ui/chrome/reader-loading-overlay";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -245,7 +245,7 @@ export function BookReaderPaginated({
 	const viewportRef = useRef(viewport);
 	viewportRef.current = viewport;
 	const horizontalPadding = getHorizontalPadding();
-	const positionCore = createReaderPositionCore({
+	const textSession = createTextReaderSession({
 		sections,
 		getCharacterCount: () => internalsRef.current.calculator?.charCount ?? 0,
 	});
@@ -266,7 +266,7 @@ export function BookReaderPaginated({
 	livePropsRef.current = { hideFurigana, furiganaStyle };
 
 	const positionForExplored = (exploredCharCount: number): ReaderPosition => {
-		return positionCore.positionFor(exploredCharCount);
+		return textSession.positionFor(exploredCharCount);
 	};
 
 	const reportExplored = (intendedCount?: number) => {

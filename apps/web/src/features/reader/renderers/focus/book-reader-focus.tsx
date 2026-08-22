@@ -1,16 +1,17 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { type CSSProperties, useMemo, useRef, useState } from "react";
-import type {
-	ReaderPosition,
-	ReaderTextAnchor,
-	SectionWithProgress,
-} from "@/features/reader/document/types";
+import {
+	type CSSProperties,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import type { ReaderTextAnchor } from "@/features/reader/document/types";
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
 import {
 	type FocusDocument,
 	findFocusSentenceIndex,
 	focusSentenceHtml,
-	loadFocusDocument,
 	resolveFocusTextAnchor,
 } from "@/features/reader/renderers/focus/focus-sentences";
 import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
@@ -19,13 +20,13 @@ import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "@/features/reader/renderers/shared/reader-style";
-import { createReaderPositionCore } from "@/features/reader/session/reader-position";
+import { createTextReaderSession } from "@/features/reader/session/text-reader-session";
 import { ReaderLoadingOverlay } from "@/features/reader/ui/chrome/reader-loading-overlay";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 
 interface BookReaderFocusProps extends BaseReaderProps {
-	bookUuid: string;
+	focusDocument: FocusDocument | null;
+	preparationError: boolean;
 	onExitFocus: () => void;
 }
 
@@ -46,9 +47,9 @@ const isOverlayEvent = (event: Event) =>
 		);
 
 export function BookReaderFocus({
-	bookUuid,
-	htmlContent,
 	language,
+	focusDocument,
+	preparationError,
 	onExitFocus,
 	navigationBlocked,
 	verticalMode,
@@ -95,37 +96,29 @@ export function BookReaderFocus({
 	const navigationBlockedRef = useRef(navigationBlocked);
 	navigationBlockedRef.current = navigationBlocked;
 
-	const [focusDocument, setFocusDocument] = useState<FocusDocument | null>(
-		null,
-	);
-	const [preparationError, setPreparationError] = useState(false);
 	const [sentenceIndex, setSentenceIndex] = useState(0);
-	const positionCore = createReaderPositionCore({
+	useEffect(
+		() =>
+			applyReaderDocumentChrome({
+				mode: "focus",
+				verticalMode,
+				backgroundColor: theme.backgroundColor,
+			}),
+		[theme.backgroundColor, verticalMode],
+	);
+	const textSession = createTextReaderSession({
 		sections,
 		getCharacterCount: () => parsedRef.current?.totalCharacters ?? 0,
 	});
-	const positionForCharacter = (exploredCharCount: number): ReaderPosition =>
-		positionCore.positionFor(exploredCharCount);
+	const positionForCharacter = textSession.positionFor;
 
 	const updateSectionProgress = (
 		exploredCharacter: number,
 		parsed: FocusDocument,
 	) => {
-		const progress = new Map<string, SectionWithProgress>();
-		for (const section of sections) {
-			const parsedRange = parsed.sectionRanges.get(section.reference);
-			const start = section.startCharacter ?? parsedRange?.startCharacter;
-			const end =
-				start !== undefined && section.characters !== undefined
-					? start + section.characters
-					: parsedRange?.endCharacter;
-			const value =
-				start === undefined || end === undefined || end <= start
-					? 0
-					: clamp(((exploredCharacter - start) / (end - start)) * 100, 0, 100);
-			progress.set(section.reference, { ...section, progress: value });
-		}
-		onSectionProgressChangeRef.current(progress);
+		onSectionProgressChangeRef.current(
+			textSession.sectionProgressFor(exploredCharacter, parsed.sectionRanges),
+		);
 	};
 	const scheduleSectionProgress = (
 		exploredCharacter: number,
@@ -171,84 +164,61 @@ export function BookReaderFocus({
 		showSentence(requested);
 	};
 
-	useMountEffect(() => {
-		let cancelled = false;
-		const parseController = new AbortController();
-		const cleanupChrome = applyReaderDocumentChrome({
-			mode: "focus",
-			verticalMode,
-			backgroundColor: theme.backgroundColor,
+	// This adapter is registered when the session document becomes available.
+	// The registered operations deliberately stay stable across visual settings;
+	// their mutable state lives in refs, not in a second reader session.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: focusDocument is the session lifecycle; the callbacks read current refs
+	useEffect(() => {
+		if (!focusDocument) return;
+		const parsed = focusDocument;
+		parsedRef.current = parsed;
+		const initialCharacter = initialPosition?.exploredCharCount ?? 0;
+		const initialIndex = findFocusSentenceIndex(
+			parsed.sentences,
+			initialCharacter,
+		);
+		currentIndexRef.current = initialIndex;
+		precisePositionRef.current = initialCharacter;
+		setSentenceIndex(initialIndex);
+		onPositionChangeRef.current(positionForCharacter(initialCharacter));
+		updateSectionProgress(initialCharacter, parsed);
+
+		const navigateToCharacter = (character: number) => {
+			showSentence(findFocusSentenceIndex(parsed.sentences, character), {
+				preservePosition: character,
+			});
+		};
+		const resolveAnchor = (anchor: ReaderTextAnchor) =>
+			resolveFocusTextAnchor(parsed, anchor, precisePositionRef.current);
+		apiRef({
+			nextPage: () => moveSentence(1),
+			prevPage: () => moveSentence(-1),
+			navigateToSection: (reference) => {
+				const character =
+					parsed.anchorCharacters.get(reference) ??
+					parsed.sectionRanges.get(reference)?.startCharacter;
+				if (character !== undefined) navigateToCharacter(character);
+			},
+			navigateToTextAnchor: (anchor) => {
+				const character = resolveAnchor(anchor);
+				if (character !== undefined) navigateToCharacter(character);
+			},
+			resolveTextAnchor: resolveAnchor,
+			getPosition: () => positionForCharacter(precisePositionRef.current),
+			scrollToPosition: (position) => {
+				navigateToCharacter(position.exploredCharCount);
+			},
+			relayout: (position) => {
+				if (position) precisePositionRef.current = position.exploredCharCount;
+			},
 		});
 
-		void loadFocusDocument({
-			cacheKey: bookUuid,
-			htmlContent,
-			language,
-			document,
-			sectionReferences: sections.map((section) => section.reference),
-			signal: parseController.signal,
-		})
-			.then((parsed) => {
-				if (cancelled) return;
-				parsedRef.current = parsed;
-				const initialCharacter = initialPosition?.exploredCharCount ?? 0;
-				const initialIndex = findFocusSentenceIndex(
-					parsed.sentences,
-					initialCharacter,
-				);
-				currentIndexRef.current = initialIndex;
-				precisePositionRef.current = initialCharacter;
-				setFocusDocument(parsed);
-				setSentenceIndex(initialIndex);
-				onPositionChangeRef.current(positionForCharacter(initialCharacter));
-				updateSectionProgress(initialCharacter, parsed);
-
-				const navigateToCharacter = (character: number) => {
-					showSentence(findFocusSentenceIndex(parsed.sentences, character), {
-						preservePosition: character,
-					});
-				};
-				const resolveAnchor = (anchor: ReaderTextAnchor) =>
-					resolveFocusTextAnchor(parsed, anchor, precisePositionRef.current);
-				apiRef({
-					nextPage: () => moveSentence(1),
-					prevPage: () => moveSentence(-1),
-					navigateToSection: (reference) => {
-						const character =
-							parsed.anchorCharacters.get(reference) ??
-							parsed.sectionRanges.get(reference)?.startCharacter;
-						if (character !== undefined) navigateToCharacter(character);
-					},
-					navigateToTextAnchor: (anchor) => {
-						const character = resolveAnchor(anchor);
-						if (character !== undefined) navigateToCharacter(character);
-					},
-					resolveTextAnchor: resolveAnchor,
-					getPosition: () => positionForCharacter(precisePositionRef.current),
-					scrollToPosition: (position) => {
-						navigateToCharacter(position.exploredCharCount);
-					},
-					relayout: (position) => {
-						if (position)
-							precisePositionRef.current = position.exploredCharCount;
-					},
-				});
-			})
-			.catch((error) => {
-				if (!parseController.signal.aborted) {
-					console.error("Failed to prepare Focus mode", error);
-					setPreparationError(true);
-				}
-			});
-
 		return () => {
-			cancelled = true;
-			parseController.abort();
-			cleanupChrome();
+			if (parsedRef.current === parsed) parsedRef.current = null;
 			clearTimeout(progressTimerRef.current);
 			apiRef(null);
 		};
-	});
+	}, [focusDocument]);
 
 	useWindowEvent("wheel", (event) => {
 		if (

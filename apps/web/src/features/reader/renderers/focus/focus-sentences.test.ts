@@ -4,6 +4,7 @@ import {
 	buildFocusDocument,
 	findFocusSentenceIndex,
 	focusSentenceHtml,
+	loadFocusDocument,
 	resolveFocusTextAnchor,
 } from "./focus-sentences";
 
@@ -72,6 +73,25 @@ describe("Focus sentence document", () => {
 
 		expect(findFocusSentenceIndex(result.sentences, 0)).toBe(0);
 		expect(findFocusSentenceIndex(result.sentences, firstEnd)).toBe(1);
+	});
+
+	test("shares a prepared document with the Focus reader", async () => {
+		const dom = new JSDOM("<!doctype html><html><body></body></html>");
+		const input = {
+			cacheKey: "prepared-focus-document",
+			document: dom.window.document,
+			language: "en",
+			htmlContent:
+				'<section id="nanahoshi-prepared"><p>Ready before Focus opens.</p></section>',
+		};
+
+		const prepared = loadFocusDocument(input);
+		const consumedByFocus = loadFocusDocument(input);
+
+		expect(consumedByFocus).toBe(prepared);
+		expect((await consumedByFocus).sentences[0]?.text).toBe(
+			"Ready before Focus opens.",
+		);
 	});
 
 	test("keeps image weight in the shared character coordinate", async () => {

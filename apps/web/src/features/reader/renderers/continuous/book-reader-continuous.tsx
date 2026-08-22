@@ -33,7 +33,7 @@ import {
 	type ReaderLayoutScheduler,
 	useReaderSurfaceResize,
 } from "@/features/reader/session/reader-layout";
-import { createReaderPositionCore } from "@/features/reader/session/reader-position";
+import { createTextReaderSession } from "@/features/reader/session/text-reader-session";
 import { ReaderLoadingOverlay } from "@/features/reader/ui/chrome/reader-loading-overlay";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -142,7 +142,7 @@ export function BookReaderContinuous({
 		const viewport = getViewportHeight();
 		return verticalMode && maxHeight ? Math.min(maxHeight, viewport) : viewport;
 	};
-	const positionCore = createReaderPositionCore({
+	const textSession = createTextReaderSession({
 		sections,
 		getCharacterCount: () => internalsRef.current.calculator?.charCount ?? 0,
 	});
@@ -351,7 +351,7 @@ export function BookReaderContinuous({
 		const offset = verticalMode
 			? getScrollContainer().scrollLeft
 			: getScrollContainer().scrollTop;
-		return positionCore.positionFor(charCount, {
+		return textSession.positionFor(charCount, {
 			[verticalMode ? "scrollX" : "scrollY"]: offset,
 		});
 	};
@@ -378,7 +378,7 @@ export function BookReaderContinuous({
 		// the saved character. The chapter locator is a cross-layout fallback,
 		// not a replacement for a valid exact coordinate.
 		const exact = exactScrollFor(position);
-		const restorePlan = positionCore.planRestore(position, Boolean(exact));
+		const restorePlan = textSession.planRestore(position, Boolean(exact));
 		if (restorePlan.useExactCoordinate && exact) {
 			s.prevIntendedCharCount = restorePlan.exploredCharCount;
 			s.isProgrammaticScroll = true;

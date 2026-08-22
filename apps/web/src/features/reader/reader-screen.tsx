@@ -935,8 +935,10 @@ export function ReaderScreen({
 	// never touch it until closeSettings().
 	const readerKey = [
 		uuid,
-		presentation.renderer,
-		settings.writingMode,
+		// Focus has a mode-neutral sentence index and updates its writing mode
+		// live. Keep that projection mounted so horizontal/vertical switches do
+		// not discard the prepared document or reset the active sentence.
+		presentation.renderer === "text-focus" ? "" : settings.writingMode,
 		isVisual ? presentation.visualLayout : "",
 		(presentation.renderer === "text-paginated" ||
 			(presentation.renderer === "text-scroll" &&
