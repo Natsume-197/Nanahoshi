@@ -108,8 +108,32 @@ describe("Focus sentence document", () => {
 				'<section id="nanahoshi-image"><img src="cover.jpg"><p>本文です。</p></section>',
 		});
 
-		expect(result.sentences[0]?.startCharacter).toBe(1);
+		expect(result.sentences.map((sentence) => sentence.kind)).toEqual([
+			"image",
+			"text",
+		]);
+		expect(result.sentences[0]?.html).toContain('src="cover.jpg"');
+		expect(result.sentences[0]?.startCharacter).toBe(0);
+		expect(result.sentences[1]?.startCharacter).toBe(1);
 		expect(result.totalCharacters).toBe(5);
+	});
+
+	test("keeps gaiji in the running text instead of showing it alone", async () => {
+		const dom = new JSDOM("<!doctype html><html><body></body></html>");
+		Object.assign(globalThis, {
+			HTMLElement: dom.window.HTMLElement,
+			HTMLImageElement: dom.window.HTMLImageElement,
+			Node: dom.window.Node,
+		});
+		const result = await buildFocusDocument({
+			document: dom.window.document,
+			language: "ja",
+			htmlContent:
+				'<section id="nanahoshi-gaiji"><p>髙<img class="gaiji" src="g.png">島です。</p></section>',
+		});
+
+		expect(result.sentences.map((sentence) => sentence.kind)).toEqual(["text"]);
+		expect(result.sentences[0]?.html).toContain('class="gaiji"');
 	});
 
 	test("keeps non-Latin writing systems readable", async () => {

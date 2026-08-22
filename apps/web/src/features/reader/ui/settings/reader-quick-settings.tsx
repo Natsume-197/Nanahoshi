@@ -38,6 +38,7 @@ import type {
 import { canUsePageColumns } from "@/features/reader/presentation/reader-presentation";
 import {
 	type CustomReaderThemes,
+	FOCUS_TEXT_SPEED_OPTIONS,
 	READER_FONT_SIZE_MAX,
 	READER_FONT_SIZE_MIN,
 	READER_LINE_HEIGHT_MAX,
@@ -908,6 +909,32 @@ export function ReaderQuickSettings({
 									/>
 								</div>
 							</QuickSettingsRow>
+							{presentation.textLayout === "focus" && (
+								<>
+									<QuickSettingsRow label="Text speed">
+										<div className="w-64 max-w-full">
+											<Segmented
+												theme={theme}
+												ariaLabel="Text speed"
+												options={FOCUS_TEXT_SPEED_OPTIONS}
+												selected={settings.focusTextSpeed}
+												onSelect={(focusTextSpeed) =>
+													onChange({ focusTextSpeed })
+												}
+											/>
+										</div>
+									</QuickSettingsRow>
+									<QuickSettingsRow label="Sentence marker">
+										<Toggle
+											theme={theme}
+											value={settings.focusSentenceIndicator}
+											onChange={(focusSentenceIndicator) =>
+												onChange({ focusSentenceIndicator })
+											}
+										/>
+									</QuickSettingsRow>
+								</>
+							)}
 							{canSelectPageColumns && (
 								<QuickSettingsRow label="Columns">
 									<div className="w-40">

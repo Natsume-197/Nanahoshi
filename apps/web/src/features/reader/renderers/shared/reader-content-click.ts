@@ -14,9 +14,9 @@ export function handleReaderContentClick(
 	event: MouseEvent,
 	live: ContentClickConfig,
 	navigateToSection: (reference: string) => void,
-) {
+): boolean {
 	const target = event.target as HTMLElement | null;
-	if (!target) return;
+	if (!target) return false;
 
 	if (
 		live.hideFurigana &&
@@ -29,16 +29,16 @@ export function handleReaderContentClick(
 			} else {
 				ruby.classList.add("reveal-rt");
 			}
-			return;
+			return true;
 		}
 	}
 
 	const anchor = target.closest("a");
-	if (anchor) {
-		event.preventDefault();
-		const href = anchor.getAttribute("href");
-		if (href?.startsWith("#")) {
-			navigateToSection(href.slice(1));
-		}
+	if (!anchor) return false;
+	event.preventDefault();
+	const href = anchor.getAttribute("href");
+	if (href?.startsWith("#")) {
+		navigateToSection(href.slice(1));
 	}
+	return true;
 }

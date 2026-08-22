@@ -1,6 +1,7 @@
 export type WritingMode = "horizontal-tb" | "vertical-rl";
 export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
+export type FocusTextSpeed = "instant" | "slow" | "normal" | "fast";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
 export interface ReaderThemeColors {
@@ -155,6 +156,8 @@ export interface ReaderSettings {
 	autoScrollMultiplier: number;
 	avoidPageBreak: boolean;
 	pageColumns: number;
+	focusTextSpeed: FocusTextSpeed;
+	focusSentenceIndicator: boolean;
 }
 
 export const READER_SETTINGS_VERSION = 2;
@@ -190,6 +193,8 @@ export const defaultReaderSettings: ReaderSettings = {
 	autoScrollMultiplier: 20,
 	avoidPageBreak: false,
 	pageColumns: 0,
+	focusTextSpeed: "normal",
+	focusSentenceIndicator: true,
 };
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
@@ -198,6 +203,13 @@ export const READER_FONT_SIZE_MIN = 12;
 export const READER_FONT_SIZE_MAX = 60;
 export const READER_LINE_HEIGHT_MIN = 1.2;
 export const READER_LINE_HEIGHT_MAX = 2.4;
+export const FOCUS_TEXT_SPEED_OPTIONS: { id: FocusTextSpeed; text: string }[] =
+	[
+		{ id: "instant", text: "Instant" },
+		{ id: "slow", text: "Slow" },
+		{ id: "normal", text: "Normal" },
+		{ id: "fast", text: "Fast" },
+	];
 
 const clampNumber = (
 	value: unknown,
@@ -250,6 +262,9 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		stored.verticalTextOrientation === "upright"
 	)
 		next.verticalTextOrientation = stored.verticalTextOrientation;
+	if (FOCUS_TEXT_SPEED_OPTIONS.some(({ id }) => id === stored.focusTextSpeed)) {
+		next.focusTextSpeed = stored.focusTextSpeed as FocusTextSpeed;
+	}
 	if (
 		stored.furiganaStyle === "Hide" ||
 		stored.furiganaStyle === "Partial" ||
@@ -268,6 +283,7 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		"showPercentage",
 		"hideFurigana",
 		"avoidPageBreak",
+		"focusSentenceIndicator",
 	] as const;
 	for (const key of booleanKeys) {
 		if (typeof stored[key] === "boolean") next[key] = stored[key];

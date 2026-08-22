@@ -172,6 +172,8 @@ export function ReaderEngine({
 				{...sharedProps}
 				focusDocument={textDocument.document}
 				preparationError={textDocument.error}
+				textSpeed={readerSettings.focusTextSpeed}
+				sentenceIndicator={readerSettings.focusSentenceIndicator}
 				onExitFocus={onExitFocus}
 			/>
 		);

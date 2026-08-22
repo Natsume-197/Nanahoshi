@@ -87,3 +87,14 @@ describe("reader settings normalization", () => {
 		);
 	});
 });
+
+describe("focus mode text speed", () => {
+	test("keeps a stored preset and falls back for anything else", () => {
+		expect(
+			normalizeReaderSettings({ focusTextSpeed: "fast" }).focusTextSpeed,
+		).toBe("fast");
+		expect(
+			normalizeReaderSettings({ focusTextSpeed: "turbo" }).focusTextSpeed,
+		).toBe(defaultReaderSettings.focusTextSpeed);
+	});
+});

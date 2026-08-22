@@ -7,6 +7,7 @@ import type {
 } from "@/features/reader/presentation/reader-presentation";
 import {
 	type CustomReaderThemes,
+	FOCUS_TEXT_SPEED_OPTIONS,
 	getReaderTheme,
 	type ReaderSettings,
 } from "@/features/reader/presentation/settings";
@@ -137,6 +138,34 @@ export function ReaderSettingsOverlay({
 								/>,
 								{ hint: "How latin characters rotate in vertical text" },
 							)}
+						{presentation.renderer === "text-focus" && (
+							<>
+								{row(
+									"Text speed",
+									<Segmented
+										theme={theme}
+										options={FOCUS_TEXT_SPEED_OPTIONS}
+										selected={settings.focusTextSpeed}
+										onSelect={(focusTextSpeed) => onChange({ focusTextSpeed })}
+									/>,
+									{
+										hint: "How fast each sentence types itself out",
+										wide: true,
+									},
+								)}
+								{row(
+									"Sentence marker",
+									<Toggle
+										theme={theme}
+										value={settings.focusSentenceIndicator}
+										onChange={(focusSentenceIndicator) =>
+											onChange({ focusSentenceIndicator })
+										}
+									/>,
+									{ hint: "Blinking cue once the sentence is fully shown" },
+								)}
+							</>
+						)}
 						{presentation.renderer === "text-paginated" &&
 							row(
 								"Avoid page break",

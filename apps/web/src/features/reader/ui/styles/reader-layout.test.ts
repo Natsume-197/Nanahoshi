@@ -31,6 +31,56 @@ const globalStyles = await Bun.file(
 	new URL("../../../../index.css", import.meta.url),
 ).text();
 
+function cssRule(selector: string) {
+	const start = readerCss.indexOf(`${selector} {`);
+	if (start === -1) return "";
+	return readerCss.slice(start, readerCss.indexOf("}", start));
+}
+
+describe("focus mode sentence box", () => {
+	test("centres the sentence on both axes", () => {
+		expect(
+			cssRule(".book-content--focus.book-content--writing-horizontal-tb"),
+		).toContain("align-self: center");
+		const box = cssRule(".book-content--focus");
+		expect(box).toContain("align-items: safe center");
+		expect(box).toContain("justify-content: safe center");
+	});
+
+	test("the click-wait marker takes no part in the line", () => {
+		const marker = cssRule(".focus-sentence-indicator");
+		expect(marker).toContain("position: absolute");
+		expect(cssRule(".book-content--focus .focus-sentence-content")).toContain(
+			"position: relative",
+		);
+		expect(marker).toContain("focus-sentence-indicator-spin");
+		expect(readerCss).toContain("@keyframes focus-sentence-indicator-spin");
+		expect(cssRule("@keyframes focus-sentence-indicator-spin")).toContain(
+			"rotate: 1turn",
+		);
+	});
+
+	test("an illustration slide is fitted whole, not cropped", () => {
+		const media = cssRule(
+			".book-content--focus-media img,\n.book-content--focus-media picture,\n.book-content--focus-media svg",
+		);
+		expect(media).toContain("width: auto !important");
+		expect(media).toContain("height: auto !important");
+		expect(media).toContain("max-width: 100% !important");
+		expect(media).toContain("max-height: 100% !important");
+		expect(cssRule(".book-content--focus-media.book-content--focus")).toContain(
+			"block-size: 100%",
+		);
+		expect(
+			cssRule(".book-content--focus-media .focus-sentence-content"),
+		).toContain("block-size: 100%");
+	});
+
+	test("hidden glyphs keep their box while the sentence is typed", () => {
+		expect(cssRule(".focus-typewriter-hidden")).toContain("visibility: hidden");
+	});
+});
+
 describe("reader layout", () => {
 	test("gives synchronized narration a themed, non-color-only text treatment", () => {
 		expect(readerCss).toContain(

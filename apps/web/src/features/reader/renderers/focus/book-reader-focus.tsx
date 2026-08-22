@@ -1,20 +1,26 @@
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type CSSProperties,
+	type MouseEvent as ReactMouseEvent,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import type { ReaderTextAnchor } from "@/features/reader/document/types";
+import type { FocusTextSpeed } from "@/features/reader/presentation/settings";
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
+import { FocusSentenceView } from "@/features/reader/renderers/focus/focus-sentence-view";
 import {
 	type FocusDocument,
 	findFocusSentenceIndex,
 	focusSentenceHtml,
 	resolveFocusTextAnchor,
 } from "@/features/reader/renderers/focus/focus-sentences";
-import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
+import { focusTapDirection } from "@/features/reader/renderers/focus/focus-tap";
+import {
+	type TypewriterHandle,
+	typewriterRate,
+} from "@/features/reader/renderers/focus/focus-typewriter";
 import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
 import {
 	buildReaderClasses,
@@ -27,6 +33,8 @@ import { useWindowEvent } from "@/hooks/use-window-event";
 interface BookReaderFocusProps extends BaseReaderProps {
 	focusDocument: FocusDocument | null;
 	preparationError: boolean;
+	textSpeed: FocusTextSpeed;
+	sentenceIndicator: boolean;
 	onExitFocus: () => void;
 }
 
@@ -50,6 +58,8 @@ export function BookReaderFocus({
 	language,
 	focusDocument,
 	preparationError,
+	textSpeed,
+	sentenceIndicator,
 	onExitFocus,
 	navigationBlocked,
 	verticalMode,
@@ -86,7 +96,9 @@ export function BookReaderFocus({
 	const progressTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
 		undefined,
 	);
-	const contentRef = useRef<HTMLDivElement | null>(null);
+	const typewriterRef = useRef<TypewriterHandle | null>(null);
+	const typesRef = useRef(textSpeed !== "instant");
+	typesRef.current = textSpeed !== "instant";
 	const onPositionChangeRef = useRef(onPositionChange);
 	onPositionChangeRef.current = onPositionChange;
 	const onSectionProgressChangeRef = useRef(onSectionProgressChange);
@@ -96,7 +108,8 @@ export function BookReaderFocus({
 	const navigationBlockedRef = useRef(navigationBlocked);
 	navigationBlockedRef.current = navigationBlocked;
 
-	const [sentenceIndex, setSentenceIndex] = useState(0);
+	const [current, setCurrent] = useState({ index: 0, animate: false });
+	const [typing, setTyping] = useState(false);
 	useEffect(
 		() =>
 			applyReaderDocumentChrome({
@@ -133,7 +146,7 @@ export function BookReaderFocus({
 
 	const showSentence = (
 		requestedIndex: number,
-		options: { preservePosition?: number } = {},
+		options: { preservePosition?: number; animate?: boolean } = {},
 	) => {
 		const parsed = parsedRef.current;
 		if (!parsed?.sentences.length) return;
@@ -141,7 +154,7 @@ export function BookReaderFocus({
 		const sentence = parsed.sentences[nextIndex];
 		if (!sentence) return;
 		currentIndexRef.current = nextIndex;
-		setSentenceIndex(nextIndex);
+		setCurrent({ index: nextIndex, animate: options.animate ?? false });
 		const exploredCharacter =
 			options.preservePosition ?? sentence.startCharacter;
 		precisePositionRef.current = exploredCharacter;
@@ -152,6 +165,10 @@ export function BookReaderFocus({
 	const moveSentence = (direction: -1 | 1) => {
 		const parsed = parsedRef.current;
 		if (!parsed?.sentences.length) return;
+		if (direction === 1 && typewriterRef.current) {
+			typewriterRef.current.finish();
+			return;
+		}
 		const currentIndex = currentIndexRef.current;
 		const requested = currentIndex + direction;
 		if (requested < 0) return;
@@ -161,7 +178,9 @@ export function BookReaderFocus({
 			updateSectionProgress(parsed.totalCharacters, parsed);
 			return;
 		}
-		showSentence(requested);
+		showSentence(requested, {
+			animate: direction === 1 && typesRef.current,
+		});
 	};
 
 	// This adapter is registered when the session document becomes available.
@@ -179,7 +198,7 @@ export function BookReaderFocus({
 		);
 		currentIndexRef.current = initialIndex;
 		precisePositionRef.current = initialCharacter;
-		setSentenceIndex(initialIndex);
+		setCurrent({ index: initialIndex, animate: false });
 		onPositionChangeRef.current(positionForCharacter(initialCharacter));
 		updateSectionProgress(initialCharacter, parsed);
 
@@ -248,14 +267,13 @@ export function BookReaderFocus({
 		moveSentence(delta > 0 ? 1 : -1);
 	});
 
+	const sentenceIndex = current.index;
 	const sentence = focusDocument?.sentences[sentenceIndex];
+	const isImageSentence = sentence?.kind === "image";
 	const sentenceHtml = useMemo(
 		() => (sentence ? focusSentenceHtml(document, sentence) : ""),
 		[sentence],
 	);
-	const isFirstSentence = sentenceIndex === 0;
-	const isLastSentence =
-		!focusDocument || sentenceIndex >= focusDocument.sentences.length - 1;
 	const sentenceClasses = buildReaderClasses({
 		mode: "focus",
 		verticalMode,
@@ -294,86 +312,57 @@ export function BookReaderFocus({
 				: undefined,
 	};
 
+	const handleSurfaceClick = (event: ReactMouseEvent<HTMLElement>) => {
+		if (navigationBlocked || !sentence) return;
+		if (isOverlayEvent(event.nativeEvent)) return;
+		if (window.getSelection()?.isCollapsed === false) return;
+		const surface = event.currentTarget.getBoundingClientRect();
+		moveSentence(
+			focusTapDirection({
+				clientX: event.clientX,
+				left: surface.left,
+				width: surface.width,
+				verticalMode,
+			}),
+		);
+	};
+
 	return (
+		// biome-ignore lint/a11y/useKeyWithClickEvents: sentence navigation has its own keybinds (PageUp/PageDown, arrows); this only adds the pointer affordance
 		<section
 			data-reader-renderer="text-focus"
 			aria-label="Focus reader"
 			lang={language || undefined}
 			className="focus-reader-surface fixed inset-0 flex items-center justify-center overflow-hidden"
 			style={{ backgroundColor: theme.backgroundColor }}
+			onClick={handleSurfaceClick}
 		>
-			<button
-				type="button"
-				aria-label="Previous sentence"
-				aria-keyshortcuts="ArrowLeft ArrowUp PageUp"
-				disabled={isFirstSentence || !sentence}
-				className="fixed top-1/2 left-[max(0.25rem,var(--safe-area-left))] z-[3] flex size-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full border bg-transparent opacity-25 outline-none transition-opacity hover:opacity-70 focus-visible:opacity-100 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-0 motion-reduce:transition-none"
-				style={{ borderColor: theme.fontColor, color: theme.fontColor }}
-				onClick={() => moveSentence(-1)}
-			>
-				<CaretLeft aria-hidden="true" className="size-5" weight="bold" />
-			</button>
 			<div
 				role="status"
 				aria-live="polite"
 				aria-atomic="true"
-				className={`${sentenceClasses} relative z-[2] flex max-h-full w-full max-w-3xl overflow-auto overscroll-contain`}
+				aria-busy={typing}
+				className={`${sentenceClasses} ${
+					isImageSentence ? "book-content--focus-media" : "max-w-3xl"
+				} relative z-[2] flex max-h-full w-full overflow-auto overscroll-contain`}
 				style={sentenceStyle}
 			>
 				{sentence ? (
-					<div
+					<FocusSentenceView
 						key={`${sentence.sectionReference}:${sentenceIndex}`}
-						ref={contentRef}
-						id={sentence.sectionReference}
-						data-focus-fragment-ids={JSON.stringify(sentence.fragmentIds)}
-						role="document"
-						// biome-ignore lint/a11y/noNoninteractiveTabindex: the rendered publication is a keyboard surface for furigana and Read & Listen sentence seeking
-						tabIndex={0}
-						className="focus-sentence-content min-h-fit min-w-fit"
-						onClick={(event) =>
-							handleReaderContentClick(
-								event.nativeEvent,
-								{ hideFurigana, furiganaStyle },
-								() => {},
-							)
-						}
-						onKeyDown={(event) => {
-							if (
-								event.key !== "Enter" ||
-								!hideFurigana ||
-								(furiganaStyle !== "Toggle" && furiganaStyle !== "Full")
-							) {
-								return;
-							}
-							for (const ruby of contentRef.current?.querySelectorAll("ruby") ??
-								[]) {
-								if (furiganaStyle === "Toggle") {
-									ruby.classList.toggle("reveal-rt");
-								} else {
-									ruby.classList.add("reveal-rt");
-								}
-							}
-						}}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: cloned from the reader's already-sanitized book HTML
-						dangerouslySetInnerHTML={{ __html: sentenceHtml }}
+						sentence={sentence}
+						html={sentenceHtml}
+						typeAt={current.animate ? typewriterRate(textSpeed) : null}
+						showIndicator={sentenceIndicator}
+						hideFurigana={hideFurigana}
+						furiganaStyle={furiganaStyle}
+						typewriterRef={typewriterRef}
+						onTypingChange={setTyping}
 					/>
 				) : focusDocument ? (
 					<p>No readable text found.</p>
 				) : null}
 			</div>
-			<button
-				type="button"
-				aria-label={
-					isLastSentence ? "Mark final sentence read" : "Next sentence"
-				}
-				aria-keyshortcuts="ArrowRight ArrowDown PageDown"
-				disabled={!sentence}
-				className="fixed top-1/2 right-[max(0.25rem,var(--safe-area-right))] z-[3] flex size-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full border bg-transparent opacity-25 outline-none transition-opacity hover:opacity-70 focus-visible:opacity-100 focus-visible:outline-2 disabled:pointer-events-none disabled:opacity-0 motion-reduce:transition-none"
-				style={{ borderColor: theme.fontColor, color: theme.fontColor }}
-				onClick={() => moveSentence(1)}
-			>
-				<CaretRight aria-hidden="true" className="size-5" weight="bold" />
-			</button>
 			{preparationError ? (
 				<div
 					data-reader-overlay

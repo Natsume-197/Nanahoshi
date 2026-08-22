@@ -1,6 +1,7 @@
 import {
 	countTextCharacters,
 	getCharacterCount,
+	isElementGaiji,
 	isNodeImage,
 } from "@/features/reader/document/processing/character-count";
 import type { ReaderTextAnchor } from "@/features/reader/document/types";
@@ -11,6 +12,7 @@ interface TextPoint {
 }
 
 export interface FocusSentence {
+	kind: "text" | "image";
 	text: string;
 	startCharacter: number;
 	endCharacter: number;
@@ -210,16 +212,40 @@ function trimRange(text: string, start: number, end: number) {
 	return { start: trimmedStart, end: trimmedEnd };
 }
 
-function fragmentIdsForNodes(section: Element, nodes: readonly Text[]) {
+function fragmentIdsForNodes(section: Element, nodes: readonly Node[]) {
 	const ids = new Set<string>();
 	for (const node of nodes) {
-		let element = node.parentElement;
+		let element =
+			node.nodeType === Node.ELEMENT_NODE
+				? (node as Element)
+				: node.parentElement;
 		while (element && element !== section) {
 			if (element.id) ids.add(element.id);
 			element = element.parentElement;
 		}
 	}
 	return [...ids];
+}
+
+function imageSentenceElement(node: Node): Element | undefined {
+	if (!isNodeImage(node)) return undefined;
+	const element = node as Element;
+	if (element.localName === "image") return element.closest("svg") ?? element;
+	return element.closest("picture") ?? element;
+}
+
+function stripForeignIds(root: Element, fragmentIds: readonly string[]) {
+	for (const element of [root, ...root.querySelectorAll("[id]")]) {
+		if (element.id && !fragmentIds.includes(element.id)) {
+			element.removeAttribute("id");
+		}
+	}
+}
+
+function imageSentenceHtml(element: Element, fragmentIds: readonly string[]) {
+	const clone = element.cloneNode(true) as Element;
+	stripForeignIds(clone, fragmentIds);
+	return clone.outerHTML;
 }
 
 function sentenceHtml(
@@ -239,13 +265,11 @@ function sentenceHtml(
 	range.setEnd(end.node, end.offset + 1);
 	const wrapper = document.createElement("div");
 	wrapper.append(range.cloneContents());
-	for (const element of wrapper.querySelectorAll("[id]")) {
-		if (!fragmentIds.includes(element.id)) element.removeAttribute("id");
-	}
+	stripForeignIds(wrapper, fragmentIds);
 	for (const element of wrapper.querySelectorAll(
 		"img,picture,svg,audio,video,button,input,select,textarea",
 	)) {
-		element.remove();
+		if (!isElementGaiji(element as HTMLImageElement)) element.remove();
 	}
 	for (const anchor of wrapper.querySelectorAll("a")) {
 		anchor.replaceWith(...anchor.childNodes);
@@ -302,8 +326,29 @@ async function buildFocusDocumentUncached({
 		const nodeStartCharacters = new Map<Node, number>();
 		const internalAnchorCharacters = new Map<string, number>();
 		let sectionCharacterCount = 0;
+		const sectionImages: FocusSentence[] = [];
+		const shownImages = new Set<Element>();
 		for (const [nodeIndex, node] of sectionParagraphNodes.entries()) {
 			nodeStartCharacters.set(node, sectionCharacterCount);
+			const image = imageSentenceElement(node);
+			if (
+				image &&
+				!shownImages.has(image) &&
+				!isElementGaiji(node as HTMLImageElement)
+			) {
+				shownImages.add(image);
+				const fragmentIds = fragmentIdsForNodes(section, [node]);
+				sectionImages.push({
+					kind: "image",
+					text: "",
+					startCharacter: sectionStart + sectionCharacterCount,
+					endCharacter:
+						sectionStart + sectionCharacterCount + getCharacterCount(node),
+					sectionReference,
+					fragmentIds,
+					html: imageSentenceHtml(image, fragmentIds),
+				});
+			}
 			let ancestor = node.parentElement;
 			while (ancestor && ancestor !== section) {
 				if (ancestor.id && !internalAnchorCharacters.has(ancestor.id)) {
@@ -320,6 +365,7 @@ async function buildFocusDocumentUncached({
 			anchorCharacters.set(id, sectionStart + character);
 		}
 
+		const sectionText: FocusSentence[] = [];
 		for (const [, nodes] of await groupNodesByBlock(
 			section,
 			sectionParagraphNodes,
@@ -345,6 +391,7 @@ async function buildFocusDocumentUncached({
 					(nodeStartCharacters.get(last.node) ?? 0) +
 					countTextCharacters(last.node.data.slice(0, last.offset + 1));
 				const sentence: FocusSentence = {
+					kind: "text",
 					text: sentenceText,
 					startCharacter,
 					endCharacter,
@@ -352,7 +399,7 @@ async function buildFocusDocumentUncached({
 					fragmentIds,
 					html: sentenceHtml(document, sentenceText, fragmentIds, first, last),
 				};
-				sentences.push(sentence);
+				sectionText.push(sentence);
 				const quoteKey = `${sectionReference}\u0000${normalizeQuote(sentenceText)}`;
 				const quoteMatches = quoteCharacters.get(quoteKey) ?? [];
 				quoteMatches.push(startCharacter);
@@ -360,6 +407,21 @@ async function buildFocusDocumentUncached({
 				await budget.checkpoint();
 			}
 		}
+
+		let nextImage = 0;
+		for (const sentence of sectionText) {
+			while (
+				nextImage < sectionImages.length &&
+				(sectionImages[nextImage]?.startCharacter ?? 0) <=
+					sentence.startCharacter
+			) {
+				const image = sectionImages[nextImage];
+				if (image) sentences.push(image);
+				nextImage += 1;
+			}
+			sentences.push(sentence);
+		}
+		sentences.push(...sectionImages.slice(nextImage));
 
 		exploredCharacter = sectionStart + sectionCharacterCount;
 		sectionRanges.set(sectionReference, {

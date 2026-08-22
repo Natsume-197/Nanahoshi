@@ -40,9 +40,9 @@
 
 .focus-reader-surface {
 	padding-top: max(1.5rem, var(--safe-area-top));
-	padding-right: calc(var(--safe-area-right) + 3.5rem);
+	padding-right: max(1.5rem, var(--safe-area-right));
 	padding-bottom: max(1.5rem, var(--safe-area-bottom));
-	padding-left: calc(var(--safe-area-left) + 3.5rem);
+	padding-left: max(1.5rem, var(--safe-area-left));
 }
 
 /* Focus mode: one sentence is rendered at a time, independently of the
@@ -60,9 +60,96 @@
 	justify-content: safe center;
 }
 
+.book-content--focus.book-content--writing-horizontal-tb {
+	align-self: center;
+}
+
 .book-content--focus .focus-sentence-content {
+	position: relative;
 	max-width: 100%;
 	overflow-wrap: anywhere;
+	padding-inline: 1em;
+}
+
+.book-content--focus-media.book-content--focus {
+	align-self: stretch;
+	align-items: safe center;
+	justify-content: safe center;
+	block-size: 100%;
+	margin-block-start: 0 !important;
+}
+
+.book-content--focus-media .focus-sentence-content {
+	display: flex;
+	block-size: 100%;
+	inline-size: 100%;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-block-size: 0;
+	min-inline-size: 0;
+}
+
+.book-content--focus-media img,
+.book-content--focus-media picture,
+.book-content--focus-media svg {
+	display: block !important;
+	width: auto !important;
+	height: auto !important;
+	max-width: 100% !important;
+	max-height: 100% !important;
+	min-height: 0;
+	margin-inline: auto;
+	object-fit: contain;
+}
+
+.focus-typewriter-hidden {
+	visibility: hidden;
+}
+
+.focus-sentence-indicator {
+	position: absolute;
+	width: 0.62em;
+	height: 0.62em;
+	border-radius: 50%;
+	background: conic-gradient(
+		from 0deg,
+		currentColor 0deg,
+		color-mix(in oklab, currentColor 25%, transparent) 140deg,
+		transparent 300deg
+	);
+	-webkit-mask: radial-gradient(closest-side, transparent 78%, black 80%);
+	mask: radial-gradient(closest-side, transparent 78%, black 80%);
+	animation:
+		focus-sentence-indicator-in 180ms ease-out both,
+		focus-sentence-indicator-spin 2.4s linear 180ms infinite;
+}
+
+@keyframes focus-sentence-indicator-in {
+	from {
+		opacity: 0;
+		scale: 0.6;
+	}
+	to {
+		opacity: 0.9;
+		scale: 1;
+	}
+}
+
+@keyframes focus-sentence-indicator-spin {
+	to {
+		rotate: 1turn;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.focus-sentence-indicator {
+		animation: none;
+		background: currentColor;
+		-webkit-mask: none;
+		mask: none;
+		opacity: 0.6;
+	}
 }
 
 /* The doubled-up .book-content mirrors Nanahoshi's Svelte scoping class: these caps
