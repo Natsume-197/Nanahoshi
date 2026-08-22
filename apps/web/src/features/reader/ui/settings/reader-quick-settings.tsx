@@ -19,6 +19,7 @@ import {
 	TextT,
 	Trash,
 	Users,
+	X,
 } from "@phosphor-icons/react";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import {
@@ -1152,7 +1153,16 @@ export function ReaderQuickSettings({
 				>
 					{settingsCategoryTitle}
 				</h2>
-				<span aria-hidden="true" />
+				<button
+					type="button"
+					aria-label="Close settings"
+					title="Close"
+					className="flex size-11 cursor-pointer items-center justify-center justify-self-end rounded-full outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
+					style={{ backgroundColor: mix(7) }}
+					onClick={onClose}
+				>
+					<X aria-hidden="true" className="size-5" />
+				</button>
 				<p id="reader-quick-settings-description" className="sr-only">
 					Adjust reading settings. Changes apply immediately.
 				</p>
