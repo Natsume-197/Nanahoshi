@@ -76,8 +76,10 @@ export const inviteLinkService = {
 			alreadyMember,
 			// Joining this server is gated by Discord guild/role rules.
 			requiresDiscord: enabledRules.length > 0,
-			// Only meaningful with a session: has the viewer linked Discord?
-			discordLinked: discordAccount !== null,
+			// Only meaningful with a session: has the viewer linked Discord? The
+			// access token is what the gate actually needs, so a token-less row
+			// must not present the join button as ready.
+			discordLinked: Boolean(discordAccount?.accessToken),
 		};
 	},
 

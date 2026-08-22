@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	getActiveHomeSectionCount,
 	getHomePrefetchDistance,
 	getHomePrioritySectionCount,
 	getNextHomeSectionCount,
@@ -125,5 +126,61 @@ describe("getProgressiveHomePhase", () => {
 				hasPendingDeferred: false,
 			}),
 		).toBe("loading");
+	});
+});
+
+describe("getActiveHomeSectionCount", () => {
+	// Default layout order.
+	const sectionIds = [
+		"continue",
+		"recently-added",
+		"books-for-you",
+		"audiobooks-for-you",
+		"popular",
+		"your-collections",
+		"book-series",
+		"audiobook-series",
+		"random-books",
+		"random-audiobooks",
+	] as const;
+
+	test("backfills every empty section in the first viewport", () => {
+		// A brand new account: nothing in progress and no recommendations yet.
+		expect(
+			getActiveHomeSectionCount({
+				sectionIds,
+				statuses: {
+					continue: "empty",
+					"recently-added": "populated",
+					"books-for-you": "empty",
+					"audiobooks-for-you": "empty",
+				},
+				rawActiveCount: 4,
+				priorityCount: 4,
+			}),
+		).toBe(7);
+	});
+
+	test("never shrinks below the revealed batch or past the layout", () => {
+		expect(
+			getActiveHomeSectionCount({
+				sectionIds,
+				statuses: { continue: "empty" },
+				rawActiveCount: 7,
+				priorityCount: 4,
+			}),
+		).toBe(7);
+		expect(
+			getActiveHomeSectionCount({
+				sectionIds: sectionIds.slice(0, 5),
+				statuses: {
+					continue: "empty",
+					"books-for-you": "empty",
+					"audiobooks-for-you": "empty",
+				},
+				rawActiveCount: 4,
+				priorityCount: 4,
+			}),
+		).toBe(5);
 	});
 });

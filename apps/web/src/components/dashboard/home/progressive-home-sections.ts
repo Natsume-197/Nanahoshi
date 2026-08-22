@@ -15,6 +15,30 @@ export function getNextHomeSectionCount(
 }
 
 /**
+ * Empty sections render nothing, so the first viewport would be short by one
+ * rail for each of them. Pulling deferred sections forward backfills the gap.
+ */
+export function getActiveHomeSectionCount<T extends string>({
+	sectionIds,
+	statuses,
+	rawActiveCount,
+	priorityCount,
+}: {
+	sectionIds: readonly T[];
+	statuses: Partial<Record<T, HomeSectionStatus>>;
+	rawActiveCount: number;
+	priorityCount: number;
+}): number {
+	const emptyPriorityCount = sectionIds
+		.slice(0, priorityCount)
+		.reduce((count, id) => count + (statuses[id] === "empty" ? 1 : 0), 0);
+	return Math.min(
+		Math.max(rawActiveCount, priorityCount, priorityCount + emptyPriorityCount),
+		sectionIds.length,
+	);
+}
+
+/**
  * Queries within a batch run in parallel, but their UI commits in layout
  * order. Empty sections do not occupy a slot and therefore do not block the
  * next populated section.

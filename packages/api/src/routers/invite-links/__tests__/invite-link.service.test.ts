@@ -118,6 +118,24 @@ describe("inviteLinkService.previewLink", () => {
 		expect(preview.discordLinked).toBe(true);
 	});
 
+	test("a Discord row without an access token is not 'linked'", async () => {
+		// checkDiscordAccess needs the token, so the join button would 403.
+		discordAccessRepository.getDiscordAccount = mock(async () => ({
+			id: "acc-1",
+			accessToken: null,
+			refreshToken: null,
+			accessTokenExpiresAt: null,
+		})) as never;
+
+		const preview = await inviteLinkService.previewLink({
+			code: "CODE",
+			userId: "user-1",
+		});
+		expect(preview.status).toBe("ok");
+		if (preview.status !== "ok") return;
+		expect(preview.discordLinked).toBe(false);
+	});
+
 	test("without a session the Discord account is never looked up", async () => {
 		const spy = mock(async () => null);
 		discordAccessRepository.getDiscordAccount = spy as never;

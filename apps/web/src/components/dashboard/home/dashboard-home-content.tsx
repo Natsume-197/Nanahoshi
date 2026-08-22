@@ -29,6 +29,7 @@ import {
 } from "./home-section-status";
 import { PopularSection } from "./popular-section";
 import {
+	getActiveHomeSectionCount,
 	getHomePrioritySectionCount,
 	getOrderedVisibleSectionIds,
 	getProgressiveHomePhase,
@@ -141,18 +142,12 @@ function OrderedHomeSections({
 					.map(([id]) => id as HomeSectionId),
 			),
 	);
-	const emptyPriorityCount = sections
-		.slice(0, priorityCount)
-		.reduce(
-			(count, section) => count + (statuses[section.id] === "empty" ? 1 : 0),
-			0,
-		);
-	// Empty priority sections don't take up visible space, so pull in extra
-	// deferred sections to backfill them; clamp both bounds to the current layout.
-	const activeCount = Math.min(
-		Math.max(rawActiveCount, priorityCount, priorityCount + emptyPriorityCount),
-		sections.length,
-	);
+	const activeCount = getActiveHomeSectionCount({
+		sectionIds: sections.map((section) => section.id),
+		statuses,
+		rawActiveCount,
+		priorityCount,
+	});
 	const lastActiveIndex = activeCount - 1;
 	const lastActive = sections[lastActiveIndex];
 	const lastStatus = lastActive ? statuses[lastActive.id] : undefined;
@@ -190,9 +185,9 @@ function OrderedHomeSections({
 	const requestNext = useCallback(
 		() =>
 			startTransition(() => {
-				revealNextHomeSectionBatch(restoreKey, sections.length);
+				revealNextHomeSectionBatch(restoreKey, sections.length, activeCount);
 			}),
-		[restoreKey, sections.length],
+		[restoreKey, sections.length, activeCount],
 	);
 
 	return (

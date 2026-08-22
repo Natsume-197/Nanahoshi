@@ -54,13 +54,19 @@ export function reportHomeSectionStatus(
 	);
 }
 
+/**
+ * `fromCount` is the count actually rendered, which can already exceed the raw
+ * count when empty sections were backfilled. Advancing from the raw count there
+ * would reveal nothing and permanently stall the reveal.
+ */
 export function revealNextHomeSectionBatch(
 	locationKey: string,
 	totalCount: number,
+	fromCount = 0,
 ) {
 	updateSnapshot(locationKey, (current) => {
 		const rawActiveCount = getNextHomeSectionCount(
-			current.rawActiveCount,
+			Math.max(current.rawActiveCount, fromCount),
 			totalCount,
 		);
 		return rawActiveCount === current.rawActiveCount

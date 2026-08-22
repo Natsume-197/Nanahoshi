@@ -13,7 +13,10 @@ import { DiscordIcon } from "@/components/shared/discord-icon";
 import { ServerBadge } from "@/components/shared/server-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getInvitePreview } from "@/functions/get-invite-preview";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
+import { shouldAutoJoin } from "@/lib/invite-auto-join";
 import { buildInviteHead } from "@/lib/invite-meta";
 import { resolveInviteSignupState } from "@/lib/invite-signup-state";
 import { optionalString } from "@/lib/search-validators";
@@ -26,19 +29,24 @@ export const Route = createFileRoute("/invite/$code")({
 	validateSearch: (search: Record<string, unknown> & SearchSchemaInput) => ({
 		// OAuth callback failures land back here as ?error=<code>.
 		error: optionalString(search.error),
+		// The Discord round-trip returns with ?join=1 to finish what the visitor
+		// already started, instead of asking them to press "Accept" again.
+		join: optionalString(search.join),
 	}),
 	beforeLoad: ({ context }) => {
 		return { session: context.session };
 	},
 	loader: async ({ params }) => {
-		// SSR calls the API directly: the server query client is process-wide and
-		// preview.alreadyMember is per-user, so it must never be cached there. On
-		// the client the fetch goes through the cache, so the component's useQuery
-		// reuses this same request instead of firing a second one.
+		// SSR goes through a server function so the API sees the visitor's cookie:
+		// preview.alreadyMember/discordLinked are per-user, and the plain client has
+		// no cookie jar on the server (it would always answer as a signed-out
+		// visitor). It also must never be cached there — the server query client is
+		// process-wide. On the client the fetch goes through the cache, so the
+		// component's useQuery reuses this same request instead of firing a second one.
 		try {
 			const [preview, sso] = await Promise.all([
 				typeof window === "undefined"
-					? client.inviteLinks.preview({ code: params.code })
+					? getInvitePreview({ data: params.code })
 					: queryClient.ensureQueryData(
 							orpc.inviteLinks.preview.queryOptions({
 								input: { code: params.code },
@@ -88,7 +96,7 @@ function InviteShell({
 function InvitePage() {
 	const { code } = Route.useParams();
 	const { preview: loadedPreview, sso: loadedSso } = Route.useLoaderData();
-	const { error: oauthError } = Route.useSearch();
+	const { error: oauthError, join: joinRequested } = Route.useSearch();
 	const { session } = Route.useRouteContext();
 	const router = useRouter();
 
@@ -119,10 +127,13 @@ function InvitePage() {
 	const requiresDiscord = preview?.status === "ok" && preview.requiresDiscord;
 
 	const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${code}`;
+	// Returning with ?join=1 finishes the join the visitor already started, so the
+	// Discord round-trip doesn't leave them with an account and no membership.
+	const returnUrl = `${inviteUrl}?join=1`;
 	const startDiscordSignUp = () =>
 		authClient.signIn.social({
 			provider: "discord",
-			callbackURL: inviteUrl,
+			callbackURL: returnUrl,
 			errorCallbackURL: inviteUrl,
 			// Better Auth persists additionalData in its protected OAuth state and
 			// restores it on the Discord callback.
@@ -131,7 +142,7 @@ function InvitePage() {
 	const startDiscordLink = () =>
 		authClient.linkSocial({
 			provider: "discord",
-			callbackURL: inviteUrl,
+			callbackURL: returnUrl,
 			errorCallbackURL: inviteUrl,
 		});
 
@@ -148,6 +159,17 @@ function InvitePage() {
 			onError: (err) => toast.error(err.message),
 		}),
 	);
+
+	// The visitor consented before the Discord round-trip; finish the join for
+	// them on the way back rather than asking for a second click.
+	const autoJoin = shouldAutoJoin({
+		requested: joinRequested === "1",
+		hasSession: Boolean(session),
+		preview,
+	});
+	useMountEffect(() => {
+		if (autoJoin) join.mutate({ code });
+	});
 
 	const handleOpenServer = async () => {
 		if (preview?.status !== "ok") return;
@@ -250,7 +272,7 @@ function InvitePage() {
 								<p className="mt-4 text-muted-foreground text-sm">
 									<Link
 										to="/sign-up"
-										search={{ redirect: `/invite/${code}` }}
+										search={{ redirect: `/invite/${code}?join=1` }}
 										className="font-medium text-foreground underline-offset-4 hover:underline"
 									>
 										{m["invite.create_account_email"]()}
@@ -261,7 +283,10 @@ function InvitePage() {
 					) : emailSignUp ? (
 						<>
 							<Button asChild className="mt-8 w-full">
-								<Link to="/sign-up" search={{ redirect: `/invite/${code}` }}>
+								<Link
+									to="/sign-up"
+									search={{ redirect: `/invite/${code}?join=1` }}
+								>
 									{m["invite.create_account"]()}
 								</Link>
 							</Button>
@@ -286,7 +311,7 @@ function InvitePage() {
 						{m["auth.have_account"]()}{" "}
 						<Link
 							to="/login"
-							search={{ redirect: `/invite/${code}` }}
+							search={{ redirect: `/invite/${code}?join=1` }}
 							className="font-medium text-foreground underline-offset-4 hover:underline"
 						>
 							{m["auth.sign_in_link"]()}
@@ -328,16 +353,18 @@ function InvitePage() {
 					)}
 					<Button
 						className={requiresDiscord ? "mt-3 w-full" : "mt-8 w-full"}
-						disabled={join.isPending}
+						disabled={join.isPending || autoJoin}
 						onClick={() => join.mutate({ code })}
 					>
-						{join.isPending && <CircleNotch className="size-4 animate-spin" />}
+						{(join.isPending || autoJoin) && (
+							<CircleNotch className="size-4 animate-spin" />
+						)}
 						{m["invite.accept_as"]({ name: session.user.name })}
 					</Button>
 					<Button
 						variant="ghost"
 						className="mt-2 w-full text-muted-foreground"
-						disabled={join.isPending}
+						disabled={join.isPending || autoJoin}
 						onClick={() => router.navigate({ to: "/dashboard" })}
 					>
 						{m["invite.no_thanks"]()}

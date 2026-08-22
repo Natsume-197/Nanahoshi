@@ -25,6 +25,16 @@ describe("home progressive state restoration", () => {
 		});
 	});
 
+	test("advances past sections already pulled in by the empty backfill", () => {
+		const locationKey = "new-account-history-entry";
+
+		// A new account has no continue list and no recommendations, so the
+		// backfill already renders 7 sections while the raw count is still 4.
+		revealNextHomeSectionBatch(locationKey, 10, 7);
+
+		expect(getHomeProgressiveSnapshot(locationKey).rawActiveCount).toBe(10);
+	});
+
 	test("does not leak progress into a new dashboard history entry", () => {
 		expect(getHomeProgressiveSnapshot("different-history-entry")).toEqual({
 			rawActiveCount: 4,
