@@ -178,7 +178,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 			<div
 				data-player-expanded={isExpanded}
 				className={cn(
-					"read-listen-player-dock fixed inset-x-0 text-sidebar-foreground md:bottom-0",
+					"read-listen-player-dock writing-horizontal-tb fixed inset-x-0 text-sidebar-foreground md:bottom-0",
 					miniPlayerBarLayer(isExpanded, hasContent),
 					placement === "reader"
 						? "bottom-[var(--safe-area-bottom)] after:pointer-events-none after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-sidebar after:content-['']"
@@ -227,7 +227,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 				// z-40 keeps it under the popup layer, so popovers open over it. Opening
 				// is the deliberate action and gets the longer curve.
 				className={cn(
-					"expanded-player-sheet fixed inset-0 z-40 overflow-hidden bg-background",
+					"expanded-player-sheet writing-horizontal-tb fixed inset-0 z-40 overflow-hidden bg-background",
 				)}
 			>
 				{/* Reopening mid-dismissal: dropping the swipe's leftover transform

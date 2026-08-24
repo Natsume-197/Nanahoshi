@@ -86,6 +86,10 @@ describe("expanded player motion", () => {
 		expect(readListenRuntime).toContain("<PlayerHostReadListenBridge");
 	});
 
+	it("isolates the persistent player from the reader writing mode", () => {
+		expect([...miniPlayer.matchAll(/writing-horizontal-tb/g)]).toHaveLength(2);
+	});
+
 	it("keeps reader metadata and transport controls visible on narrow screens", () => {
 		expect(readListenRuntime).toContain("readerTheme: theme");
 		expect(miniPlayer).toContain('"--sidebar": readerTheme.backgroundColor');
@@ -173,7 +177,7 @@ describe("expanded player motion", () => {
 	});
 
 	it("keeps the persistent dock above the shared reader transition", () => {
-		expect(miniPlayer).toContain("read-listen-player-dock fixed");
+		expect(miniPlayer).toMatch(/read-listen-player-dock[^"\n]*\bfixed\b/);
 		expect(miniPlayer).toContain("data-player-expanded={isExpanded}");
 		expect(miniPlayer).toContain("transitionReadListenNavigation");
 		expect(css).toContain(

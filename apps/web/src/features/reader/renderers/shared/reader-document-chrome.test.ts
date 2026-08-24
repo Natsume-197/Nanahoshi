@@ -45,4 +45,15 @@ describe("reader document chrome", () => {
 		expect(document.documentElement.style.scrollbarWidth).toBe("auto");
 		cleanup();
 	});
+
+	test("clears scrollbar concealment when the reader unmounts", () => {
+		const cleanup = applyContinuousChrome();
+		document.documentElement.classList.add("reader-scrollbar-concealed");
+
+		cleanup();
+
+		expect(
+			document.documentElement.classList.contains("reader-scrollbar-concealed"),
+		).toBe(false);
+	});
 });

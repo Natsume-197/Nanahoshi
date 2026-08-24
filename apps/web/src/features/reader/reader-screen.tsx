@@ -580,14 +580,14 @@ export function ReaderScreen({
 		setDraftSettings((prev) => (prev ? { ...prev, ...patch } : prev));
 	};
 
-	// Fullscreen overlays (settings, gallery) can't cover the document's own
-	// scrollbar (it paints in the viewport gutter, outside any element), so the
-	// reader drops it entirely while one is up and re-anchors on restore.
+	// Fullscreen overlays conceal the native scrollbar without removing its
+	// gutter. Changing scrollbar-width would resize the reading area and reflow
+	// the book underneath the overlay.
 	const hideDocumentScrollbar = () => {
-		// Do this synchronously before mounting a Base UI modal. Its scroll lock
-		// otherwise sees the EPUB's hidden intrinsic overflow, reserves a body
-		// gutter, and may expose an off-axis document scrollbar.
-		document.documentElement.style.setProperty("scrollbar-width", "none");
+		// Apply this synchronously so native scrollbar paint cannot flash over the
+		// opaque overlay while Base UI mounts its modal surface.
+		document.documentElement.style.removeProperty("scrollbar-color");
+		document.documentElement.classList.add("reader-scrollbar-concealed");
 		const readerApi = apiRef.current;
 		if (supportsReaderScrollbar(readerApi)) {
 			readerApi.setScrollbarHidden(true);
@@ -596,6 +596,7 @@ export function ReaderScreen({
 
 	const restoreDocumentScrollbar = (themeId: string) => {
 		const readerTheme = getReaderTheme(themeId, customThemesRef.current);
+		document.documentElement.classList.remove("reader-scrollbar-concealed");
 		document.documentElement.style.setProperty(
 			"scrollbar-color",
 			`${getReaderScrollbarColor(readerTheme)} ${getReaderScrollbarTrackColor(readerTheme)}`,
@@ -959,10 +960,12 @@ export function ReaderScreen({
 			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
 			aria-label={bookTitle}
 			tabIndex={-1}
-			className="reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] overflow-auto overscroll-none font-reader-sans"
+			className="reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overflow-auto overscroll-none font-reader-sans"
 			style={
 				{
 					backgroundColor: theme.backgroundColor,
+					scrollbarGutter:
+						presentation.renderer === "text-scroll" ? "stable" : undefined,
 					"--player-height": "88px",
 					"--player-reserve":
 						"calc(var(--player-height) + var(--safe-area-bottom))",

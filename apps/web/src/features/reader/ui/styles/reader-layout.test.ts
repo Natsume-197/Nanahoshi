@@ -24,6 +24,12 @@ const paginatedReader = await Bun.file(
 		import.meta.url,
 	),
 ).text();
+const continuousReader = await Bun.file(
+	new URL(
+		"../../renderers/continuous/book-reader-continuous.tsx",
+		import.meta.url,
+	),
+).text();
 const readerSync = await Bun.file(
 	new URL("../../interaction/use-reader-sync.ts", import.meta.url),
 ).text();
@@ -104,6 +110,30 @@ describe("reader layout", () => {
 		);
 		expect(readerScreen).toContain(
 			'"--reader-player-reserve-desktop": audioPlayerBook',
+		);
+	});
+
+	test("keeps the vertical reader scrollbar above the persistent player", () => {
+		expect(readerScreen).toContain(
+			"reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overflow-auto",
+		);
+	});
+
+	test("conceals the reader scrollbar without changing its gutter", () => {
+		expect(readerScreen).toMatch(
+			/scrollbarGutter:\s*presentation\.renderer === "text-scroll" \? "stable" : undefined/,
+		);
+		expect(readerScreen).toContain(
+			'document.documentElement.classList.add("reader-scrollbar-concealed")',
+		);
+		expect(readerScreen).not.toContain(
+			'document.documentElement.style.setProperty("scrollbar-width", "none")',
+		);
+		expect(continuousReader).toContain(
+			'scrollEl.classList.toggle("reader-scrollbar-concealed", hidden)',
+		);
+		expect(cssRule(".reader-scrollbar-concealed")).toContain(
+			"scrollbar-color: transparent transparent",
 		);
 	});
 

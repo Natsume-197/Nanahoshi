@@ -20,6 +20,18 @@
 	);
 }
 
+/* Fullscreen reader overlays hide the native scrollbar paint while retaining
+   its stable gutter, so the book never reflows as settings open or close. */
+.reader-scrollbar-concealed {
+	scrollbar-color: transparent transparent;
+}
+
+.reader-scrollbar-concealed::-webkit-scrollbar-thumb,
+.reader-scrollbar-concealed::-webkit-scrollbar-track,
+.reader-scrollbar-concealed::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
 @media (min-width: 48rem) {
 	.reader-route-content {
 		--reader-player-reserve-current: var(

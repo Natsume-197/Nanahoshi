@@ -67,6 +67,7 @@ export function applyReaderDocumentChrome(
 
 	return () => {
 		for (const key of setKeys) de.removeProperty(key);
+		document.documentElement.classList.remove("reader-scrollbar-concealed");
 		document.body.style.removeProperty("background-color");
 		document.body.classList.remove("overflow-hidden");
 		// Also clear scrollbar-color the settings overlay's theme preview may set

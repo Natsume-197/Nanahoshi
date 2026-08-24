@@ -18,10 +18,7 @@ import {
 	PageManagerContinuous,
 } from "@/features/reader/renderers/continuous/continuous-primitives";
 import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
-import {
-	applyReaderDocumentChrome,
-	getReaderScrollbarWidth,
-} from "@/features/reader/renderers/shared/reader-document-chrome";
+import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
 import {
 	buildContinuousReaderSizing,
 	buildReaderClasses,
@@ -613,15 +610,9 @@ export function BookReaderContinuous({
 			getPosition: () => readPosition(s.prevIntendedCharCount),
 			scrollToPosition: (position) => scrollToReadingPos(position),
 			setScrollbarHidden: (hidden) => {
-				// The gutter change reflows the book and fires scroll events; flag
-				// them as layout-induced so they don't overwrite the intended
-				// position (the recalc on un-hide clears the flag).
-				s.layoutDirty = true;
-				scrollEl.style.setProperty(
-					"scrollbar-width",
-					hidden ? "none" : getReaderScrollbarWidth(),
-				);
-				if (!hidden) scheduleRecalc();
+				// Preserve the stable gutter so opening an overlay cannot resize and
+				// reflow the reading area; only the scrollbar paint is concealed.
+				scrollEl.classList.toggle("reader-scrollbar-concealed", hidden);
 			},
 			relayout: (position) => {
 				s.layoutDirty = true;
