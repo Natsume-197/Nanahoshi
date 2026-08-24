@@ -175,7 +175,7 @@ html[data-rail="expanded"] {
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	--background: oklch(0.225 0.0095 286);
+	--background: oklch(0.21 0 0);
 	--foreground: oklch(0.9551 0 90);
 	--reading: oklch(0.917 0 90);
 	--card: oklch(0.262 0.0055 286);
@@ -216,7 +216,7 @@ html[data-rail="expanded"] {
 	--chart-3: oklch(0.6805 0 90);
 	--chart-4: oklch(0.5432 0 90);
 	--chart-5: oklch(0.4059 0 90);
-	--sidebar: oklch(0.198 0.004 286);
+	--sidebar: oklch(0.19 0 0);
 	--sidebar-foreground: oklch(0.9587 0 90);
 	--sidebar-primary: oklch(0.9551 0 0);
 	--sidebar-primary-foreground: oklch(0.198 0.004 286);

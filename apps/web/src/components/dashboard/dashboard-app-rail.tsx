@@ -8,7 +8,6 @@ import {
 	Headphones,
 	House,
 	Microphone,
-	SidebarSimple,
 	Tag,
 	UserCircle,
 } from "@phosphor-icons/react";
@@ -150,7 +149,7 @@ const moreItems: MoreItem[] = [
 const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
 		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
-		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-item-inset)-0.5rem)] rail-expanded:pe-2 rail-expanded:text-sm",
+		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-item-inset)-0.20rem)] rail-expanded:pe-2 rail-expanded:text-sm",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 		// --nav-inactive, not --muted-foreground: a step below the current
 		// destination that still clears AA at this size. See index.css.
@@ -213,24 +212,6 @@ function RailGroupHeading({ label }: { label: string }): ReactNode {
 	);
 }
 
-function RailToggleButton() {
-	const railState = useRailState();
-	const expanded = railState === "expanded";
-
-	return (
-		<button
-			type="button"
-			onClick={toggleRail}
-			aria-expanded={expanded}
-			aria-label={m["aria.toggle_sidebar"]()}
-			title={m["aria.toggle_sidebar"]()}
-			className="grid size-9 shrink-0 place-items-center rounded-lg text-nav-inactive transition-colors duration-150 ease-out-quart hover:bg-sidebar-accent/40 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-		>
-			<SidebarSimple aria-hidden="true" className="size-5" />
-		</button>
-	);
-}
-
 export function DashboardAppRail({
 	locationPathname,
 	activeOrganizationId,
@@ -242,6 +223,7 @@ export function DashboardAppRail({
 	const catalogDisabled = !online || !activeOrganizationId;
 	const section = resolveRailSection(locationPathname);
 	const moreActive = section === "more";
+	const expanded = useRailState() === "expanded";
 
 	useWindowEvent("keydown", (event) => {
 		if (
@@ -258,7 +240,7 @@ export function DashboardAppRail({
 			aria-label={m["nav.menu"]()}
 			// Labels wrap to keep localized destinations fully visible; every block
 			// also carries a title as an additional escape for narrow rail space.
-			className="theme-gradient-surface hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar px-2 motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
+			className="theme-gradient-surface relative hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar px-2 motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
 		>
 			<div
 				data-rail-content
@@ -353,9 +335,20 @@ export function DashboardAppRail({
 				</RailGroup>
 			</div>
 
-			<div className="flex w-full shrink-0 justify-start ps-[calc(var(--rail-item-inset)-0.5rem)] pb-2">
-				<RailToggleButton />
-			</div>
+			<button
+				type="button"
+				onClick={toggleRail}
+				aria-expanded={expanded}
+				aria-label={m["aria.toggle_sidebar"]()}
+				title={m["aria.toggle_sidebar"]()}
+				className="group/rail-toggle absolute inset-y-0 end-[-0.5rem] z-30 w-4 cursor-pointer touch-manipulation bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+			>
+				<span className="pointer-events-none absolute inset-y-1/2 start-1/2 flex h-9 w-2 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 border-sidebar-border/70 border-x opacity-0 transition-opacity duration-150 ease-out-quart group-hover/rail-toggle:opacity-100 group-focus-visible/rail-toggle:opacity-100">
+					<span className="size-px rounded-full bg-sidebar-foreground/50" />
+					<span className="size-px rounded-full bg-sidebar-foreground/50" />
+					<span className="size-px rounded-full bg-sidebar-foreground/50" />
+				</span>
+			</button>
 		</nav>
 	);
 }

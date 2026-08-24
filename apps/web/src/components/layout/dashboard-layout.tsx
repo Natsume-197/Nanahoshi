@@ -420,7 +420,7 @@ export function DashboardLayout() {
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border border-sidebar-border bg-background",
 									!standalone && "md:rounded-tl-2xl",
 								)}
 							>
