@@ -4,8 +4,10 @@ import { orgReadProcedure } from "../../index";
 import {
 	AssociateReadListenPairInput,
 	GenerateReadListenAlignmentInput,
+	GetReadListenAlignmentDiagnosticsInput,
 	GetReadListenPairingsInput,
 	GetReadListenSessionInput,
+	GetTimedTextCandidatesInput,
 	ImportExistingReadListenAlignmentInput,
 	ListReadListenPairingsInput,
 	RemoveReadListenPairInput,
@@ -256,6 +258,61 @@ export function createReadListenRouter(
 				return service.generateAlignment(
 					input.pairUuid,
 					context.session.user.id,
+					context.serverId,
+					context.accessibleLibraryIds,
+					{
+						mode: input.mode,
+						timedTextFilenames: input.timedTextFilenames,
+						verifyTimedText: input.verifyTimedText,
+					},
+				);
+			}),
+
+		getTimedTextCandidates: orgReadProcedure
+			.input(GetTimedTextCandidatesInput)
+			.handler(async ({ input, context }) => {
+				const pair = await service.getPairForManagement(
+					input.pairUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
+				if (
+					!(await canEditPublications(context.session, [
+						pair.ebook.uuid,
+						pair.audiobook.uuid,
+					]))
+				) {
+					throw new ForbiddenError(
+						"You cannot inspect timed text for this Read & Listen pair",
+					);
+				}
+				return service.getTimedTextCandidates(
+					input.pairUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
+			}),
+
+		getAlignmentDiagnostics: orgReadProcedure
+			.input(GetReadListenAlignmentDiagnosticsInput)
+			.handler(async ({ input, context }) => {
+				const pair = await service.getPairForManagement(
+					input.pairUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
+				if (
+					!(await canReadPublications(context.session, [
+						pair.ebook.uuid,
+						pair.audiobook.uuid,
+					]))
+				) {
+					throw new ForbiddenError(
+						"You cannot inspect this Read & Listen alignment",
+					);
+				}
+				return service.getAlignmentDiagnostics(
+					input.pairUuid,
 					context.serverId,
 					context.accessibleLibraryIds,
 				);

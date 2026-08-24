@@ -68,6 +68,12 @@ const currentHonomiyaManifestV1Schema = z
 				version: z.string().min(1),
 			})
 			.strict(),
+		transcription: z
+			.object({
+				origin: z.enum(["external", "honomiya"]),
+			})
+			.strict()
+			.optional(),
 		granularity: z.literal("sentence"),
 		sources: z
 			.object({

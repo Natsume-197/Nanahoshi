@@ -46,6 +46,7 @@ export type ReadListenAlignmentRow = {
 	sidecarSchema: string;
 	generatorName: string;
 	generatorVersion: string;
+	origin: "external" | "honomiya" | null;
 	generatedAt: string;
 	ebookSha256: string;
 	audioSha256: string[];
@@ -288,6 +289,7 @@ export class ReadListenRepository {
 				sidecarSchema: readListenAlignment.sidecarSchema,
 				generatorName: readListenAlignment.generatorName,
 				generatorVersion: readListenAlignment.generatorVersion,
+				origin: readListenAlignment.origin,
 				generatedAt: readListenAlignment.generatedAt,
 				ebookSha256: readListenAlignment.ebookSha256,
 				audioSha256: readListenAlignment.audioSha256,

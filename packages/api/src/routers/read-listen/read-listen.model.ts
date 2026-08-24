@@ -33,9 +33,44 @@ export const ImportExistingReadListenAlignmentInput = z.object({
 	pairUuid: z.string().uuid(),
 });
 
-export const GenerateReadListenAlignmentInput = z.object({
+export const GetTimedTextCandidatesInput = z.object({
 	pairUuid: z.string().uuid(),
 });
+
+export const GetReadListenAlignmentDiagnosticsInput = z.object({
+	pairUuid: z.string().uuid(),
+});
+
+export const GenerateReadListenAlignmentInput = z
+	.object({
+		pairUuid: z.string().uuid(),
+		mode: z.enum(["provider", "timed-text"]).default("provider"),
+		timedTextFilenames: z.array(z.string().min(1).max(255)).max(100).optional(),
+		verifyTimedText: z.boolean().default(false),
+	})
+	.superRefine((input, context) => {
+		if (input.mode === "timed-text" && !input.timedTextFilenames?.length) {
+			context.addIssue({
+				code: "custom",
+				message: "Timed-text generation requires an SRT selection",
+				path: ["timedTextFilenames"],
+			});
+		}
+		if (input.mode === "provider" && input.timedTextFilenames !== undefined) {
+			context.addIssue({
+				code: "custom",
+				message: "Provider generation cannot include timed-text files",
+				path: ["timedTextFilenames"],
+			});
+		}
+		if (input.mode === "provider" && input.verifyTimedText) {
+			context.addIssue({
+				code: "custom",
+				message: "Provider generation cannot verify timed-text files",
+				path: ["verifyTimedText"],
+			});
+		}
+	});
 
 export const GetReadListenSessionInput = z.object({
 	pairUuid: z.string().uuid(),

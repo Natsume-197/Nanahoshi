@@ -600,6 +600,7 @@ export const readListenAlignment = pgTable(
 		sidecarSchema: varchar("sidecar_schema", { length: 64 }).notNull(),
 		generatorName: varchar("generator_name", { length: 64 }).notNull(),
 		generatorVersion: varchar("generator_version", { length: 64 }).notNull(),
+		origin: varchar("origin", { length: 16 }).$type<"external" | "honomiya">(),
 		generatedAt: timestamp("generated_at", {
 			withTimezone: true,
 			mode: "string",
@@ -626,6 +627,10 @@ export const readListenAlignment = pgTable(
 		uniqueIndex("read_listen_alignment_pair_idx").on(table.pairId),
 		index("read_listen_alignment_artifact_idx").on(table.artifactSha256),
 		check("read_listen_alignment_cue_count_check", sql`${table.cueCount} >= 0`),
+		check(
+			"read_listen_alignment_origin_check",
+			sql`${table.origin} in ('external', 'honomiya')`,
+		),
 	],
 );
 

@@ -10,8 +10,10 @@ import * as audiobookService from "../audiobooks/audiobook.service";
 import * as bookService from "../books/book.service";
 import {
 	type ExistingAlignmentImporter,
+	type ExistingAlignmentImportResult,
 	existingAlignmentImporter,
 	readManagedAlignmentArtifact,
+	readManagedAlignmentReport,
 } from "./alignment-artifact";
 import {
 	type ReadListenAlignmentRow,
@@ -21,6 +23,15 @@ import {
 	type ReadListenRepository,
 	readListenRepository,
 } from "./read-listen.repository";
+import {
+	discoverTimedTextCandidates,
+	resolveTimedTextSelection,
+} from "./timed-text-candidates";
+import {
+	cleanupStagedTimedText,
+	stageTimedTextUploads,
+	type UploadedInput,
+} from "./uploaded-alignment-input";
 
 type ReadListenStore = Pick<
 	ReadListenRepository,
@@ -66,6 +77,7 @@ export type ReadListenAlignmentView =
 			artifact: {
 				generatorName: string;
 				generatorVersion: string;
+				origin: "external" | "honomiya" | null;
 				generatedAt: string;
 				cueCount: number;
 				importedAt: string;
@@ -98,6 +110,7 @@ function toAlignmentView(
 		artifact: {
 			generatorName: alignment.generatorName,
 			generatorVersion: alignment.generatorVersion,
+			origin: alignment.origin,
 			generatedAt: alignment.generatedAt,
 			cueCount: alignment.cueCount,
 			importedAt: alignment.importedAt,
@@ -114,11 +127,15 @@ export class ReadListenService {
 		},
 		private readonly alignmentImporter: Pick<
 			ExistingAlignmentImporter,
-			"import"
+			"import" | "importUploaded"
 		> = existingAlignmentImporter,
 		private readonly alignmentReader: {
 			read: typeof readManagedAlignmentArtifact;
-		} = { read: readManagedAlignmentArtifact },
+			readReport?: typeof readManagedAlignmentReport;
+		} = {
+			read: readManagedAlignmentArtifact,
+			readReport: readManagedAlignmentReport,
+		},
 		private readonly generationPort: {
 			enqueue(input: {
 				pairUuid: string;
@@ -127,6 +144,9 @@ export class ReadListenService {
 				ebookCatalogHash: string;
 				audiobookCatalogHash: string;
 				label: string;
+				mode?: "provider" | "timed-text";
+				timedTextPaths?: string[];
+				verifyTimedText?: boolean;
 			}): Promise<{ taskId: string; reused: boolean }>;
 		} = {
 			enqueue: async (input) =>
@@ -472,6 +492,12 @@ export class ReadListenService {
 		requestedByUserId: string,
 		serverId: string,
 		scope: LibraryScope,
+		options: {
+			mode?: "provider" | "timed-text";
+			timedTextFilenames?: string[];
+			timedTextUploads?: UploadedInput[];
+			verifyTimedText?: boolean;
+		} = {},
 	) {
 		const row = await this.store.getPairRow(pairUuid, serverId);
 		if (!row) throw new NotFoundError("Read & Listen pair not found");
@@ -480,14 +506,81 @@ export class ReadListenService {
 		const pair = await this.loadPairing(row, serverId, scope);
 		if (!pair) throw new NotFoundError("Read & Listen pair not found");
 
-		return this.generationPort.enqueue({
-			pairUuid,
-			serverId,
-			requestedByUserId,
-			ebookCatalogHash: sources.ebookCatalogHash,
-			audiobookCatalogHash: sources.audiobookCatalogHash,
-			label: `Generating alignment for ${pair.ebook.title}`,
-		});
+		const mode = options.mode ?? "provider";
+		if (options.timedTextFilenames && options.timedTextUploads) {
+			throw new BadRequestError(
+				"Choose detected SRT files or upload SRT files, not both",
+			);
+		}
+		let uploadedPaths: string[] | undefined;
+		let timedTextPaths: string[] | undefined;
+		if (mode === "timed-text") {
+			if (options.timedTextUploads) {
+				uploadedPaths = await stageTimedTextUploads(
+					pairUuid,
+					sources.audioPaths.length,
+					options.timedTextUploads,
+				);
+				timedTextPaths = uploadedPaths;
+			} else {
+				timedTextPaths = await resolveTimedTextSelection(
+					sources.audioPaths,
+					options.timedTextFilenames ?? [],
+				);
+			}
+		}
+
+		try {
+			const result = await this.generationPort.enqueue({
+				pairUuid,
+				serverId,
+				requestedByUserId,
+				ebookCatalogHash: sources.ebookCatalogHash,
+				audiobookCatalogHash: sources.audiobookCatalogHash,
+				label: `Generating alignment for ${pair.ebook.title}`,
+				mode,
+				...(mode === "timed-text"
+					? { verifyTimedText: options.verifyTimedText === true }
+					: {}),
+				...(timedTextPaths ? { timedTextPaths } : {}),
+			});
+			if (uploadedPaths && result.reused) {
+				await cleanupStagedTimedText(uploadedPaths);
+			}
+			return result;
+		} catch (error) {
+			if (uploadedPaths) await cleanupStagedTimedText(uploadedPaths);
+			throw error;
+		}
+	}
+
+	async getTimedTextCandidates(
+		pairUuid: string,
+		serverId: string,
+		scope: LibraryScope,
+	) {
+		const row = await this.store.getPairRow(pairUuid, serverId);
+		if (!row) throw new NotFoundError("Read & Listen pair not found");
+		const sources = await this.store.getPairSources(row, serverId, scope);
+		if (!sources) throw new NotFoundError("Publication source files not found");
+		return { tracks: await discoverTimedTextCandidates(sources.audioPaths) };
+	}
+
+	async getAlignmentDiagnostics(
+		pairUuid: string,
+		serverId: string,
+		scope: LibraryScope,
+	) {
+		const row = await this.store.getPairRow(pairUuid, serverId);
+		if (!row) throw new NotFoundError("Read & Listen pair not found");
+		const [alignment] = await this.store.listAlignmentRows([row.id], serverId);
+		if (!alignment) throw new NotFoundError("Alignment not found");
+		const pair = await this.loadPairing(row, serverId, scope, alignment);
+		if (!pair) throw new NotFoundError("Read & Listen pair not found");
+		if (!this.alignmentReader.readReport) return { report: null };
+		return {
+			report: await this.alignmentReader.readReport(alignment.artifactPath),
+		};
 	}
 
 	async importExistingAlignment(
@@ -501,9 +594,41 @@ export class ReadListenService {
 		if (!sources) throw new NotFoundError("Publication source files not found");
 
 		const result = await this.alignmentImporter.import(pairUuid, sources);
+		return this.finishAlignmentImport(result, row, sources, serverId, scope);
+	}
+
+	async importUploadedAlignment(
+		pairUuid: string,
+		serverId: string,
+		scope: LibraryScope,
+		bytes: Uint8Array,
+		reportBytes?: Uint8Array,
+	) {
+		const row = await this.store.getPairRow(pairUuid, serverId);
+		if (!row) throw new NotFoundError("Read & Listen pair not found");
+		const sources = await this.store.getPairSources(row, serverId, scope);
+		if (!sources) throw new NotFoundError("Publication source files not found");
+		const result = await this.alignmentImporter.importUploaded(
+			pairUuid,
+			sources,
+			bytes,
+			reportBytes,
+		);
+		return this.finishAlignmentImport(result, row, sources, serverId, scope);
+	}
+
+	private async finishAlignmentImport(
+		result: ExistingAlignmentImportResult,
+		row: ReadListenPairRow,
+		sources: NonNullable<
+			Awaited<ReturnType<ReadListenRepository["getPairSources"]>>
+		>,
+		serverId: string,
+		scope: LibraryScope,
+	) {
 		if (result.outcome === "imported") {
 			const alignment = await this.store.upsertAlignment({
-				pairId: pairUuid,
+				pairId: row.id,
 				...result.artifact,
 				ebookCatalogHash: sources.ebookCatalogHash,
 				audiobookCatalogHash: sources.audiobookCatalogHash,
@@ -513,7 +638,7 @@ export class ReadListenService {
 			return { outcome: result.outcome, pairing };
 		}
 
-		const pairing = await this.getPairForManagement(pairUuid, serverId, scope);
+		const pairing = await this.getPairForManagement(row.id, serverId, scope);
 		return { ...result, pairing };
 	}
 

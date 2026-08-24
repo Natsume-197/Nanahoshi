@@ -16,6 +16,9 @@ export type ReadListenGenerationJobData = {
 	ebookCatalogHash: string;
 	audiobookCatalogHash: string;
 	settings: HonomiyaConfig;
+	mode: "provider" | "timed-text";
+	timedTextPaths?: string[];
+	verifyTimedText?: boolean;
 };
 
 type GenerationStore = Pick<
@@ -30,6 +33,9 @@ export type EnqueueReadListenGenerationInput = {
 	ebookCatalogHash: string;
 	audiobookCatalogHash: string;
 	label: string;
+	mode?: "provider" | "timed-text";
+	timedTextPaths?: string[];
+	verifyTimedText?: boolean;
 };
 
 export type EnqueueReadListenGenerationResult = {
@@ -63,10 +69,21 @@ export class ReadListenGenerationCoordinator {
 			);
 		}
 		const taskId = crypto.randomUUID();
+		const mode = input.mode ?? "provider";
+		const verifyTimedText =
+			mode === "timed-text" && input.verifyTimedText === true;
+		if (mode === "timed-text" && !input.timedTextPaths?.length) {
+			throw new ConflictError(
+				"Timed-text generation has no validated SRT sources",
+			);
+		}
+		if (mode === "provider" && input.timedTextPaths !== undefined) {
+			throw new ConflictError("Provider generation cannot include SRT sources");
+		}
 		const result = await this.store.createGenerationAttempt({
 			pairId: input.pairUuid,
 			taskId,
-			provider: config.provider,
+			provider: mode === "timed-text" ? "timed-text" : config.provider,
 			quality: config.quality,
 			requestedByUserId: input.requestedByUserId,
 			ebookCatalogHash: input.ebookCatalogHash,
@@ -100,7 +117,7 @@ export class ReadListenGenerationCoordinator {
 				sealed: true,
 				payload: {
 					pairUuid: input.pairUuid,
-					provider: config.provider,
+					provider: mode === "timed-text" ? "timed-text" : config.provider,
 					quality: config.quality,
 				},
 			});
@@ -114,6 +131,11 @@ export class ReadListenGenerationCoordinator {
 					ebookCatalogHash: input.ebookCatalogHash,
 					audiobookCatalogHash: input.audiobookCatalogHash,
 					settings: config,
+					mode,
+					verifyTimedText,
+					...(input.timedTextPaths
+						? { timedTextPaths: input.timedTextPaths }
+						: {}),
 				} satisfies ReadListenGenerationJobData,
 				{
 					jobId: result.generation.id,

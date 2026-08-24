@@ -1,0 +1,2 @@
+ALTER TABLE "read_listen_alignment" ADD COLUMN "origin" varchar(16);--> statement-breakpoint
+ALTER TABLE "read_listen_alignment" ADD CONSTRAINT "read_listen_alignment_origin_check" CHECK ("read_listen_alignment"."origin" in ('external', 'honomiya'));

@@ -62,16 +62,39 @@ describe("Honomiya process boundary", () => {
 			"modal",
 			"--quality",
 			"accurate",
-			"--output",
-			"/data/alignment.json",
 			"--cache-dir",
 			"/data/cache",
 			"--parallel-chunks",
 			"2",
 			"--retries",
 			"2",
+			"--output",
+			"/data/alignment.json",
 			"--progress-json",
 		]);
+	});
+
+	test("builds a local transcription command without changing quality controls", () => {
+		const command = createHonomiyaAlignCommand({
+			cliPath: "/opt/honomiya/cli.ts",
+			ebookPath: "/library/book.epub",
+			audioPaths: ["/library/track.mp3"],
+			outputPath: "/work/alignment.json",
+			cacheDir: "/work/cache",
+			provider: "local",
+			quality: "accurate",
+			parallelChunks: 2,
+			retries: 2,
+		});
+
+		expect(command).toContain("local");
+		expect(
+			command.slice(
+				command.indexOf("--provider"),
+				command.indexOf("--provider") + 2,
+			),
+		).toEqual(["--provider", "local"]);
+		expect(command).toContain("accurate");
 	});
 
 	test("passes configured speed and retry controls to Honomiya", () => {
@@ -88,12 +111,49 @@ describe("Honomiya process boundary", () => {
 		});
 
 		expect(command).toContain("fast");
-		expect(command.slice(-5)).toEqual([
-			"--parallel-chunks",
-			"6",
-			"--retries",
-			"4",
-			"--progress-json",
-		]);
+		expect(command).toContain("6");
+		expect(command).toContain("4");
+		expect(command.at(-1)).toBe("--progress-json");
+	});
+
+	test("builds an acoustically verified timed-text command", () => {
+		const command = createHonomiyaAlignCommand({
+			cliPath: "/projects/Honomiya/src/cli.ts",
+			ebookPath: "/library/book.epub",
+			audioPaths: ["/audio/book.m4b"],
+			timedTextPaths: ["/audio/book.srt"],
+			verifyTimedText: true,
+			outputPath: "/data/alignment.json",
+			cacheDir: "/data/cache",
+			provider: "modal",
+			quality: "accurate",
+			parallelChunks: 2,
+			retries: 2,
+		});
+
+		expect(command).toContain("--timed-text");
+		expect(command).toContain("/audio/book.srt");
+		expect(command).toContain("--verify-provider");
+		expect(command).toContain("--min-direct-coverage");
+		expect(command).not.toContain("--provider");
+	});
+
+	test("does not acoustically verify timed text unless requested", () => {
+		const command = createHonomiyaAlignCommand({
+			cliPath: "/projects/Honomiya/src/cli.ts",
+			ebookPath: "/library/book.epub",
+			audioPaths: ["/audio/book.m4b"],
+			timedTextPaths: ["/audio/book.srt"],
+			outputPath: "/data/alignment.json",
+			cacheDir: "/data/cache",
+			provider: "modal",
+			quality: "accurate",
+			parallelChunks: 2,
+			retries: 2,
+		});
+
+		expect(command).toContain("--timed-text");
+		expect(command).toContain("--min-direct-coverage");
+		expect(command).not.toContain("--verify-provider");
 	});
 });

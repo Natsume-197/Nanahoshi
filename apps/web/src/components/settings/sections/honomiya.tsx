@@ -37,10 +37,12 @@ import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
 type Quality = "accurate" | "fast";
+type Provider = "local" | "modal";
 
 type HonomiyaConfigDraft = {
 	enabled: boolean;
 	cliPath: string;
+	provider: Provider;
 	quality: Quality;
 	parallelChunks: string;
 	retries: string;
@@ -55,6 +57,7 @@ type ModalCredentialsDraft = {
 const DEFAULT_CONFIG_DRAFT: HonomiyaConfigDraft = {
 	enabled: true,
 	cliPath: "",
+	provider: "modal",
 	quality: "accurate",
 	parallelChunks: "2",
 	retries: "2",
@@ -69,6 +72,7 @@ const EMPTY_MODAL_CREDENTIALS: ModalCredentialsDraft = {
 function createConfigDraft(config: {
 	enabled: boolean;
 	cliPath: string | null;
+	provider: Provider;
 	quality: Quality;
 	parallelChunks: number;
 	retries: number;
@@ -77,6 +81,7 @@ function createConfigDraft(config: {
 	return {
 		enabled: config.enabled,
 		cliPath: config.cliPath ?? "",
+		provider: config.provider,
 		quality: config.quality,
 		parallelChunks: String(config.parallelChunks),
 		retries: String(config.retries),
@@ -145,7 +150,7 @@ export function HonomiyaSettings() {
 		updateMutation.mutate({
 			enabled: configDraft.enabled,
 			cliPath: configDraft.cliPath.trim() || null,
-			provider: "modal",
+			provider: configDraft.provider,
 			quality: configDraft.quality,
 			parallelChunks: Number(configDraft.parallelChunks),
 			retries: Number(configDraft.retries),
@@ -198,18 +203,20 @@ export function HonomiyaSettings() {
 									: m["settings.honomiya.cli_missing"]()
 							}
 						/>
-						<RuntimeRow
-							icon={Cloud}
-							label={m["settings.honomiya.modal_status"]()}
-							description={m["settings.honomiya.modal_status_desc"]()}
-							loading={diagnosticsQuery.isLoading}
-							available={diagnostics?.modal.configured ?? false}
-							value={
-								diagnostics?.modal.configured
-									? modalCredentialSourceLabel(diagnostics.modal.source)
-									: m["settings.honomiya.credentials_missing"]()
-							}
-						/>
+						{configDraft.provider === "modal" && (
+							<RuntimeRow
+								icon={Cloud}
+								label={m["settings.honomiya.modal_status"]()}
+								description={m["settings.honomiya.modal_status_desc"]()}
+								loading={diagnosticsQuery.isLoading}
+								available={diagnostics?.modal.configured ?? false}
+								value={
+									diagnostics?.modal.configured
+										? modalCredentialSourceLabel(diagnostics.modal.source)
+										: m["settings.honomiya.credentials_missing"]()
+								}
+							/>
+						)}
 						<RuntimeRow
 							icon={Cpu}
 							label={m["settings.honomiya.worker_status"]()}
@@ -248,120 +255,122 @@ export function HonomiyaSettings() {
 				</Button>
 			</section>
 
-			<section className="flex flex-col gap-6">
-				<div className="flex flex-col gap-1">
-					<h2 className="font-semibold text-foreground text-xl">
-						{m["settings.honomiya.credentials_title"]()}
-					</h2>
-					<p className="max-w-2xl text-muted-foreground text-sm">
-						{m["settings.honomiya.credentials_desc"]()}
-					</p>
-				</div>
+			{configDraft.provider === "modal" && (
+				<section className="flex flex-col gap-6">
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["settings.honomiya.credentials_title"]()}
+						</h2>
+						<p className="max-w-2xl text-muted-foreground text-sm">
+							{m["settings.honomiya.credentials_desc"]()}
+						</p>
+					</div>
 
-				<Button asChild variant="outline" className="self-start">
-					<a
-						href="https://modal.com/settings/tokens"
-						target="_blank"
-						rel="noreferrer"
+					<Button asChild variant="outline" className="self-start">
+						<a
+							href="https://modal.com/settings/tokens"
+							target="_blank"
+							rel="noreferrer"
+						>
+							<ArrowSquareOut data-icon="inline-start" aria-hidden="true" />
+							{m["settings.honomiya.open_modal_tokens"]()}
+						</a>
+					</Button>
+
+					<form
+						className="flex flex-col gap-6"
+						onSubmit={saveModalCredentials}
+						aria-busy={credentialsBusy}
 					>
-						<ArrowSquareOut data-icon="inline-start" aria-hidden="true" />
-						{m["settings.honomiya.open_modal_tokens"]()}
-					</a>
-				</Button>
-
-				<form
-					className="flex flex-col gap-6"
-					onSubmit={saveModalCredentials}
-					aria-busy={credentialsBusy}
-				>
-					<FieldGroup className="grid gap-6 sm:grid-cols-2">
-						<Field>
-							<FieldLabel htmlFor="honomiya-modal-token-id">
-								{m["settings.honomiya.token_id"]()}
-							</FieldLabel>
-							<Input
-								id="honomiya-modal-token-id"
-								name="modalTokenId"
-								aria-describedby="honomiya-modal-token-id-description"
-								autoComplete="off"
-								autoCapitalize="none"
-								spellCheck={false}
-								required
-								value={modalCredentials.tokenId}
-								disabled={credentialsBusy}
-								onChange={(event) =>
-									setModalCredentials((current) => ({
-										...current,
-										tokenId: event.target.value,
-									}))
-								}
-							/>
-							<FieldDescription id="honomiya-modal-token-id-description">
-								{m["settings.honomiya.token_id_desc"]()}
-							</FieldDescription>
-						</Field>
-
-						<Field>
-							<FieldLabel htmlFor="honomiya-modal-token-secret">
-								{m["settings.honomiya.token_secret"]()}
-							</FieldLabel>
-							<Input
-								id="honomiya-modal-token-secret"
-								name="modalTokenSecret"
-								aria-describedby="honomiya-modal-token-secret-description"
-								type="password"
-								autoComplete="new-password"
-								autoCapitalize="none"
-								spellCheck={false}
-								required
-								value={modalCredentials.tokenSecret}
-								disabled={credentialsBusy}
-								onChange={(event) =>
-									setModalCredentials((current) => ({
-										...current,
-										tokenSecret: event.target.value,
-									}))
-								}
-							/>
-							<FieldDescription id="honomiya-modal-token-secret-description">
-								{m["settings.honomiya.token_secret_desc"]()}
-							</FieldDescription>
-						</Field>
-					</FieldGroup>
-
-					<div className="flex flex-wrap gap-3">
-						<Button type="submit" disabled={credentialsBusy}>
-							{updateCredentialsMutation.isPending ? (
-								<CircleNotch
-									data-icon="inline-start"
-									className="animate-spin motion-reduce:animate-none"
-									aria-hidden="true"
+						<FieldGroup className="grid gap-6 sm:grid-cols-2">
+							<Field>
+								<FieldLabel htmlFor="honomiya-modal-token-id">
+									{m["settings.honomiya.token_id"]()}
+								</FieldLabel>
+								<Input
+									id="honomiya-modal-token-id"
+									name="modalTokenId"
+									aria-describedby="honomiya-modal-token-id-description"
+									autoComplete="off"
+									autoCapitalize="none"
+									spellCheck={false}
+									required
+									value={modalCredentials.tokenId}
+									disabled={credentialsBusy}
+									onChange={(event) =>
+										setModalCredentials((current) => ({
+											...current,
+											tokenId: event.target.value,
+										}))
+									}
 								/>
-							) : (
-								<FloppyDisk data-icon="inline-start" aria-hidden="true" />
-							)}
-							{m["settings.honomiya.save_credentials"]()}
-						</Button>
-						{diagnostics?.modal.managedConfigured && (
-							<Button
-								type="button"
-								variant="outline"
-								disabled={credentialsBusy}
-								onClick={removeModalCredentials}
-							>
-								{removeCredentialsMutation.isPending && (
+								<FieldDescription id="honomiya-modal-token-id-description">
+									{m["settings.honomiya.token_id_desc"]()}
+								</FieldDescription>
+							</Field>
+
+							<Field>
+								<FieldLabel htmlFor="honomiya-modal-token-secret">
+									{m["settings.honomiya.token_secret"]()}
+								</FieldLabel>
+								<Input
+									id="honomiya-modal-token-secret"
+									name="modalTokenSecret"
+									aria-describedby="honomiya-modal-token-secret-description"
+									type="password"
+									autoComplete="new-password"
+									autoCapitalize="none"
+									spellCheck={false}
+									required
+									value={modalCredentials.tokenSecret}
+									disabled={credentialsBusy}
+									onChange={(event) =>
+										setModalCredentials((current) => ({
+											...current,
+											tokenSecret: event.target.value,
+										}))
+									}
+								/>
+								<FieldDescription id="honomiya-modal-token-secret-description">
+									{m["settings.honomiya.token_secret_desc"]()}
+								</FieldDescription>
+							</Field>
+						</FieldGroup>
+
+						<div className="flex flex-wrap gap-3">
+							<Button type="submit" disabled={credentialsBusy}>
+								{updateCredentialsMutation.isPending ? (
 									<CircleNotch
 										data-icon="inline-start"
 										className="animate-spin motion-reduce:animate-none"
 										aria-hidden="true"
 									/>
+								) : (
+									<FloppyDisk data-icon="inline-start" aria-hidden="true" />
 								)}
-								{m["settings.honomiya.remove_credentials"]()}
+								{m["settings.honomiya.save_credentials"]()}
 							</Button>
-						)}
-					</div>
-				</form>
-			</section>
+							{diagnostics?.modal.managedConfigured && (
+								<Button
+									type="button"
+									variant="outline"
+									disabled={credentialsBusy}
+									onClick={removeModalCredentials}
+								>
+									{removeCredentialsMutation.isPending && (
+										<CircleNotch
+											data-icon="inline-start"
+											className="animate-spin motion-reduce:animate-none"
+											aria-hidden="true"
+										/>
+									)}
+									{m["settings.honomiya.remove_credentials"]()}
+								</Button>
+							)}
+						</div>
+					</form>
+				</section>
+			)}
 
 			<section className="flex flex-col gap-6">
 				<div className="flex flex-col gap-1">
@@ -402,13 +411,44 @@ export function HonomiyaSettings() {
 						</SettingControlRow>
 						<SettingControlRow
 							label={
-								<span className="font-medium text-foreground text-sm">
+								<label
+									htmlFor="honomiya-provider"
+									className="font-medium text-foreground text-sm"
+								>
 									{m["settings.honomiya.provider"]()}
+								</label>
+							}
+							description={
+								<span id="honomiya-provider-description">
+									{m["settings.honomiya.provider_desc"]()}
 								</span>
 							}
-							description={m["settings.honomiya.provider_desc"]()}
 						>
-							<Badge variant="secondary">Modal</Badge>
+							<Select<Provider>
+								value={configDraft.provider}
+								disabled={busy}
+								onValueChange={(provider) =>
+									setConfigDraft((current) => ({ ...current, provider }))
+								}
+							>
+								<SelectTrigger
+									id="honomiya-provider"
+									aria-describedby="honomiya-provider-description"
+									className="w-44"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										<SelectItem value="local">
+											{m["settings.honomiya.provider_local"]()}
+										</SelectItem>
+										<SelectItem value="modal">
+											{m["settings.honomiya.provider_modal"]()}
+										</SelectItem>
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 						</SettingControlRow>
 					</SettingRows>
 

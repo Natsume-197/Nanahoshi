@@ -7,10 +7,25 @@ const sectionSource = readFileSync(
 );
 
 describe("Honomiya generation recovery", () => {
-	test("offers an explicit retry after a failed regeneration with a ready artifact", () => {
-		expect(sectionSource).toMatch(
-			/const canStartGeneration =\s*alignment\.status !== "ready" \|\| hasFailedGeneration;/,
+	test("offers one alignment action for retry, replacement, import, or generation", () => {
+		expect(sectionSource).toContain("setPairingToAddAlignment(pairing)");
+		expect(sectionSource).toContain('? m["read_listen.retry_alignment"]()');
+		expect(sectionSource).toContain('? m["read_listen.replace_alignment"]()');
+		expect(sectionSource).toContain("<AlignmentInputDialog");
+	});
+
+	test("presents SRT verification as an explicit opt-in", () => {
+		expect(sectionSource).toContain(
+			"const [verifyTimedText, setVerifyTimedText] = useState(false)",
 		);
-		expect(sectionSource).toContain('? m["read_listen.retry_generation"]()');
+		expect(sectionSource).toContain("<Switch");
+		expect(sectionSource).toContain("verifyTimedText,");
+	});
+
+	test("labels known alignment provenance as External or Honomiya", () => {
+		expect(sectionSource).toContain("alignment.artifact.origin");
+		expect(sectionSource).toContain('alignment.artifact.origin === "external"');
+		expect(sectionSource).toContain('m["read_listen.origin_external"]()');
+		expect(sectionSource).toContain('m["read_listen.origin_honomiya"]()');
 	});
 });

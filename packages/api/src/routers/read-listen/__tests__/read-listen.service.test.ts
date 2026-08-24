@@ -61,6 +61,7 @@ const alignmentRow: ReadListenAlignmentRow = {
 	sidecarSchema: "honomiya.read-listen.v1",
 	generatorName: "honomiya",
 	generatorVersion: "0.1.0",
+	origin: "external",
 	generatedAt: "2026-08-08T18:40:06.739Z",
 	ebookSha256: "a".repeat(64),
 	audioSha256: ["b".repeat(64)],
@@ -181,6 +182,24 @@ function createHarness() {
 					sidecarSchema: "honomiya.read-listen.v1" as const,
 					generatorName: "honomiya" as const,
 					generatorVersion: alignmentRow.generatorVersion,
+					origin: alignmentRow.origin,
+					generatedAt: alignmentRow.generatedAt,
+					ebookSha256: alignmentRow.ebookSha256,
+					audioSha256: alignmentRow.audioSha256,
+					cueCount: alignmentRow.cueCount,
+				},
+			}),
+		),
+		importUploaded: mock(() =>
+			Promise.resolve({
+				outcome: "imported" as const,
+				artifact: {
+					artifactPath: alignmentRow.artifactPath,
+					artifactSha256: alignmentRow.artifactSha256,
+					sidecarSchema: "honomiya.read-listen.v1" as const,
+					generatorName: "honomiya" as const,
+					generatorVersion: alignmentRow.generatorVersion,
+					origin: alignmentRow.origin,
 					generatedAt: alignmentRow.generatedAt,
 					ebookSha256: alignmentRow.ebookSha256,
 					audioSha256: alignmentRow.audioSha256,
@@ -367,6 +386,29 @@ describe("ReadListenService", () => {
 		expect(JSON.stringify(result)).not.toContain("data/alignments");
 	});
 
+	test("imports uploaded Honomiya bytes through the same verified artifact flow", async () => {
+		const { service, store, alignmentImporter } = createHarness();
+		const alignmentBytes = new TextEncoder().encode("alignment");
+		const reportBytes = new TextEncoder().encode("report");
+
+		const result = await service.importUploadedAlignment(
+			pairRow.id,
+			"server-1",
+			"ALL",
+			alignmentBytes,
+			reportBytes,
+		);
+
+		expect(alignmentImporter.importUploaded).toHaveBeenCalledWith(
+			pairRow.id,
+			expect.objectContaining({ ebookPath: "/library/book.epub" }),
+			alignmentBytes,
+			reportBytes,
+		);
+		expect(store.upsertAlignment).toHaveBeenCalledTimes(1);
+		expect(result.outcome).toBe("imported");
+	});
+
 	test("enqueues maximum-quality Modal generation from the verified pair sources", async () => {
 		const { service, generationPort } = createHarness();
 
@@ -384,6 +426,7 @@ describe("ReadListenService", () => {
 			ebookCatalogHash: ebook.catalogHash,
 			audiobookCatalogHash: audiobook.catalogHash,
 			label: "Generating alignment for The Book",
+			mode: "provider",
 		});
 		expect(result).toEqual({ taskId: "task-generation", reused: false });
 	});

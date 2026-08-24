@@ -18,6 +18,7 @@ import {
 } from "../../routers/read-listen/honomiya-progress";
 import { readListenRepository } from "../../routers/read-listen/read-listen.repository";
 import type { ReadListenGenerationJobData } from "../../routers/read-listen/read-listen-generation";
+import { cleanupStagedTimedText } from "../../routers/read-listen/uploaded-alignment-input";
 import { modalCredentialStore } from "../../routers/settings/modal-credentials";
 import { getHonomiyaConfig } from "../../routers/settings/settings.service";
 import { redis } from "../queue/redis";
@@ -29,12 +30,13 @@ const MAX_ERROR_LENGTH = 2_000;
 async function runHonomiya(
 	command: string[],
 	taskId: string,
+	provider: "local" | "modal",
 	onProgress: (progress: HonomiyaOperationProgress) => Promise<void>,
 ): Promise<{ stdout: string }> {
 	const process = Bun.spawn(command, {
 		stdout: "pipe",
 		stderr: "pipe",
-		env: await processEnv(),
+		env: await processEnv(provider),
 	});
 	let cancelled = false;
 	const poll = setInterval(() => {
@@ -98,11 +100,15 @@ async function consumeHonomiyaStderr(
 	return diagnostics.join("\n");
 }
 
-async function processEnv(): Promise<Record<string, string | undefined>> {
-	return {
-		...(await modalCredentialStore.environment()),
-		HONOMIYA_PROVIDER: "modal",
-	};
+async function processEnv(
+	provider: "local" | "modal",
+): Promise<Record<string, string | undefined>> {
+	return provider === "modal"
+		? {
+				...(await modalCredentialStore.environment()),
+				HONOMIYA_PROVIDER: provider,
+			}
+		: { ...process.env, HONOMIYA_PROVIDER: provider };
 }
 
 async function processGeneration(job: Job<ReadListenGenerationJobData>) {
@@ -113,6 +119,9 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 		ebookCatalogHash,
 		audiobookCatalogHash,
 		settings,
+		mode,
+		timedTextPaths,
+		verifyTimedText,
 	} = job.data;
 	let lastProgress = "";
 	const reportProgress = async (progress: HonomiyaOperationProgress) => {
@@ -182,6 +191,9 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 		const cliPath = await resolveHonomiyaCliPath(
 			settings.cliPath ?? process.env.HONOMIYA_CLI_PATH,
 		);
+		if (mode === "timed-text" && !timedTextPaths?.length) {
+			throw new Error("Timed-text generation lost its validated SRT sources");
+		}
 		const command = createHonomiyaAlignCommand({
 			cliPath,
 			ebookPath: sources.ebookPath,
@@ -192,8 +204,15 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 			quality: settings.quality,
 			parallelChunks: settings.parallelChunks,
 			retries: settings.retries,
+			...(mode === "timed-text" && timedTextPaths ? { timedTextPaths } : {}),
+			verifyTimedText,
 		});
-		const output = await runHonomiya(command, taskId, reportProgress);
+		const output = await runHonomiya(
+			command,
+			taskId,
+			settings.provider,
+			reportProgress,
+		);
 		log.info(
 			{ pairUuid, taskId, output: output.stdout.trim() },
 			"Honomiya alignment completed",
@@ -204,6 +223,7 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 			pairUuid,
 			sources,
 			outputPath,
+			`${outputPath}.report.json`,
 		);
 		if (imported.outcome !== "imported") {
 			throw new Error(`Generated alignment was rejected: ${imported.outcome}`);
@@ -229,9 +249,12 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 		);
 		throw error;
 	} finally {
-		await fs
-			.rm(workDirectory, { recursive: true, force: true })
-			.catch(() => {});
+		await Promise.all([
+			fs.rm(workDirectory, { recursive: true, force: true }).catch(() => {}),
+			...(timedTextPaths
+				? [cleanupStagedTimedText(timedTextPaths).catch(() => {})]
+				: []),
+		]);
 	}
 }
 

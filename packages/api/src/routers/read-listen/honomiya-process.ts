@@ -47,29 +47,42 @@ export function createHonomiyaAlignCommand(input: {
 	audioPaths: string[];
 	outputPath: string;
 	cacheDir: string;
-	provider: "modal";
+	provider: "local" | "modal";
 	quality: "accurate" | "fast";
 	parallelChunks: number;
 	retries: number;
+	timedTextPaths?: string[];
+	verifyTimedText?: boolean;
 }): string[] {
 	const command = ["bun", input.cliPath, "align", "--ebook", input.ebookPath];
 	for (const audioPath of input.audioPaths) {
 		command.push("--audio", audioPath);
 	}
-	command.push(
-		"--provider",
-		input.provider,
-		"--quality",
-		input.quality,
-		"--output",
-		input.outputPath,
-		"--cache-dir",
-		input.cacheDir,
-		"--parallel-chunks",
-		String(input.parallelChunks),
-		"--retries",
-		String(input.retries),
-		"--progress-json",
-	);
+	if (input.timedTextPaths?.length) {
+		if (input.timedTextPaths.length !== input.audioPaths.length) {
+			throw new Error("Each audio track requires one timed-text source");
+		}
+		for (const timedTextPath of input.timedTextPaths) {
+			command.push("--timed-text", timedTextPath);
+		}
+		if (input.verifyTimedText) {
+			command.push("--verify-provider", input.provider);
+		}
+		command.push("--min-direct-coverage", "0.8");
+	} else {
+		command.push(
+			"--provider",
+			input.provider,
+			"--quality",
+			input.quality,
+			"--cache-dir",
+			input.cacheDir,
+			"--parallel-chunks",
+			String(input.parallelChunks),
+			"--retries",
+			String(input.retries),
+		);
+	}
+	command.push("--output", input.outputPath, "--progress-json");
 	return command;
 }

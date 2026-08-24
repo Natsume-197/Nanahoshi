@@ -128,6 +128,18 @@ _Avoid_: Read & Listen item, Read & Listen progress, third format
 A derived, versioned mapping from addressable ebook text to timed audiobook intervals for one Read & Listen Pair. It identifies the exact source bytes from which it was produced and is replaceable without changing the pair.
 _Avoid_: Subtitle file, pairing, transcript
 
+**Alignment Import**:
+The admission of an already completed Alignment Artifact into a Read & Listen Pair after its declared ebook and audiobook sources are verified. Nearby-file detection and manual upload are discovery mechanisms for the same import, not distinct alignment operations.
+_Avoid_: Find existing alignment, generation, SRT import
+
+**Timed Text Source**:
+A timestamped transcript, such as an SRT file, used as input to create an Alignment Artifact. It is not itself an alignment because its timestamps address audio while its text has not yet been mapped to the ebook.
+_Avoid_: Alignment file, imported alignment, subtitle alignment
+
+**Alignment Generation**:
+The production of a new Alignment Artifact from either a Timed Text Source or transcription of the audiobook. It is distinct from Alignment Import, which admits an artifact that is already complete.
+_Avoid_: Alignment detection, SRT import
+
 **Stale Alignment**:
 An Alignment Artifact whose recorded source identities no longer describe the current ebook or audiobook files in its Read & Listen Pair. It remains historical evidence but is not valid reader synchronization.
 _Avoid_: Failed alignment, low-quality alignment

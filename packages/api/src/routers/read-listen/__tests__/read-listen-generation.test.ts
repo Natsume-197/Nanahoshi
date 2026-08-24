@@ -110,6 +110,31 @@ describe("ReadListenGenerationCoordinator", () => {
 		);
 	});
 
+	test("records and queues validated timed-text generation inputs", async () => {
+		const { coordinator, store, queue } = harness();
+		const timedTextPaths = ["/library/book.srt"];
+
+		await coordinator.enqueue({
+			...input,
+			mode: "timed-text",
+			timedTextPaths,
+			verifyTimedText: true,
+		});
+
+		expect(store.createGenerationAttempt).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "timed-text" }),
+		);
+		expect(queue.add).toHaveBeenCalledWith(
+			"generate",
+			expect.objectContaining({
+				mode: "timed-text",
+				timedTextPaths,
+				verifyTimedText: true,
+			}),
+			expect.any(Object),
+		);
+	});
+
 	test("reuses the active task instead of charging Modal twice", async () => {
 		const createAttempt = mock(
 			async (): Promise<AttemptResult> => ({

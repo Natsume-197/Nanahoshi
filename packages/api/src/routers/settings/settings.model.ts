@@ -33,7 +33,7 @@ export const UpdateRecommendationsInput = z
 export const HonomiyaConfigSchema = z.object({
 	enabled: z.boolean(),
 	cliPath: z.string().trim().max(4096).nullable(),
-	provider: z.literal("modal"),
+	provider: z.enum(["local", "modal"]),
 	quality: z.enum(["accurate", "fast"]),
 	parallelChunks: z.number().int().min(1).max(16),
 	retries: z.number().int().min(0).max(10),
