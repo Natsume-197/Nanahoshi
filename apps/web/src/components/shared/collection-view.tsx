@@ -197,7 +197,7 @@ export function CollectionView<TItem, TSort extends string>({
 			{isLoading &&
 				!isError &&
 				(gridSkeleton ?? (
-					<div className={BOOK_GRID_CLASS}>
+					<div className={cn(BOOK_GRID_CLASS, "gap-5")}>
 						{SKELETON_KEYS.map((key) => (
 							<BookCardSkeleton key={key} square={squareArtwork} />
 						))}
@@ -215,9 +215,8 @@ export function CollectionView<TItem, TSort extends string>({
 						key="grid"
 						items={items}
 						getKey={getKey}
-						// Keep catalog covers as airy as the dashboard home rails. The
-						// previous 8px override made the full library feel noticeably
-						// denser than the same books on Home.
+						// Match the dashboard home rails so cover grids have the same
+						// breathing room as the rest of the dashboard.
 						gap={gridLayout?.gap ?? 20}
 						minTileWidth={gridLayout?.minTileWidth}
 						minColumns={gridLayout?.minColumns}

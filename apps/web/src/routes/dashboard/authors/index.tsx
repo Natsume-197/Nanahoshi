@@ -111,7 +111,7 @@ function AuthorsPage() {
 			/>
 
 			{isLoading && (
-				<div className={BOOK_GRID_CLASS}>
+				<div className={cn(BOOK_GRID_CLASS, "gap-5")}>
 					{SKELETON_KEYS.map((key) => (
 						<div key={key} className="flex flex-col items-center gap-2">
 							<Skeleton className="aspect-square w-full rounded-full" />
@@ -136,7 +136,7 @@ function AuthorsPage() {
 				<VirtualizedCardGrid
 					items={authorsList}
 					getKey={(author) => author.uuid}
-					gap={8}
+					gap={20}
 					estimateRowHeight={AUTHOR_CARD_ROW_ESTIMATE}
 					hasNextPage={hasNextPage}
 					isFetchingNextPage={isFetchingNextPage}
@@ -149,7 +149,7 @@ function AuthorsPage() {
 							className="group block"
 						>
 							<div className="flex aspect-square items-center justify-center rounded-full bg-muted/70 transition-colors group-hover:bg-muted">
-								<User className="size-8 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
+								<User className="size-14 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
 							</div>
 							<div className="pt-2 text-center">
 								<p className="line-clamp-2 font-medium text-sm leading-tight">
