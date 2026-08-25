@@ -244,7 +244,7 @@ export function DashboardAppRail({
 		>
 			<div
 				data-rail-content
-				className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain py-2"
+				className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain pt-0 pb-2"
 			>
 				{railGroups.map((group) => (
 					<Fragment key={group.items[0].section}>

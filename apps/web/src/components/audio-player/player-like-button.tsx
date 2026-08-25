@@ -56,7 +56,7 @@ export const PlayerLikeButton = memo(function PlayerLikeButton({
 					className={cn(
 						"size-6 shrink-0",
 						isLiked
-							? "text-destructive hover:text-destructive"
+							? "text-white hover:text-white"
 							: "text-muted-foreground hover:text-foreground",
 						className,
 					)}

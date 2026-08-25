@@ -336,7 +336,7 @@ export function DashboardLayout() {
 						// for all of them, or the split reads as a grouping that isn't
 						// there. The badge re-adds the difference itself.
 						className={cn(
-							"theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:gap-1.5 max-md:data-[hidden=true]:-translate-y-full md:grid md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4",
+							"theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:gap-1.5 max-md:data-[hidden=true]:-translate-y-full md:grid md:h-16 md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4",
 							mobileChromeless && "max-md:hidden",
 						)}
 					>
@@ -420,7 +420,7 @@ export function DashboardLayout() {
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border border-sidebar-border bg-background",
+									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-r-0 border-b-0 bg-background",
 									!standalone && "md:rounded-tl-2xl",
 								)}
 							>

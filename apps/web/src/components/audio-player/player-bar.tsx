@@ -43,15 +43,12 @@ function TrackMeta({
 	authorText,
 	chapterLabel,
 	showError,
-	action,
 	secondaryTabular = false,
 }: {
 	title: string;
 	authorText: string | undefined;
 	chapterLabel: string | null;
 	showError: boolean;
-	/** Rendered beside the title (the desktop bar puts the like button there). */
-	action?: React.ReactNode;
 	secondaryTabular?: boolean;
 }) {
 	return (
@@ -61,7 +58,6 @@ function TrackMeta({
 					text={title}
 					className="min-w-0 flex-1 font-medium text-sm leading-tight"
 				/>
-				{action}
 			</div>
 			{showError ? (
 				<p
@@ -297,7 +293,6 @@ export const PlayerBar = memo(function PlayerBar({
 							chapterLabel={chapterLabel}
 							showError={showError}
 							secondaryTabular={Boolean(readListen)}
-							action={<PlayerLikeButton />}
 						/>
 					</div>
 
@@ -327,6 +322,12 @@ export const PlayerBar = memo(function PlayerBar({
 								/>
 							</>
 						)}
+						<PlayerIconButton
+							label={m["audiobook.player_expand"]()}
+							onClick={expand}
+						>
+							<CaretUp className="size-4" />
+						</PlayerIconButton>
 						{!readListen && onOpenReadListen && (
 							<ReadListenOpenButton
 								onOpen={onOpenReadListen}
@@ -335,12 +336,7 @@ export const PlayerBar = memo(function PlayerBar({
 								label={m["read_listen.open_reader"]()}
 							/>
 						)}
-						<PlayerIconButton
-							label={m["audiobook.player_expand"]()}
-							onClick={expand}
-						>
-							<CaretUp className="size-4" />
-						</PlayerIconButton>
+						<PlayerLikeButton />
 						<div className={cn(readListen && "hidden lg:block")}>
 							<PlayerVolumeControl />
 						</div>

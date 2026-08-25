@@ -53,7 +53,7 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t-0 bg-sidebar text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)]">
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-b-0 border-sidebar-border border-t bg-background text-foreground">
 					<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
 						<MembersList />
 					</div>
@@ -66,9 +66,9 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 						side="right"
 						showCloseButton={false}
 						overlayClassName="hidden"
-						className="mobile-screen-sheet inset-0 bg-sidebar p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
+						className="mobile-screen-sheet inset-0 bg-background p-0 shadow-none data-[side=right]:h-dvh data-[side=right]:w-dvw data-[side=right]:max-w-none data-[side=right]:border-0 data-[side=right]:sm:max-w-none"
 					>
-						<SheetHeader className="grid shrink-0 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 border-b ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-[calc(var(--safe-area-top)+0.5rem)] pb-2 text-center">
+						<SheetHeader className="grid shrink-0 grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 border-sidebar-border border-b ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-[calc(var(--safe-area-top)+0.5rem)] pb-2 text-center">
 							<Button
 								type="button"
 								variant="ghost"
