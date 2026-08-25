@@ -41,12 +41,12 @@ const darkBase = {
 
 export const readerThemes: ReaderTheme[] = [
 	{
-		// Nanahoshi's own base surface: same near-black canvas (`--background`)
+		// Nanahoshi's own base surface: same neutral canvas (`--background`)
 		// and reading-text color (`--reading`) as the app's default dark theme.
 		id: "nanahoshi-theme",
-		backgroundColor: "oklch(21.952% 0.00777 285.704)",
+		backgroundColor: "oklch(0.21 0 0)",
 		...darkBase,
-		fontColor: "oklch(0.9 0.003 285.7)",
+		fontColor: "oklch(0.917 0 90)",
 		hintFuriganaFontColor: "rgba(255, 255, 255, 0.228)",
 	},
 	{
@@ -166,7 +166,7 @@ export const READER_SETTINGS_VERSION = 2;
 export const defaultReaderSettings: ReaderSettings = {
 	settingsVersion: READER_SETTINGS_VERSION,
 	theme: "nanahoshi-theme",
-	textLayout: "scroll",
+	textLayout: "paginated",
 	fontFamilyGroupOne: "Noto Serif JP",
 	fontFamilyGroupTwo: "Noto Sans JP",
 	fontWeight: null,
@@ -192,10 +192,27 @@ export const defaultReaderSettings: ReaderSettings = {
 	furiganaStyle: "Partial",
 	autoScrollMultiplier: 20,
 	avoidPageBreak: false,
-	pageColumns: 0,
+	pageColumns: 2,
 	focusTextSpeed: "normal",
 	focusSentenceIndicator: true,
 };
+
+/**
+ * Defaults that are expressed as a percentage in the UI but stored as CSS px
+ * for the reader engines. Keep the exported static defaults SSR-safe, then
+ * resolve the physical values when a new local profile is created.
+ */
+export function getViewportReaderDefaults(): ReaderSettings {
+	if (typeof window === "undefined") return defaultReaderSettings;
+	const width = document.documentElement.clientWidth || window.innerWidth || 0;
+	const height =
+		document.documentElement.clientHeight || window.innerHeight || 0;
+	return {
+		...defaultReaderSettings,
+		firstDimensionMargin: Math.round(height * 0.05),
+		secondDimensionMaxValue: Math.round(width * 0.9),
+	};
+}
 
 const SETTINGS_KEY = "nanahoshi-reader-settings";
 
@@ -347,10 +364,10 @@ export function loadReaderSettings(): ReaderSettings {
 	if (typeof window === "undefined") return defaultReaderSettings;
 	try {
 		const raw = window.localStorage.getItem(SETTINGS_KEY);
-		if (!raw) return defaultReaderSettings;
+		if (!raw) return getViewportReaderDefaults();
 		return normalizeReaderSettings(JSON.parse(raw));
 	} catch {
-		return defaultReaderSettings;
+		return getViewportReaderDefaults();
 	}
 }
 

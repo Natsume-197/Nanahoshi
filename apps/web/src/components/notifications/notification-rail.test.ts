@@ -17,9 +17,8 @@ describe("notification rail", () => {
 		expect(notifications).toContain(
 			'className={cn(\n\t\t\t\t\t"absolute inset-y-0 right-0',
 		);
-		// The rail floats over the content sheet, so it carries the corner the
-		// sheet can't round itself.
-		expect(notifications).toContain("<ChromeNotch />");
+		// The desktop rail is squared to connect directly with the layout border.
+		expect(notifications).not.toContain("<ChromeNotch />");
 		expect(notifications).not.toContain("PopoverContent");
 	});
 

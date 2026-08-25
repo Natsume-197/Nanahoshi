@@ -4,7 +4,6 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { flushSync } from "react-dom";
-import { ChromeNotch } from "@/components/layout/chrome-notch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -119,17 +118,16 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 				aria-label={m["notifications.title"]()}
 				aria-hidden={!open}
 				inert={!open}
-				// The notch column is part of the rail's own box, so sliding out
-				// takes it along instead of stranding it over the content.
+				// The rail is its own box, so sliding out takes the border along
+				// instead of stranding it over the content.
 				className={cn(
-					"absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[calc(var(--overlay-rail-width)+var(--radius-2xl))] max-w-full transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					"absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[var(--overlay-rail-width)] max-w-full transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
 					open
 						? "pointer-events-auto translate-x-0"
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<ChromeNotch />
-				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-sidebar text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)]">
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t-0 bg-sidebar text-foreground shadow-[-12px_0_28px_-16px_rgba(0,0,0,0.35)]">
 					{!isSheet && (
 						<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
 					)}

@@ -55,5 +55,5 @@ function subscribe(onStoreChange: () => void) {
 }
 
 export function useRailState(): RailState {
-	return useSyncExternalStore(subscribe, getSnapshot, () => "collapsed");
+	return useSyncExternalStore(subscribe, getSnapshot, () => "expanded");
 }

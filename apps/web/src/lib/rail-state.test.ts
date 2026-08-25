@@ -12,23 +12,20 @@ import {
 } from "./rail-state";
 
 describe("parseRailState", () => {
-	test("only the explicit opt-in expands", () => {
+	test("expands by default unless explicitly collapsed", () => {
 		expect(parseRailState("expanded")).toBe("expanded");
+		expect(parseRailState("collapsed")).toBe("collapsed");
+		expect(parseRailState(null)).toBe("expanded");
+		expect(parseRailState(undefined)).toBe("expanded");
 	});
 
 	test.each([
-		["collapsed", "collapsed"],
 		["", ""],
 		["Expanded", "Expanded"],
 		["expanded ", "expanded "],
 		["true", "true"],
-	])("collapses for %s", (_name, value) => {
-		expect(parseRailState(value)).toBe("collapsed");
-	});
-
-	test("collapses for a missing value", () => {
-		expect(parseRailState(null)).toBe("collapsed");
-		expect(parseRailState(undefined)).toBe("collapsed");
+	])("expands for invalid value %s", (_name, value) => {
+		expect(parseRailState(value)).toBe("expanded");
 	});
 });
 
@@ -40,15 +37,15 @@ describe("readRailState", () => {
 		expect(readRailState("a=1;rail_state=expanded;b=2")).toBe("expanded");
 	});
 
-	test("collapses when the cookie is absent or empty", () => {
-		expect(readRailState("")).toBe("collapsed");
-		expect(readRailState(null)).toBe("collapsed");
-		expect(readRailState("theme=dark; locale=es")).toBe("collapsed");
+	test("expands when the cookie is absent or empty", () => {
+		expect(readRailState("")).toBe("expanded");
+		expect(readRailState(null)).toBe("expanded");
+		expect(readRailState("theme=dark; locale=es")).toBe("expanded");
 	});
 
 	test("does not match a neighbouring cookie name", () => {
-		expect(readRailState("my_rail_state=expanded")).toBe("collapsed");
-		expect(readRailState("rail_state_backup=expanded")).toBe("collapsed");
+		expect(readRailState("my_rail_state=expanded")).toBe("expanded");
+		expect(readRailState("rail_state_backup=expanded")).toBe("expanded");
 	});
 
 	test("round-trips what railStateCookie writes", () => {

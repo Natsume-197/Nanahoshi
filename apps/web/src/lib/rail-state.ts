@@ -4,13 +4,13 @@ export const RAIL_COOKIE_NAME = "rail_state";
 export const RAIL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export function parseRailState(value: string | null | undefined): RailState {
-	return value === "expanded" ? "expanded" : "collapsed";
+	return value === "collapsed" ? "collapsed" : "expanded";
 }
 
 export function readRailState(
 	cookieHeader: string | null | undefined,
 ): RailState {
-	if (!cookieHeader) return "collapsed";
+	if (!cookieHeader) return "expanded";
 	const match = cookieHeader.match(
 		new RegExp(`(?:^|;\\s*)${RAIL_COOKIE_NAME}=([^;]*)`),
 	);
