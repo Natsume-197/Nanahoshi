@@ -215,7 +215,10 @@ export function CollectionView<TItem, TSort extends string>({
 						key="grid"
 						items={items}
 						getKey={getKey}
-						gap={gridLayout?.gap ?? 8}
+						// Keep catalog covers as airy as the dashboard home rails. The
+						// previous 8px override made the full library feel noticeably
+						// denser than the same books on Home.
+						gap={gridLayout?.gap ?? 20}
 						minTileWidth={gridLayout?.minTileWidth}
 						minColumns={gridLayout?.minColumns}
 						estimateRowHeight={gridRowEstimate}
