@@ -89,6 +89,24 @@ describe("library watcher", () => {
 		await watchers.close();
 	});
 
+	test("skips real-time watching for libraries mounted through rclone FUSE", async () => {
+		const watchers = await startLibraryWatchers({
+			watchFilesystem: watch,
+			readMountInfo: () =>
+				Promise.resolve(
+					"42 35 0:42 / /library/one rw,nosuid,nodev - fuse.rclone tmwcrypt: rw",
+				),
+		});
+
+		expect(watch).not.toHaveBeenCalled();
+		expect(watcherLogger.warn).toHaveBeenCalledWith(
+			expect.objectContaining({ libraryId: 1, root: "/library/one" }),
+			expect.stringContaining("rclone FUSE"),
+		);
+
+		await watchers.close();
+	});
+
 	test("deduplicates scan jobs across separate filesystem event bursts", async () => {
 		const watchers = await startLibraryWatchers({ watchFilesystem: watch });
 		const onChange = watchListeners[0];

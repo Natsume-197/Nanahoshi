@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
 import { logger } from "../../lib/logger";
@@ -20,6 +21,29 @@ type WatchFilesystem = (
 const watchersByLibrary = new Map<number, ClosableWatcher[]>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 let started = false;
+let excludedRealtimeWatchRoots: string[] = [];
+
+function unescapeMountPath(value: string): string {
+	return value
+		.replace(/\\040/g, " ")
+		.replace(/\\011/g, "\t")
+		.replace(/\\012/g, "\n")
+		.replace(/\\134/g, "\\");
+}
+
+function fuseMountRoots(mountInfo: string): string[] {
+	return mountInfo.split("\n").flatMap((line) => {
+		const fields = line.split(" ");
+		const separator = fields.indexOf("-");
+		if (separator < 0 || fields[separator + 1] !== "fuse.rclone") return [];
+		const mountPoint = fields[4];
+		return mountPoint ? [path.resolve(unescapeMountPath(mountPoint))] : [];
+	});
+}
+
+function isInsideRoot(candidate: string, root: string): boolean {
+	return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
 
 function closeLibraryWatcher(libraryId: number) {
 	const timer = timers.get(libraryId);
@@ -71,6 +95,17 @@ function installLibraryWatcher(
 	for (const libraryPath of library.paths ?? []) {
 		if (libraryPath.isEnabled === false) continue;
 		const root = path.resolve(libraryPath.path);
+		if (
+			excludedRealtimeWatchRoots.some((mountRoot) =>
+				isInsideRoot(root, mountRoot),
+			)
+		) {
+			log.warn(
+				{ libraryId: library.id, root },
+				"Skipping real-time watcher on rclone FUSE mount; use scheduled or manual scans",
+			);
+			continue;
+		}
 		try {
 			const watcher = watchFilesystem(root, { recursive: true }, () =>
 				enqueue(library.id, serverId),
@@ -115,10 +150,16 @@ export async function reconcileLibraryWatcher(
  */
 export async function startLibraryWatchers(options?: {
 	watchFilesystem?: WatchFilesystem;
+	readMountInfo?: () => Promise<string>;
 }): Promise<{
 	close(): Promise<void>;
 }> {
 	started = true;
+	excludedRealtimeWatchRoots = fuseMountRoots(
+		await (
+			options?.readMountInfo ?? (() => readFile("/proc/self/mountinfo", "utf8"))
+		)().catch(() => ""),
+	);
 	const libraries = await libraryRepository.findAll();
 	for (const library of libraries) {
 		const serverId = await libraryRepository.getServerIdByLibraryId(library.id);
@@ -143,6 +184,7 @@ export async function startLibraryWatchers(options?: {
 	return {
 		async close() {
 			started = false;
+			excludedRealtimeWatchRoots = [];
 			for (const timer of timers.values()) clearTimeout(timer);
 			timers.clear();
 			for (const watchers of watchersByLibrary.values()) {

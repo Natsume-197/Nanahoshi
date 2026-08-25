@@ -116,7 +116,7 @@ describe("Honomiya process boundary", () => {
 		expect(command.at(-1)).toBe("--progress-json");
 	});
 
-	test("builds an acoustically verified timed-text command", () => {
+	test("builds a timed-text command with Honomiya transcript inputs", () => {
 		const command = createHonomiyaAlignCommand({
 			cliPath: "/projects/Honomiya/src/cli.ts",
 			ebookPath: "/library/book.epub",
@@ -131,14 +131,12 @@ describe("Honomiya process boundary", () => {
 			retries: 2,
 		});
 
-		expect(command).toContain("--timed-text");
+		expect(command).toContain("--transcript");
 		expect(command).toContain("/audio/book.srt");
-		expect(command).toContain("--verify-provider");
-		expect(command).toContain("--min-direct-coverage");
 		expect(command).not.toContain("--provider");
 	});
 
-	test("does not acoustically verify timed text unless requested", () => {
+	test("uses transcript inputs without invoking a provider", () => {
 		const command = createHonomiyaAlignCommand({
 			cliPath: "/projects/Honomiya/src/cli.ts",
 			ebookPath: "/library/book.epub",
@@ -152,8 +150,7 @@ describe("Honomiya process boundary", () => {
 			retries: 2,
 		});
 
-		expect(command).toContain("--timed-text");
-		expect(command).toContain("--min-direct-coverage");
+		expect(command).toContain("--transcript");
 		expect(command).not.toContain("--verify-provider");
 	});
 });
