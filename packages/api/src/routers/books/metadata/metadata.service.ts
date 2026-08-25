@@ -415,9 +415,20 @@ export class BookMetadataService {
 	// answer is tenant-level, not book-level. Order follows the default chain.
 	async getAvailableProviders(
 		serverId: string | null | undefined,
+		bookId?: number,
 	): Promise<MetadataProviderName[]> {
+		const configuredOrder =
+			bookId == null
+				? DEFAULT_PROVIDER_ORDER
+				: normalizeProviderPolicy(
+						(await bookMetadataRepository.getLibraryProviderOrder(
+							bookId,
+						)) as RawProviderConfig,
+						isBookProviderName,
+						DEFAULT_PROVIDER_ORDER,
+					).order;
 		const checks = await Promise.all(
-			DEFAULT_PROVIDER_ORDER.map(async (name) => {
+			configuredOrder.map(async (name) => {
 				const available = await BOOK_PROVIDERS[name]
 					.isAvailable(serverId)
 					.catch(() => false);

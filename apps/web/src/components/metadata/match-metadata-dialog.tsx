@@ -427,16 +427,15 @@ export function BookMatchDialog({
 	// tenant — an unkeyed Comicvine/Hardcover tab can only return "no results".
 	const { data: available } = useQuery(
 		orpc.books.availableMetadataProviders.queryOptions({
+			input: { uuid: bookUuid },
 			enabled: open,
 			staleTime: 5 * 60 * 1000,
 		}),
 	);
 
-	// Nothing configured → offer everything rather than an empty dialog.
-	const filtered = BOOK_PROVIDER_OPTIONS.filter((p) =>
+	const providers = BOOK_PROVIDER_OPTIONS.filter((p) =>
 		available?.some((name) => name === p.id),
 	);
-	const providers = filtered.length > 0 ? filtered : BOOK_PROVIDER_OPTIONS;
 
 	// Gate on the availability answer so the tab set never shifts after mount.
 	if (open && !available) return null;
