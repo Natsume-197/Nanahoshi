@@ -63,8 +63,12 @@ export function createHonomiyaAlignCommand(input: {
 			throw new Error("Each audio track requires one timed-text source");
 		}
 		for (const timedTextPath of input.timedTextPaths) {
-			command.push("--transcript", timedTextPath);
+			command.push("--timed-text", timedTextPath);
 		}
+		if (input.verifyTimedText) {
+			command.push("--verify-provider", input.provider);
+		}
+		command.push("--min-direct-coverage", "0.8");
 	} else {
 		command.push(
 			"--provider",

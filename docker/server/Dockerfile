@@ -2,7 +2,7 @@
 
 ARG BUN_VERSION=1.3.14
 ARG CALIBRE_VERSION=9.11.0
-ARG HONOMIYA_REF=7208c57b8a31b8da364a6739bce8d9bc8e324839
+ARG HONOMIYA_REF=7f4572a008cf192bc97eeb24c3bdfd54fbd52389
 
 # ── Dependency manifests ─────────────────────────────────────────────
 FROM oven/bun:${BUN_VERSION}-alpine AS base

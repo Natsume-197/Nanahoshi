@@ -131,8 +131,9 @@ describe("Honomiya process boundary", () => {
 			retries: 2,
 		});
 
-		expect(command).toContain("--transcript");
+		expect(command).toContain("--timed-text");
 		expect(command).toContain("/audio/book.srt");
+		expect(command).toContain("--verify-provider");
 		expect(command).not.toContain("--provider");
 	});
 
@@ -150,7 +151,7 @@ describe("Honomiya process boundary", () => {
 			retries: 2,
 		});
 
-		expect(command).toContain("--transcript");
+		expect(command).toContain("--timed-text");
 		expect(command).not.toContain("--verify-provider");
 	});
 });
