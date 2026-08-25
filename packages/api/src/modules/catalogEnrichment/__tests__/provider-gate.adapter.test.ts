@@ -17,8 +17,10 @@ function stubAdapter(
 	};
 }
 
-const transient = () =>
-	new CatalogProviderError("transient", "provider_unavailable");
+const breakerTransient = () =>
+	new CatalogProviderError("transient", "rate_limited", {
+		opensCircuitBreaker: true,
+	});
 
 beforeEach(() => {
 	providerGate.clearAllInMemory();
@@ -56,12 +58,33 @@ describe("cooldown is enforced on every phase", () => {
 	});
 });
 
-describe("a transient failure opens the breaker", () => {
+describe("only breaker-worthy transient failures open the breaker", () => {
+	test("a network failure stays retryable without cooling down the provider", async () => {
+		const gated = withProviderGate(
+			stubAdapter({
+				discover: async () => {
+					throw new CatalogProviderError("transient", "network_error", {
+						retryAfterMs: 15_000,
+					});
+				},
+			}),
+			() => ({ serverId: "acme" }),
+		);
+
+		await expect(gated.discover({ kind: "book" }, {})).rejects.toThrow();
+		expect(
+			await providerGate.cooldownRemainingMs(
+				"amazon",
+				"org:acme:domain:default",
+			),
+		).toBeNull();
+	});
+
 	test("from discovery", async () => {
 		const gated = withProviderGate(
 			stubAdapter({
 				discover: async () => {
-					throw transient();
+					throw breakerTransient();
 				},
 			}),
 			() => ({ serverId: "acme" }),
@@ -81,7 +104,7 @@ describe("a transient failure opens the breaker", () => {
 		const gated = withProviderGate(
 			stubAdapter({
 				hydrate: async () => {
-					throw transient();
+					throw breakerTransient();
 				},
 			}),
 			() => ({ serverId: "acme" }),
@@ -116,7 +139,7 @@ describe("a transient failure opens the breaker", () => {
 					calls++;
 					if (calls === 1) {
 						await firstMayFail;
-						throw transient();
+						throw breakerTransient();
 					}
 					return [];
 				},

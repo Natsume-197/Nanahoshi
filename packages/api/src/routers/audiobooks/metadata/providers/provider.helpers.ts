@@ -52,7 +52,10 @@ export function createThrottledFetchJson({
 		}
 		if (!response.ok) {
 			if (response.status === 429) {
-				throw new CatalogProviderError("transient", "rate_limited");
+				throw new CatalogProviderError("transient", "rate_limited", {
+					retryAfterMs: 5 * 60 * 1000,
+					opensCircuitBreaker: true,
+				});
 			}
 			if (response.status >= 500) {
 				throw new CatalogProviderError("transient", "server_error");

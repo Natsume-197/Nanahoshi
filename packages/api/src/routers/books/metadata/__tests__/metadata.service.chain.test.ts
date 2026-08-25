@@ -887,7 +887,11 @@ describe("enrichFromProviders", () => {
 			"../providers/provider.utils"
 		);
 		ranobedbSpy.mockImplementation(async () => {
-			throw new ProviderTransientError("ranobedb is temporarily unavailable");
+			throw new ProviderTransientError("ranobedb is temporarily unavailable", {
+				code: "rate_limited",
+				retryAfterMs: 60_000,
+				opensCircuitBreaker: true,
+			});
 		});
 
 		await expect(
@@ -1592,12 +1596,16 @@ describe("searchProvider (manual fix-match)", () => {
 			"../providers/amazon.provider"
 		);
 		amazonSearchSpy.mockImplementation(async () => {
-			throw new AmazonTransientError("blocked");
+			throw new AmazonTransientError("blocked", {
+				code: "anti_bot",
+				retryAfterMs: 5 * 60 * 1000,
+				opensCircuitBreaker: true,
+			});
 		});
 
 		await expect(
 			bookMetadataService.searchProvider("amazon", 1, { title: "x" }),
-		).rejects.toThrow(/Wait a few minutes/);
+		).rejects.toThrow(/Try again later/);
 	});
 
 	const ALL_SEARCHABLE_PROVIDERS = [
@@ -1679,7 +1687,7 @@ describe("searchProvider (manual fix-match)", () => {
 		try {
 			await expect(
 				bookMetadataService.searchProvider("googlebooks", 1, { title: "x" }),
-			).rejects.toThrow(/Wait a few minutes/);
+			).rejects.toThrow(/Try again later/);
 		} finally {
 			searchSpy.mockRestore();
 		}

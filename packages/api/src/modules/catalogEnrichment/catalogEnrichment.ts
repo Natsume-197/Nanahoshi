@@ -29,15 +29,20 @@ function confirmedIdentityRank(reasons: readonly string[]): number {
 
 export class CatalogProviderError extends Error {
 	readonly retryAfterMs?: number;
+	readonly opensCircuitBreaker: boolean;
 
 	constructor(
 		readonly kind: "transient" | "permanent",
 		readonly code: string,
-		options?: ErrorOptions & { retryAfterMs?: number },
+		options?: ErrorOptions & {
+			retryAfterMs?: number;
+			opensCircuitBreaker?: boolean;
+		},
 	) {
 		super(code, options);
 		this.name = "CatalogProviderError";
 		this.retryAfterMs = options?.retryAfterMs;
+		this.opensCircuitBreaker = options?.opensCircuitBreaker ?? false;
 	}
 }
 

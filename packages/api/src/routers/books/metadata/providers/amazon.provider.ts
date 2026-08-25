@@ -22,6 +22,7 @@ import {
 	CANDIDATE_LIMIT,
 	downloadCoverImage,
 	ProviderTransientError,
+	type ProviderTransientErrorOptions,
 	TtlCache,
 } from "./provider.utils";
 import {
@@ -41,8 +42,8 @@ const log = logger.child({ component: "amazon-provider" });
 // handle every provider's "retry later" case with a single instanceof.
 
 export class AmazonTransientError extends ProviderTransientError {
-	constructor(message: string) {
-		super(message);
+	constructor(message: string, options?: ProviderTransientErrorOptions) {
+		super(message, options);
 		this.name = "AmazonTransientError";
 	}
 }
@@ -154,6 +155,79 @@ const DOMAIN_LOCALE_MAP: Record<string, string> = {
 	se: "sv-SE,sv;q=0.9,en;q=0.8",
 	pl: "pl-PL,pl;q=0.9,en;q=0.8",
 };
+
+// Amazon renders these values for the selected storefront locale, while the
+// catalog stores BCP-47/ISO codes. A display name reaching Catalog Identity
+// makes the same language look contradictory (`日本語` versus `ja`).
+const LANGUAGE_CODE_BY_NAME: Readonly<Record<string, string>> = {
+	english: "en",
+	英語: "en",
+	japanese: "ja",
+	日本語: "ja",
+	spanish: "es",
+	español: "es",
+	スペイン語: "es",
+	french: "fr",
+	français: "fr",
+	フランス語: "fr",
+	german: "de",
+	deutsch: "de",
+	ドイツ語: "de",
+	italian: "it",
+	italiano: "it",
+	イタリア語: "it",
+	portuguese: "pt",
+	português: "pt",
+	ポルトガル語: "pt",
+	chinese: "zh",
+	中文: "zh",
+	中国語: "zh",
+	korean: "ko",
+	한국어: "ko",
+	韓国語: "ko",
+	russian: "ru",
+	русский: "ru",
+	ロシア語: "ru",
+	dutch: "nl",
+	nederlands: "nl",
+	オランダ語: "nl",
+	swedish: "sv",
+	svenska: "sv",
+	スウェーデン語: "sv",
+	polish: "pl",
+	polski: "pl",
+	ポーランド語: "pl",
+};
+
+const CREATOR_ROLE_BY_NAME: Readonly<Record<string, string>> = {
+	author: "Author",
+	著: "Author",
+	著者: "Author",
+	illustrator: "Illustrator",
+	illustrations: "Illustrator",
+	イラスト: "Illustrator",
+	イラストレーター: "Illustrator",
+	translator: "Translator",
+	翻訳: "Translator",
+	訳: "Translator",
+	editor: "Editor",
+	編集: "Editor",
+	編: "Editor",
+};
+
+function normalizeLanguageCode(value: string): string | null {
+	const normalized = value.normalize("NFKC").trim().toLowerCase();
+	if (!normalized) return null;
+	const code = normalized.replace(/_/g, "-");
+	if (/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/u.test(code)) return code;
+	return LANGUAGE_CODE_BY_NAME[normalized] ?? null;
+}
+
+function normalizeCreatorRole(value: string | null): string | null {
+	if (!value) return null;
+	const normalized = value.normalize("NFKC").trim().toLowerCase();
+	return CREATOR_ROLE_BY_NAME[normalized] ?? value;
+}
 
 const NON_DIGIT_PATTERN = /[^\d]/g;
 // Matches series position in various formats:
@@ -975,12 +1049,13 @@ class AmazonProvider implements ISearchableMetadataProvider {
 				const contributionEl = $author.find(".contribution span").first();
 				let role: string | null = null;
 				if (contributionEl.length) {
-					role =
+					const rawRole =
 						contributionEl
 							.text()
 							.trim()
 							.replace(/^[(（\s,]+|[)）\s,]+$/g, "")
 							.trim() || null;
+					role = normalizeCreatorRole(rawRole);
 				}
 
 				authors.push({ name, role });
@@ -1129,7 +1204,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 
 	private parseLanguage($: cheerio.CheerioAPI): string | null {
 		const el = $("#rpi-attribute-language .rpi-attribute-value span").first();
-		return el.length ? el.text().trim() || null : null;
+		return el.length ? normalizeLanguageCode(el.text()) : null;
 	}
 
 	private parsePageCount($: cheerio.CheerioAPI): number | null {
@@ -1337,10 +1412,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		try {
 			const response = await fetch(url, { headers, redirect: "follow" });
 
-			const statusBlocked =
-				response.status === 429 ||
-				response.status === 503 ||
-				response.status === 500;
+			const statusBlocked = response.status === 429 || response.status === 503;
 
 			// Read the body up front so we can also catch HTTP-200 block stubs.
 			const html = response.ok ? await response.text() : null;
@@ -1362,7 +1434,18 @@ class AmazonProvider implements ISearchableMetadataProvider {
 					? `status ${response.status}`
 					: "block page (HTTP 200)";
 				log.warn({ reason }, "Anti-bot block");
-				throw new AmazonTransientError(`Anti-scraping ${reason} for ${url}`);
+				throw new AmazonTransientError(`Anti-scraping ${reason} for ${url}`, {
+					code: "anti_bot",
+					retryAfterMs: BLOCK_COOLDOWN_MS,
+					opensCircuitBreaker: true,
+				});
+			}
+
+			if (response.status >= 500) {
+				throw new AmazonTransientError(
+					`Amazon is temporarily unavailable (HTTP ${response.status}) for ${url}`,
+					{ code: "server_error", retryAfterMs: 30_000 },
+				);
 			}
 
 			if (!response.ok || html == null) {
@@ -1379,7 +1462,11 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			return cheerio.load(html);
 		} catch (error) {
 			if (error instanceof AmazonTransientError) throw error;
-			throw new AmazonTransientError(`Fetch error for ${url}: ${error}`);
+			throw new AmazonTransientError(`Fetch error for ${url}: ${error}`, {
+				code: "network_error",
+				retryAfterMs: 15_000,
+				cause: error,
+			});
 		}
 	}
 
@@ -1451,6 +1538,11 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			if (Date.now() < state.cooldownUntil) {
 				throw new AmazonTransientError(
 					`Blocked: ${state.consecutiveFailures} consecutive failures. ${hasCookie ? "Cookie may have expired." : "Consider adding a cookie."}`,
+					{
+						code: "anti_bot",
+						retryAfterMs: state.cooldownUntil - Date.now(),
+						opensCircuitBreaker: true,
+					},
 				);
 			}
 			state.consecutiveFailures = 0;

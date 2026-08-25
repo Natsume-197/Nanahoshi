@@ -110,8 +110,10 @@ function bookAdapter(
 			return await call();
 		} catch (error) {
 			if (error instanceof ProviderTransientError) {
-				throw new CatalogProviderError("transient", "provider_unavailable", {
+				throw new CatalogProviderError("transient", error.code, {
 					cause: error,
+					retryAfterMs: error.retryAfterMs,
+					opensCircuitBreaker: error.opensCircuitBreaker,
 				});
 			}
 			log.warn({ err: error, provider: name }, "Provider call failed");

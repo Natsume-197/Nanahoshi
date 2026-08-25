@@ -17,10 +17,26 @@ const log = logger.child({ component: "provider-utils" });
 // enrichment chain must NOT mark the book as enriched, so the gap is retried
 // later. Mirrors AmazonTransientError for the HTTP API providers.
 
+export type ProviderTransientErrorOptions = ErrorOptions & {
+	/** Stable machine-readable reason persisted by the enrichment pipeline. */
+	code?: string;
+	/** Delay suggested for retrying this item; independent from the breaker. */
+	retryAfterMs?: number;
+	/** True only when more calls would worsen a provider-wide throttle/block. */
+	opensCircuitBreaker?: boolean;
+};
+
 export class ProviderTransientError extends Error {
-	constructor(message: string) {
-		super(message);
+	readonly code: string;
+	readonly retryAfterMs?: number;
+	readonly opensCircuitBreaker: boolean;
+
+	constructor(message: string, options?: ProviderTransientErrorOptions) {
+		super(message, options);
 		this.name = "ProviderTransientError";
+		this.code = options?.code ?? "provider_unavailable";
+		this.retryAfterMs = options?.retryAfterMs;
+		this.opensCircuitBreaker = options?.opensCircuitBreaker ?? false;
 	}
 }
 
@@ -29,6 +45,13 @@ function throwIfTransientStatus(status: number, provider: string): void {
 	if (status === 429 || status === 420 || status >= 500) {
 		throw new ProviderTransientError(
 			`${provider} is temporarily unavailable (HTTP ${status})`,
+			status === 429 || status === 420
+				? {
+						code: "rate_limited",
+						retryAfterMs: 5 * 60 * 1000,
+						opensCircuitBreaker: true,
+					}
+				: { code: "server_error", retryAfterMs: 30_000 },
 		);
 	}
 }
@@ -49,6 +72,7 @@ export async function fetchOrTransient(
 	} catch (error) {
 		throw new ProviderTransientError(
 			`${provider} is unreachable: ${(error as Error).message}`,
+			{ code: "network_error", retryAfterMs: 15_000, cause: error },
 		);
 	}
 	throwIfTransientStatus(response.status, provider);

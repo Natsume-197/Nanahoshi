@@ -815,7 +815,7 @@ describe("Book Catalog Enrichment", () => {
 			expect(result.metadata.description).toBe("From the next provider");
 		});
 
-		test("a transient failure while hydrating trips the shared breaker", async () => {
+		test("a rate-limit failure while hydrating trips the shared breaker", async () => {
 			const result = await runBookCatalogEnrichment({
 				metadata: input,
 				providers: [
@@ -829,7 +829,11 @@ describe("Book Catalog Enrichment", () => {
 								{ providerId: "candidate-1", identity },
 							],
 							hydrateCandidate: async () => {
-								throw new ProviderTransientError("rate limited");
+								throw new ProviderTransientError("rate limited", {
+									code: "rate_limited",
+									retryAfterMs: 60_000,
+									opensCircuitBreaker: true,
+								});
 							},
 						},
 					},

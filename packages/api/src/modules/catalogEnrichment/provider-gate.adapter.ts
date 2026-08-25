@@ -46,8 +46,9 @@ export function withProviderGate<
 				return await call();
 			} catch (error) {
 				if (!(error instanceof CatalogProviderError)) throw error;
-				// Only a transient failure means the provider itself is in trouble.
-				if (error.kind === "transient") {
+				// Retryable is not synonymous with provider-wide throttling. Network
+				// and isolated 5xx failures stay retryable without blocking queued work.
+				if (error.kind === "transient" && error.opensCircuitBreaker) {
 					await providerGate.trip(adapter.id, error.retryAfterMs, scope);
 				}
 				throw error;

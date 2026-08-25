@@ -26,6 +26,10 @@ mock.module("../../../../settings/settings.service", () => ({
 
 const cheerio = await import("cheerio");
 const { amazonProvider } = await import("../amazon.provider");
+const { bookMetadataIdentityEvidence } = await import("../IMetadata.provider");
+const { assessCatalogIdentity } = await import(
+	"../../../../../modules/catalogIdentity"
+);
 
 import { firstMatch } from "./first-match";
 
@@ -536,6 +540,7 @@ describe("parseBookPage", () => {
 		description?: string;
 		series?: { name: string; label?: string };
 		isbn13?: string;
+		language?: string;
 		cover?: string;
 	}) => {
 		const {
@@ -544,6 +549,7 @@ describe("parseBookPage", () => {
 			description = "",
 			series,
 			isbn13 = "",
+			language = "",
 			cover = "",
 		} = overrides;
 
@@ -572,6 +578,7 @@ describe("parseBookPage", () => {
 			</div>
 			${seriesHtml}
 			${isbn13 ? `<div id="rpi-attribute-book_details-isbn13"><span class="rpi-attribute-value"><span>${isbn13}</span></span></div>` : ""}
+			${language ? `<div id="rpi-attribute-language"><span class="rpi-attribute-value"><span>${language}</span></span></div>` : ""}
 			${cover ? `<img id="landingImage" data-old-hires="${cover}" />` : ""}
 		</body></html>`;
 	};
@@ -603,8 +610,38 @@ describe("parseBookPage", () => {
 		);
 		const result = provider.parseBookPage($, "B001TEST");
 		expect(result.authors).toHaveLength(2);
-		expect(result.authors[0]).toEqual({ name: "著者A", role: "著" });
-		expect(result.authors[1]).toEqual({ name: "著者B", role: "イラスト" });
+		expect(result.authors[0]).toEqual({ name: "著者A", role: "Author" });
+		expect(result.authors[1]).toEqual({ name: "著者B", role: "Illustrator" });
+	});
+
+	test("normalizes localized Japanese language into an ISO code", () => {
+		const $ = cheerio.load(makeBookPageHtml({ language: "日本語" }));
+		const result = provider.parseBookPage($, "B001TEST");
+		expect(result.languageCode).toBe("ja");
+	});
+
+	test("keeps a localized Japanese Amazon page compatible with local identity", () => {
+		const $ = cheerio.load(
+			makeBookPageHtml({
+				title: "声優ラジオのウラオモテ #02",
+				authors: [{ name: "二月 公", role: "著" }],
+				language: "日本語",
+			}),
+		);
+		const remote = provider.parseBookPage($, "B0899LKJ2X");
+		const verdict = assessCatalogIdentity(
+			{
+				kind: "book",
+				title: "声優ラジオのウラオモテ #02",
+				creators: [{ name: "二月公", role: "Author" }],
+				asin: "B0899LKJ2X",
+				languageCode: "ja",
+			},
+			bookMetadataIdentityEvidence(remote),
+		);
+		expect(verdict.status).toBe("confirmed");
+		expect(verdict.reasons).toContain("identifier.match");
+		expect(verdict.reasons).toContain("author.match");
 	});
 
 	test("parses description as plain text", () => {
@@ -2065,6 +2102,52 @@ describe("adaptive delay factor", () => {
 			).rejects.toThrow("Anti-scraping");
 			expect(state("co.jp").delayFactor).toBeCloseTo(1.8);
 			expect(state("co.jp").consecutiveFailures).toBe(1);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("classifies an anti-bot page as a breaker-worthy cooldown", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+		) as unknown as typeof fetch;
+
+		try {
+			const error = await provider
+				.fetchPage("https://www.amazon.classify-block.test/dp/X", {
+					domain: "classify-block.test",
+					enabled: true,
+				})
+				.catch((caught: unknown) => caught);
+			expect(error).toMatchObject({
+				code: "anti_bot",
+				opensCircuitBreaker: true,
+				retryAfterMs: 5 * 60 * 1000,
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("classifies a network error as a short retry without a global cooldown", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.reject(new TypeError("connection reset")),
+		) as unknown as typeof fetch;
+
+		try {
+			const error = await provider
+				.fetchPage("https://www.amazon.classify-network.test/dp/X", {
+					domain: "classify-network.test",
+					enabled: true,
+				})
+				.catch((caught: unknown) => caught);
+			expect(error).toMatchObject({
+				code: "network_error",
+				opensCircuitBreaker: false,
+				retryAfterMs: 15_000,
+			});
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

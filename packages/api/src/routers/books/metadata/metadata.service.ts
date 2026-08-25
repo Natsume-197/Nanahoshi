@@ -502,14 +502,14 @@ export class BookMetadataService {
 		context: ProviderQuotaContext,
 	): Promise<never> {
 		if (error instanceof ProviderTransientError) {
-			await providerGate.trip(
-				name,
-				undefined,
-				providerQuotaScope(name, context),
-			);
-			throw new TooManyRequestsError(
-				`${error.message}. Wait a few minutes and try again.`,
-			);
+			if (error.opensCircuitBreaker) {
+				await providerGate.trip(
+					name,
+					error.retryAfterMs,
+					providerQuotaScope(name, context),
+				);
+			}
+			throw new TooManyRequestsError(`${error.message}. Try again later.`);
 		}
 		throw error;
 	}
