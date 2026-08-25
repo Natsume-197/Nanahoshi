@@ -66,6 +66,11 @@ export const deleteNotification = async (userId: string, id: number) => {
 	publishNotificationEvent(userId, { kind: "delete", id });
 };
 
+export const deleteAllNotifications = async (userId: string) => {
+	await notificationRepository.deleteAllForUser(userId);
+	publishNotificationEvent(userId, { kind: "delete_all" });
+};
+
 export const emitTaskFinished = async (task: Task) => {
 	const attention = await resolveAttention(task);
 	const data: NotificationData = {
@@ -76,6 +81,7 @@ export const emitTaskFinished = async (task: Task) => {
 		totalJobs: task.totalJobs,
 		completedJobs: task.completedJobs,
 		failedJobs: task.failedJobs,
+		...(task.failureReason && { error: task.failureReason }),
 		...(attention && { attention }),
 	};
 

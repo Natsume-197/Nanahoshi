@@ -16,7 +16,11 @@ describe("tracked terminal job failures", () => {
 			{ bumpFailed, updateReadListenGenerationStatus },
 		);
 
-		expect(bumpFailed).toHaveBeenCalledWith("task-1", "generation-1");
+		expect(bumpFailed).toHaveBeenCalledWith(
+			"task-1",
+			"generation-1",
+			"job stalled more than allowable limit",
+		);
 		expect(updateReadListenGenerationStatus).toHaveBeenCalledWith(
 			"task-1",
 			"failed",

@@ -1,5 +1,11 @@
 import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
-import { Bell, CaretLeft, Checks, CircleNotch } from "@phosphor-icons/react";
+import {
+	Bell,
+	CaretLeft,
+	Checks,
+	CircleNotch,
+	Trash,
+} from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
@@ -210,6 +216,13 @@ function NotificationPanel({
 		mutationFn: (id: number) => client.notifications.delete({ id }),
 		onSuccess: invalidateAll,
 	});
+	const deleteAll = useMutation({
+		mutationFn: () => client.notifications.deleteAll(),
+		onSuccess: () => {
+			queryClient.setQueryData(unreadCountKey, { count: 0 });
+			queryClient.setQueryData(listKey, undefined);
+		},
+	});
 
 	const navigateToAttention = async (libraryUuid: string) => {
 		const navigate = () =>
@@ -255,6 +268,7 @@ function NotificationPanel({
 	};
 
 	const hasUnread = notifications.some((n) => n.readAt === null);
+	const hasNotifications = notifications.length > 0;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -279,7 +293,64 @@ function NotificationPanel({
 							{m["notifications.description"]()}
 						</SheetDescription>
 					</div>
-					{hasUnread ? (
+					<div className="flex items-center justify-end">
+						{hasNotifications && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-lg"
+								onClick={() => deleteAll.mutate()}
+								disabled={deleteAll.isPending}
+								aria-label={m["notifications.delete_all"]()}
+								title={m["notifications.delete_all"]()}
+								className="size-11 rounded-full"
+							>
+								{deleteAll.isPending ? (
+									<CircleNotch className="animate-spin" />
+								) : (
+									<Trash />
+								)}
+							</Button>
+						)}
+						{hasUnread && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-lg"
+								onClick={() => markAllRead.mutate()}
+								disabled={markAllRead.isPending}
+								aria-label={m["notifications.mark_all_read"]()}
+								title={m["notifications.mark_all_read"]()}
+								className="size-11 rounded-full"
+							>
+								{markAllRead.isPending ? (
+									<CircleNotch className="animate-spin" />
+								) : (
+									<Checks />
+								)}
+							</Button>
+						)}
+					</div>
+				</SheetHeader>
+			) : hasNotifications ? (
+				<div className="flex shrink-0 justify-end px-3 pt-3">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-lg"
+						onClick={() => deleteAll.mutate()}
+						disabled={deleteAll.isPending}
+						aria-label={m["notifications.delete_all"]()}
+						title={m["notifications.delete_all"]()}
+						className="rounded-full"
+					>
+						{deleteAll.isPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<Trash />
+						)}
+					</Button>
+					{hasUnread && (
 						<Button
 							type="button"
 							variant="ghost"
@@ -288,7 +359,7 @@ function NotificationPanel({
 							disabled={markAllRead.isPending}
 							aria-label={m["notifications.mark_all_read"]()}
 							title={m["notifications.mark_all_read"]()}
-							className="size-11 rounded-full"
+							className="rounded-full"
 						>
 							{markAllRead.isPending ? (
 								<CircleNotch className="animate-spin" />
@@ -296,34 +367,13 @@ function NotificationPanel({
 								<Checks />
 							)}
 						</Button>
-					) : (
-						<span aria-hidden="true" />
 					)}
-				</SheetHeader>
-			) : hasUnread ? (
-				<div className="flex shrink-0 justify-end px-3 pt-3">
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-lg"
-						onClick={() => markAllRead.mutate()}
-						disabled={markAllRead.isPending}
-						aria-label={m["notifications.mark_all_read"]()}
-						title={m["notifications.mark_all_read"]()}
-						className="rounded-full"
-					>
-						{markAllRead.isPending ? (
-							<CircleNotch className="animate-spin" />
-						) : (
-							<Checks />
-						)}
-					</Button>
 				</div>
 			) : null}
 
 			<div
 				className={cn(
-					"min-h-0 flex-1 overflow-y-auto overscroll-contain",
+					"flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain",
 					mode === "screen"
 						? "ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
 						: "px-3 py-3",
@@ -351,7 +401,7 @@ function NotificationPanel({
 				{isLoading ? (
 					<NotificationsSkeleton />
 				) : notifications.length === 0 ? (
-					<Empty className="min-h-64 p-8">
+					<Empty className="min-h-0 flex-1 p-8">
 						<EmptyHeader>
 							<EmptyTitle>{m["notifications.empty"]()}</EmptyTitle>
 							<EmptyDescription>

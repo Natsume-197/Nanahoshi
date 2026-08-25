@@ -1159,7 +1159,8 @@ export function ReadListenSection({
 						const alignmentDescription = isGenerationRunning
 							? m["read_listen.generating_alignment"]()
 							: pairing.generation?.status === "failed"
-								? m["read_listen.generation_failed"]()
+								? (pairing.generation.error ??
+									m["read_listen.generation_failed"]())
 								: alignment.status === "ready"
 									? m["read_listen.alignment_ready_description"]({
 											count: alignment.artifact.cueCount,

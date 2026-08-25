@@ -89,6 +89,10 @@ export class NotificationRepository {
 			.delete(notification)
 			.where(and(eq(notification.userId, userId), eq(notification.id, id)));
 	}
+
+	async deleteAllForUser(userId: string) {
+		await db.delete(notification).where(eq(notification.userId, userId));
+	}
 }
 
 export const notificationRepository = new NotificationRepository();

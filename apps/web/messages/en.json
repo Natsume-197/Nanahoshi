@@ -867,6 +867,8 @@
 		"mark_all_read": "Mark all as read",
 		"delete": "Delete notification",
 		"delete_named": "Delete: {title}",
+		"delete_all": "Delete all notifications",
+		"show_error": "Show error details",
 		"empty": "You're all caught up",
 		"empty_desc": "When a task finishes, you'll see the result here.",
 		"in_progress": "In progress",

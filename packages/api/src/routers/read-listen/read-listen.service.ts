@@ -67,7 +67,13 @@ export type ReadListenPairing = {
 
 export type ReadListenGenerationView = Pick<
 	ReadListenGenerationRow,
-	"taskId" | "status" | "provider" | "quality" | "createdAt" | "finishedAt"
+	| "taskId"
+	| "status"
+	| "provider"
+	| "quality"
+	| "error"
+	| "createdAt"
+	| "finishedAt"
 >;
 
 export type ReadListenAlignmentView =
@@ -210,6 +216,7 @@ export class ReadListenService {
 						status: generation.status,
 						provider: generation.provider,
 						quality: generation.quality,
+						error: generation.error,
 						createdAt: generation.createdAt,
 						finishedAt: generation.finishedAt,
 					}

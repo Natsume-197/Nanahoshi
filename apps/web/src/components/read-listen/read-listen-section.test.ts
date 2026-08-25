@@ -28,4 +28,8 @@ describe("Honomiya generation recovery", () => {
 		expect(sectionSource).toContain('m["read_listen.origin_external"]()');
 		expect(sectionSource).toContain('m["read_listen.origin_honomiya"]()');
 	});
+
+	test("shows the persisted generation error when alignment fails", () => {
+		expect(sectionSource).toContain("pairing.generation.error");
+	});
 });

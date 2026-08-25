@@ -49,4 +49,9 @@ export const notificationsRouter = {
 			);
 			return { success: true };
 		}),
+
+	deleteAll: protectedProcedure.handler(async ({ context }) => {
+		await notificationService.deleteAllNotifications(context.session.user.id);
+		return { success: true };
+	}),
 };

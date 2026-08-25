@@ -867,6 +867,8 @@
 		"mark_all_read": "Marcar todo como leído",
 		"delete": "Eliminar notificación",
 		"delete_named": "Eliminar: {title}",
+		"delete_all": "Eliminar todas las notificaciones",
+		"show_error": "Mostrar detalles del error",
 		"empty": "Estás al día",
 		"empty_desc": "Cuando termine una tarea, verás el resultado aquí.",
 		"in_progress": "En curso",

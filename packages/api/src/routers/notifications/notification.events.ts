@@ -17,7 +17,8 @@ export type NotificationPushEvent =
 	| { kind: "new"; notification: Notification }
 	| { kind: "read"; ids: number[] }
 	| { kind: "read_all" }
-	| { kind: "delete"; id: number };
+	| { kind: "delete"; id: number }
+	| { kind: "delete_all" };
 
 interface ChannelMessage {
 	userId: string;

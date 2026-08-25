@@ -146,7 +146,8 @@ export function NotificationItem({
 			})
 		: title;
 	const relativeTime = formatRelativeTime(notification.createdAt);
-	const interactive = unread || !!data.attention;
+	// Error details use a native disclosure; do not nest it inside the row button.
+	const interactive = !data.error && (unread || !!data.attention);
 	const rowClassName = notificationRowClassName(interactive, unread);
 	const body = (
 		<>
@@ -189,6 +190,16 @@ export function NotificationItem({
 						{relativeTime}
 					</time>
 				</p>
+				{data.error && (
+					<details className="mt-2 text-xs">
+						<summary className="cursor-pointer text-destructive underline underline-offset-2">
+							{m["notifications.show_error"]()}
+						</summary>
+						<p className="mt-1 whitespace-pre-wrap break-words text-destructive/90">
+							{data.error}
+						</p>
+					</details>
+				)}
 			</div>
 		</>
 	);

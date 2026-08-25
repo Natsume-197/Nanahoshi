@@ -8,7 +8,11 @@ export type TrackedJobFailure = {
 };
 
 export type TrackedJobFailureDependencies = {
-	bumpFailed: (taskId: string, jobId: string) => Promise<unknown>;
+	bumpFailed: (
+		taskId: string,
+		jobId: string,
+		failureReason?: string,
+	) => Promise<unknown>;
 	updateReadListenGenerationStatus: (
 		taskId: string,
 		status: "failed",
@@ -24,7 +28,7 @@ export async function settleTrackedJobFailure(
 	dependencies: TrackedJobFailureDependencies,
 ): Promise<void> {
 	const operations: Promise<unknown>[] = [
-		dependencies.bumpFailed(input.taskId, input.jobId),
+		dependencies.bumpFailed(input.taskId, input.jobId, input.failedReason),
 	];
 	if (input.queueName === "read-listen-generation") {
 		const reason = (

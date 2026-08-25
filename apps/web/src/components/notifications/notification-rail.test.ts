@@ -33,4 +33,8 @@ describe("notification rail", () => {
 		expect(layout).toContain("setNotificationRailOpen(false)");
 		expect(layout).toContain("if (open) setActivityRailOpen(false)");
 	});
+
+	it("centers the empty state in the remaining notification space", () => {
+		expect(notifications).toContain('"min-h-0 flex-1 p-8"');
+	});
 });

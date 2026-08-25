@@ -68,6 +68,8 @@ export interface Task {
 	plannedJobs?: number;
 	completedJobs: number;
 	failedJobs: number;
+	/** First terminal job failure, retained for the task notification. */
+	failureReason?: string;
 	createdAt: number;
 	/** Terminal transition time; `null` while running or for legacy task records. */
 	finishedAt: number | null;
@@ -592,7 +594,15 @@ export async function bumpCompleted(
 export async function bumpFailed(
 	taskId: string,
 	jobKey: string,
+	failureReason?: string,
 ): Promise<void> {
+	if (failureReason?.trim()) {
+		await redis.hsetnx(
+			TASK_KEY(taskId),
+			"failureReason",
+			failureReason.trim().slice(0, 2_000),
+		);
+	}
 	await bump(taskId, jobKey, "failedJobs");
 }
 
@@ -957,6 +967,7 @@ function parseTask(data: Record<string, string>): Task {
 		plannedJobs: Number(data.plannedJobs ?? data.totalJobs ?? 0),
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
+		...(data.failureReason && { failureReason: data.failureReason }),
 		createdAt: Number(data.createdAt ?? 0),
 		finishedAt: data.finishedAt ? Number(data.finishedAt) : null,
 		sealed: data.sealed === "1",

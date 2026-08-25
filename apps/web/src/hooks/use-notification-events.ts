@@ -36,7 +36,7 @@ export function useNotificationEvents() {
 				}
 				return;
 			}
-			if (event.kind === "read_all") {
+			if (event.kind === "read_all" || event.kind === "delete_all") {
 				queryClient.setQueryData(unreadCountKey, { count: 0 });
 				queryClient.invalidateQueries({ queryKey: listKey });
 				return;
