@@ -3,7 +3,6 @@ import { logger } from "../lib/logger";
 import { bookRepository } from "../routers/books/book.repository";
 import { enrichmentStateRepository } from "../routers/enrichment/enrichment.repository";
 import {
-	assessCatalogIdentity,
 	assessGroupMembership,
 	type CatalogIdentityEvidence,
 	primaryProviderEditionMatch,
@@ -213,7 +212,7 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 		return;
 	}
 
-	const candidates = await bookRepository.findGroupingCandidates(
+	const directCandidates = await bookRepository.findGroupingCandidates(
 		row.libraryId,
 		{
 			isbns,
@@ -222,21 +221,21 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 			primaryCatalogMatch: primaryEdition?.match,
 		},
 	);
+	const candidates = directCandidates.some(
+		(candidate) => candidate.duplicateOfBookId !== null,
+	)
+		? await bookRepository.expandGroupingCandidates(
+				row.libraryId,
+				directCandidates.map((candidate) => candidate.id),
+			)
+		: directCandidates;
 
-	// First require a Confirmed relationship to the subject. Then apply the
-	// group rule against every accepted member so an ambiguous bridge cannot
-	// join two editions that explicitly reject each other.
-	const subjectEvidence = groupingEvidence(row, embeddedUidOccurrenceCount);
-	const eligible = candidates.filter(
-		(candidate) =>
-			candidate.id === bookId ||
-			assessCatalogIdentity(
-				subjectEvidence,
-				groupingEvidence(candidate, embeddedUidOccurrenceCount, row),
-			).status === "confirmed",
-	);
-	const subjectMember = eligible.find((candidate) => candidate.id === bookId);
-	const ordered = eligible
+	// Grow from the subject until no deferred candidate can join. A member may
+	// be linked through compatible evidence carried by an intermediate book,
+	// but assessGroupMembership still rejects it if any accepted member vetoes
+	// the identity, so an ambiguous bridge cannot collapse distinct editions.
+	const subjectMember = candidates.find((candidate) => candidate.id === bookId);
+	const remaining = candidates
 		.filter((candidate) => candidate.id !== bookId)
 		.sort((a, b) => {
 			const af = a.filesizeKb ?? -1;
@@ -244,14 +243,26 @@ export async function regroupBookDuplicates(bookId: number): Promise<void> {
 			return bf !== af ? bf - af : a.id - b.id;
 		});
 	const members: typeof candidates = subjectMember ? [subjectMember] : [];
-	for (const candidate of ordered) {
-		const verdict = assessGroupMembership(
-			groupingEvidence(candidate, embeddedUidOccurrenceCount, row),
-			members.map((member) =>
-				groupingEvidence(member, embeddedUidOccurrenceCount, row),
-			),
-		);
-		if (verdict.status === "confirmed") members.push(candidate);
+	let added = true;
+	while (added) {
+		added = false;
+		for (let index = 0; index < remaining.length; ) {
+			const candidate = remaining[index];
+			if (!candidate) break;
+			const verdict = assessGroupMembership(
+				groupingEvidence(candidate, embeddedUidOccurrenceCount, row),
+				members.map((member) =>
+					groupingEvidence(member, embeddedUidOccurrenceCount, row),
+				),
+			);
+			if (verdict.status === "confirmed") {
+				members.push(candidate);
+				remaining.splice(index, 1);
+				added = true;
+			} else {
+				index++;
+			}
+		}
 	}
 
 	if (members.length <= 1) {

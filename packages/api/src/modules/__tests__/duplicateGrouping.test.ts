@@ -347,6 +347,139 @@ describe("regroupBookDuplicates via embedded uid", () => {
 			for (const [key, value] of originals) target[key] = value;
 		}
 	});
+
+	test("keeps a provider group intact when a weak-evidence copy runs last", async () => {
+		const { bookRepository } = await import(
+			"../../routers/books/book.repository"
+		);
+		const { regroupBookDuplicates } = await import("../duplicateGrouping");
+		const target = bookRepository as unknown as Record<string, unknown>;
+		const match = [{ provider: "ranobedb", providerId: "33741" }];
+		const rows = new Map([
+			[
+				10,
+				{
+					id: 10,
+					filesizeKb: 8_611,
+					duplicateOfBookId: null as number | null,
+					title: "Series 2",
+					isbn13: "9784094530414",
+					embeddedUid: null,
+					catalogMatches: match,
+					catalogMatchStatus: "enriched",
+				},
+			],
+			[
+				20,
+				{
+					id: 20,
+					filesizeKb: 6_089,
+					duplicateOfBookId: null as number | null,
+					title: "Series 2",
+					isbn13: "9784094530414",
+					embeddedUid: "mobi-asin:B09KZQHX33",
+					catalogMatches: match,
+					catalogMatchStatus: "enriched",
+				},
+			],
+			[
+				30,
+				{
+					id: 30,
+					filesizeKb: 3_399,
+					duplicateOfBookId: null as number | null,
+					title: "Series 2",
+					isbn13: null,
+					embeddedUid: "mobi-asin:B09KZQHX33",
+					catalogMatches: null,
+					catalogMatchStatus: null,
+				},
+			],
+		]);
+		const values = (ids: number[]) =>
+			ids.flatMap((id) => {
+				const row = rows.get(id);
+				return row ? [row] : [];
+			});
+		const methods = {
+			getGroupingInfo: mock(async (id: number) => ({
+				...rows.get(id),
+				libraryId: 1,
+				groupLocked: false,
+				automaticGroupingEnabled: true,
+			})),
+			countBooksWithEmbeddedUid: mock(async () => 2),
+			findGroupingCandidates: mock(
+				async (
+					_libraryId: number,
+					ids: { uids?: string[]; primaryCatalogMatch?: unknown },
+				) => {
+					if (ids.uids?.length && ids.primaryCatalogMatch)
+						return values([10, 20, 30]);
+					if (ids.primaryCatalogMatch) return values([10, 20]);
+					return values([20, 30]);
+				},
+			),
+			expandGroupingCandidates: mock(
+				async (_libraryId: number, candidateIds: number[]) => {
+					const included = new Set(candidateIds);
+					let changed = true;
+					while (changed) {
+						changed = false;
+						for (const row of rows.values()) {
+							const linked = row.duplicateOfBookId;
+							if (
+								(linked != null && included.has(linked)) ||
+								(linked != null && included.has(row.id))
+							) {
+								for (const id of [row.id, linked]) {
+									if (!included.has(id)) {
+										included.add(id);
+										changed = true;
+									}
+								}
+							}
+						}
+					}
+					return values([...included]);
+				},
+			),
+			clearDuplicatePointerIfSet: mock(async (id: number) => {
+				const row = rows.get(id);
+				if (row?.duplicateOfBookId != null) row.duplicateOfBookId = null;
+			}),
+			clearDuplicatePointers: mock(async (ids: number[]) => {
+				for (const id of ids) {
+					const row = rows.get(id);
+					if (row) row.duplicateOfBookId = null;
+				}
+			}),
+			setDuplicateOf: mock(async (ids: number[], canonicalId: number) => {
+				for (const id of ids) {
+					const row = rows.get(id);
+					if (row) row.duplicateOfBookId = canonicalId;
+				}
+			}),
+		};
+		const originals = Object.entries(methods).map(([key, value]) => {
+			const previous = target[key];
+			target[key] = value;
+			return [key, previous] as const;
+		});
+
+		try {
+			for (const id of [10, 20, 30]) await regroupBookDuplicates(id);
+			expect(
+				[...rows.values()]
+					.filter((row) => row.duplicateOfBookId == null)
+					.map((row) => row.id),
+			).toEqual([10]);
+			expect(rows.get(20)?.duplicateOfBookId).toBe(10);
+			expect(rows.get(30)?.duplicateOfBookId).toBe(10);
+		} finally {
+			for (const [key, value] of originals) target[key] = value;
+		}
+	});
 });
 
 describe("manual edition grouping boundaries", () => {

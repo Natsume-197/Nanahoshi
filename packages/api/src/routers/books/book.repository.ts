@@ -1834,6 +1834,68 @@ export class BookRepository {
 			);
 	}
 
+	/**
+	 * Expands identifier matches through their current automatic duplicate links.
+	 * A weak-evidence copy can otherwise see only an intermediate member and
+	 * promote it out of a larger, already-confirmed group.
+	 */
+	async expandGroupingCandidates(libraryId: number, candidateIds: number[]) {
+		const uniqueIds = [...new Set(candidateIds)].filter(Number.isSafeInteger);
+		if (uniqueIds.length === 0) return [];
+		const seeds = sql.join(
+			uniqueIds.map((id) => sql`(${id}::bigint)`),
+			sql`, `,
+		);
+		const expanded = await db.execute(sql`
+			WITH RECURSIVE group_ids(id) AS (
+				SELECT seed.id
+				FROM (VALUES ${seeds}) AS seed(id)
+				UNION
+				SELECT CASE
+					WHEN linked.id = group_ids.id
+						THEN COALESCE(linked.duplicate_of_book_id, linked.id)
+					ELSE linked.id
+				END
+				FROM group_ids
+				INNER JOIN ${book} linked
+					ON linked.id = group_ids.id
+					OR linked.duplicate_of_book_id = group_ids.id
+				WHERE linked.library_id = ${libraryId}
+					AND linked.group_locked = false
+			)
+			SELECT id FROM group_ids
+		`);
+		const expandedIds = expanded.rows
+			.map((row) => Number((row as { id: number | string }).id))
+			.filter(Number.isSafeInteger);
+
+		return db
+			.select({
+				id: book.id,
+				filesizeKb: book.filesizeKb,
+				duplicateOfBookId: book.duplicateOfBookId,
+				title: bookMetadata.title,
+				titleRomaji: bookMetadata.titleRomaji,
+				isbn13: bookMetadata.isbn13,
+				isbn10: bookMetadata.isbn10,
+				asin: bookMetadata.asin,
+				embeddedUid: bookMetadata.embeddedUid,
+				languageCode: bookMetadata.languageCode,
+				catalogMatches: enrichmentState.matched,
+				catalogMatchStatus: enrichmentState.status,
+			})
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(enrichmentState, eq(enrichmentState.bookId, book.id))
+			.where(
+				and(
+					eq(book.libraryId, libraryId),
+					eq(book.groupLocked, false),
+					inArray(book.id, expandedIds),
+				),
+			);
+	}
+
 	/** Books in a library sharing an embedded uid — boilerplate detection. */
 	async countBooksWithEmbeddedUid(
 		libraryId: number,
