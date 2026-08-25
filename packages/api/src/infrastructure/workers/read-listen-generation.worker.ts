@@ -26,6 +26,11 @@ import { redis } from "../queue/redis";
 const log = logger.child({ component: "read-listen-generation-worker" });
 const CANCEL_POLL_MS = 1_000;
 const MAX_ERROR_LENGTH = 2_000;
+// Honomiya is CPU intensive enough to delay BullMQ's default 30-second lock
+// renewal on small production hosts. A prematurely stalled job can then run a
+// second time after the first attempt has imported its alignment and removed
+// its one-shot SRT upload.
+const GENERATION_LOCK_DURATION_MS = 15 * 60_000;
 
 async function runHonomiya(
 	command: string[],
@@ -265,7 +270,11 @@ const initialConfig = await getHonomiyaConfig().catch(() => ({
 export const readListenGenerationWorker = new Worker(
 	"read-listen-generation",
 	processGeneration,
-	{ connection: redis, concurrency: initialConfig.workerConcurrency },
+	{
+		connection: redis,
+		concurrency: initialConfig.workerConcurrency,
+		lockDuration: GENERATION_LOCK_DURATION_MS,
+	},
 );
 
 // BullMQ supports changing concurrency while the worker is running. Refresh it
