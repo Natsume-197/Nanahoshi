@@ -58,6 +58,10 @@ export const RemoveReadListenPairInput = z.object({
 	pairUuid: z.string().uuid(),
 });
 
+export const RemoveReadListenReviewedMatchInput = z.object({
+	proposalUuid: z.string().uuid(),
+});
+
 export const ImportExistingReadListenAlignmentInput = z.object({
 	pairUuid: z.string().uuid(),
 });

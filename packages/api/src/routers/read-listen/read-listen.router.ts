@@ -15,6 +15,7 @@ import {
 	ListReadListenMatchProposalsInput,
 	ListReadListenPairingsInput,
 	RemoveReadListenPairInput,
+	RemoveReadListenReviewedMatchInput,
 	SearchReadListenCandidatesInput,
 	SearchReadListenPairingsInput,
 } from "./read-listen.model";
@@ -309,6 +310,31 @@ export function createReadListenRouter(
 					serverId: context.serverId,
 					scope: context.accessibleLibraryIds,
 				});
+			}),
+
+		removeReviewedMatch: orgReadProcedure
+			.input(RemoveReadListenReviewedMatchInput)
+			.handler(async ({ input, context }) => {
+				const proposal = await service.getMatchProposalForReview(
+					input.proposalUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
+				if (
+					!(await canEditPublications(context.session, [
+						proposal.audiobook.uuid,
+						proposal.ebook.uuid,
+					]))
+				) {
+					throw new ForbiddenError(
+						"You cannot remove this Read & Listen match review",
+					);
+				}
+				return service.removeReviewedMatch(
+					input.proposalUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
 			}),
 
 		importExistingAlignment: orgReadProcedure

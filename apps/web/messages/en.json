@@ -2328,19 +2328,20 @@
 		"decision_correct": "Corrected",
 		"pairing_removed": "Pairing removed",
 		"remove_match": "Remove pairing",
-		"remove_match_confirm": "Remove pairing",
-		"remove_matches_title": "Remove pairings?",
+		"remove_review": "Remove review",
+		"remove_reviewed_confirm": "Remove from Reviewed",
+		"remove_matches_title": "Remove from Reviewed?",
 		"remove_matches_description": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
 				"selectors": ["countPlural"],
 				"match": {
-					"countPlural=one": "This will remove {count} Read & Listen pairing. Review history will be preserved.",
-					"countPlural=other": "This will remove {count} Read & Listen pairings. Review history will be preserved."
+					"countPlural=one": "This will remove {count} reviewed item. If it has an active pairing, that pairing will also be removed.",
+					"countPlural=other": "This will remove {count} reviewed items. Any active pairings they have will also be removed."
 				}
 			}
 		],
-		"matches_removed": "Pairings removed: {count}",
+		"matches_removed": "Items removed: {count}",
 		"no_match_search_results": "No results for “{query}”",
 		"no_match_search_results_description": "Try another title or clear the search.",
 		"no_reviewed_matches": "No reviewed matches",
@@ -2359,6 +2360,7 @@
 		"no_match_proposals": "No matches to review",
 		"no_match_proposals_description": "Analyze the next batch to generate new suggestions.",
 		"match_score": "{score}% match",
+		"manual_pairing": "Manual pairing",
 		"approve_match": "Approve pairing",
 		"reject_match": "Reject suggestion",
 		"choose_another_ebook": "Choose another ebook",

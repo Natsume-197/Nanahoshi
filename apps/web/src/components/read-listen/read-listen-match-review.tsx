@@ -61,11 +61,26 @@ type Candidate = Awaited<
 >["candidates"][number];
 
 type ReviewStatus = "pending" | "decided";
+type RemovalTarget =
+	| { kind: "pair"; uuid: string }
+	| { kind: "proposal"; uuid: string };
 
 const PAGE_SIZE = 10;
 
 const MATCH_ROW_COLUMNS =
 	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem_11rem]";
+
+export function getRemovalTarget(
+	proposal: Pick<Proposal, "id" | "decision">,
+): RemovalTarget | null {
+	if (proposal.decision?.pairUuid) {
+		return { kind: "pair", uuid: proposal.decision.pairUuid };
+	}
+	if (proposal.decision?.action === "reject") {
+		return { kind: "proposal", uuid: proposal.id };
+	}
+	return null;
+}
 
 function MatchStatusNavigation({
 	status,
@@ -332,7 +347,9 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const [page, setPage] = useState(0);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [correction, setCorrection] = useState<Proposal | null>(null);
-	const [removalRequest, setRemovalRequest] = useState<string[] | null>(null);
+	const [removalRequest, setRemovalRequest] = useState<RemovalTarget[] | null>(
+		null,
+	);
 	const debouncedQuery = useDebounce(query.trim(), 300);
 	const hasSearch = debouncedQuery.length > 0;
 	const proposalsQuery = useQuery(
@@ -352,7 +369,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const currentPage = page + 1;
 	const paginationPages = visiblePageNumbers(currentPage, totalPages);
 	const selectableIds = proposals
-		.filter((proposal) => status === "pending" || proposal.decision?.pairUuid)
+		.filter((proposal) => status === "pending" || getRemovalTarget(proposal))
 		.map((proposal) => proposal.id);
 	const allPageSelected =
 		selectableIds.length > 0 &&
@@ -366,13 +383,10 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const hasCompetingSelections =
 		new Set(selectedProposals.map((proposal) => proposal.audiobook.uuid)).size <
 		selectedProposals.length;
-	const selectedPairUuids = [
-		...new Set(
-			selectedProposals.flatMap((proposal) =>
-				proposal.decision?.pairUuid ? [proposal.decision.pairUuid] : [],
-			),
-		),
-	];
+	const selectedRemovalTargets = selectedProposals.flatMap((proposal) => {
+		const target = getRemovalTarget(proposal);
+		return target ? [target] : [];
+	});
 
 	function clearSelection() {
 		setSelected(new Set());
@@ -493,13 +507,19 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		onSettled: invalidateMatches,
 	});
 	const removePairMutation = useMutation({
-		mutationFn: (pairUuids: string[]) =>
+		mutationFn: (targets: RemovalTarget[]) =>
 			Promise.all(
-				pairUuids.map((pairUuid) => client.readListen.remove({ pairUuid })),
+				targets.map((target) =>
+					target.kind === "pair"
+						? client.readListen.remove({ pairUuid: target.uuid })
+						: client.readListen.removeReviewedMatch({
+								proposalUuid: target.uuid,
+							}),
+				),
 			),
-		onSuccess: (_, pairUuids) => {
+		onSuccess: (_, targets) => {
 			toast.success(
-				m["read_listen.matches_removed"]({ count: pairUuids.length }),
+				m["read_listen.matches_removed"]({ count: targets.length }),
 			);
 			setRemovalRequest(null);
 			clearSelection();
@@ -748,7 +768,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 											decisionMutation.variables?.proposalUuid === proposal.id;
 										const canSelect =
 											status === "pending" ||
-											Boolean(proposal.decision?.pairUuid);
+											Boolean(getRemovalTarget(proposal));
 										const displayedEbook =
 											proposal.decision?.selectedEbook ?? proposal.ebook;
 										return (
@@ -779,26 +799,33 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 														mediaType="ebook"
 													/>
 													<div className="flex min-w-0 flex-wrap items-center gap-1.5 md:content-center">
-														<Badge
-															variant={
-																proposal.confidence === "high"
-																	? "success"
-																	: "warning"
-															}
-														>
-															{m["read_listen.match_score"]({
-																score: proposal.score,
-															})}
-														</Badge>
-														{proposal.decision && (
+														{proposal.origin === "manual" ? (
+															<span className="font-medium text-muted-foreground text-xs">
+																{m["read_listen.manual_pairing"]()}
+															</span>
+														) : (
 															<Badge
-																variant={decisionBadgeVariant(
-																	proposal.decision.action,
-																)}
+																variant={
+																	proposal.confidence === "high"
+																		? "success"
+																		: "warning"
+																}
 															>
-																{decisionLabel(proposal.decision.action)}
+																{m["read_listen.match_score"]({
+																	score: proposal.score ?? 0,
+																})}
 															</Badge>
 														)}
+														{proposal.origin === "matcher" &&
+															proposal.decision && (
+																<Badge
+																	variant={decisionBadgeVariant(
+																		proposal.decision.action,
+																	)}
+																>
+																	{decisionLabel(proposal.decision.action)}
+																</Badge>
+															)}
 													</div>
 													<div className="flex items-center gap-1.5 md:col-span-3 lg:col-span-1 lg:justify-end">
 														{status === "pending" ? (
@@ -868,23 +895,23 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 																</DropdownMenu>
 															</>
 														) : (
-															proposal.decision?.pairUuid && (
+															getRemovalTarget(proposal) && (
 																<Button
 																	variant="destructive"
 																	size="sm"
 																	disabled={busy}
-																	onClick={() =>
-																		proposal.decision?.pairUuid &&
-																		setRemovalRequest([
-																			proposal.decision.pairUuid,
-																		])
-																	}
+																	onClick={() => {
+																		const target = getRemovalTarget(proposal);
+																		if (target) setRemovalRequest([target]);
+																	}}
 																>
 																	<Trash
 																		aria-hidden="true"
 																		data-icon="inline-start"
 																	/>
-																	{m["read_listen.remove_match"]()}
+																	{proposal.decision?.action === "reject"
+																		? m["read_listen.remove_review"]()
+																		: m["read_listen.remove_match"]()}
 																</Button>
 															)
 														)}
@@ -944,8 +971,8 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 								<Button
 									size="sm"
 									variant="destructive"
-									disabled={busy || selectedPairUuids.length === 0}
-									onClick={() => setRemovalRequest(selectedPairUuids)}
+									disabled={busy || selectedRemovalTargets.length === 0}
+									onClick={() => setRemovalRequest(selectedRemovalTargets)}
 								>
 									<Trash aria-hidden="true" data-icon="inline-start" />
 									{m["read_listen.remove_selected_matches"]()}
@@ -1080,7 +1107,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 										className="animate-spin motion-reduce:animate-none"
 									/>
 								)}
-								{m["read_listen.remove_match_confirm"]()}
+								{m["read_listen.remove_reviewed_confirm"]()}
 							</Button>
 						</>
 					}

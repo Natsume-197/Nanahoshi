@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const deletedTables: unknown[] = [];
+let executedQuery: unknown;
 
 function createAwaitableChain(result: unknown) {
 	const chain = {
@@ -34,10 +36,16 @@ const transaction = mock(
 );
 
 mock.module("@nanahoshi-v2/db", () => ({
-	db: { transaction },
+	db: {
+		transaction,
+		execute: mock((query: unknown) => {
+			executedQuery = query;
+			return Promise.resolve({ rows: [] });
+		}),
+	},
 }));
 
-const { readListenMatchEvaluation } = await import(
+const { readListenMatchEvaluation, readListenMatchProposal } = await import(
 	"@nanahoshi-v2/db/schema/general"
 );
 const { ReadListenRepository } = await import("../read-listen.repository");
@@ -45,6 +53,7 @@ const { ReadListenRepository } = await import("../read-listen.repository");
 describe("ReadListenRepository.deletePairAndMatchHistory", () => {
 	beforeEach(() => {
 		deletedTables.length = 0;
+		executedQuery = undefined;
 		transaction.mockClear();
 	});
 
@@ -54,6 +63,39 @@ describe("ReadListenRepository.deletePairAndMatchHistory", () => {
 		expect(
 			await repository.deletePairAndMatchHistory("pair-1", "server-1"),
 		).toBe(true);
+		expect(deletedTables).toContain(readListenMatchEvaluation);
+	});
+});
+
+describe("ReadListenRepository.listMatchProposalPage", () => {
+	test("includes unrepresented manual pairs in the reviewed query", async () => {
+		const repository = new ReadListenRepository();
+
+		await repository.listMatchProposalPage("server-1", "ALL", {
+			status: "decided",
+			offset: 0,
+			limit: 10,
+		});
+
+		const query = new PgDialect().sqlToQuery(executedQuery as never).sql;
+		expect(query).toContain("UNION ALL");
+		expect(query).toContain("FROM read_listen_pair rp");
+		expect(query).toContain("AND NOT EXISTS");
+	});
+});
+
+describe("ReadListenRepository.deleteReviewedMatch", () => {
+	beforeEach(() => {
+		deletedTables.length = 0;
+	});
+
+	test("deletes the rejected proposal and its audiobook evaluation", async () => {
+		const repository = new ReadListenRepository();
+
+		expect(await repository.deleteReviewedMatch("proposal-1", "server-1")).toBe(
+			true,
+		);
+		expect(deletedTables).toContain(readListenMatchProposal);
 		expect(deletedTables).toContain(readListenMatchEvaluation);
 	});
 });

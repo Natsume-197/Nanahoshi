@@ -2328,19 +2328,20 @@
 		"decision_correct": "Corregida",
 		"pairing_removed": "Asociación eliminada",
 		"remove_match": "Eliminar asociación",
-		"remove_match_confirm": "Eliminar asociación",
-		"remove_matches_title": "¿Eliminar las asociaciones?",
+		"remove_review": "Eliminar revisión",
+		"remove_reviewed_confirm": "Eliminar de Revisadas",
+		"remove_matches_title": "¿Eliminar de Revisadas?",
 		"remove_matches_description": [
 			{
 				"declarations": ["input count", "local countPlural = count: plural"],
 				"selectors": ["countPlural"],
 				"match": {
-					"countPlural=one": "Se eliminará {count} asociación de Read & Listen. El historial de revisión se conservará.",
-					"countPlural=other": "Se eliminarán {count} asociaciones de Read & Listen. El historial de revisión se conservará."
+					"countPlural=one": "Se eliminará {count} elemento de Revisadas. Si tiene una asociación activa, también se eliminará.",
+					"countPlural=other": "Se eliminarán {count} elementos de Revisadas. Si tienen asociaciones activas, también se eliminarán."
 				}
 			}
 		],
-		"matches_removed": "Asociaciones eliminadas: {count}",
+		"matches_removed": "Elementos eliminados: {count}",
 		"no_match_search_results": "No hay resultados para «{query}»",
 		"no_match_search_results_description": "Prueba con otro título o borra la búsqueda.",
 		"no_reviewed_matches": "No hay coincidencias revisadas",
@@ -2359,6 +2360,7 @@
 		"no_match_proposals": "No hay coincidencias pendientes",
 		"no_match_proposals_description": "Analiza el siguiente lote para generar sugerencias nuevas.",
 		"match_score": "{score}% de coincidencia",
+		"manual_pairing": "Asociación manual",
 		"approve_match": "Aprobar asociación",
 		"reject_match": "Rechazar sugerencia",
 		"choose_another_ebook": "Elegir otro ebook",

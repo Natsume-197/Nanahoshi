@@ -63,12 +63,33 @@ export type ReadListenMatchProposalRow =
 export type ReadListenMatchDecisionRow =
 	typeof readListenMatchDecision.$inferSelect;
 
-export type ReadListenMatchProposalPageRow = ReadListenMatchProposalRow & {
-	decisionAction: ReadListenMatchDecisionRow["action"] | null;
-	selectedEbookBookId: number | null;
-	pairId: string | null;
-	totalCount: number;
-};
+export type ReadListenMatchProposalPageRow =
+	| (ReadListenMatchProposalRow & {
+			origin: "matcher";
+			decisionAction: ReadListenMatchDecisionRow["action"] | null;
+			selectedEbookBookId: number | null;
+			pairId: string | null;
+			totalCount: number;
+	  })
+	| {
+			id: string;
+			serverId: string;
+			audiobookBookId: number;
+			ebookBookId: number;
+			score: null;
+			confidence: null;
+			reasons: string[];
+			warnings: string[];
+			matcherVersion: null;
+			status: "decided";
+			createdAt: string;
+			updatedAt: string;
+			origin: "manual";
+			decisionAction: "approve";
+			selectedEbookBookId: number;
+			pairId: string;
+			totalCount: number;
+	  };
 
 export type ReadListenAlignmentRow = {
 	id: string;
@@ -720,6 +741,126 @@ export class ReadListenRepository {
 		const query = options.query?.trim();
 		const audiobookScope = accessiblePredicateSql(scope, "ab");
 		const ebookScope = accessiblePredicateSql(scope, "eb");
+		if (options.status === "decided") {
+			const { rows } = await db.execute(sql`
+				WITH reviewed AS (
+					SELECT
+						p.id,
+						p.server_id AS "serverId",
+						p.audiobook_book_id::float8 AS "audiobookBookId",
+						p.ebook_book_id::float8 AS "ebookBookId",
+						p.score,
+						p.confidence,
+						p.reasons,
+						p.warnings,
+						p.matcher_version AS "matcherVersion",
+						p.status,
+						p.created_at AS "createdAt",
+						p.updated_at AS "updatedAt",
+						'matcher'::text AS origin,
+						d.action AS "decisionAction",
+						d.selected_ebook_book_id::float8 AS "selectedEbookBookId",
+						rp.id AS "pairId"
+					FROM read_listen_match_proposal p
+					JOIN book ab ON ab.id = p.audiobook_book_id
+					JOIN library al ON al.id = ab.library_id
+					JOIN book eb ON eb.id = p.ebook_book_id
+					JOIN library el ON el.id = eb.library_id
+					LEFT JOIN audiobook_metadata am ON am.book_id = ab.id
+					LEFT JOIN book_metadata bm ON bm.book_id = eb.id
+					LEFT JOIN read_listen_match_decision d ON d.proposal_id = p.id
+					LEFT JOIN book selected_ebook ON selected_ebook.id = d.selected_ebook_book_id
+					LEFT JOIN book_metadata selected_bm ON selected_bm.book_id = selected_ebook.id
+					LEFT JOIN read_listen_pair rp
+						ON rp.server_id = p.server_id
+						AND rp.audiobook_book_id = p.audiobook_book_id
+						AND rp.ebook_book_id = d.selected_ebook_book_id
+					WHERE p.server_id = ${serverId}
+						AND p.status = 'decided'
+						AND al.server_id = ${serverId}
+						AND el.server_id = ${serverId}
+						AND ${visibleBookSql("ab")}
+						AND ${visibleBookSql("eb")}
+						${options.matcherVersion ? sql`AND p.matcher_version = ${options.matcherVersion}` : sql``}
+						${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
+						${ebookScope ? sql`AND ${ebookScope}` : sql``}
+						${
+							query
+								? sql`AND (
+									COALESCE(am.title, ab.filename) ILIKE ${`%${query}%`}
+									OR ab.filename ILIKE ${`%${query}%`}
+									OR COALESCE(bm.title, eb.filename) ILIKE ${`%${query}%`}
+									OR eb.filename ILIKE ${`%${query}%`}
+									OR COALESCE(selected_bm.title, selected_ebook.filename) ILIKE ${`%${query}%`}
+								)`
+								: sql``
+						}
+
+					UNION ALL
+
+					SELECT
+						rp.id,
+						rp.server_id AS "serverId",
+						rp.audiobook_book_id::float8 AS "audiobookBookId",
+						rp.ebook_book_id::float8 AS "ebookBookId",
+						NULL::integer AS score,
+						NULL::read_listen_match_confidence AS confidence,
+						'[]'::jsonb AS reasons,
+						'[]'::jsonb AS warnings,
+						NULL::varchar AS "matcherVersion",
+						'decided'::read_listen_match_proposal_status AS status,
+						rp.created_at AS "createdAt",
+						rp.updated_at AS "updatedAt",
+						'manual'::text AS origin,
+						'approve'::read_listen_match_decision_action AS "decisionAction",
+						rp.ebook_book_id::float8 AS "selectedEbookBookId",
+						rp.id AS "pairId"
+					FROM read_listen_pair rp
+					JOIN book ab ON ab.id = rp.audiobook_book_id
+					JOIN library al ON al.id = ab.library_id
+					JOIN book eb ON eb.id = rp.ebook_book_id
+					JOIN library el ON el.id = eb.library_id
+					LEFT JOIN audiobook_metadata am ON am.book_id = ab.id
+					LEFT JOIN book_metadata bm ON bm.book_id = eb.id
+					WHERE rp.server_id = ${serverId}
+						AND al.server_id = ${serverId}
+						AND el.server_id = ${serverId}
+						AND ${visibleBookSql("ab")}
+						AND ${visibleBookSql("eb")}
+						${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
+						${ebookScope ? sql`AND ${ebookScope}` : sql``}
+						${
+							query
+								? sql`AND (
+									COALESCE(am.title, ab.filename) ILIKE ${`%${query}%`}
+									OR ab.filename ILIKE ${`%${query}%`}
+									OR COALESCE(bm.title, eb.filename) ILIKE ${`%${query}%`}
+									OR eb.filename ILIKE ${`%${query}%`}
+								)`
+								: sql``
+						}
+						AND NOT EXISTS (
+							SELECT 1
+							FROM read_listen_match_proposal existing_p
+							JOIN read_listen_match_decision existing_d
+								ON existing_d.proposal_id = existing_p.id
+							WHERE existing_p.server_id = rp.server_id
+								AND existing_p.status = 'decided'
+								AND existing_p.audiobook_book_id = rp.audiobook_book_id
+								AND existing_d.selected_ebook_book_id = rp.ebook_book_id
+								AND existing_d.action IN ('approve', 'correct')
+						)
+				)
+				SELECT
+					reviewed.*,
+					count(*) OVER ()::int AS "totalCount"
+				FROM reviewed
+				ORDER BY "updatedAt" DESC, id ASC
+				LIMIT ${options.limit}
+				OFFSET ${options.offset}
+			`);
+			return rows as ReadListenMatchProposalPageRow[];
+		}
 		const order =
 			options.status === "pending"
 				? sql`p.score DESC, p.created_at ASC, p.id ASC`
@@ -738,6 +879,7 @@ export class ReadListenRepository {
 				p.status,
 				p.created_at AS "createdAt",
 				p.updated_at AS "updatedAt",
+				'matcher'::text AS origin,
 				d.action AS "decisionAction",
 				d.selected_ebook_book_id::float8 AS "selectedEbookBookId",
 				rp.id AS "pairId",
@@ -901,6 +1043,45 @@ export class ReadListenRepository {
 			throw new Error("Read & Listen pair conflict could not be resolved");
 		}
 		return existing;
+	}
+
+	async deleteReviewedMatch(id: string, serverId: string): Promise<boolean> {
+		return db.transaction(async (tx) => {
+			const [deletedProposal] = await tx
+				.delete(readListenMatchProposal)
+				.where(
+					and(
+						eq(readListenMatchProposal.id, id),
+						eq(readListenMatchProposal.serverId, serverId),
+						eq(readListenMatchProposal.status, "decided"),
+						inArray(
+							readListenMatchProposal.id,
+							tx
+								.select({ proposalId: readListenMatchDecision.proposalId })
+								.from(readListenMatchDecision)
+								.where(eq(readListenMatchDecision.action, "reject")),
+						),
+					),
+				)
+				.returning({
+					audiobookBookId: readListenMatchProposal.audiobookBookId,
+				});
+			if (!deletedProposal) return false;
+
+			await tx
+				.delete(readListenMatchEvaluation)
+				.where(
+					and(
+						eq(readListenMatchEvaluation.serverId, serverId),
+						eq(
+							readListenMatchEvaluation.audiobookBookId,
+							deletedProposal.audiobookBookId,
+						),
+					),
+				);
+
+			return true;
+		});
 	}
 
 	async deletePairAndMatchHistory(

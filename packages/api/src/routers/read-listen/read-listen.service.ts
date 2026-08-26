@@ -54,6 +54,7 @@ type ReadListenStore = Pick<
 	| "getPairSources"
 	| "upsertAlignment"
 	| "createPair"
+	| "deleteReviewedMatch"
 	| "deletePairAndMatchHistory"
 	| "createMatchProposals"
 	| "recordMatchEvaluation"
@@ -112,11 +113,12 @@ export type ReadListenPublicationView = Omit<
 
 export type ReadListenMatchProposalView = {
 	id: string;
-	score: number;
-	confidence: ReadListenMatchProposalRow["confidence"];
+	origin: "matcher" | "manual";
+	score: number | null;
+	confidence: ReadListenMatchProposalRow["confidence"] | null;
 	reasons: string[];
 	warnings: string[];
-	matcherVersion: string;
+	matcherVersion: string | null;
 	status: ReadListenMatchProposalRow["status"];
 	createdAt: string;
 	audiobook: ReadListenPublicationView;
@@ -275,6 +277,7 @@ export class ReadListenService {
 		}
 		return {
 			id: row.id,
+			origin: "matcher",
 			score: row.score,
 			confidence: row.confidence,
 			reasons: row.reasons,
@@ -292,6 +295,36 @@ export class ReadListenService {
 		row: ReadListenMatchProposalPageRow,
 		publications: Map<number, ReadListenPublication>,
 	): ReadListenMatchProposalView | null {
+		if (row.origin === "manual") {
+			const audiobook = publications.get(row.audiobookBookId);
+			const ebook = publications.get(row.ebookBookId);
+			if (
+				!audiobook ||
+				!ebook ||
+				audiobook.mediaType !== "audiobook" ||
+				ebook.mediaType !== "ebook"
+			) {
+				return null;
+			}
+			return {
+				id: row.id,
+				origin: "manual",
+				score: null,
+				confidence: null,
+				reasons: [],
+				warnings: [],
+				matcherVersion: null,
+				status: "decided",
+				createdAt: row.createdAt,
+				audiobook: toPublicationView(audiobook),
+				ebook: toPublicationView(ebook),
+				decision: {
+					action: "approve",
+					selectedEbook: toPublicationView(ebook),
+					pairUuid: row.pairId,
+				},
+			};
+		}
 		const proposal = this.buildMatchProposal(row, publications);
 		if (!proposal || !row.decisionAction) return proposal;
 		const selectedEbook = row.selectedEbookBookId
@@ -1108,6 +1141,25 @@ export class ReadListenService {
 			throw new NotFoundError("Read & Listen pair not found");
 		}
 		return pair;
+	}
+
+	async removeReviewedMatch(
+		proposalUuid: string,
+		serverId: string,
+		scope: LibraryScope,
+	): Promise<{ id: string }> {
+		const proposal = await this.getMatchProposalForReview(
+			proposalUuid,
+			serverId,
+			scope,
+		);
+		if (
+			proposal.status !== "decided" ||
+			!(await this.store.deleteReviewedMatch(proposalUuid, serverId))
+		) {
+			throw new NotFoundError("Rejected Read & Listen match not found");
+		}
+		return { id: proposal.id };
 	}
 }
 

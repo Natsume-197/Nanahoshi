@@ -172,6 +172,7 @@ function createHarness() {
 		upsertAlignment: mock(() => Promise.resolve(alignmentRow)),
 		createPair: mock(() => Promise.resolve(pairRow)),
 		deletePairAndMatchHistory: mock(() => Promise.resolve(true)),
+		deleteReviewedMatch: mock(() => Promise.resolve(true)),
 		createMatchProposals: mock(() => Promise.resolve()),
 		recordMatchEvaluation: mock(() => Promise.resolve()),
 		listUnevaluatedCanonicalAudiobooks: mock(() => Promise.resolve([])),
@@ -412,6 +413,7 @@ describe("ReadListenService", () => {
 		store.listMatchProposalPage.mockResolvedValue([
 			{
 				...proposalRow,
+				origin: "matcher",
 				status: "decided",
 				decisionAction: "approve",
 				selectedEbookBookId: ebook.id,
@@ -445,6 +447,50 @@ describe("ReadListenService", () => {
 			selectedEbook: expect.objectContaining({ uuid: ebook.uuid }),
 			pairUuid: pairRow.id,
 		});
+	});
+
+	test("includes a manually created pair in the reviewed page", async () => {
+		const { service, store } = createHarness();
+		store.listMatchProposalPage.mockResolvedValue([
+			{
+				id: pairRow.id,
+				serverId: pairRow.serverId,
+				audiobookBookId: audiobook.id,
+				ebookBookId: ebook.id,
+				score: null,
+				confidence: null,
+				reasons: [],
+				warnings: [],
+				matcherVersion: null,
+				status: "decided",
+				createdAt: pairRow.createdAt,
+				updatedAt: pairRow.updatedAt,
+				origin: "manual",
+				decisionAction: "approve",
+				selectedEbookBookId: ebook.id,
+				pairId: pairRow.id,
+				totalCount: 1,
+			},
+		]);
+
+		const result = await service.listMatchProposalPage({
+			status: "decided",
+			offset: 0,
+			limit: 10,
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(result.total).toBe(1);
+		expect(result.items).toEqual([
+			expect.objectContaining({
+				id: pairRow.id,
+				origin: "manual",
+				audiobook: expect.objectContaining({ uuid: audiobook.uuid }),
+				ebook: expect.objectContaining({ uuid: ebook.uuid }),
+				decision: expect.objectContaining({ pairUuid: pairRow.id }),
+			}),
+		]);
 	});
 
 	test("turns an approval into a pair through the atomic decision operation", async () => {
@@ -524,6 +570,26 @@ describe("ReadListenService", () => {
 			"server-1",
 		);
 		expect(result.id).toBe(pairRow.id);
+	});
+
+	test("removes a rejected reviewed match so it can be analyzed again", async () => {
+		const { service, store } = createHarness();
+		store.getMatchProposalRow.mockResolvedValue({
+			...proposalRow,
+			status: "decided",
+		});
+
+		const result = await service.removeReviewedMatch(
+			proposalRow.id,
+			"server-1",
+			"ALL",
+		);
+
+		expect(store.deleteReviewedMatch).toHaveBeenCalledWith(
+			proposalRow.id,
+			"server-1",
+		);
+		expect(result.id).toBe(proposalRow.id);
 	});
 
 	test("reports a source-verified imported alignment as ready", async () => {
