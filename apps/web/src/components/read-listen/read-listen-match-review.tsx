@@ -1,3 +1,4 @@
+import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
 import {
 	ArrowLeft,
 	BookOpen,
@@ -61,47 +62,48 @@ type Candidate = Awaited<
 >["candidates"][number];
 
 type ReviewStatus = "pending" | "decided";
-type RemovalTarget =
-	| { kind: "pair"; uuid: string }
-	| { kind: "proposal"; uuid: string };
-
-const PAGE_SIZE = 10;
-const MATCH_ANALYSIS_BATCH_SIZE = 25;
-
-type MatchBatchResult = {
-	processedCount: number;
-	proposalCount: number;
+type RemovalTarget = {
+	proposalUuid: string;
+	kind: "pending" | "reviewed";
+};
+type ReviewFilter = { status: ReviewStatus; query?: string };
+type BulkTarget = { proposalUuids: string[] } | { filter: ReviewFilter };
+type RemovalRequest = {
+	target: BulkTarget;
+	count: number;
+	kind: "pending" | "reviewed";
 };
 
-export async function analyzeAllMatchProposals(
-	generateBatch: (input: { limit: number }) => Promise<MatchBatchResult>,
-): Promise<MatchBatchResult> {
-	let processedCount = 0;
-	let proposalCount = 0;
-	let batch: MatchBatchResult;
-
-	do {
-		batch = await generateBatch({ limit: MATCH_ANALYSIS_BATCH_SIZE });
-		processedCount += batch.processedCount;
-		proposalCount += batch.proposalCount;
-	} while (batch.processedCount === MATCH_ANALYSIS_BATCH_SIZE);
-
-	return { processedCount, proposalCount };
+export function getReviewSelectionTarget(input: {
+	selectAllFilter: boolean;
+	status: ReviewStatus;
+	query?: string;
+	selected: Iterable<string>;
+}): BulkTarget {
+	return input.selectAllFilter
+		? {
+				filter: {
+					status: input.status,
+					query: input.query || undefined,
+				},
+			}
+		: { proposalUuids: [...input.selected] };
 }
+
+const PAGE_SIZE = 10;
 
 const MATCH_ROW_COLUMNS =
 	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem_11rem]";
 
 export function getRemovalTarget(
-	proposal: Pick<Proposal, "id" | "decision">,
+	proposal: Pick<Proposal, "id" | "removable" | "status">,
 ): RemovalTarget | null {
-	if (proposal.decision?.pairUuid) {
-		return { kind: "pair", uuid: proposal.decision.pairUuid };
-	}
-	if (proposal.decision?.action === "reject") {
-		return { kind: "proposal", uuid: proposal.id };
-	}
-	return null;
+	return proposal.removable
+		? {
+				proposalUuid: proposal.id,
+				kind: proposal.status === "pending" ? "pending" : "reviewed",
+			}
+		: null;
 }
 
 function MatchStatusNavigation({
@@ -368,9 +370,16 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const [query, setQuery] = useState("");
 	const [page, setPage] = useState(0);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [selectAllFilter, setSelectAllFilter] = useState(false);
 	const [correction, setCorrection] = useState<Proposal | null>(null);
-	const [removalRequest, setRemovalRequest] = useState<RemovalTarget[] | null>(
+	const [removalRequest, setRemovalRequest] = useState<RemovalRequest | null>(
 		null,
+	);
+	const { data: activeTasks } = useQuery(
+		orpc.tasks.getActiveTasks.queryOptions(),
+	);
+	const analysisTask = (activeTasks ?? []).find(
+		(task: Task) => task.type === "read-listen-match-analysis",
 	);
 	const debouncedQuery = useDebounce(query.trim(), 300);
 	const hasSearch = debouncedQuery.length > 0;
@@ -396,6 +405,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const allPageSelected =
 		selectableIds.length > 0 &&
 		selectableIds.every((proposalId) => selected.has(proposalId));
+	const headerChecked = selectAllFilter || allPageSelected;
 	const somePageSelected = selectableIds.some((proposalId) =>
 		selected.has(proposalId),
 	);
@@ -403,15 +413,21 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		selected.has(proposal.id),
 	);
 	const hasCompetingSelections =
+		selectAllFilter ||
 		new Set(selectedProposals.map((proposal) => proposal.audiobook.uuid)).size <
-		selectedProposals.length;
-	const selectedRemovalTargets = selectedProposals.flatMap((proposal) => {
-		const target = getRemovalTarget(proposal);
-		return target ? [target] : [];
+			selectedProposals.length;
+	const selectionCount = selectAllFilter ? total : selected.size;
+	const selectionTarget = getReviewSelectionTarget({
+		selectAllFilter,
+		status,
+		query: debouncedQuery,
+		selected,
 	});
+	const removingPendingResults = removalRequest?.kind === "pending";
 
 	function clearSelection() {
 		setSelected(new Set());
+		setSelectAllFilter(false);
 	}
 
 	function changeStatus(value: ReviewStatus) {
@@ -422,10 +438,11 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 
 	function changePage(nextPage: number) {
 		setPage(nextPage - 1);
-		clearSelection();
+		if (!selectAllFilter) clearSelection();
 	}
 
 	function toggleProposal(proposalId: string) {
+		setSelectAllFilter(false);
 		setSelected((current) => {
 			const next = new Set(current);
 			if (next.has(proposalId)) next.delete(proposalId);
@@ -435,6 +452,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	}
 
 	function togglePageSelection() {
+		setSelectAllFilter(false);
 		setSelected((current) => {
 			const next = new Set(current);
 			if (selectableIds.every((proposalId) => next.has(proposalId))) {
@@ -446,30 +464,43 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		});
 	}
 
+	function requestRemoval(targets: RemovalTarget[]) {
+		if (targets.length === 0) return;
+		setRemovalRequest({
+			target: {
+				proposalUuids: targets.map((target) => target.proposalUuid),
+			},
+			count: targets.length,
+			kind: targets.every((target) => target.kind === "pending")
+				? "pending"
+				: "reviewed",
+		});
+	}
+
 	async function invalidateMatches() {
 		await queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
 	}
 
-	const batchMutation = useMutation({
-		mutationFn: () =>
-			analyzeAllMatchProposals((input) =>
-				client.readListen.generateMatchProposalBatch(input),
-			),
-		onSuccess: async (result) => {
+	const analysisMutation = useMutation({
+		mutationFn: () => client.readListen.startMatchAnalysis({}),
+		onSuccess: (result) => {
 			toast.success(
-				m["read_listen.match_batch_completed"]({
-					processed: result.processedCount,
-					proposals: result.proposalCount,
-				}),
+				result.reused
+					? m["read_listen.match_analysis_reused"]()
+					: m["read_listen.match_analysis_started"]({
+							count: result.candidateCount,
+						}),
 			);
 			setStatus("pending");
 			setPage(0);
 			clearSelection();
-			await invalidateMatches();
+			void queryClient.invalidateQueries({
+				queryKey: orpc.tasks.getActiveTasks.queryOptions().queryKey,
+			});
 		},
 		onError: (error) =>
 			toast.error(
-				getErrorMessage(error, m["read_listen.match_batch_failed"]()),
+				getErrorMessage(error, m["read_listen.match_analysis_start_failed"]()),
 			),
 	});
 	const decisionMutation = useMutation({
@@ -502,21 +533,20 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	});
 	const bulkDecisionMutation = useMutation({
 		mutationFn: (input: {
-			proposalUuids: string[];
+			target: BulkTarget;
 			action: "approve" | "reject";
+			count: number;
 		}) =>
-			Promise.all(
-				input.proposalUuids.map((proposalUuid) =>
-					client.readListen.decideMatchProposal({
-						proposalUuid,
-						action: input.action,
-					}),
-				),
-			),
+			client.readListen.decideMatchProposals({
+				target: input.target as
+					| { proposalUuids: string[] }
+					| { filter: { status: "pending"; query?: string } },
+				action: input.action,
+			}),
 		onSuccess: (_, input) => {
 			toast.success(
 				m["read_listen.bulk_decision_completed"]({
-					count: input.proposalUuids.length,
+					count: input.count,
 				}),
 			);
 			setPage(0);
@@ -531,20 +561,10 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		onSettled: invalidateMatches,
 	});
 	const removePairMutation = useMutation({
-		mutationFn: (targets: RemovalTarget[]) =>
-			Promise.all(
-				targets.map((target) =>
-					target.kind === "pair"
-						? client.readListen.remove({ pairUuid: target.uuid })
-						: client.readListen.removeReviewedMatch({
-								proposalUuid: target.uuid,
-							}),
-				),
-			),
-		onSuccess: (_, targets) => {
-			toast.success(
-				m["read_listen.matches_removed"]({ count: targets.length }),
-			);
+		mutationFn: (request: RemovalRequest) =>
+			client.readListen.removeReviewedMatches(request.target),
+		onSuccess: (_, request) => {
+			toast.success(m["read_listen.matches_removed"]({ count: request.count }));
 			setRemovalRequest(null);
 			clearSelection();
 		},
@@ -556,6 +576,8 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		onSettled: invalidateMatches,
 	});
 	const busy =
+		Boolean(analysisTask) ||
+		analysisMutation.isPending ||
 		decisionMutation.isPending ||
 		bulkDecisionMutation.isPending ||
 		removePairMutation.isPending;
@@ -584,10 +606,10 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 					variant="ghost"
 					size="sm"
 					className="ms-auto"
-					disabled={batchMutation.isPending}
-					onClick={() => batchMutation.mutate()}
+					disabled={Boolean(analysisTask) || analysisMutation.isPending}
+					onClick={() => analysisMutation.mutate()}
 				>
-					{batchMutation.isPending ? (
+					{analysisTask || analysisMutation.isPending ? (
 						<CircleNotch
 							aria-hidden="true"
 							data-icon="inline-start"
@@ -597,7 +619,12 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 						<Sparkle aria-hidden="true" data-icon="inline-start" />
 					)}
 					<span className="hidden sm:inline">
-						{m["read_listen.analyze_next_batch"]()}
+						{analysisTask
+							? m["read_listen.match_analysis_progress"]({
+									done: analysisTask.completedJobs,
+									total: analysisTask.totalJobs,
+								})
+							: m["read_listen.analyze_next_batch"]()}
 					</span>
 				</Button>
 			</header>
@@ -764,8 +791,8 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 								<div className="sticky top-0 z-10 flex items-center border-border/60 border-b bg-background text-muted-foreground text-xs">
 									<div className="flex w-11 shrink-0 justify-center">
 										<Checkbox
-											checked={allPageSelected}
-											indeterminate={!allPageSelected && somePageSelected}
+											checked={headerChecked}
+											indeterminate={!headerChecked && somePageSelected}
 											onCheckedChange={togglePageSelection}
 											aria-label={m["read_listen.select_page_matches"]()}
 										/>
@@ -800,12 +827,15 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 												key={proposal.id}
 												className={cn(
 													"group relative isolate flex items-stretch border-border/40 border-b transition-colors hover:bg-muted/20",
-													selected.has(proposal.id) && "bg-primary/6",
+													(selectAllFilter || selected.has(proposal.id)) &&
+														"bg-primary/6",
 												)}
 											>
 												<div className="flex w-11 shrink-0 items-center justify-center">
 													<Checkbox
-														checked={selected.has(proposal.id)}
+														checked={
+															selectAllFilter || selected.has(proposal.id)
+														}
 														disabled={!canSelect || busy}
 														onCheckedChange={() => toggleProposal(proposal.id)}
 														aria-label={m["read_listen.select_match"]({
@@ -914,6 +944,19 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 																				<X aria-hidden="true" />
 																				{m["read_listen.reject_match"]()}
 																			</DropdownMenuItem>
+																			<DropdownMenuItem
+																				variant="destructive"
+																				onClick={() => {
+																					const target =
+																						getRemovalTarget(proposal);
+																					if (target) requestRemoval([target]);
+																				}}
+																			>
+																				<Trash aria-hidden="true" />
+																				{m[
+																					"read_listen.remove_pending_result"
+																				]()}
+																			</DropdownMenuItem>
 																		</DropdownMenuGroup>
 																	</DropdownMenuContent>
 																</DropdownMenu>
@@ -926,7 +969,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 																	disabled={busy}
 																	onClick={() => {
 																		const target = getRemovalTarget(proposal);
-																		if (target) setRemovalRequest([target]);
+																		if (target) requestRemoval([target]);
 																	}}
 																>
 																	<Trash
@@ -949,7 +992,7 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 						)}
 					</div>
 
-					{selected.size > 0 && (
+					{selectionCount > 0 && (
 						<div
 							role="toolbar"
 							aria-label={m["read_listen.bulk_actions"]()}
@@ -959,8 +1002,19 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 								aria-live="polite"
 								className="ps-1 font-medium text-sm tabular-nums"
 							>
-								{m["read_listen.selected_matches"]({ count: selected.size })}
+								{m["read_listen.selected_matches"]({ count: selectionCount })}
 							</span>
+							{allPageSelected &&
+								total > selectableIds.length &&
+								!selectAllFilter && (
+									<button
+										type="button"
+										onClick={() => setSelectAllFilter(true)}
+										className="font-medium text-primary text-sm hover:underline"
+									>
+										{m["read_listen.select_all_results"]({ count: total })}
+									</button>
+								)}
 							{status === "pending" ? (
 								<>
 									<Button
@@ -968,8 +1022,9 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 										disabled={busy || hasCompetingSelections}
 										onClick={() =>
 											bulkDecisionMutation.mutate({
-												proposalUuids: [...selected],
+												target: selectionTarget,
 												action: "approve",
+												count: selectionCount,
 											})
 										}
 									>
@@ -982,21 +1037,43 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 										disabled={busy}
 										onClick={() =>
 											bulkDecisionMutation.mutate({
-												proposalUuids: [...selected],
+												target: selectionTarget,
 												action: "reject",
+												count: selectionCount,
 											})
 										}
 									>
 										<X aria-hidden="true" data-icon="inline-start" />
 										{m["read_listen.reject_selected"]()}
 									</Button>
+									<Button
+										size="sm"
+										variant="destructive"
+										disabled={busy}
+										onClick={() =>
+											setRemovalRequest({
+												target: selectionTarget,
+												count: selectionCount,
+												kind: "pending",
+											})
+										}
+									>
+										<Trash aria-hidden="true" data-icon="inline-start" />
+										{m["read_listen.remove_selected_results"]()}
+									</Button>
 								</>
 							) : (
 								<Button
 									size="sm"
 									variant="destructive"
-									disabled={busy || selectedRemovalTargets.length === 0}
-									onClick={() => setRemovalRequest(selectedRemovalTargets)}
+									disabled={busy}
+									onClick={() =>
+										setRemovalRequest({
+											target: selectionTarget,
+											count: selectionCount,
+											kind: "reviewed",
+										})
+									}
 								>
 									<Trash aria-hidden="true" data-icon="inline-start" />
 									{m["read_listen.remove_selected_matches"]()}
@@ -1106,10 +1183,20 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 				<Modal
 					open
 					onOpenChange={(open) => !open && setRemovalRequest(null)}
-					title={m["read_listen.remove_matches_title"]()}
-					description={m["read_listen.remove_matches_description"]({
-						count: removalRequest.length,
-					})}
+					title={
+						removingPendingResults
+							? m["read_listen.remove_pending_results_title"]()
+							: m["read_listen.remove_matches_title"]()
+					}
+					description={
+						removingPendingResults
+							? m["read_listen.remove_pending_results_description"]({
+									count: removalRequest.count,
+								})
+							: m["read_listen.remove_matches_description"]({
+									count: removalRequest.count,
+								})
+					}
 					footer={
 						<>
 							<Button
@@ -1131,7 +1218,9 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 										className="animate-spin motion-reduce:animate-none"
 									/>
 								)}
-								{m["read_listen.remove_reviewed_confirm"]()}
+								{removingPendingResults
+									? m["read_listen.remove_pending_confirm"]()
+									: m["read_listen.remove_reviewed_confirm"]()}
 							</Button>
 						</>
 					}

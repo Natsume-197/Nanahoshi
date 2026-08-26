@@ -2321,6 +2321,7 @@
 		"remove_selected_matches": "Remove selected pairings",
 		"clear_selection": "Clear selection",
 		"select_page_matches": "Select matches on this page",
+		"select_all_results": "Select all {count} results",
 		"select_match": "Select match for {title}",
 		"bulk_decision_completed": "Matches processed: {count}",
 		"decision_approve": "Approved",
@@ -2329,6 +2330,20 @@
 		"pairing_removed": "Pairing removed",
 		"remove_match": "Remove pairing",
 		"remove_review": "Remove review",
+		"remove_pending_result": "Remove result for retry",
+		"remove_selected_results": "Remove selected results",
+		"remove_pending_confirm": "Remove and allow retry",
+		"remove_pending_results_title": "Remove pending results?",
+		"remove_pending_results_description": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "This removes {count} proposal and its evaluation. The audiobook will be analyzed again next time.",
+					"countPlural=other": "This removes {count} proposals and their evaluations. The audiobooks will be analyzed again next time."
+				}
+			}
+		],
 		"remove_reviewed_confirm": "Remove from Reviewed",
 		"remove_matches_title": "Remove from Reviewed?",
 		"remove_matches_description": [
@@ -2355,8 +2370,10 @@
 		"go_to_page": "Go to page {page}",
 		"back_to_pairings": "Back to pairings",
 		"analyze_next_batch": "Analyze all audiobooks",
-		"match_batch_completed": "Audiobooks analyzed: {processed} · proposals: {proposals}",
-		"match_batch_failed": "Unable to analyze all audiobooks. Try again to continue.",
+		"match_analysis_started": "Analysis started for {count} audiobooks.",
+		"match_analysis_reused": "The analysis was already running.",
+		"match_analysis_progress": "Analyzing {done}/{total}",
+		"match_analysis_start_failed": "Unable to start audiobook analysis.",
 		"no_match_proposals": "No matches to review",
 		"no_match_proposals_description": "Analyze all audiobooks to generate new suggestions.",
 		"match_score": "{score}% match",

@@ -18,19 +18,20 @@ import {
 import {
 	type ReadListenAlignmentRow,
 	type ReadListenGenerationRow,
-	type ReadListenMatchProposalPageRow,
-	type ReadListenMatchProposalRow,
 	type ReadListenPairRow,
 	type ReadListenPublication,
 	type ReadListenRepository,
 	readListenRepository,
 } from "./read-listen.repository";
+import { ReadListenMatchReviewProjection } from "./read-listen-match-review-projection";
 import {
-	deriveMatchSearchQueries,
-	READ_LISTEN_MATCHER_VERSION,
-	READ_LISTEN_PROPOSAL_THRESHOLD,
-	scoreReadListenMatch,
-} from "./read-listen-matcher";
+	buildReadListenMatchProposal,
+	type ReadListenMatchProposalView,
+	type ReadListenPublicationView,
+	toReadListenPublicationView as toPublicationView,
+} from "./read-listen-match-view";
+import { READ_LISTEN_MATCHER_VERSION } from "./read-listen-matcher";
+import { ReadListenProposalGeneration } from "./read-listen-proposal-generation";
 import {
 	discoverTimedTextCandidates,
 	resolveTimedTextSelection,
@@ -54,15 +55,11 @@ type ReadListenStore = Pick<
 	| "getPairSources"
 	| "upsertAlignment"
 	| "createPair"
-	| "deleteReviewedMatch"
 	| "deletePairAndMatchHistory"
 	| "createMatchProposals"
 	| "recordMatchEvaluation"
-	| "listUnevaluatedCanonicalAudiobooks"
 	| "listMatchProposalRows"
 	| "listMatchProposalPage"
-	| "getMatchProposalRow"
-	| "decideMatchProposal"
 >;
 
 type SearchPort = {
@@ -105,37 +102,10 @@ export type ReadListenAlignmentView =
 				importedAt: string;
 			};
 	  };
-
-export type ReadListenPublicationView = Omit<
-	ReadListenPublication,
-	"id" | "catalogHash"
->;
-
-export type ReadListenMatchProposalView = {
-	id: string;
-	origin: "matcher" | "manual";
-	score: number | null;
-	confidence: ReadListenMatchProposalRow["confidence"] | null;
-	reasons: string[];
-	warnings: string[];
-	matcherVersion: string | null;
-	status: ReadListenMatchProposalRow["status"];
-	createdAt: string;
-	audiobook: ReadListenPublicationView;
-	ebook: ReadListenPublicationView;
-	decision: {
-		action: "approve" | "reject" | "correct";
-		selectedEbook: ReadListenPublicationView | null;
-		pairUuid: string | null;
-	} | null;
-};
-
-function toPublicationView(
-	publication: ReadListenPublication,
-): ReadListenPublicationView {
-	const { catalogHash: _catalogHash, id: _id, ...view } = publication;
-	return view;
-}
+export type {
+	ReadListenMatchProposalView,
+	ReadListenPublicationView,
+} from "./read-listen-match-view";
 
 function toAlignmentView(
 	alignment: ReadListenAlignmentRow | undefined,
@@ -160,6 +130,9 @@ function toAlignmentView(
 }
 
 export class ReadListenService {
+	private readonly proposalGeneration: ReadListenProposalGeneration;
+	private readonly reviewProjection: ReadListenMatchReviewProjection;
+
 	constructor(
 		private readonly store: ReadListenStore = readListenRepository,
 		private readonly searchPort: SearchPort = {
@@ -195,7 +168,12 @@ export class ReadListenService {
 					await import("./read-listen-generation")
 				).readListenGenerationCoordinator.enqueue(input),
 		},
-	) {}
+	) {
+		this.proposalGeneration = new ReadListenProposalGeneration(store, {
+			searchBooks: searchPort.searchBooks,
+		});
+		this.reviewProjection = new ReadListenMatchReviewProjection(store);
+	}
 
 	private async requirePublication(
 		uuid: string,
@@ -261,242 +239,13 @@ export class ReadListenService {
 		};
 	}
 
-	private buildMatchProposal(
-		row: ReadListenMatchProposalRow,
-		publications: Map<number, ReadListenPublication>,
-	): ReadListenMatchProposalView | null {
-		const audiobook = publications.get(row.audiobookBookId);
-		const ebook = publications.get(row.ebookBookId);
-		if (
-			!audiobook ||
-			!ebook ||
-			audiobook.mediaType !== "audiobook" ||
-			ebook.mediaType !== "ebook"
-		) {
-			return null;
-		}
-		return {
-			id: row.id,
-			origin: "matcher",
-			score: row.score,
-			confidence: row.confidence,
-			reasons: row.reasons,
-			warnings: row.warnings,
-			matcherVersion: row.matcherVersion,
-			status: row.status,
-			createdAt: row.createdAt,
-			audiobook: toPublicationView(audiobook),
-			ebook: toPublicationView(ebook),
-			decision: null,
-		};
-	}
-
-	private buildMatchProposalPageItem(
-		row: ReadListenMatchProposalPageRow,
-		publications: Map<number, ReadListenPublication>,
-	): ReadListenMatchProposalView | null {
-		if (row.origin === "manual") {
-			const audiobook = publications.get(row.audiobookBookId);
-			const ebook = publications.get(row.ebookBookId);
-			if (
-				!audiobook ||
-				!ebook ||
-				audiobook.mediaType !== "audiobook" ||
-				ebook.mediaType !== "ebook"
-			) {
-				return null;
-			}
-			return {
-				id: row.id,
-				origin: "manual",
-				score: null,
-				confidence: null,
-				reasons: [],
-				warnings: [],
-				matcherVersion: null,
-				status: "decided",
-				createdAt: row.createdAt,
-				audiobook: toPublicationView(audiobook),
-				ebook: toPublicationView(ebook),
-				decision: {
-					action: "approve",
-					selectedEbook: toPublicationView(ebook),
-					pairUuid: row.pairId,
-				},
-			};
-		}
-		const proposal = this.buildMatchProposal(row, publications);
-		if (!proposal || !row.decisionAction) return proposal;
-		const selectedEbook = row.selectedEbookBookId
-			? publications.get(row.selectedEbookBookId)
-			: undefined;
-		if (
-			row.selectedEbookBookId !== null &&
-			selectedEbook?.mediaType !== "ebook"
-		) {
-			return null;
-		}
-		return {
-			...proposal,
-			decision: {
-				action: row.decisionAction,
-				selectedEbook:
-					selectedEbook?.mediaType === "ebook"
-						? toPublicationView(selectedEbook)
-						: null,
-				pairUuid: row.pairId,
-			},
-		};
-	}
-
 	async generateMatchProposals(input: {
 		audiobookUuid: string;
 		limit: number;
 		serverId: string;
 		scope: LibraryScope;
 	}): Promise<ReadListenMatchProposalView[]> {
-		const audiobook = await this.requirePublication(
-			input.audiobookUuid,
-			input.serverId,
-			input.scope,
-		);
-		if (audiobook.mediaType !== "audiobook") {
-			throw new BadRequestError("Match proposals must start from an audiobook");
-		}
-
-		const searchQuerySources = [
-			audiobook.title,
-			audiobook.filename.replace(/\.[^.]+$/u, ""),
-			...audiobook.series.map((item) => item.name),
-		];
-		const searchQueries = [
-			...new Set(
-				searchQuerySources
-					.flatMap(deriveMatchSearchQueries)
-					.map((query) => query.trim())
-					.filter(Boolean),
-			),
-		].slice(0, 4);
-		const searchResults = await Promise.all(
-			searchQueries.map((query) =>
-				this.searchPort.searchBooks({
-					query,
-					limit: 30,
-					serverId: input.serverId,
-					accessibleLibraryIds: input.scope,
-				}),
-			),
-		);
-		const candidateUuids = [
-			...new Set(
-				searchResults.flatMap((result) => result.books.map((hit) => hit.uuid)),
-			),
-		];
-		const candidates = await this.store.listPublicationsByUuids(
-			candidateUuids,
-			input.serverId,
-			input.scope,
-		);
-		const pairedEbookIds = new Set(
-			(await this.store.listPairRows(audiobook.id, input.serverId)).map(
-				(row) => row.ebookBookId,
-			),
-		);
-		const evaluated = candidates
-			.filter(
-				(candidate) =>
-					candidate.mediaType === "ebook" && !pairedEbookIds.has(candidate.id),
-			)
-			.map((ebook) => ({
-				ebook,
-				result: scoreReadListenMatch(audiobook, ebook),
-			}));
-		const scored = evaluated
-			.filter(
-				({ result: match }) =>
-					match.eligible && match.score >= READ_LISTEN_PROPOSAL_THRESHOLD,
-			)
-			.sort((left, right) => right.result.score - left.result.score)
-			.slice(0, input.limit);
-		const eligibleScores = evaluated
-			.filter(({ result }) => result.eligible)
-			.map(({ result }) => result.score);
-
-		await this.store.createMatchProposals(
-			scored.map(({ ebook, result: match }) => ({
-				serverId: input.serverId,
-				audiobookBookId: audiobook.id,
-				ebookBookId: ebook.id,
-				score: match.score,
-				confidence: match.confidence,
-				reasons: match.reasons,
-				warnings: match.warnings,
-				matcherVersion: READ_LISTEN_MATCHER_VERSION,
-			})),
-		);
-		await this.store.recordMatchEvaluation({
-			serverId: input.serverId,
-			audiobookBookId: audiobook.id,
-			matcherVersion: READ_LISTEN_MATCHER_VERSION,
-			candidateCount: evaluated.length,
-			proposalCount: scored.length,
-			maxScore: eligibleScores.length ? Math.max(...eligibleScores) : null,
-		});
-		const rows = (
-			await this.store.listMatchProposalRows(input.serverId, {
-				status: "pending",
-				audiobookBookId: audiobook.id,
-				matcherVersion: READ_LISTEN_MATCHER_VERSION,
-				limit: 50,
-			})
-		).slice(0, input.limit);
-		const publications = new Map(
-			[audiobook, ...candidates].map((publication) => [
-				publication.id,
-				publication,
-			]),
-		);
-		return rows.flatMap((row) => {
-			const view = this.buildMatchProposal(row, publications);
-			return view ? [view] : [];
-		});
-	}
-
-	async listMatchBatchCandidates(
-		serverId: string,
-		scope: LibraryScope,
-		limit: number,
-	): Promise<ReadListenPublicationView[]> {
-		return (
-			await this.store.listUnevaluatedCanonicalAudiobooks(
-				serverId,
-				scope,
-				READ_LISTEN_MATCHER_VERSION,
-				limit,
-			)
-		).map(toPublicationView);
-	}
-
-	async generateMatchProposalBatch(input: {
-		audiobookUuids: string[];
-		serverId: string;
-		scope: LibraryScope;
-	}) {
-		let proposalCount = 0;
-		for (const audiobookUuid of input.audiobookUuids) {
-			const proposals = await this.generateMatchProposals({
-				audiobookUuid,
-				limit: 5,
-				serverId: input.serverId,
-				scope: input.scope,
-			});
-			proposalCount += proposals.length;
-		}
-		return {
-			processedCount: input.audiobookUuids.length,
-			proposalCount,
-			matcherVersion: READ_LISTEN_MATCHER_VERSION,
-		};
+		return this.proposalGeneration.generate(input);
 	}
 
 	async listMatchProposals(input: {
@@ -529,7 +278,7 @@ export class ReadListenService {
 			publications.map((publication) => [publication.id, publication]),
 		);
 		return rows.flatMap((row) => {
-			const view = this.buildMatchProposal(row, byId);
+			const view = buildReadListenMatchProposal(row, byId);
 			return view ? [view] : [];
 		});
 	}
@@ -542,137 +291,10 @@ export class ReadListenService {
 		serverId: string;
 		scope: LibraryScope;
 	}): Promise<{ items: ReadListenMatchProposalView[]; total: number }> {
-		const rows = await this.store.listMatchProposalPage(
-			input.serverId,
-			input.scope,
-			{
-				status: input.status,
-				query: input.query,
-				offset: input.offset,
-				limit: input.limit,
-				matcherVersion:
-					input.status === "pending" ? READ_LISTEN_MATCHER_VERSION : undefined,
-			},
-		);
-		const publicationIds = [
-			...new Set(
-				rows.flatMap((row) => [
-					row.audiobookBookId,
-					row.ebookBookId,
-					...(row.selectedEbookBookId ? [row.selectedEbookBookId] : []),
-				]),
-			),
-		];
-		const publications = await this.store.listPublicationsByIds(
-			publicationIds,
-			input.serverId,
-			input.scope,
-		);
-		const byId = new Map(
-			publications.map((publication) => [publication.id, publication]),
-		);
-		return {
-			items: rows.flatMap((row) => {
-				const item = this.buildMatchProposalPageItem(row, byId);
-				return item ? [item] : [];
-			}),
-			total: rows[0]?.totalCount ?? 0,
-		};
-	}
-
-	async getMatchProposalForReview(
-		proposalUuid: string,
-		serverId: string,
-		scope: LibraryScope,
-	): Promise<ReadListenMatchProposalView> {
-		const row = await this.store.getMatchProposalRow(proposalUuid, serverId);
-		if (!row) throw new NotFoundError("Read & Listen match proposal not found");
-		const publications = await this.store.listPublicationsByIds(
-			[row.audiobookBookId, row.ebookBookId],
-			serverId,
-			scope,
-		);
-		const view = this.buildMatchProposal(
-			row,
-			new Map(publications.map((publication) => [publication.id, publication])),
-		);
-		if (!view)
-			throw new NotFoundError("Read & Listen match proposal not found");
-		return view;
-	}
-
-	async decideMatchProposal(input: {
-		proposalUuid: string;
-		action: "approve" | "reject" | "correct";
-		selectedEbookUuid?: string;
-		decidedByUserId: string;
-		serverId: string;
-		scope: LibraryScope;
-	}) {
-		const proposal = await this.store.getMatchProposalRow(
-			input.proposalUuid,
-			input.serverId,
-		);
-		if (!proposal)
-			throw new NotFoundError("Read & Listen match proposal not found");
-		if (proposal.status !== "pending") {
-			throw new ConflictError(
-				"Read & Listen match proposal was already decided",
-			);
-		}
-		const proposalSources = await this.store.listPublicationsByIds(
-			[proposal.audiobookBookId, proposal.ebookBookId],
-			input.serverId,
-			input.scope,
-		);
-		if (
-			!this.buildMatchProposal(
-				proposal,
-				new Map(
-					proposalSources.map((publication) => [publication.id, publication]),
-				),
-			)
-		) {
-			throw new NotFoundError("Read & Listen match proposal not found");
-		}
-
-		let selectedEbookBookId: number | null = null;
-		if (input.action === "approve") selectedEbookBookId = proposal.ebookBookId;
-		if (input.action === "correct") {
-			if (!input.selectedEbookUuid) {
-				throw new BadRequestError("A corrected proposal requires an ebook");
-			}
-			const selected = await this.requirePublication(
-				input.selectedEbookUuid,
-				input.serverId,
-				input.scope,
-			);
-			if (selected.mediaType !== "ebook") {
-				throw new BadRequestError("A corrected match must select an ebook");
-			}
-			if (selected.id === proposal.ebookBookId) {
-				throw new BadRequestError(
-					"Approve the proposal when the suggested ebook is correct",
-				);
-			}
-			selectedEbookBookId = selected.id;
-		}
-
-		const outcome = await this.store.decideMatchProposal({
-			proposal,
-			action: input.action,
-			selectedEbookBookId,
-			decidedByUserId: input.decidedByUserId,
+		return this.reviewProjection.list({
+			...input,
+			editableScope: input.scope,
 		});
-		if (!outcome) {
-			throw new ConflictError(
-				"Read & Listen match proposal was already decided",
-			);
-		}
-		return {
-			decision: outcome.decision,
-			pairUuid: outcome.pair?.id ?? null,
-		};
 	}
 
 	async getPairings(
@@ -1141,25 +763,6 @@ export class ReadListenService {
 			throw new NotFoundError("Read & Listen pair not found");
 		}
 		return pair;
-	}
-
-	async removeReviewedMatch(
-		proposalUuid: string,
-		serverId: string,
-		scope: LibraryScope,
-	): Promise<{ id: string }> {
-		const proposal = await this.getMatchProposalForReview(
-			proposalUuid,
-			serverId,
-			scope,
-		);
-		if (
-			proposal.status !== "decided" ||
-			!(await this.store.deleteReviewedMatch(proposalUuid, serverId))
-		) {
-			throw new NotFoundError("Rejected Read & Listen match not found");
-		}
-		return { id: proposal.id };
 	}
 }
 

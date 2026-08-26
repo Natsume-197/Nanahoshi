@@ -45,7 +45,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 	},
 }));
 
-const { readListenMatchEvaluation, readListenMatchProposal } = await import(
+const { readListenMatchEvaluation } = await import(
 	"@nanahoshi-v2/db/schema/general"
 );
 const { ReadListenRepository } = await import("../read-listen.repository");
@@ -82,20 +82,18 @@ describe("ReadListenRepository.listMatchProposalPage", () => {
 		expect(query).toContain("FROM read_listen_pair rp");
 		expect(query).toContain("AND NOT EXISTS");
 	});
-});
 
-describe("ReadListenRepository.deleteReviewedMatch", () => {
-	beforeEach(() => {
-		deletedTables.length = 0;
-	});
-
-	test("deletes the rejected proposal and its audiobook evaluation", async () => {
+	test("applies edit scope to corrected ebooks before counting the page", async () => {
 		const repository = new ReadListenRepository();
 
-		expect(await repository.deleteReviewedMatch("proposal-1", "server-1")).toBe(
-			true,
-		);
-		expect(deletedTables).toContain(readListenMatchProposal);
-		expect(deletedTables).toContain(readListenMatchEvaluation);
+		await repository.listMatchProposalPage("server-1", [7], {
+			status: "decided",
+			offset: 0,
+			limit: 10,
+		});
+
+		const query = new PgDialect().sqlToQuery(executedQuery as never).sql;
+		expect(query).toContain("selected_ebook.library_id");
+		expect(query).toContain("selected_el.server_id");
 	});
 });

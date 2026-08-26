@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DecideReadListenMatchProposalInput,
+	DecideReadListenMatchProposalsInput,
 	GenerateReadListenAlignmentInput,
 } from "../read-listen.model";
 
@@ -33,6 +34,35 @@ describe("GenerateReadListenAlignmentInput", () => {
 				verifyTimedText: true,
 			}),
 		).toThrow("cannot verify timed-text");
+	});
+});
+
+describe("DecideReadListenMatchProposalsInput", () => {
+	test("accepts one bounded atomic bulk decision", () => {
+		expect(
+			DecideReadListenMatchProposalsInput.parse({
+				target: { proposalUuids: [pairUuid] },
+				action: "approve",
+			}),
+		).toEqual({ target: { proposalUuids: [pairUuid] }, action: "approve" });
+		expect(() =>
+			DecideReadListenMatchProposalsInput.parse({
+				target: { proposalUuids: [] },
+				action: "reject",
+			}),
+		).toThrow();
+	});
+
+	test("accepts all pending results under the active filter", () => {
+		expect(
+			DecideReadListenMatchProposalsInput.parse({
+				target: { filter: { status: "pending", query: "Dune" } },
+				action: "reject",
+			}),
+		).toEqual({
+			target: { filter: { status: "pending", query: "Dune" } },
+			action: "reject",
+		});
 	});
 });
 

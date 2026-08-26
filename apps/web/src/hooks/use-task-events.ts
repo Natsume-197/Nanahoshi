@@ -33,6 +33,10 @@ const RECOMMENDATION_TASK_TYPES: ReadonlySet<string> = new Set([
 	"recommendations-rebuild-global",
 	"recommendations-feeds",
 ]);
+const READ_LISTEN_TASK_TYPES: ReadonlySet<string> = new Set([
+	"read-listen-generation",
+	"read-listen-match-analysis",
+]);
 
 let lastContentRefresh = 0;
 
@@ -65,7 +69,7 @@ function refreshRecommendationsForTask(task: Task) {
 }
 
 function refreshReadListenForTask(task: Task) {
-	if (task.type !== "read-listen-generation" || task.status === "running") {
+	if (!READ_LISTEN_TASK_TYPES.has(task.type) || task.status === "running") {
 		return;
 	}
 	queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });

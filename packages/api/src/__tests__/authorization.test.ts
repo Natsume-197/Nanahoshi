@@ -145,6 +145,8 @@ const deniedBookUuids = new Set<string>();
 mock.module("../auth/access.repository", () => ({
 	getUserPermissionContext: mock(async () => permissionContext),
 	getAccessibleLibraryIds: mock(async () => accessibleLibraryIds),
+	getLibraryIdsForBookAction: mock(async () => accessibleLibraryIds),
+	getCurrentLibraryIdsForBookAction: mock(async () => accessibleLibraryIds),
 	getReadContextCached: mock(async () => ({
 		pc: permissionContext,
 		accessibleLibraryIds,

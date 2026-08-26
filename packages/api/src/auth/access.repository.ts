@@ -193,6 +193,59 @@ export async function getAccessibleLibraryIds(
 	);
 }
 
+/** Library ids where the user may perform one book action. Unlike read scope,
+ * this respects per-library overwrites for catalog-management operations. */
+export async function getLibraryIdsForBookAction(
+	userId: string,
+	serverId: string,
+	pc: PermissionContext,
+	action: string,
+): Promise<number[] | "ALL"> {
+	const libraries = await db
+		.select({ id: library.id })
+		.from(library)
+		.where(eq(library.serverId, serverId));
+	if (libraries.length === 0) return [];
+	if (pc.isAppOwner || pc.isOrgOwner || pc.hasAdministrator) return "ALL";
+
+	const overwrites = await fetchRelevantOverwrites(userId, pc, { serverId });
+	const byLibrary = new Map<number, OverwriteInput[]>();
+	for (const overwrite of overwrites) {
+		const rows = byLibrary.get(overwrite.libraryId) ?? [];
+		rows.push(overwrite);
+		byLibrary.set(overwrite.libraryId, rows);
+	}
+	const allowed = libraries
+		.filter(({ id }) =>
+			can(
+				pc,
+				buildLibraryOverwrites(byLibrary.get(id) ?? [], pc.roleIds, userId),
+				"book",
+				action,
+			),
+		)
+		.map(({ id }) => id);
+	return allowed.length === libraries.length ? "ALL" : allowed;
+}
+
+/** Fresh background-work authorization without relying on a browser session. */
+export async function getCurrentLibraryIdsForBookAction(
+	userId: string,
+	serverId: string,
+	action: string,
+): Promise<number[] | "ALL"> {
+	const [currentUser] = await db
+		.select({ role: user.role })
+		.from(user)
+		.where(eq(user.id, userId))
+		.limit(1);
+	if (!currentUser) return [];
+	const pc = await getUserPermissionContext(userId, serverId, {
+		isAppOwner: currentUser.role === "admin",
+	});
+	return getLibraryIdsForBookAction(userId, serverId, pc, action);
+}
+
 const readContextCache = new TtlPromiseCache<{
 	pc: PermissionContext;
 	accessibleLibraryIds: number[] | "ALL";

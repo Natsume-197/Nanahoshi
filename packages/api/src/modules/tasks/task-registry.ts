@@ -13,6 +13,7 @@ export type QueueName =
 	| "cover-ingest"
 	| "recommendations"
 	| "bookmeter-sync"
+	| "read-listen-match-analysis"
 	| "read-listen-generation";
 
 export interface TaskTypeDef {
@@ -133,6 +134,13 @@ export const TASK_REGISTRY = {
 	"read-listen-generation": {
 		defaultLabel: "Generating Read & Listen alignment",
 		queue: "read-listen-generation",
+		scope: "server",
+		modifiesContent: false,
+		notifyOnFinish: true,
+	},
+	"read-listen-match-analysis": {
+		defaultLabel: "Analyzing Read & Listen matches",
+		queue: "read-listen-match-analysis",
 		scope: "server",
 		modifiesContent: false,
 		notifyOnFinish: true,

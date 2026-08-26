@@ -120,6 +120,22 @@ _Avoid_: File series, provider series, cross-media membership
 A shared, human-confirmed relationship between one ebook Catalog Record and one audiobook Catalog Record whose source files are intended to be synchronized. It is independent of Catalog Identity, and either record may participate in more than one pair.
 _Avoid_: Same book, duplicate group, attached ebook, personal pairing
 
+**Read & Listen Match Proposal**:
+An explainable, versioned matcher suggestion that one audiobook Catalog Record and one ebook Catalog Record may form a Read & Listen Pair. It never creates a pair without a human decision.
+_Avoid_: Automatic pairing, Catalog Identity verdict, confirmed match
+
+**Read & Listen Match Evaluation**:
+A completed matcher pass for one audiobook Catalog Record under one matcher version, including a pass that produced no Read & Listen Match Proposals.
+_Avoid_: Match proposal, search attempt, analysis batch
+
+**Read & Listen Match Analysis**:
+A human-requested evaluation of every audiobook Catalog Record that person may edit under one matcher version. Completed Read & Listen Match Evaluations remain valid if the analysis later fails or is cancelled.
+_Avoid_: Analysis batch, automatic pairing, alignment generation
+
+**Read & Listen Match Decision**:
+An immutable human approval, rejection, or correction of a Read & Listen Match Proposal. An approval or correction may create a Read & Listen Pair; a rejection never does.
+_Avoid_: Automatic decision, mutable review status, pairing
+
 **Read & Listen Session**:
 A temporary synchronized consumption experience started from either publication in a Read & Listen Pair. It inherits the initiating publication's progress and has no separate progress or recent-activity identity.
 _Avoid_: Read & Listen item, Read & Listen progress, third format

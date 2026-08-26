@@ -695,6 +695,100 @@ export const readListenMatchEvaluation = pgTable(
 	],
 );
 
+export const readListenMatchAnalysisStatusEnum = pgEnum(
+	"read_listen_match_analysis_status",
+	["queued", "running", "completed", "failed", "cancelled"],
+);
+export const readListenMatchAnalysisOutcomeEnum = pgEnum(
+	"read_listen_match_analysis_job_outcome",
+	["completed", "skipped", "failed"],
+);
+
+/** Durable identity and outcome of one human-requested full matcher run. */
+export const readListenMatchAnalysis = pgTable(
+	"read_listen_match_analysis",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		taskId: text("task_id").notNull().unique(),
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		requestedByUserId: text("requested_by_user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		matcherVersion: varchar("matcher_version", { length: 32 }).notNull(),
+		status: readListenMatchAnalysisStatusEnum("status")
+			.default("queued")
+			.notNull(),
+		candidateCount: integer("candidate_count").default(0).notNull(),
+		completedCount: integer("completed_count").default(0).notNull(),
+		skippedCount: integer("skipped_count").default(0).notNull(),
+		failedCount: integer("failed_count").default(0).notNull(),
+		proposalCount: integer("proposal_count").default(0).notNull(),
+		error: text("error"),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		startedAt: timestamp("started_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		finishedAt: timestamp("finished_at", {
+			withTimezone: true,
+			mode: "string",
+		}),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("read_listen_match_analysis_server_idx").on(
+			table.serverId,
+			table.createdAt.desc(),
+		),
+		uniqueIndex("read_listen_match_analysis_active_idx")
+			.on(table.serverId, table.requestedByUserId, table.matcherVersion)
+			.where(sql`${table.status} in ('queued', 'running')`),
+		check(
+			"read_listen_match_analysis_counts_check",
+			sql`${table.candidateCount} >= 0 and ${table.completedCount} >= 0 and ${table.skippedCount} >= 0 and ${table.failedCount} >= 0 and ${table.proposalCount} >= 0 and ${table.completedCount} + ${table.skippedCount} + ${table.failedCount} <= ${table.candidateCount}`,
+		),
+	],
+);
+
+/** Idempotency ledger for one audiobook job within an analysis run. */
+export const readListenMatchAnalysisOutcome = pgTable(
+	"read_listen_match_analysis_outcome",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		analysisId: uuid("analysis_id")
+			.notNull()
+			.references(() => readListenMatchAnalysis.id, { onDelete: "cascade" }),
+		audiobookUuid: uuid("audiobook_uuid").notNull(),
+		outcome: readListenMatchAnalysisOutcomeEnum("outcome").notNull(),
+		proposalCount: integer("proposal_count").default(0).notNull(),
+		error: text("error"),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("read_listen_match_analysis_outcome_job_idx").on(
+			table.analysisId,
+			table.audiobookUuid,
+		),
+	],
+);
+
 export const readListenMatchDecisionActionEnum = pgEnum(
 	"read_listen_match_decision_action",
 	["approve", "reject", "correct"],

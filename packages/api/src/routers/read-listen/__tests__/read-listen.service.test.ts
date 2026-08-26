@@ -493,62 +493,6 @@ describe("ReadListenService", () => {
 		]);
 	});
 
-	test("turns an approval into a pair through the atomic decision operation", async () => {
-		const { service, store } = createHarness();
-		store.getMatchProposalRow.mockResolvedValue(proposalRow);
-		store.decideMatchProposal.mockResolvedValue({
-			decision: {
-				id: "00000000-0000-4000-8000-000000000060",
-				proposalId: proposalRow.id,
-				action: "approve",
-				selectedEbookBookId: ebook.id,
-				decidedByUserId: "user-1",
-				createdAt: "2026-08-08T00:00:00.000Z",
-			},
-			pair: pairRow,
-		});
-
-		const result = await service.decideMatchProposal({
-			proposalUuid: proposalRow.id,
-			action: "approve",
-			decidedByUserId: "user-1",
-			serverId: "server-1",
-			scope: "ALL",
-		});
-
-		expect(store.decideMatchProposal).toHaveBeenCalledWith({
-			proposal: proposalRow,
-			action: "approve",
-			selectedEbookBookId: ebook.id,
-			decidedByUserId: "user-1",
-		});
-		expect(result.pairUuid).toBe(pairRow.id);
-	});
-
-	test("records no-result batch evaluations so they are not processed again", async () => {
-		const { service, store } = createHarness();
-
-		const result = await service.generateMatchProposalBatch({
-			audiobookUuids: [audiobook.uuid],
-			serverId: "server-1",
-			scope: "ALL",
-		});
-
-		expect(result).toEqual({
-			processedCount: 1,
-			proposalCount: 0,
-			matcherVersion: "rules-v4",
-		});
-		expect(store.recordMatchEvaluation).toHaveBeenCalledWith({
-			serverId: "server-1",
-			audiobookBookId: audiobook.id,
-			matcherVersion: "rules-v4",
-			candidateCount: 0,
-			proposalCount: 0,
-			maxScore: null,
-		});
-	});
-
 	test("does not expose a pair when either endpoint is outside the caller scope", async () => {
 		const { service, store } = createHarness();
 		store.listPairRows.mockResolvedValue([pairRow]);
@@ -570,26 +514,6 @@ describe("ReadListenService", () => {
 			"server-1",
 		);
 		expect(result.id).toBe(pairRow.id);
-	});
-
-	test("removes a rejected reviewed match so it can be analyzed again", async () => {
-		const { service, store } = createHarness();
-		store.getMatchProposalRow.mockResolvedValue({
-			...proposalRow,
-			status: "decided",
-		});
-
-		const result = await service.removeReviewedMatch(
-			proposalRow.id,
-			"server-1",
-			"ALL",
-		);
-
-		expect(store.deleteReviewedMatch).toHaveBeenCalledWith(
-			proposalRow.id,
-			"server-1",
-		);
-		expect(result.id).toBe(proposalRow.id);
 	});
 
 	test("reports a source-verified imported alignment as ready", async () => {

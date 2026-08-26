@@ -30,9 +30,7 @@ export const GenerateReadListenMatchProposalsInput = z.object({
 	limit: z.number().int().min(1).max(10).default(5),
 });
 
-export const GenerateReadListenMatchProposalBatchInput = z.object({
-	limit: z.number().int().min(1).max(25).default(10),
-});
+export const StartReadListenMatchAnalysisInput = z.object({});
 
 export const ListReadListenMatchProposalsInput = z.object({
 	status: z.enum(["pending", "decided", "superseded"]).default("pending"),
@@ -54,6 +52,19 @@ export const DecideReadListenMatchProposalInput = z.discriminatedUnion(
 	],
 );
 
+export const DecideReadListenMatchProposalsInput = z.object({
+	target: z.union([
+		z.object({ proposalUuids: z.array(z.string().uuid()).min(1).max(50) }),
+		z.object({
+			filter: z.object({
+				status: z.literal("pending"),
+				query: z.string().trim().max(200).optional(),
+			}),
+		}),
+	]),
+	action: z.enum(["approve", "reject"]),
+});
+
 export const RemoveReadListenPairInput = z.object({
 	pairUuid: z.string().uuid(),
 });
@@ -61,6 +72,16 @@ export const RemoveReadListenPairInput = z.object({
 export const RemoveReadListenReviewedMatchInput = z.object({
 	proposalUuid: z.string().uuid(),
 });
+
+export const RemoveReadListenReviewedMatchesInput = z.union([
+	z.object({ proposalUuids: z.array(z.string().uuid()).min(1).max(50) }),
+	z.object({
+		filter: z.object({
+			status: z.enum(["pending", "decided"]),
+			query: z.string().trim().max(200).optional(),
+		}),
+	}),
+]);
 
 export const ImportExistingReadListenAlignmentInput = z.object({
 	pairUuid: z.string().uuid(),

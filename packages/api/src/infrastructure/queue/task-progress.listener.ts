@@ -13,6 +13,7 @@ import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "./queues/ranobedb-import.queue";
 import { readListenGenerationQueue } from "./queues/read-listen-generation.queue";
+import { readListenMatchAnalysisQueue } from "./queues/read-listen-match-analysis.queue";
 import { recommendationsQueue } from "./queues/recommendations.queue";
 import { sendToKindleQueue } from "./queues/send-to-kindle.queue";
 import { redis } from "./redis";
@@ -38,6 +39,7 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "recommendations", queue: recommendationsQueue },
 	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
 	{ name: "read-listen-generation", queue: readListenGenerationQueue },
+	{ name: "read-listen-match-analysis", queue: readListenMatchAnalysisQueue },
 ];
 
 function readTaskId(returnvalue: unknown): string | undefined {

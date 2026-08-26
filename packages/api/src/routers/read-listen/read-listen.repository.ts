@@ -11,6 +11,8 @@ import {
 	libraryPath,
 	readListenAlignment,
 	readListenGeneration,
+	readListenMatchAnalysis,
+	readListenMatchAnalysisOutcome,
 	readListenMatchDecision,
 	readListenMatchEvaluation,
 	readListenMatchProposal,
@@ -62,6 +64,8 @@ export type ReadListenMatchProposalRow =
 	typeof readListenMatchProposal.$inferSelect;
 export type ReadListenMatchDecisionRow =
 	typeof readListenMatchDecision.$inferSelect;
+export type ReadListenMatchAnalysisRow =
+	typeof readListenMatchAnalysis.$inferSelect;
 
 export type ReadListenMatchProposalPageRow =
 	| (ReadListenMatchProposalRow & {
@@ -630,9 +634,9 @@ export class ReadListenRepository {
 		serverId: string,
 		scope: LibraryScope,
 		matcherVersion: string,
-		limit: number,
+		limit?: number,
 	): Promise<ReadListenPublication[]> {
-		const rows = await db
+		let query = db
 			.select({ id: book.id })
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
@@ -668,7 +672,9 @@ export class ReadListenRepository {
 				),
 			)
 			.orderBy(book.id)
-			.limit(limit);
+			.$dynamic();
+		if (limit !== undefined) query = query.limit(limit);
+		const rows = await query;
 		if (rows.length === 0) return [];
 		const publications = await this.listPublications(
 			inArray(
@@ -687,6 +693,163 @@ export class ReadListenRepository {
 				(publication): publication is ReadListenPublication =>
 					publication !== undefined,
 			);
+	}
+
+	async createMatchAnalysisAttempt(input: {
+		taskId: string;
+		serverId: string;
+		requestedByUserId: string;
+		matcherVersion: string;
+		candidateCount: number;
+	}): Promise<{ analysis: ReadListenMatchAnalysisRow; reused: boolean }> {
+		const [created] = await db
+			.insert(readListenMatchAnalysis)
+			.values(input)
+			.onConflictDoNothing({
+				target: [
+					readListenMatchAnalysis.serverId,
+					readListenMatchAnalysis.requestedByUserId,
+					readListenMatchAnalysis.matcherVersion,
+				],
+				where: sql`${readListenMatchAnalysis.status} in ('queued', 'running')`,
+			})
+			.returning();
+		if (created) return { analysis: created, reused: false };
+
+		const [existing] = await db
+			.select()
+			.from(readListenMatchAnalysis)
+			.where(
+				and(
+					eq(readListenMatchAnalysis.serverId, input.serverId),
+					eq(
+						readListenMatchAnalysis.requestedByUserId,
+						input.requestedByUserId,
+					),
+					eq(readListenMatchAnalysis.matcherVersion, input.matcherVersion),
+					inArray(readListenMatchAnalysis.status, ["queued", "running"]),
+				),
+			)
+			.orderBy(desc(readListenMatchAnalysis.createdAt))
+			.limit(1);
+		if (!existing) {
+			throw new Error("Read & Listen match analysis conflict was unresolved");
+		}
+		return { analysis: existing, reused: true };
+	}
+
+	async updateMatchAnalysisStatus(
+		taskId: string,
+		status: ReadListenMatchAnalysisRow["status"],
+		error?: string,
+	): Promise<ReadListenMatchAnalysisRow | null> {
+		const terminal = ["completed", "failed", "cancelled"].includes(status);
+		const [row] = await db
+			.update(readListenMatchAnalysis)
+			.set({
+				status,
+				...(status === "running"
+					? {
+							startedAt: sql`coalesce(${readListenMatchAnalysis.startedAt}, now())`,
+						}
+					: {}),
+				...(terminal ? { finishedAt: new Date().toISOString() } : {}),
+				...(error ? { error: error.slice(0, 2_000) } : {}),
+				updatedAt: new Date().toISOString(),
+			})
+			.where(eq(readListenMatchAnalysis.taskId, taskId))
+			.returning();
+		return row ?? null;
+	}
+
+	async recordMatchAnalysisJobOutcome(input: {
+		analysisId: string;
+		audiobookUuid: string;
+		outcome: "completed" | "skipped" | "failed";
+		proposalCount?: number;
+		error?: string;
+	}): Promise<ReadListenMatchAnalysisRow | null> {
+		return db.transaction(async (tx) => {
+			const [recorded] = await tx
+				.insert(readListenMatchAnalysisOutcome)
+				.values({
+					analysisId: input.analysisId,
+					audiobookUuid: input.audiobookUuid,
+					outcome: input.outcome,
+					proposalCount: input.proposalCount ?? 0,
+					error: input.error?.slice(0, 2_000),
+				})
+				.onConflictDoNothing({
+					target: [
+						readListenMatchAnalysisOutcome.analysisId,
+						readListenMatchAnalysisOutcome.audiobookUuid,
+					],
+				})
+				.returning({ id: readListenMatchAnalysisOutcome.id });
+			if (!recorded) {
+				const [existing] = await tx
+					.select()
+					.from(readListenMatchAnalysis)
+					.where(eq(readListenMatchAnalysis.id, input.analysisId))
+					.limit(1);
+				return existing ?? null;
+			}
+
+			const increment = sql`${sql.identifier(
+				input.outcome === "completed"
+					? "completed_count"
+					: input.outcome === "skipped"
+						? "skipped_count"
+						: "failed_count",
+			)} + 1`;
+			const field =
+				input.outcome === "completed"
+					? { completedCount: increment }
+					: input.outcome === "skipped"
+						? { skippedCount: increment }
+						: { failedCount: increment };
+			const [updated] = await tx
+				.update(readListenMatchAnalysis)
+				.set({
+					...field,
+					status: "running",
+					startedAt: sql`coalesce(${readListenMatchAnalysis.startedAt}, now())`,
+					proposalCount: sql`${readListenMatchAnalysis.proposalCount} + ${input.proposalCount ?? 0}`,
+					...(input.error
+						? {
+								error: sql`coalesce(${readListenMatchAnalysis.error}, ${input.error.slice(0, 2_000)})`,
+							}
+						: {}),
+					updatedAt: new Date().toISOString(),
+				})
+				.where(
+					and(
+						eq(readListenMatchAnalysis.id, input.analysisId),
+						inArray(readListenMatchAnalysis.status, ["queued", "running"]),
+					),
+				)
+				.returning();
+			if (!updated) return null;
+			const settled =
+				updated.completedCount + updated.skippedCount + updated.failedCount;
+			if (settled < updated.candidateCount) return updated;
+			const finalStatus = updated.failedCount > 0 ? "failed" : "completed";
+			const [completed] = await tx
+				.update(readListenMatchAnalysis)
+				.set({
+					status: finalStatus,
+					finishedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})
+				.where(
+					and(
+						eq(readListenMatchAnalysis.id, input.analysisId),
+						inArray(readListenMatchAnalysis.status, ["queued", "running"]),
+					),
+				)
+				.returning();
+			return completed ?? updated;
+		});
 	}
 
 	async listMatchProposalRows(
@@ -741,6 +904,7 @@ export class ReadListenRepository {
 		const query = options.query?.trim();
 		const audiobookScope = accessiblePredicateSql(scope, "ab");
 		const ebookScope = accessiblePredicateSql(scope, "eb");
+		const selectedEbookScope = accessiblePredicateSql(scope, "selected_ebook");
 		if (options.status === "decided") {
 			const { rows } = await db.execute(sql`
 				WITH reviewed AS (
@@ -770,6 +934,7 @@ export class ReadListenRepository {
 					LEFT JOIN book_metadata bm ON bm.book_id = eb.id
 					LEFT JOIN read_listen_match_decision d ON d.proposal_id = p.id
 					LEFT JOIN book selected_ebook ON selected_ebook.id = d.selected_ebook_book_id
+					LEFT JOIN library selected_el ON selected_el.id = selected_ebook.library_id
 					LEFT JOIN book_metadata selected_bm ON selected_bm.book_id = selected_ebook.id
 					LEFT JOIN read_listen_pair rp
 						ON rp.server_id = p.server_id
@@ -784,6 +949,14 @@ export class ReadListenRepository {
 						${options.matcherVersion ? sql`AND p.matcher_version = ${options.matcherVersion}` : sql``}
 						${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
 						${ebookScope ? sql`AND ${ebookScope}` : sql``}
+						AND (
+							d.selected_ebook_book_id IS NULL
+							OR (
+								selected_el.server_id = ${serverId}
+								AND ${visibleBookSql("selected_ebook")}
+								${selectedEbookScope ? sql`AND ${selectedEbookScope}` : sql``}
+							)
+						)
 						${
 							query
 								? sql`AND (
@@ -893,6 +1066,7 @@ export class ReadListenRepository {
 			LEFT JOIN book_metadata bm ON bm.book_id = eb.id
 			LEFT JOIN read_listen_match_decision d ON d.proposal_id = p.id
 			LEFT JOIN book selected_ebook ON selected_ebook.id = d.selected_ebook_book_id
+			LEFT JOIN library selected_el ON selected_el.id = selected_ebook.library_id
 			LEFT JOIN book_metadata selected_bm ON selected_bm.book_id = selected_ebook.id
 			LEFT JOIN read_listen_pair rp
 				ON rp.server_id = p.server_id
@@ -907,6 +1081,14 @@ export class ReadListenRepository {
 				${options.matcherVersion ? sql`AND p.matcher_version = ${options.matcherVersion}` : sql``}
 				${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
 				${ebookScope ? sql`AND ${ebookScope}` : sql``}
+				AND (
+					d.selected_ebook_book_id IS NULL
+					OR (
+						selected_el.server_id = ${serverId}
+						AND ${visibleBookSql("selected_ebook")}
+						${selectedEbookScope ? sql`AND ${selectedEbookScope}` : sql``}
+					)
+				)
 				${
 					query
 						? sql`AND (
@@ -942,72 +1124,194 @@ export class ReadListenRepository {
 		return row ?? null;
 	}
 
-	async decideMatchProposal(input: {
-		proposal: ReadListenMatchProposalRow;
-		action: "approve" | "reject" | "correct";
-		selectedEbookBookId: number | null;
-		decidedByUserId: string;
-	}): Promise<{
-		decision: ReadListenMatchDecisionRow;
-		pair: ReadListenPairRow | null;
-	} | null> {
+	async decideMatchProposals(
+		inputs: Array<{
+			proposal: ReadListenMatchProposalRow;
+			action: "approve" | "reject" | "correct";
+			selectedEbookBookId: number | null;
+			decidedByUserId: string;
+		}>,
+	): Promise<
+		Array<{
+			decision: ReadListenMatchDecisionRow;
+			pair: ReadListenPairRow | null;
+		}>
+	> {
 		return db.transaction(async (tx) => {
-			const [decision] = await tx
-				.insert(readListenMatchDecision)
-				.values({
-					proposalId: input.proposal.id,
-					action: input.action,
-					selectedEbookBookId: input.selectedEbookBookId,
-					decidedByUserId: input.decidedByUserId,
-				})
-				.onConflictDoNothing({ target: readListenMatchDecision.proposalId })
-				.returning();
-			if (!decision) return null;
-
-			let pair: ReadListenPairRow | null = null;
-			if (input.selectedEbookBookId !== null) {
-				const pairInput = {
-					serverId: input.proposal.serverId,
-					ebookBookId: input.selectedEbookBookId,
-					audiobookBookId: input.proposal.audiobookBookId,
-					createdByUserId: input.decidedByUserId,
-				};
-				const [created] = await tx
-					.insert(readListenPair)
-					.values(pairInput)
-					.onConflictDoNothing({
-						target: [
-							readListenPair.ebookBookId,
-							readListenPair.audiobookBookId,
-						],
+			const outcomes: Array<{
+				decision: ReadListenMatchDecisionRow;
+				pair: ReadListenPairRow | null;
+			}> = [];
+			for (const input of inputs) {
+				const [decision] = await tx
+					.insert(readListenMatchDecision)
+					.values({
+						proposalId: input.proposal.id,
+						action: input.action,
+						selectedEbookBookId: input.selectedEbookBookId,
+						decidedByUserId: input.decidedByUserId,
 					})
+					.onConflictDoNothing({ target: readListenMatchDecision.proposalId })
 					.returning();
-				if (created) pair = created;
-				else {
-					const [existing] = await tx
-						.select()
-						.from(readListenPair)
+				if (!decision) {
+					throw new Error("Read & Listen match proposal was already decided");
+				}
+
+				let pair: ReadListenPairRow | null = null;
+				if (input.selectedEbookBookId !== null) {
+					const [created] = await tx
+						.insert(readListenPair)
+						.values({
+							serverId: input.proposal.serverId,
+							ebookBookId: input.selectedEbookBookId,
+							audiobookBookId: input.proposal.audiobookBookId,
+							createdByUserId: input.decidedByUserId,
+						})
+						.onConflictDoNothing({
+							target: [
+								readListenPair.ebookBookId,
+								readListenPair.audiobookBookId,
+							],
+						})
+						.returning();
+					if (!created) throw new Error("Read & Listen pair already exists");
+					pair = created;
+				}
+
+				const [updated] = await tx
+					.update(readListenMatchProposal)
+					.set({ status: "decided", updatedAt: new Date().toISOString() })
+					.where(
+						and(
+							eq(readListenMatchProposal.id, input.proposal.id),
+							eq(readListenMatchProposal.status, "pending"),
+						),
+					)
+					.returning({ id: readListenMatchProposal.id });
+				if (!updated)
+					throw new Error("Read & Listen match proposal was already decided");
+				if (input.selectedEbookBookId !== null) {
+					await tx
+						.update(readListenMatchProposal)
+						.set({
+							status: "superseded",
+							updatedAt: new Date().toISOString(),
+						})
 						.where(
 							and(
-								eq(readListenPair.serverId, pairInput.serverId),
-								eq(readListenPair.ebookBookId, pairInput.ebookBookId),
-								eq(readListenPair.audiobookBookId, pairInput.audiobookBookId),
+								eq(readListenMatchProposal.serverId, input.proposal.serverId),
+								eq(
+									readListenMatchProposal.audiobookBookId,
+									input.proposal.audiobookBookId,
+								),
+								eq(readListenMatchProposal.status, "pending"),
 							),
-						)
-						.limit(1);
-					if (!existing)
-						throw new Error(
-							"Read & Listen pair conflict could not be resolved",
 						);
-					pair = existing;
 				}
+				outcomes.push({ decision, pair });
 			}
+			return outcomes;
+		});
+	}
 
-			await tx
-				.update(readListenMatchProposal)
-				.set({ status: "decided", updatedAt: new Date().toISOString() })
-				.where(eq(readListenMatchProposal.id, input.proposal.id));
-			return { decision, pair };
+	async deleteReviewedMatches(
+		ids: string[],
+		serverId: string,
+	): Promise<number> {
+		return db.transaction(async (tx) => {
+			let removed = 0;
+			for (const id of ids) {
+				const [proposal] = await tx
+					.select({
+						id: readListenMatchProposal.id,
+						audiobookBookId: readListenMatchProposal.audiobookBookId,
+						selectedEbookBookId: readListenMatchDecision.selectedEbookBookId,
+					})
+					.from(readListenMatchProposal)
+					.leftJoin(
+						readListenMatchDecision,
+						eq(readListenMatchDecision.proposalId, readListenMatchProposal.id),
+					)
+					.where(
+						and(
+							eq(readListenMatchProposal.id, id),
+							eq(readListenMatchProposal.serverId, serverId),
+							inArray(readListenMatchProposal.status, ["pending", "decided"]),
+						),
+					)
+					.limit(1);
+
+				if (proposal) {
+					if (proposal.selectedEbookBookId !== null) {
+						await tx
+							.delete(readListenPair)
+							.where(
+								and(
+									eq(readListenPair.serverId, serverId),
+									eq(readListenPair.audiobookBookId, proposal.audiobookBookId),
+									eq(readListenPair.ebookBookId, proposal.selectedEbookBookId),
+								),
+							);
+					}
+					await tx
+						.delete(readListenMatchProposal)
+						.where(eq(readListenMatchProposal.id, proposal.id));
+					await tx
+						.update(readListenMatchProposal)
+						.set({
+							status: "pending",
+							updatedAt: new Date().toISOString(),
+						})
+						.where(
+							and(
+								eq(readListenMatchProposal.serverId, serverId),
+								eq(
+									readListenMatchProposal.audiobookBookId,
+									proposal.audiobookBookId,
+								),
+								eq(readListenMatchProposal.status, "superseded"),
+							),
+						);
+					await tx
+						.delete(readListenMatchEvaluation)
+						.where(
+							and(
+								eq(readListenMatchEvaluation.serverId, serverId),
+								eq(
+									readListenMatchEvaluation.audiobookBookId,
+									proposal.audiobookBookId,
+								),
+							),
+						);
+					removed += 1;
+					continue;
+				}
+
+				const [manualPair] = await tx
+					.delete(readListenPair)
+					.where(
+						and(
+							eq(readListenPair.id, id),
+							eq(readListenPair.serverId, serverId),
+						),
+					)
+					.returning({ audiobookBookId: readListenPair.audiobookBookId });
+				if (!manualPair)
+					throw new Error("Reviewed Read & Listen match not found");
+				await tx
+					.delete(readListenMatchEvaluation)
+					.where(
+						and(
+							eq(readListenMatchEvaluation.serverId, serverId),
+							eq(
+								readListenMatchEvaluation.audiobookBookId,
+								manualPair.audiobookBookId,
+							),
+						),
+					);
+				removed += 1;
+			}
+			return removed;
 		});
 	}
 
@@ -1043,45 +1347,6 @@ export class ReadListenRepository {
 			throw new Error("Read & Listen pair conflict could not be resolved");
 		}
 		return existing;
-	}
-
-	async deleteReviewedMatch(id: string, serverId: string): Promise<boolean> {
-		return db.transaction(async (tx) => {
-			const [deletedProposal] = await tx
-				.delete(readListenMatchProposal)
-				.where(
-					and(
-						eq(readListenMatchProposal.id, id),
-						eq(readListenMatchProposal.serverId, serverId),
-						eq(readListenMatchProposal.status, "decided"),
-						inArray(
-							readListenMatchProposal.id,
-							tx
-								.select({ proposalId: readListenMatchDecision.proposalId })
-								.from(readListenMatchDecision)
-								.where(eq(readListenMatchDecision.action, "reject")),
-						),
-					),
-				)
-				.returning({
-					audiobookBookId: readListenMatchProposal.audiobookBookId,
-				});
-			if (!deletedProposal) return false;
-
-			await tx
-				.delete(readListenMatchEvaluation)
-				.where(
-					and(
-						eq(readListenMatchEvaluation.serverId, serverId),
-						eq(
-							readListenMatchEvaluation.audiobookBookId,
-							deletedProposal.audiobookBookId,
-						),
-					),
-				);
-
-			return true;
-		});
 	}
 
 	async deletePairAndMatchHistory(

@@ -10,6 +10,7 @@ import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue"
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
 import { ranobedbImportQueue } from "../infrastructure/queue/queues/ranobedb-import.queue";
 import { readListenGenerationQueue } from "../infrastructure/queue/queues/read-listen-generation.queue";
+import { readListenMatchAnalysisQueue } from "../infrastructure/queue/queues/read-listen-match-analysis.queue";
 import { recommendationsQueue } from "../infrastructure/queue/queues/recommendations.queue";
 import { sendToKindleQueue } from "../infrastructure/queue/queues/send-to-kindle.queue";
 import { redis } from "../infrastructure/queue/redis";
@@ -46,6 +47,8 @@ function queueForName(name: QueueName): Queue {
 			return bookmeterSyncQueue;
 		case "read-listen-generation":
 			return readListenGenerationQueue;
+		case "read-listen-match-analysis":
+			return readListenMatchAnalysisQueue;
 	}
 }
 
@@ -710,6 +713,12 @@ export async function cancelTask(taskId: string): Promise<void> {
 			"../routers/read-listen/read-listen.repository"
 		);
 		await readListenRepository.updateGenerationStatus(taskId, "cancelled");
+	}
+	if (task?.type === "read-listen-match-analysis") {
+		const { readListenRepository } = await import(
+			"../routers/read-listen/read-listen.repository"
+		);
+		await readListenRepository.updateMatchAnalysisStatus(taskId, "cancelled");
 	}
 
 	removeWaitingJobs(taskId).catch((err) =>

@@ -2321,6 +2321,7 @@
 		"remove_selected_matches": "Eliminar asociaciones seleccionadas",
 		"clear_selection": "Limpiar selección",
 		"select_page_matches": "Seleccionar coincidencias de esta página",
+		"select_all_results": "Seleccionar los {count} resultados",
 		"select_match": "Seleccionar coincidencia para {title}",
 		"bulk_decision_completed": "Coincidencias procesadas: {count}",
 		"decision_approve": "Aprobada",
@@ -2329,6 +2330,20 @@
 		"pairing_removed": "Asociación eliminada",
 		"remove_match": "Eliminar asociación",
 		"remove_review": "Eliminar revisión",
+		"remove_pending_result": "Eliminar resultado para reintentar",
+		"remove_selected_results": "Eliminar resultados seleccionados",
+		"remove_pending_confirm": "Eliminar y permitir reintento",
+		"remove_pending_results_title": "¿Eliminar resultados pendientes?",
+		"remove_pending_results_description": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "Se eliminará {count} propuesta y su evaluación. El audiolibro volverá a analizarse la próxima vez.",
+					"countPlural=other": "Se eliminarán {count} propuestas y sus evaluaciones. Los audiolibros volverán a analizarse la próxima vez."
+				}
+			}
+		],
 		"remove_reviewed_confirm": "Eliminar de Revisadas",
 		"remove_matches_title": "¿Eliminar de Revisadas?",
 		"remove_matches_description": [
@@ -2355,8 +2370,10 @@
 		"go_to_page": "Ir a la página {page}",
 		"back_to_pairings": "Volver a asociaciones",
 		"analyze_next_batch": "Analizar todos los audiolibros",
-		"match_batch_completed": "Audiolibros analizados: {processed} · propuestas: {proposals}",
-		"match_batch_failed": "No se pudieron analizar todos los audiolibros. Inténtalo de nuevo para continuar.",
+		"match_analysis_started": "Análisis iniciado para {count} audiolibros.",
+		"match_analysis_reused": "El análisis ya estaba en curso.",
+		"match_analysis_progress": "Analizando {done}/{total}",
+		"match_analysis_start_failed": "No se pudo iniciar el análisis de audiolibros.",
 		"no_match_proposals": "No hay coincidencias pendientes",
 		"no_match_proposals_description": "Analiza todos los audiolibros para generar sugerencias nuevas.",
 		"match_score": "{score}% de coincidencia",
