@@ -3,11 +3,17 @@ import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
 import { CONTENT_TASK_TYPES } from "@nanahoshi-v2/api/modules/tasks/task-registry";
 import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { orpc, queryClient } from "@/utils/orpc";
+import {
+	createTaskUpdateBatcher,
+	mergeActiveTaskUpdates,
+	mergeAllTaskUpdates,
+} from "./task-update-cache";
 
 const activeTasksKey = orpc.tasks.getActiveTasks.queryOptions().queryKey;
 const allTasksKey = orpc.tasks.getAllTasks.queryOptions().queryKey;
 
 const CONTENT_REFRESH_THROTTLE_MS = 4000;
+const TASK_UPDATE_BATCH_MS = 100;
 
 // While a task runs, only "recently added" refreshes live; everything else
 // (series, random rows, library lists) waits for the final full invalidation
@@ -65,38 +71,30 @@ function refreshReadListenForTask(task: Task) {
 	queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
 }
 
-function updateTaskInCache(task: Task) {
+function updateTasksInCache(tasks: Task[]) {
 	// Update getActiveTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: activeTasksKey }, (old) => {
 		if (!old) return old;
-		if (task.status !== "running") {
-			return old.filter((t) => t.id !== task.id);
-		}
-		const idx = old.findIndex((t) => t.id === task.id);
-		if (idx >= 0) {
-			const updated = [...old];
-			updated[idx] = task;
-			return updated;
-		}
-		return [task, ...old];
+		return mergeActiveTaskUpdates(old, tasks);
 	});
 
 	// Update getAllTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: allTasksKey }, (old) => {
 		if (!old) return old;
-		// Tombstone: the task was deleted/cleared server-side.
-		if (task.createdAt === 0) {
-			return old.filter((t) => t.id !== task.id);
-		}
-		const idx = old.findIndex((t) => t.id === task.id);
-		if (idx >= 0) {
-			const updated = [...old];
-			updated[idx] = task;
-			return updated;
-		}
-		return [task, ...old];
+		return mergeAllTaskUpdates(old, tasks);
 	});
+
+	for (const task of tasks) {
+		refreshContentForTask(task);
+		refreshRecommendationsForTask(task);
+		refreshReadListenForTask(task);
+	}
 }
+
+const taskUpdateBatcher = createTaskUpdateBatcher(
+	updateTasksInCache,
+	TASK_UPDATE_BATCH_MS,
+);
 
 export function useTaskEvents() {
 	// Task progress rides the shared gateway WebSocket. On every (re)connect we
@@ -105,12 +103,10 @@ export function useTaskEvents() {
 		"tasks",
 		(data) => {
 			const task = data as Task;
-			updateTaskInCache(task);
-			refreshContentForTask(task);
-			refreshRecommendationsForTask(task);
-			refreshReadListenForTask(task);
+			taskUpdateBatcher.push(task);
 		},
 		() => {
+			taskUpdateBatcher.flushNow();
 			queryClient.invalidateQueries({ queryKey: activeTasksKey });
 			queryClient.invalidateQueries({ queryKey: allTasksKey });
 		},

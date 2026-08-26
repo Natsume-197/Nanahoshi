@@ -385,6 +385,24 @@ export async function getTask(taskId: string): Promise<Task | null> {
 	return parseTask(data);
 }
 
+/** Load task hashes in one Redis round trip. Large Honomiya batches can create
+ * hundreds of active tasks, so awaiting HGETALL serially makes the panel open
+ * time grow with network latency rather than Redis work. */
+async function getTasks(
+	taskIds: readonly string[],
+): Promise<Array<Task | null>> {
+	if (taskIds.length === 0) return [];
+	const pipeline = redis.pipeline();
+	for (const taskId of taskIds) pipeline.hgetall(TASK_KEY(taskId));
+	const results = await pipeline.exec();
+	if (!results) throw new Error("Redis task pipeline returned no results");
+	return results.map(([error, value]) => {
+		if (error) throw error;
+		const data = value as Record<string, string>;
+		return data?.id ? parseTask(data) : null;
+	});
+}
+
 const SET_OPERATION_PROGRESS_SCRIPT = `
 if redis.call('HGET', KEYS[1], 'status') ~= 'running' then return 0 end
 redis.call('HSET', KEYS[1], 'operationProgress', ARGV[1])
@@ -426,11 +444,9 @@ export async function getActiveTasks(scope?: TaskScope): Promise<Task[]> {
 	const ids = await redis.smembers(ACTIVE_TASKS_KEY);
 	if (ids.length === 0) return [];
 
-	const tasks: Task[] = [];
-	for (const id of ids) {
-		const task = await getTask(id);
-		if (task && (!scope || taskVisibleTo(task, scope))) tasks.push(task);
-	}
+	const tasks = (await getTasks(ids)).filter(
+		(task): task is Task => !!task && (!scope || taskVisibleTo(task, scope)),
+	);
 	return tasks.sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -444,8 +460,9 @@ export async function getAllTasks(scope?: TaskScope): Promise<Task[]> {
 
 	const tasks: Task[] = [];
 	const expiredIds: string[] = [];
-	for (const id of allIds) {
-		const task = await getTask(id);
+	const loadedTasks = await getTasks(allIds);
+	for (const [index, id] of allIds.entries()) {
+		const task = loadedTasks[index];
 		if (task) {
 			if (!scope || taskVisibleTo(task, scope)) tasks.push(task);
 		} else {

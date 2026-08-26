@@ -2,13 +2,14 @@ import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/n
 import {
 	Bell,
 	CaretLeft,
+	CaretRight,
 	Checks,
 	CircleNotch,
 	Trash,
 } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import type { ComponentProps } from "react";
+import { type ComponentProps, memo, useState } from "react";
 import { flushSync } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { selectVisibleActiveTasks } from "@/hooks/task-update-cache";
 import { useActivityRailIsSheet } from "@/hooks/use-mobile";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -133,7 +135,7 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-b-0 border-sidebar-border border-t bg-background text-foreground">
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t border-b-0 bg-background text-foreground">
 					{!isSheet && (
 						<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
 					)}
@@ -170,12 +172,14 @@ function NotificationPanel({
 	onNavigate: () => void;
 }) {
 	const router = useRouter();
+	const [activeTaskPage, setActiveTaskPage] = useState(0);
 	// Tasks are server-scoped (orgProcedure); the cache is kept live by the
 	// already-mounted useTaskEvents, so progress animates with no extra plumbing.
 	const { data: activeOrg } = authClient.useActiveOrganization();
 	const { data: activeTasks } = useQuery({
 		...orpc.tasks.getActiveTasks.queryOptions(),
 		enabled: active && !!activeOrg,
+		subscribed: active,
 	});
 
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
@@ -190,8 +194,13 @@ function NotificationPanel({
 				initialPageParam: undefined as number | undefined,
 			}),
 			enabled: active,
+			subscribed: active,
 		});
 	const notifications = data?.pages.flat() ?? [];
+	const activeTaskProjection = selectVisibleActiveTasks(
+		activeTasks ?? [],
+		activeTaskPage,
+	);
 
 	const invalidateAll = () => {
 		queryClient.invalidateQueries({ queryKey: unreadCountKey });
@@ -391,10 +400,53 @@ function NotificationPanel({
 							{m["notifications.in_progress"]()}
 						</h3>
 						<div className="flex flex-col gap-1">
-							{activeTasks.map((task) => (
+							{activeTaskProjection.visible.map((task) => (
 								<TaskProgressRow key={task.id} task={task} />
 							))}
 						</div>
+						{activeTaskProjection.pageCount > 1 && (
+							<div className="flex items-center justify-between gap-2 px-2 pt-2">
+								<p className="text-muted-foreground text-xs tabular-nums">
+									{m["notifications.active_tasks_range"]({
+										from: activeTaskProjection.from,
+										to: activeTaskProjection.to,
+										total: activeTaskProjection.total,
+									})}
+								</p>
+								<nav
+									aria-label={m["notifications.active_tasks_pagination"]()}
+									className="flex items-center gap-1"
+								>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={() =>
+											setActiveTaskPage(activeTaskProjection.currentPage - 1)
+										}
+										disabled={activeTaskProjection.currentPage === 0}
+										aria-label={m["notifications.previous_page"]()}
+									>
+										<CaretLeft />
+									</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={() =>
+											setActiveTaskPage(activeTaskProjection.currentPage + 1)
+										}
+										disabled={
+											activeTaskProjection.currentPage ===
+											activeTaskProjection.pageCount - 1
+										}
+										aria-label={m["notifications.next_page"]()}
+									>
+										<CaretRight />
+									</Button>
+								</nav>
+							</div>
+						)}
 					</section>
 				)}
 
@@ -452,7 +504,7 @@ function NotificationPanel({
 	);
 }
 
-function TaskProgressRow({
+const TaskProgressRow = memo(function TaskProgressRow({
 	task,
 }: {
 	task: NonNullable<
@@ -494,7 +546,7 @@ function TaskProgressRow({
 			</div>
 		</div>
 	);
-}
+});
 
 function NotificationsSkeleton() {
 	return (

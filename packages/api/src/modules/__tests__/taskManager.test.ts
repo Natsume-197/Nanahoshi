@@ -63,6 +63,7 @@ class FakeRedis {
 	hsetError: Error | null = null;
 	/** Test hook: runs before every SET, to simulate races. */
 	beforeSet: (() => void) | null = null;
+	pipelineExecutions = 0;
 
 	clear() {
 		this.hashes.clear();
@@ -72,6 +73,25 @@ class FakeRedis {
 		this.expirations = [];
 		this.hsetError = null;
 		this.beforeSet = null;
+		this.pipelineExecutions = 0;
+	}
+
+	pipeline() {
+		const hashKeys: string[] = [];
+		const chain = {
+			hgetall: (key: string) => {
+				hashKeys.push(key);
+				return chain;
+			},
+			exec: async () => {
+				this.pipelineExecutions++;
+				return hashKeys.map(
+					(key) =>
+						[null, Object.fromEntries(this.hashes.get(key) ?? [])] as const,
+				);
+			},
+		};
+		return chain;
 	}
 
 	async hset(key: string, obj: Record<string, string>) {
@@ -320,6 +340,27 @@ beforeEach(() => {
 	fileEventAddBulkFailure = null;
 	fileEventAddBulkFailsAfterPersist = false;
 	mockEmitTaskFinished.mockClear();
+});
+
+describe("active task reads", () => {
+	test("loads 1,000 active tasks in one Redis pipeline", async () => {
+		await Promise.all(
+			Array.from({ length: 1_000 }, (_, index) =>
+				createTask({
+					id: `honomiya-${index}`,
+					type: "read-listen-generation",
+					serverId: "s1",
+					totalJobs: 1,
+					sealed: true,
+				}),
+			),
+		);
+
+		const active = await getActiveTasks();
+
+		expect(active).toHaveLength(1_000);
+		expect(fakeRedis.pipelineExecutions).toBe(1);
+	});
 });
 
 describe("scan queue producer recovery", () => {
