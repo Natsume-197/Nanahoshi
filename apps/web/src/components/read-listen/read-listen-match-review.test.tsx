@@ -1,10 +1,42 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+	clampMatchReviewPage,
+	getMatchReviewPageQueryOptions,
 	getRemovalTarget,
 	getReviewSelectionTarget,
+	MATCH_ROW_COLUMNS,
 	MatchPublicationArtwork,
 } from "./read-listen-match-review";
+
+describe("MATCH_ROW_COLUMNS", () => {
+	test("lets the translated action controls claim their intrinsic width", () => {
+		expect(MATCH_ROW_COLUMNS).toContain("max-content");
+		expect(MATCH_ROW_COLUMNS).not.toContain("_11rem]");
+	});
+});
+
+describe("clampMatchReviewPage", () => {
+	test("moves an out-of-range page to the last real page", () => {
+		expect(clampMatchReviewPage(4, 23)).toBe(2);
+		expect(clampMatchReviewPage(2, 0)).toBe(0);
+	});
+});
+
+describe("getMatchReviewPageQueryOptions", () => {
+	test("keeps the previous page while the requested page is loading", () => {
+		const previousPage = { items: [], total: 42 };
+		const options = getMatchReviewPageQueryOptions({
+			status: "pending",
+			offset: 10,
+			limit: 10,
+		});
+
+		expect(options.placeholderData?.(previousPage, undefined as never)).toBe(
+			previousPage,
+		);
+	});
+});
 
 describe("getReviewSelectionTarget", () => {
 	test("targets the complete active filter after selecting all results", () => {

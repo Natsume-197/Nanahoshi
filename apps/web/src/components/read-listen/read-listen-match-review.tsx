@@ -16,9 +16,14 @@ import {
 	Trash,
 	X,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Fragment, useId, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { visiblePageNumbers } from "@/components/enrichment/pagination";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -90,10 +95,29 @@ export function getReviewSelectionTarget(input: {
 		: { proposalUuids: [...input.selected] };
 }
 
+export function getMatchReviewPageQueryOptions(input: {
+	status: ReviewStatus;
+	query?: string;
+	offset: number;
+	limit: number;
+}) {
+	return {
+		...orpc.readListen.listMatchProposals.queryOptions({ input }),
+		placeholderData: keepPreviousData,
+	};
+}
+
+export function clampMatchReviewPage(page: number, total: number): number {
+	return Math.max(
+		0,
+		Math.min(page, Math.max(0, Math.ceil(total / PAGE_SIZE) - 1)),
+	);
+}
+
 const PAGE_SIZE = 10;
 
-const MATCH_ROW_COLUMNS =
-	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem_11rem]";
+export const MATCH_ROW_COLUMNS =
+	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_max-content] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_max-content_max-content]";
 
 export function getRemovalTarget(
 	proposal: Pick<Proposal, "id" | "removable" | "status">,
@@ -384,13 +408,11 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const debouncedQuery = useDebounce(query.trim(), 300);
 	const hasSearch = debouncedQuery.length > 0;
 	const proposalsQuery = useQuery(
-		orpc.readListen.listMatchProposals.queryOptions({
-			input: {
-				status,
-				query: debouncedQuery || undefined,
-				offset: page * PAGE_SIZE,
-				limit: PAGE_SIZE,
-			},
+		getMatchReviewPageQueryOptions({
+			status,
+			query: debouncedQuery || undefined,
+			offset: page * PAGE_SIZE,
+			limit: PAGE_SIZE,
 		}),
 	);
 	const proposals = proposalsQuery.data?.items ?? [];
@@ -399,6 +421,11 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const totalPages = Math.ceil(total / PAGE_SIZE);
 	const currentPage = page + 1;
 	const paginationPages = visiblePageNumbers(currentPage, totalPages);
+	useEffect(() => {
+		if (proposalsQuery.isPlaceholderData) return;
+		const clampedPage = clampMatchReviewPage(page, total);
+		if (clampedPage !== page) setPage(clampedPage);
+	}, [page, proposalsQuery.isPlaceholderData, total]);
 	const selectableIds = proposals
 		.filter((proposal) => status === "pending" || getRemovalTarget(proposal))
 		.map((proposal) => proposal.id);
