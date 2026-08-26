@@ -66,6 +66,28 @@ type RemovalTarget =
 	| { kind: "proposal"; uuid: string };
 
 const PAGE_SIZE = 10;
+const MATCH_ANALYSIS_BATCH_SIZE = 25;
+
+type MatchBatchResult = {
+	processedCount: number;
+	proposalCount: number;
+};
+
+export async function analyzeAllMatchProposals(
+	generateBatch: (input: { limit: number }) => Promise<MatchBatchResult>,
+): Promise<MatchBatchResult> {
+	let processedCount = 0;
+	let proposalCount = 0;
+	let batch: MatchBatchResult;
+
+	do {
+		batch = await generateBatch({ limit: MATCH_ANALYSIS_BATCH_SIZE });
+		processedCount += batch.processedCount;
+		proposalCount += batch.proposalCount;
+	} while (batch.processedCount === MATCH_ANALYSIS_BATCH_SIZE);
+
+	return { processedCount, proposalCount };
+}
 
 const MATCH_ROW_COLUMNS =
 	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem_11rem]";
@@ -430,7 +452,9 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 
 	const batchMutation = useMutation({
 		mutationFn: () =>
-			client.readListen.generateMatchProposalBatch({ limit: 10 }),
+			analyzeAllMatchProposals((input) =>
+				client.readListen.generateMatchProposalBatch(input),
+			),
 		onSuccess: async (result) => {
 			toast.success(
 				m["read_listen.match_batch_completed"]({
