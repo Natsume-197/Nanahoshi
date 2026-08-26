@@ -3,11 +3,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
 	clampMatchReviewPage,
 	getMatchReviewPageQueryOptions,
+	getMatchWarningLabel,
 	getRemovalTarget,
 	getReviewSelectionTarget,
 	MATCH_ROW_COLUMNS,
 	MatchPublicationArtwork,
 } from "./read-listen-match-review";
+
+describe("getMatchWarningLabel", () => {
+	test("exposes matcher warnings instead of hiding them behind the score", () => {
+		expect(getMatchWarningLabel("title.weak")).toBeTruthy();
+		expect(getMatchWarningLabel("author.mismatch")).toBeTruthy();
+		expect(getMatchWarningLabel("series.position.conflict")).toBeTruthy();
+		expect(getMatchWarningLabel("unknown.warning")).toBeNull();
+	});
+});
 
 describe("MATCH_ROW_COLUMNS", () => {
 	test("lets the translated action controls claim their intrinsic width", () => {

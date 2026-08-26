@@ -15,7 +15,7 @@ function analysisRow(overrides: Partial<ReadListenMatchAnalysisRow> = {}) {
 		taskId: "00000000-0000-4000-8000-000000000101",
 		serverId: "server-1",
 		requestedByUserId: "user-1",
-		matcherVersion: "rules-v4",
+		matcherVersion: "rules-v6",
 		status: "queued" as const,
 		candidateCount: 0,
 		completedCount: 0,

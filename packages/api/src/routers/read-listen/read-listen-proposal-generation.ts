@@ -15,10 +15,66 @@ import {
 } from "./read-listen-match-view";
 import {
 	deriveMatchSearchQueries,
+	type MatchExplanation,
+	type MatchPublication,
 	READ_LISTEN_MATCHER_VERSION,
 	READ_LISTEN_PROPOSAL_THRESHOLD,
 	scoreReadListenMatch,
 } from "./read-listen-matcher";
+
+const READ_LISTEN_PROPOSAL_SCORE_MARGIN = 10;
+const READ_LISTEN_MAX_COMPETING_PROPOSALS = 2;
+const READ_LISTEN_MAX_DISCOVERY_QUERIES = 4;
+
+export function deriveReadListenDiscoveryQueries(
+	publication: Pick<MatchPublication, "title" | "filename" | "series">,
+): string[] {
+	const titleQueries = deriveMatchSearchQueries(publication.title);
+	const filenameQueries = deriveMatchSearchQueries(
+		publication.filename.replace(/\.[^.]+$/u, ""),
+	);
+	const seriesQueries = (publication.series ?? []).flatMap((item) =>
+		deriveMatchSearchQueries(item.name),
+	);
+	return [
+		...new Set(
+			[
+				titleQueries[0],
+				titleQueries.at(-1),
+				filenameQueries.at(-1),
+				...seriesQueries.toReversed(),
+				...titleQueries,
+				...filenameQueries,
+			]
+				.map((query) => query?.trim())
+				.filter((query): query is string => Boolean(query)),
+		),
+	].slice(0, READ_LISTEN_MAX_DISCOVERY_QUERIES);
+}
+
+export function selectReadListenProposalCandidates<T extends { id: number }>(
+	evaluated: Array<{ ebook: T; result: MatchExplanation }>,
+	limit: number,
+): Array<{ ebook: T; result: MatchExplanation }> {
+	const ranked = evaluated
+		.filter(
+			({ result }) =>
+				result.eligible && result.score >= READ_LISTEN_PROPOSAL_THRESHOLD,
+		)
+		.sort(
+			(left, right) =>
+				right.result.score - left.result.score ||
+				left.ebook.id - right.ebook.id,
+		);
+	const strongestScore = ranked[0]?.result.score;
+	if (strongestScore === undefined) return [];
+	return ranked
+		.filter(
+			({ result }) =>
+				result.score >= strongestScore - READ_LISTEN_PROPOSAL_SCORE_MARGIN,
+		)
+		.slice(0, Math.min(limit, READ_LISTEN_MAX_COMPETING_PROPOSALS));
+}
 
 type ProposalGenerationStore = Pick<
 	ReadListenRepository,
@@ -63,18 +119,7 @@ export class ReadListenProposalGeneration {
 			throw new BadRequestError("Match proposals must start from an audiobook");
 		}
 
-		const searchQueries = [
-			...new Set(
-				[
-					audiobook.title,
-					audiobook.filename.replace(/\.[^.]+$/u, ""),
-					...audiobook.series.map((item) => item.name),
-				]
-					.flatMap(deriveMatchSearchQueries)
-					.map((query) => query.trim())
-					.filter(Boolean),
-			),
-		].slice(0, 4);
+		const searchQueries = deriveReadListenDiscoveryQueries(audiobook);
 		const searchResults = await Promise.all(
 			searchQueries.map((query) =>
 				this.search.searchBooks({
@@ -109,13 +154,7 @@ export class ReadListenProposalGeneration {
 				ebook,
 				result: scoreReadListenMatch(audiobook, ebook),
 			}));
-		const scored = evaluated
-			.filter(
-				({ result }) =>
-					result.eligible && result.score >= READ_LISTEN_PROPOSAL_THRESHOLD,
-			)
-			.sort((left, right) => right.result.score - left.result.score)
-			.slice(0, input.limit);
+		const scored = selectReadListenProposalCandidates(evaluated, input.limit);
 		const eligibleScores = evaluated
 			.filter(({ result }) => result.eligible)
 			.map(({ result }) => result.score);

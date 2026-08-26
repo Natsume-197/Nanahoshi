@@ -196,6 +196,15 @@ function decisionBadgeVariant(
 	return "info";
 }
 
+export function getMatchWarningLabel(warning: string): string | null {
+	if (warning === "title.weak") return m["read_listen.match_title_weak"]();
+	if (warning === "author.mismatch")
+		return m["read_listen.match_author_mismatch"]();
+	if (warning === "series.position.conflict")
+		return m["read_listen.match_series_position_mismatch"]();
+	return null;
+}
+
 export function MatchPublicationArtwork({
 	cover,
 	mediaType,
@@ -897,6 +906,14 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 																})}
 															</Badge>
 														)}
+														{proposal.warnings.map((warning) => {
+															const label = getMatchWarningLabel(warning);
+															return label ? (
+																<Badge key={warning} variant="warning">
+																	{label}
+																</Badge>
+															) : null;
+														})}
 														{proposal.origin === "matcher" &&
 															proposal.decision && (
 																<Badge

@@ -66,7 +66,7 @@ const proposalRow: ReadListenMatchProposalRow = {
 	confidence: "medium",
 	reasons: ["title.exact", "author.match"],
 	warnings: [],
-	matcherVersion: "rules-v4",
+	matcherVersion: "rules-v6",
 	status: "pending",
 	createdAt: "2026-08-08T00:00:00.000Z",
 	updatedAt: "2026-08-08T00:00:00.000Z",
@@ -369,14 +369,14 @@ describe("ReadListenService", () => {
 			expect.objectContaining({
 				audiobookBookId: audiobook.id,
 				ebookBookId: ebook.id,
-				matcherVersion: "rules-v4",
+				matcherVersion: "rules-v6",
 			}),
 		]);
 		expect(store.createPair).not.toHaveBeenCalled();
 		expect(store.recordMatchEvaluation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				audiobookBookId: audiobook.id,
-				matcherVersion: "rules-v4",
+				matcherVersion: "rules-v6",
 				proposalCount: 1,
 			}),
 		);
@@ -402,10 +402,10 @@ describe("ReadListenService", () => {
 
 		expect(store.listMatchProposalRows).toHaveBeenCalledWith(
 			"server-1",
-			expect.objectContaining({ matcherVersion: "rules-v4" }),
+			expect.objectContaining({ matcherVersion: "rules-v6" }),
 		);
 		expect(result).toHaveLength(1);
-		expect(result[0]?.matcherVersion).toBe("rules-v4");
+		expect(result[0]?.matcherVersion).toBe("rules-v6");
 	});
 
 	test("returns a searchable reviewed page with its active pairing", async () => {

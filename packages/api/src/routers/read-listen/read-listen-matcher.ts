@@ -1,5 +1,5 @@
-export const READ_LISTEN_MATCHER_VERSION = "rules-v4";
-export const READ_LISTEN_PROPOSAL_THRESHOLD = 55;
+export const READ_LISTEN_MATCHER_VERSION = "rules-v6";
+export const READ_LISTEN_PROPOSAL_THRESHOLD = 65;
 
 export type MatchSeries = {
 	name: string;
@@ -26,13 +26,15 @@ export type MatchExplanation = {
 const EDITION_NOISE =
 	/\b(?:audiobook|audio\s*book|unabridged|abridged|digital|retail|kindle|epub)\b/giu;
 const BRACKET_NOISE =
-	/[[(【（](?:オーディオブック|朗読|完全版|通常版|新装版|文庫版|audiobook|unabridged|abridged)[\])】）]/giu;
+	/[[(【（](?:オーディオブック|朗読|完全版|通常版|新装版|文庫版|電子(?:版|書籍|特典)[^\])】）]*|audiobook|unabridged|abridged)[\])】）]/giu;
 const TRAILING_PUBLISHER_NOISE =
-	/(?:(?:\s*[:：]\s*)?\s*[(（][^)）]*(?:文庫|出版社?|書店|書房|小学館|books?|press)[^)）]*[)）])+\s*$/giu;
+	/(?:(?:\s*[:：]\s*)?\s*[(（][^)）]*(?:文庫|出版社?|書店|書房|小学館|ブックス|ノベルズ?|新書|タイガ|ラノベ|books?|press)[^)）]*[)）])+\s*$/giu;
 const PART_MARKERS: [RegExp, string][] = [
-	[/(?:上巻|前編|(?:^|\s)上(?:\s|$))/u, "upper"],
-	[/(?:下巻|後編|(?:^|\s)下(?:\s|$))/u, "lower"],
+	[/(?:上巻|(?:^|\s)上(?:\s|$))/u, "upper"],
+	[/(?:下巻|(?:^|\s)下(?:\s|$))/u, "lower"],
 	[/(?:中巻|中編|(?:^|\s)中(?:\s|$))/u, "middle"],
+	[/前編/u, "first"],
+	[/後編/u, "latter"],
 ];
 
 const KANJI_DIGITS: Record<string, number> = {
@@ -95,7 +97,16 @@ function parseVolumeNumber(value: string): number | null {
 }
 
 function extractExplicitVolume(title: string): number | null {
-	const normalized = title.normalize("NFKC");
+	const normalized = stripTrailingPublisherNoise(
+		title
+			.normalize("NFKC")
+			.replace(/\.[a-z][a-z0-9]{1,4}$/iu, "")
+			.trim(),
+	);
+	const bracketed = normalized.match(
+		/[[(【（]\s*0*([0-9]+(?:\.[0-9]+)?|[〇零一二三四五六七八九十]+|[ivxlcdm]+)\s*巻?\s*[\])】）]/iu,
+	);
+	if (bracketed?.[1]) return parseVolumeNumber(bracketed[1]);
 	const suffixed = normalized.match(
 		/(?:第\s*)?([0-9]+(?:\.[0-9]+)?|[〇零一二三四五六七八九十]+|[ivxlcdm]+)\s*(?:巻|(?:vol(?:ume)?\.?))/iu,
 	);
@@ -113,7 +124,7 @@ function extractExplicitVolume(title: string): number | null {
 	);
 	if (parenthetical?.[1]) return parseVolumeNumber(parenthetical[1]);
 	const attached = normalized.match(
-		/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]([0-9]+(?:\.[0-9]+)?|[ivxlcdm]+)(?:\s*[」』])?(?:\s*[(（][^)）]*[)）])?\s*$/iu,
+		/(?:[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}][\s　]*|[\p{P}\p{S}])([0-9]+(?:\.[0-9]+)?|[ivxlcdm]+)(?:\s*[」』])?\s*$/iu,
 	);
 	if (attached?.[1]) return parseVolumeNumber(attached[1]);
 	return null;
@@ -131,20 +142,21 @@ export function extractVolume(title: string): number | null {
 	return extractExplicitVolume(title) ?? extractTrailingVolume(title);
 }
 
-function extractPartMarker(title: string): string | null {
+function extractPartMarkers(title: string): Set<string> {
 	const spaced = title
 		.normalize("NFKC")
 		.replace(/[\p{P}\p{S}]+/gu, " ")
 		.trim();
+	const markers = new Set<string>();
 	for (const [pattern, marker] of PART_MARKERS) {
-		if (pattern.test(spaced)) return marker;
+		if (pattern.test(spaced)) markers.add(marker);
 	}
-	return null;
+	return markers;
 }
 
 function isSpecialVolume(title: string): boolean {
 	const normalized = title.normalize("NFKC").toLocaleLowerCase();
-	return /(?:短編集|短篇集|外伝|番外編|特別編|side\s*stor(?:y|ies)|\bextra\b|ex\s*\d)/iu.test(
+	return /(?:短編集|短篇集|外伝|番外編|特別編|side\s*stor(?:y|ies)|\bextra\b|\bex\b|ex\s*\d)/iu.test(
 		normalized,
 	);
 }
@@ -185,6 +197,12 @@ export function deriveMatchSearchQueries(value: string): string[] {
 		.replace(/[\p{P}\p{S}]+/gu, " ")
 		.replace(/\s+/gu, " ")
 		.trim();
+	const withoutLeadingCatalogDecoration = searchable
+		.replace(
+			/^(?:(?:小説|短編集)\s*)?(?:[0-9]+(?:\.[0-9]+)?|[〇零一二三四五六七八九十]+)\s*巻?\s*/u,
+			"",
+		)
+		.trim();
 	const withoutVolumeDecoration = searchable
 		.replace(
 			/^(?:第\s*)?(?:[0-9]+(?:\.[0-9]+)?|[〇零一二三四五六七八九十]+|[ivxlcdm]+)\s*巻\s*/iu,
@@ -195,10 +213,21 @@ export function deriveMatchSearchQueries(value: string): string[] {
 			"",
 		)
 		.trim();
+	const withoutPlaybackPartDecoration = withoutLeadingCatalogDecoration
+		.replace(/(?:^|\s)(?:前編|後編)(?=\s|$)/gu, " ")
+		.replace(/(?:^|\s)B[A-Z0-9]{9}(?=\s|$)/giu, " ")
+		.replace(/\s+/gu, " ")
+		.trim();
 
-	return [...new Set([normalized, searchable, withoutVolumeDecoration])].filter(
-		Boolean,
-	);
+	return [
+		...new Set([
+			normalized,
+			searchable,
+			withoutLeadingCatalogDecoration,
+			withoutVolumeDecoration,
+			withoutPlaybackPartDecoration,
+		]),
+	].filter(Boolean);
 }
 
 function baseTitle(value: string): string {
@@ -226,6 +255,26 @@ function baseTitle(value: string): string {
 				" ",
 			),
 	);
+}
+
+function bibliographicBaseTitle(
+	value: string,
+	publication: MatchPublication,
+): string {
+	const normalized = baseTitle(value);
+	const authors = [...names(publication)].sort(
+		(left, right) => right.length - left.length,
+	);
+	for (const author of authors) {
+		if (
+			author.length >= 2 &&
+			normalized.startsWith(author) &&
+			normalized.length > author.length
+		) {
+			return normalized.slice(author.length);
+		}
+	}
+	return normalized;
 }
 
 function bigrams(value: string): Set<string> {
@@ -273,6 +322,95 @@ function unambiguousSeriesPosition(
 	return positions.values().next().value ?? null;
 }
 
+type VolumeEvidence = {
+	value: number;
+	source: "title" | "title_tag" | "filename" | "series";
+};
+
+function isLeadingCatalogVolumeTag(title: string, value: number): boolean {
+	const match = title
+		.normalize("NFKC")
+		.match(
+			/^\s*[[【（(]\s*(?:小説\s*)?0*([0-9]+(?:\.[0-9]+)?)\s*巻?[^\]】）)]*[\]】）)]/u,
+		);
+	return match?.[1] !== undefined && Number(match[1]) === value;
+}
+
+function resolveVolumeEvidence(
+	publication: MatchPublication,
+): VolumeEvidence | null {
+	const seriesPosition = unambiguousSeriesPosition(publication);
+	const explicitTitleVolume = extractExplicitVolume(publication.title);
+	const orderedCandidates = [
+		{
+			value: explicitTitleVolume,
+			source:
+				explicitTitleVolume !== null &&
+				isLeadingCatalogVolumeTag(publication.title, explicitTitleVolume)
+					? ("title_tag" as const)
+					: ("title" as const),
+		},
+		{
+			value: extractExplicitVolume(publication.filename),
+			source: "filename" as const,
+		},
+		{
+			value: extractTrailingVolume(publication.title),
+			source: "title" as const,
+		},
+		{
+			value: extractTrailingVolume(publication.filename),
+			source: "filename" as const,
+		},
+		{ value: seriesPosition, source: "series" as const },
+	].filter(
+		(candidate): candidate is VolumeEvidence => candidate.value !== null,
+	);
+	const corroborated = orderedCandidates.find((candidate) =>
+		orderedCandidates.some(
+			(other) =>
+				other.source !== candidate.source && other.value === candidate.value,
+		),
+	);
+	return corroborated ?? orderedCandidates[0] ?? null;
+}
+
+function titleMentionsVolume(title: string, volume: number): boolean {
+	const numeric = String(volume).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const normalized = title.normalize("NFKC");
+	if (new RegExp(`(?<![0-9])${numeric}(?![0-9])`, "u").test(normalized))
+		return true;
+	if (!Number.isInteger(volume) || volume < 1 || volume > 3999) return false;
+	const romanParts: [number, string][] = [
+		[1000, "M"],
+		[900, "CM"],
+		[500, "D"],
+		[400, "CD"],
+		[100, "C"],
+		[90, "XC"],
+		[50, "L"],
+		[40, "XL"],
+		[10, "X"],
+		[9, "IX"],
+		[5, "V"],
+		[4, "IV"],
+		[1, "I"],
+	];
+	let remaining = volume;
+	let roman = "";
+	for (const [amount, token] of romanParts) {
+		while (remaining >= amount) {
+			roman += token;
+			remaining -= amount;
+		}
+	}
+	return new RegExp(`(?<![a-z])${roman}(?![a-z])`, "iu").test(normalized);
+}
+
+function isTitleVolumeEvidence(evidence: VolumeEvidence): boolean {
+	return evidence.source === "title" || evidence.source === "title_tag";
+}
+
 function matchConfidence(score: number, warnings: string[]): MatchConfidence {
 	if (score >= 85 && warnings.length === 0) return "high";
 	if (score >= 65) return "medium";
@@ -287,26 +425,27 @@ export function scoreReadListenMatch(
 	const warnings: string[] = [];
 	let score = 0;
 	let eligible = true;
+	let seriesPositionConflict = false;
 
 	const comparisons = [
 		{
-			left: baseTitle(audiobook.title),
-			right: baseTitle(ebook.title),
+			left: bibliographicBaseTitle(audiobook.title, audiobook),
+			right: bibliographicBaseTitle(ebook.title, ebook),
 			reason: "title",
 		},
 		{
-			left: baseTitle(audiobook.filename),
-			right: baseTitle(ebook.filename),
+			left: bibliographicBaseTitle(audiobook.filename, audiobook),
+			right: bibliographicBaseTitle(ebook.filename, ebook),
 			reason: "filename",
 		},
 		{
-			left: baseTitle(audiobook.filename),
-			right: baseTitle(ebook.title),
+			left: bibliographicBaseTitle(audiobook.filename, audiobook),
+			right: bibliographicBaseTitle(ebook.title, ebook),
 			reason: "filename_to_title",
 		},
 		{
-			left: baseTitle(audiobook.title),
-			right: baseTitle(ebook.filename),
+			left: bibliographicBaseTitle(audiobook.title, audiobook),
+			right: bibliographicBaseTitle(ebook.filename, ebook),
 			reason: "title_to_filename",
 		},
 	]
@@ -318,7 +457,7 @@ export function scoreReadListenMatch(
 	const bestTitle = comparisons[0];
 	const titleSimilarity = bestTitle?.similarity ?? 0;
 	if (bestTitle?.left && bestTitle.left === bestTitle.right) {
-		score += 85;
+		score += 65;
 		reasons.push(`${bestTitle.reason}.exact`);
 	} else {
 		score += Math.round(titleSimilarity * 45);
@@ -340,8 +479,8 @@ export function scoreReadListenMatch(
 	const matchingSeries = audiobookSeries.find((audioSeries) =>
 		ebookSeries.some(
 			(bookSeries) =>
-				normalizeMatchText(bookSeries.name) ===
-				normalizeMatchText(audioSeries.name),
+				bibliographicBaseTitle(bookSeries.name, ebook) ===
+				bibliographicBaseTitle(audioSeries.name, audiobook),
 		),
 	);
 	if (matchingSeries) {
@@ -349,8 +488,8 @@ export function scoreReadListenMatch(
 		reasons.push("series.match");
 		const ebookMatch = ebookSeries.find(
 			(item) =>
-				normalizeMatchText(item.name) ===
-				normalizeMatchText(matchingSeries.name),
+				bibliographicBaseTitle(item.name, ebook) ===
+				bibliographicBaseTitle(matchingSeries.name, audiobook),
 		);
 		if (
 			matchingSeries.position !== null &&
@@ -361,40 +500,83 @@ export function scoreReadListenMatch(
 				score += 10;
 				reasons.push("series.position.match");
 			} else {
-				score -= 15;
+				seriesPositionConflict = true;
 				warnings.push("series.position.conflict");
 			}
 		}
 	}
 
-	const audiobookExplicitVolume =
-		extractExplicitVolume(audiobook.title) ??
-		extractExplicitVolume(audiobook.filename) ??
-		extractTrailingVolume(audiobook.title) ??
-		extractTrailingVolume(audiobook.filename);
-	const ebookExplicitVolume =
-		extractExplicitVolume(ebook.title) ??
-		extractExplicitVolume(ebook.filename) ??
-		extractTrailingVolume(ebook.title) ??
-		extractTrailingVolume(ebook.filename);
-	const audiobookVolume =
-		audiobookExplicitVolume ?? unambiguousSeriesPosition(audiobook);
-	const ebookVolume = ebookExplicitVolume ?? unambiguousSeriesPosition(ebook);
+	const audiobookTitleVolume = extractExplicitVolume(audiobook.title);
+	const ebookTitleVolume = extractExplicitVolume(ebook.title);
+	let audiobookVolume = resolveVolumeEvidence(audiobook);
+	let ebookVolume = resolveVolumeEvidence(ebook);
+	if (
+		audiobookTitleVolume !== null &&
+		audiobookTitleVolume === ebookTitleVolume
+	) {
+		audiobookVolume = { value: audiobookTitleVolume, source: "title" };
+		ebookVolume = { value: audiobookTitleVolume, source: "title" };
+	}
 	if (audiobookVolume !== null && ebookVolume !== null) {
-		if (audiobookVolume === ebookVolume) {
+		if (audiobookVolume.value === ebookVolume.value) {
 			score += 10;
 			reasons.push("volume.match");
+		} else if (
+			(isTitleVolumeEvidence(audiobookVolume) &&
+				titleMentionsVolume(ebook.title, audiobookVolume.value)) ||
+			(isTitleVolumeEvidence(ebookVolume) &&
+				titleMentionsVolume(audiobook.title, ebookVolume.value))
+		) {
+			score += 10;
+			reasons.push("volume.match");
+		} else if (
+			audiobookVolume.source !== "title" &&
+			audiobookVolume.source !== "title_tag" &&
+			ebookVolume.source !== "title" &&
+			ebookVolume.source !== "title_tag" &&
+			baseTitle(audiobook.title) === baseTitle(ebook.title)
+		) {
+			// Filenames and series positions often encode catalog order rather than
+			// the edition discriminator. Identical titles are stronger evidence.
 		} else {
 			warnings.push("volume.conflict");
 			eligible = false;
 		}
+	} else {
+		const knownVolume = audiobookVolume ?? ebookVolume;
+		const unknownTitle =
+			audiobookVolume === null ? audiobook.title : ebook.title;
+		if (
+			knownVolume !== null &&
+			isTitleVolumeEvidence(knownVolume) &&
+			titleMentionsVolume(unknownTitle, knownVolume.value)
+		) {
+			score += 10;
+			reasons.push("volume.match");
+		} else if (
+			knownVolume?.source === "title" &&
+			knownVolume.value > 1 &&
+			titleSimilarity >= 0.7
+		) {
+			warnings.push("volume.conflict");
+			eligible = false;
+		}
 	}
+	if (seriesPositionConflict && !reasons.includes("volume.match")) score -= 15;
 
-	const audiobookPart =
-		extractPartMarker(audiobook.title) ?? extractPartMarker(audiobook.filename);
-	const ebookPart =
-		extractPartMarker(ebook.title) ?? extractPartMarker(ebook.filename);
-	if (audiobookPart && ebookPart && audiobookPart !== ebookPart) {
+	const audiobookParts = new Set([
+		...extractPartMarkers(audiobook.title),
+		...extractPartMarkers(audiobook.filename),
+	]);
+	const ebookParts = new Set([
+		...extractPartMarkers(ebook.title),
+		...extractPartMarkers(ebook.filename),
+	]);
+	if (
+		audiobookParts.size > 0 &&
+		ebookParts.size > 0 &&
+		!hasOverlap(audiobookParts, ebookParts)
+	) {
 		warnings.push("part.conflict");
 		eligible = false;
 	}

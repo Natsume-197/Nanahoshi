@@ -42,7 +42,7 @@ const proposal: ReadListenMatchProposalRow = {
 	confidence: "high",
 	reasons: [],
 	warnings: [],
-	matcherVersion: "rules-v4",
+	matcherVersion: "rules-v6",
 	status: "pending",
 	createdAt: "2026-08-25T00:00:00.000Z",
 	updatedAt: "2026-08-25T00:00:00.000Z",
