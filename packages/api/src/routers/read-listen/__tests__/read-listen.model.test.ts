@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { GenerateReadListenAlignmentInput } from "../read-listen.model";
+import {
+	DecideReadListenMatchProposalInput,
+	GenerateReadListenAlignmentInput,
+} from "../read-listen.model";
 
 const pairUuid = "11111111-1111-4111-8111-111111111111";
 
@@ -30,5 +33,22 @@ describe("GenerateReadListenAlignmentInput", () => {
 				verifyTimedText: true,
 			}),
 		).toThrow("cannot verify timed-text");
+	});
+});
+
+describe("DecideReadListenMatchProposalInput", () => {
+	test("requires a replacement ebook only when correcting", () => {
+		expect(() =>
+			DecideReadListenMatchProposalInput.parse({
+				proposalUuid: pairUuid,
+				action: "correct",
+			}),
+		).toThrow();
+		expect(
+			DecideReadListenMatchProposalInput.parse({
+				proposalUuid: pairUuid,
+				action: "reject",
+			}),
+		).toEqual({ proposalUuid: pairUuid, action: "reject" });
 	});
 });

@@ -25,6 +25,35 @@ export const AssociateReadListenPairInput = z.object({
 	candidateUuid: z.string().uuid(),
 });
 
+export const GenerateReadListenMatchProposalsInput = z.object({
+	audiobookUuid: z.string().uuid(),
+	limit: z.number().int().min(1).max(10).default(5),
+});
+
+export const GenerateReadListenMatchProposalBatchInput = z.object({
+	limit: z.number().int().min(1).max(25).default(10),
+});
+
+export const ListReadListenMatchProposalsInput = z.object({
+	status: z.enum(["pending", "decided", "superseded"]).default("pending"),
+	query: z.string().trim().max(200).optional(),
+	offset: z.number().int().min(0).default(0),
+	limit: z.number().int().min(1).max(50).default(30),
+});
+
+export const DecideReadListenMatchProposalInput = z.discriminatedUnion(
+	"action",
+	[
+		z.object({ proposalUuid: z.string().uuid(), action: z.literal("approve") }),
+		z.object({ proposalUuid: z.string().uuid(), action: z.literal("reject") }),
+		z.object({
+			proposalUuid: z.string().uuid(),
+			action: z.literal("correct"),
+			selectedEbookUuid: z.string().uuid(),
+		}),
+	],
+);
+
 export const RemoveReadListenPairInput = z.object({
 	pairUuid: z.string().uuid(),
 });

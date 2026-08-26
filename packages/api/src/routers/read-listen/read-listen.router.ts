@@ -3,12 +3,16 @@ import { ForbiddenError, NotFoundError } from "../../errors";
 import { orgReadProcedure } from "../../index";
 import {
 	AssociateReadListenPairInput,
+	DecideReadListenMatchProposalInput,
 	GenerateReadListenAlignmentInput,
+	GenerateReadListenMatchProposalBatchInput,
+	GenerateReadListenMatchProposalsInput,
 	GetReadListenAlignmentDiagnosticsInput,
 	GetReadListenPairingsInput,
 	GetReadListenSessionInput,
 	GetTimedTextCandidatesInput,
 	ImportExistingReadListenAlignmentInput,
+	ListReadListenMatchProposalsInput,
 	ListReadListenPairingsInput,
 	RemoveReadListenPairInput,
 	SearchReadListenCandidatesInput,
@@ -205,6 +209,103 @@ export function createReadListenRouter(
 				return service.associate({
 					...input,
 					createdByUserId: context.session.user.id,
+					serverId: context.serverId,
+					scope: context.accessibleLibraryIds,
+				});
+			}),
+
+		generateMatchProposals: orgReadProcedure
+			.input(GenerateReadListenMatchProposalsInput)
+			.handler(async ({ input, context }) => {
+				if (
+					!(await canEditPublications(context.session, [input.audiobookUuid]))
+				) {
+					throw new ForbiddenError(
+						"You cannot generate match proposals for this audiobook",
+					);
+				}
+				return service.generateMatchProposals({
+					...input,
+					serverId: context.serverId,
+					scope: context.accessibleLibraryIds,
+				});
+			}),
+
+		generateMatchProposalBatch: orgReadProcedure
+			.input(GenerateReadListenMatchProposalBatchInput)
+			.handler(async ({ input, context }) => {
+				const candidates = await service.listMatchBatchCandidates(
+					context.serverId,
+					context.accessibleLibraryIds,
+					Math.min(input.limit * 4, 100),
+				);
+				const editable = await Promise.all(
+					candidates.map(async (candidate) =>
+						(await canEditPublications(context.session, [candidate.uuid]))
+							? candidate.uuid
+							: null,
+					),
+				);
+				return service.generateMatchProposalBatch({
+					audiobookUuids: editable
+						.filter((uuid): uuid is NonNullable<typeof uuid> => uuid !== null)
+						.slice(0, input.limit),
+					serverId: context.serverId,
+					scope: context.accessibleLibraryIds,
+				});
+			}),
+
+		listMatchProposals: orgReadProcedure
+			.input(ListReadListenMatchProposalsInput)
+			.handler(async ({ input, context }) => {
+				const page = await service.listMatchProposalPage({
+					...input,
+					serverId: context.serverId,
+					scope: context.accessibleLibraryIds,
+				});
+				const visible = await Promise.all(
+					page.items.map(async (proposal) =>
+						(await canEditPublications(context.session, [
+							proposal.audiobook.uuid,
+							proposal.ebook.uuid,
+							...(proposal.decision?.selectedEbook
+								? [proposal.decision.selectedEbook.uuid]
+								: []),
+						]))
+							? proposal
+							: null,
+					),
+				);
+				return {
+					items: visible.filter(
+						(proposal): proposal is NonNullable<typeof proposal> =>
+							proposal !== null,
+					),
+					total: page.total,
+				};
+			}),
+
+		decideMatchProposal: orgReadProcedure
+			.input(DecideReadListenMatchProposalInput)
+			.handler(async ({ input, context }) => {
+				const proposal = await service.getMatchProposalForReview(
+					input.proposalUuid,
+					context.serverId,
+					context.accessibleLibraryIds,
+				);
+				const publicationUuids = [
+					proposal.audiobook.uuid,
+					proposal.ebook.uuid,
+					...(input.action === "correct" ? [input.selectedEbookUuid] : []),
+				];
+				if (!(await canEditPublications(context.session, publicationUuids))) {
+					throw new ForbiddenError(
+						"You cannot decide this Read & Listen match proposal",
+					);
+				}
+				return service.decideMatchProposal({
+					...input,
+					decidedByUserId: context.session.user.id,
 					serverId: context.serverId,
 					scope: context.accessibleLibraryIds,
 				});

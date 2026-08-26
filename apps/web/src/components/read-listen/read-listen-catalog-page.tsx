@@ -1,7 +1,7 @@
 import type { ReadListenPairing } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
-import { BookOpen, Headphones } from "@phosphor-icons/react";
+import { BookOpen, Headphones, Sparkle } from "@phosphor-icons/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
 	BookContextMenuRoot,
@@ -20,7 +20,9 @@ import {
 	FilterSelect,
 } from "@/components/shared/filter-bar";
 import { ViewToggle } from "@/components/shared/view-toggle";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAbilities } from "@/hooks/use-abilities";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -34,10 +36,13 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
+import { ReadListenMatchReview } from "./read-listen-match-review";
 
 type Publication = ReadListenPairing["ebook"];
 type ReadListenSort = "recent" | "title" | "author";
 type AlignmentFilter = "any" | "ready" | "not_imported" | "stale";
+
+const routeApi = getRouteApi("/dashboard/read-listen");
 
 function PublicationArtwork({
 	publication,
@@ -256,6 +261,19 @@ function PairGridSkeleton() {
 }
 
 export function ReadListenCatalogPage() {
+	const { can } = useAbilities();
+	const routeSearch = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const canManagePairings = can("book", "editMetadata");
+	const isReviewingMatches = routeSearch.review === "matches";
+	const setIsReviewingMatches = (reviewing: boolean) =>
+		navigate({
+			search: (previous) => ({
+				...previous,
+				review: reviewing ? "matches" : undefined,
+			}),
+			replace: true,
+		});
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
 			...orpc.readListen.listPairings.infiniteOptions({
@@ -418,6 +436,11 @@ export function ReadListenCatalogPage() {
 			</FilterField>
 		</FilterBar>
 	);
+	if (isReviewingMatches) {
+		return (
+			<ReadListenMatchReview onBack={() => setIsReviewingMatches(false)} />
+		);
+	}
 
 	return (
 		<BookContextMenuRoot mediaType="audiobook">
@@ -436,6 +459,17 @@ export function ReadListenCatalogPage() {
 				sortOptions={sortOptions}
 				sortAriaLabel={m["library_page.sort_aria"]()}
 				filterBar={filterBar}
+				extraActions={
+					canManagePairings ? (
+						<Button
+							variant="outline"
+							onClick={() => setIsReviewingMatches(true)}
+						>
+							<Sparkle aria-hidden="true" data-icon="inline-start" />
+							{m["read_listen.review_matches"]()}
+						</Button>
+					) : undefined
+				}
 				view={view}
 				onViewChange={setView}
 				items={visiblePairings}

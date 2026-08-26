@@ -583,6 +583,155 @@ export const readListenPair = pgTable(
 
 export type ReadListenPair = typeof readListenPair.$inferSelect;
 
+export const readListenMatchProposalStatusEnum = pgEnum(
+	"read_listen_match_proposal_status",
+	["pending", "decided", "superseded"],
+);
+
+export const readListenMatchConfidenceEnum = pgEnum(
+	"read_listen_match_confidence",
+	["high", "medium", "low"],
+);
+
+/**
+ * An immutable, explainable matcher result. Proposals never create a pairing
+ * by themselves; a human decision is required before Read & Listen changes.
+ */
+export const readListenMatchProposal = pgTable(
+	"read_listen_match_proposal",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		audiobookBookId: bigint("audiobook_book_id", { mode: "number" })
+			.notNull()
+			.references(() => book.id, { onDelete: "cascade" }),
+		ebookBookId: bigint("ebook_book_id", { mode: "number" })
+			.notNull()
+			.references(() => book.id, { onDelete: "cascade" }),
+		score: integer("score").notNull(),
+		confidence: readListenMatchConfidenceEnum("confidence").notNull(),
+		reasons: jsonb("reasons").$type<string[]>().notNull(),
+		warnings: jsonb("warnings").$type<string[]>().notNull(),
+		matcherVersion: varchar("matcher_version", { length: 32 }).notNull(),
+		status: readListenMatchProposalStatusEnum("status")
+			.default("pending")
+			.notNull(),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("read_listen_match_proposal_identity_idx").on(
+			table.serverId,
+			table.audiobookBookId,
+			table.ebookBookId,
+			table.matcherVersion,
+		),
+		index("read_listen_match_proposal_review_idx").on(
+			table.serverId,
+			table.status,
+			table.score.desc(),
+		),
+		index("read_listen_match_proposal_audiobook_idx").on(table.audiobookBookId),
+		check(
+			"read_listen_match_proposal_score_check",
+			sql`${table.score} between 0 and 100`,
+		),
+		check(
+			"read_listen_match_proposal_distinct_sources_check",
+			sql`${table.ebookBookId} <> ${table.audiobookBookId}`,
+		),
+	],
+);
+
+/** One completed deterministic matcher pass for an audiobook and rule version. */
+export const readListenMatchEvaluation = pgTable(
+	"read_listen_match_evaluation",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		audiobookBookId: bigint("audiobook_book_id", { mode: "number" })
+			.notNull()
+			.references(() => book.id, { onDelete: "cascade" }),
+		matcherVersion: varchar("matcher_version", { length: 32 }).notNull(),
+		candidateCount: integer("candidate_count").notNull(),
+		proposalCount: integer("proposal_count").notNull(),
+		maxScore: integer("max_score"),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("read_listen_match_evaluation_identity_idx").on(
+			table.serverId,
+			table.audiobookBookId,
+			table.matcherVersion,
+		),
+		index("read_listen_match_evaluation_server_idx").on(table.serverId),
+		check(
+			"read_listen_match_evaluation_counts_check",
+			sql`${table.candidateCount} >= 0 and ${table.proposalCount} >= 0 and ${table.proposalCount} <= ${table.candidateCount}`,
+		),
+		check(
+			"read_listen_match_evaluation_score_check",
+			sql`${table.maxScore} is null or ${table.maxScore} between 0 and 100`,
+		),
+	],
+);
+
+export const readListenMatchDecisionActionEnum = pgEnum(
+	"read_listen_match_decision_action",
+	["approve", "reject", "correct"],
+);
+
+/** Append-only human feedback for a matcher proposal. */
+export const readListenMatchDecision = pgTable(
+	"read_listen_match_decision",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		proposalId: uuid("proposal_id")
+			.notNull()
+			.references(() => readListenMatchProposal.id, { onDelete: "cascade" }),
+		action: readListenMatchDecisionActionEnum("action").notNull(),
+		// Deliberately not a foreign key: this is an immutable audit snapshot and
+		// must survive a corrected publication being deleted later.
+		selectedEbookBookId: bigint("selected_ebook_book_id", { mode: "number" }),
+		decidedByUserId: text("decided_by_user_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("read_listen_match_decision_proposal_idx").on(table.proposalId),
+		index("read_listen_match_decision_user_idx").on(table.decidedByUserId),
+		check(
+			"read_listen_match_decision_selection_check",
+			sql`(${table.action} = 'reject' and ${table.selectedEbookBookId} is null) or (${table.action} in ('approve', 'correct') and ${table.selectedEbookBookId} is not null)`,
+		),
+	],
+);
+
 /**
  * The currently imported, source-verified sidecar for a Read & Listen pair.
  * Generation attempts are separate lifecycle records; replacing this row only

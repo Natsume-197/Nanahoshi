@@ -1019,6 +1019,27 @@ export function ReadListenSection({
 		onError: (error) =>
 			toast.error(getErrorMessage(error, m["read_listen.remove_failed"]())),
 	});
+	const generateMatchProposalsMutation = useMutation({
+		mutationFn: () =>
+			client.readListen.generateMatchProposals({
+				audiobookUuid: publicationUuid,
+				limit: 5,
+			}),
+		onSuccess: async (proposals) => {
+			toast.success(
+				proposals.length > 0
+					? m["read_listen.match_proposals_created"]({
+							count: proposals.length,
+						})
+					: m["read_listen.no_match_found"](),
+			);
+			await queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
+		},
+		onError: (error) =>
+			toast.error(
+				getErrorMessage(error, m["read_listen.match_generation_failed"]()),
+			),
+	});
 	const importAlignmentMutation = useMutation({
 		mutationFn: (pairUuid: string) =>
 			client.readListen.importExistingAlignment({ pairUuid }),
@@ -1127,15 +1148,34 @@ export function ReadListenSection({
 					</p>
 				</div>
 				{canManagePairings && (
-					<Button
-						variant="outline"
-						onClick={() => setIsPairingDialogOpen(true)}
-					>
-						<LinkSimple aria-hidden="true" data-icon="inline-start" />
-						{mediaType === "ebook"
-							? m["read_listen.associate_audiobook"]()
-							: m["read_listen.associate_ebook"]()}
-					</Button>
+					<div className="flex flex-wrap gap-2">
+						{mediaType === "audiobook" && (
+							<Button
+								variant="outline"
+								disabled={generateMatchProposalsMutation.isPending}
+								onClick={() => generateMatchProposalsMutation.mutate()}
+							>
+								{generateMatchProposalsMutation.isPending ? (
+									<CircleNotch
+										aria-hidden="true"
+										className="animate-spin motion-reduce:animate-none"
+									/>
+								) : (
+									<Sparkle aria-hidden="true" data-icon="inline-start" />
+								)}
+								{m["read_listen.find_matches"]()}
+							</Button>
+						)}
+						<Button
+							variant="outline"
+							onClick={() => setIsPairingDialogOpen(true)}
+						>
+							<LinkSimple aria-hidden="true" data-icon="inline-start" />
+							{mediaType === "ebook"
+								? m["read_listen.associate_audiobook"]()
+								: m["read_listen.associate_ebook"]()}
+						</Button>
+					</div>
 				)}
 			</div>
 

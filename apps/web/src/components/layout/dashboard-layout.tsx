@@ -227,7 +227,10 @@ export function DashboardLayout() {
 	// separate row for it below the workspace so the scroll area ends above the
 	// bar instead of painting and scrolling behind it.
 	const showPlayerBar = Boolean(audiobook);
-	const standalone = STANDALONE_ROUTES.has(location.pathname);
+	const standalone =
+		STANDALONE_ROUTES.has(location.pathname) ||
+		(location.pathname === "/dashboard/read-listen" &&
+			(location.search as { review?: string }).review === "matches");
 	// Matched route ids, not the pathname: `/dashboard/audiobooks/series/$uuid`
 	// is a detail-looking path that must keep its chrome.
 	const mobileChromeless = useRouterState({

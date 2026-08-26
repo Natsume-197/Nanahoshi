@@ -82,6 +82,8 @@
 	--success: oklch(0.52 0.17 145);
 	--warning: oklch(0.5 0.14 75);
 	--info: oklch(0.5 0.16 250);
+	--selection: oklch(0.55 0.19 255);
+	--selection-foreground: oklch(0.99 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.99 0 0);
 	--border: oklch(0.92 0.004 286);
@@ -205,6 +207,8 @@ html[data-rail="expanded"] {
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
+	--selection: oklch(0.68 0.17 255);
+	--selection-foreground: oklch(0.16 0.03 255);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
 	--border: rgba(255, 255, 255, 0.1);
@@ -264,6 +268,8 @@ html[data-rail="expanded"] {
 	--color-input: var(--input);
 	--color-border: var(--border);
 	--color-info: var(--info);
+	--color-selection-foreground: var(--selection-foreground);
+	--color-selection: var(--selection);
 	--color-warning: var(--warning);
 	--color-success: var(--success);
 	--color-destructive-foreground: var(--destructive-foreground);

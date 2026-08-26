@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from "bun:test";
 import { BadRequestError, ConflictError } from "../../../errors";
 import type {
 	ReadListenAlignmentRow,
+	ReadListenMatchProposalPageRow,
+	ReadListenMatchProposalRow,
 	ReadListenPairRow,
 	ReadListenPublication,
 } from "../read-listen.repository";
@@ -23,6 +25,7 @@ const ebook: ReadListenPublication = {
 	libraryName: "Books",
 	authors: [{ name: "Author" }],
 	narrators: [],
+	series: [],
 };
 
 const audiobook: ReadListenPublication = {
@@ -41,6 +44,7 @@ const audiobook: ReadListenPublication = {
 	libraryName: "Audiobooks",
 	authors: [{ name: "Author" }],
 	narrators: [{ name: "Narrator" }],
+	series: [],
 };
 
 const pairRow: ReadListenPairRow = {
@@ -49,6 +53,21 @@ const pairRow: ReadListenPairRow = {
 	ebookBookId: ebook.id,
 	audiobookBookId: audiobook.id,
 	createdByUserId: "user-1",
+	createdAt: "2026-08-08T00:00:00.000Z",
+	updatedAt: "2026-08-08T00:00:00.000Z",
+};
+
+const proposalRow: ReadListenMatchProposalRow = {
+	id: "00000000-0000-4000-8000-000000000050",
+	serverId: "server-1",
+	audiobookBookId: audiobook.id,
+	ebookBookId: ebook.id,
+	score: 75,
+	confidence: "medium",
+	reasons: ["title.exact", "author.match"],
+	warnings: [],
+	matcherVersion: "rules-v4",
+	status: "pending",
 	createdAt: "2026-08-08T00:00:00.000Z",
 	updatedAt: "2026-08-08T00:00:00.000Z",
 };
@@ -152,7 +171,16 @@ function createHarness() {
 		),
 		upsertAlignment: mock(() => Promise.resolve(alignmentRow)),
 		createPair: mock(() => Promise.resolve(pairRow)),
-		deletePair: mock(() => Promise.resolve(true)),
+		deletePairAndMatchHistory: mock(() => Promise.resolve(true)),
+		createMatchProposals: mock(() => Promise.resolve()),
+		recordMatchEvaluation: mock(() => Promise.resolve()),
+		listUnevaluatedCanonicalAudiobooks: mock(() => Promise.resolve([])),
+		listMatchProposalRows: mock(() => Promise.resolve([])),
+		listMatchProposalPage: mock(() =>
+			Promise.resolve([] as ReadListenMatchProposalPageRow[]),
+		),
+		getMatchProposalRow: mock(() => Promise.resolve(null)),
+		decideMatchProposal: mock(() => Promise.resolve(null)),
 	};
 	const searchPort = {
 		searchBooks: mock(() =>
@@ -321,6 +349,160 @@ describe("ReadListenService", () => {
 		expect(result.candidates[0]).not.toHaveProperty("id");
 	});
 
+	test("generates explainable proposals without creating a pair", async () => {
+		const { service, store, searchPort } = createHarness();
+		searchPort.searchBooks.mockResolvedValue({
+			books: [{ uuid: ebook.uuid }],
+			pagination: { hasMore: false, totalHits: 1, totalHitsRelation: "eq" },
+		} as never);
+		store.listMatchProposalRows.mockResolvedValue([proposalRow]);
+
+		const result = await service.generateMatchProposals({
+			audiobookUuid: audiobook.uuid,
+			limit: 5,
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(store.createMatchProposals).toHaveBeenCalledWith([
+			expect.objectContaining({
+				audiobookBookId: audiobook.id,
+				ebookBookId: ebook.id,
+				matcherVersion: "rules-v4",
+			}),
+		]);
+		expect(store.createPair).not.toHaveBeenCalled();
+		expect(store.recordMatchEvaluation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				audiobookBookId: audiobook.id,
+				matcherVersion: "rules-v4",
+				proposalCount: 1,
+			}),
+		);
+		expect(result[0]).toEqual(
+			expect.objectContaining({ id: proposalRow.id, score: proposalRow.score }),
+		);
+	});
+
+	test("shows only pending proposals from the current matcher version", async () => {
+		const { service, store } = createHarness();
+		store.listMatchProposalRows.mockResolvedValue([
+			{ ...proposalRow, id: "old-proposal", matcherVersion: "rules-v2" },
+			proposalRow,
+		]);
+
+		const result = await service.listMatchProposals({
+			status: "pending",
+			offset: 0,
+			limit: 50,
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(store.listMatchProposalRows).toHaveBeenCalledWith(
+			"server-1",
+			expect.objectContaining({ matcherVersion: "rules-v4" }),
+		);
+		expect(result).toHaveLength(1);
+		expect(result[0]?.matcherVersion).toBe("rules-v4");
+	});
+
+	test("returns a searchable reviewed page with its active pairing", async () => {
+		const { service, store } = createHarness();
+		store.listMatchProposalPage.mockResolvedValue([
+			{
+				...proposalRow,
+				status: "decided",
+				decisionAction: "approve",
+				selectedEbookBookId: ebook.id,
+				pairId: pairRow.id,
+				totalCount: 17,
+			},
+		]);
+
+		const result = await service.listMatchProposalPage({
+			status: "decided",
+			query: "The Book",
+			offset: 10,
+			limit: 10,
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(store.listMatchProposalPage).toHaveBeenCalledWith(
+			"server-1",
+			"ALL",
+			expect.objectContaining({
+				status: "decided",
+				query: "The Book",
+				offset: 10,
+				limit: 10,
+			}),
+		);
+		expect(result.total).toBe(17);
+		expect(result.items[0]?.decision).toEqual({
+			action: "approve",
+			selectedEbook: expect.objectContaining({ uuid: ebook.uuid }),
+			pairUuid: pairRow.id,
+		});
+	});
+
+	test("turns an approval into a pair through the atomic decision operation", async () => {
+		const { service, store } = createHarness();
+		store.getMatchProposalRow.mockResolvedValue(proposalRow);
+		store.decideMatchProposal.mockResolvedValue({
+			decision: {
+				id: "00000000-0000-4000-8000-000000000060",
+				proposalId: proposalRow.id,
+				action: "approve",
+				selectedEbookBookId: ebook.id,
+				decidedByUserId: "user-1",
+				createdAt: "2026-08-08T00:00:00.000Z",
+			},
+			pair: pairRow,
+		});
+
+		const result = await service.decideMatchProposal({
+			proposalUuid: proposalRow.id,
+			action: "approve",
+			decidedByUserId: "user-1",
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(store.decideMatchProposal).toHaveBeenCalledWith({
+			proposal: proposalRow,
+			action: "approve",
+			selectedEbookBookId: ebook.id,
+			decidedByUserId: "user-1",
+		});
+		expect(result.pairUuid).toBe(pairRow.id);
+	});
+
+	test("records no-result batch evaluations so they are not processed again", async () => {
+		const { service, store } = createHarness();
+
+		const result = await service.generateMatchProposalBatch({
+			audiobookUuids: [audiobook.uuid],
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(result).toEqual({
+			processedCount: 1,
+			proposalCount: 0,
+			matcherVersion: "rules-v4",
+		});
+		expect(store.recordMatchEvaluation).toHaveBeenCalledWith({
+			serverId: "server-1",
+			audiobookBookId: audiobook.id,
+			matcherVersion: "rules-v4",
+			candidateCount: 0,
+			proposalCount: 0,
+			maxScore: null,
+		});
+	});
+
 	test("does not expose a pair when either endpoint is outside the caller scope", async () => {
 		const { service, store } = createHarness();
 		store.listPairRows.mockResolvedValue([pairRow]);
@@ -332,12 +514,15 @@ describe("ReadListenService", () => {
 		expect(store.listPublicationsByIds).toHaveBeenCalledTimes(1);
 	});
 
-	test("returns the removed pair so callers can update both publication views", async () => {
+	test("removes the pair and its reviewed match history", async () => {
 		const { service, store } = createHarness();
 
 		const result = await service.removePair(pairRow.id, "server-1", "ALL");
 
-		expect(store.deletePair).toHaveBeenCalledWith(pairRow.id, "server-1");
+		expect(store.deletePairAndMatchHistory).toHaveBeenCalledWith(
+			pairRow.id,
+			"server-1",
+		);
 		expect(result.id).toBe(pairRow.id);
 	});
 

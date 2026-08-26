@@ -4,6 +4,9 @@ import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/dashboard/read-listen")({
 	component: ReadListenCatalogPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		review: search.review === "matches" ? ("matches" as const) : undefined,
+	}),
 	head: () => ({
 		meta: [{ title: `${m["nav.read_listen"]()} · Nanahoshi` }],
 	}),
