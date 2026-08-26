@@ -201,11 +201,11 @@ function ServerSwitchOverlay() {
 // bottom tab bar, which is its real navigation.
 const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
 
-// Routes that drop the top bar below md only. A detail page leads with its
-// artwork and carries its own back button, so on a phone the bar just pushes
-// the cover down — and because the bar auto-hides, any sticky page chrome would
-// be left pinned against the padding it vacates. Desktop keeps the full chrome.
+// Routes that drop the top bar below md only. Detail pages lead with their own
+// navigation, while the collections index already carries a page toolbar; on a
+// phone the global bar only duplicates that chrome. Desktop keeps the full bar.
 const MOBILE_CHROMELESS_ROUTE_IDS = new Set([
+	"/dashboard/collections/",
 	"/dashboard/books/$uuid",
 	"/dashboard/audiobooks/$uuid",
 ]);
