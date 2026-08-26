@@ -3,6 +3,23 @@ import { PgDialect } from "drizzle-orm/pg-core";
 
 const deletedTables: unknown[] = [];
 let executedQuery: unknown;
+let selectedWhere: unknown;
+
+const select = mock(() => {
+	const chain = {
+		from: mock(() => chain),
+		leftJoin: mock(() => chain),
+		innerJoin: mock(() => chain),
+		where: mock((condition: unknown) => {
+			selectedWhere = condition;
+			return chain;
+		}),
+		orderBy: mock(() => chain),
+		offset: mock(() => chain),
+		limit: mock(() => Promise.resolve([])),
+	};
+	return chain;
+});
 
 function createAwaitableChain(result: unknown) {
 	const chain = {
@@ -37,6 +54,7 @@ const transaction = mock(
 
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
+		select,
 		transaction,
 		execute: mock((query: unknown) => {
 			executedQuery = query;
@@ -54,6 +72,8 @@ describe("ReadListenRepository.deletePairAndMatchHistory", () => {
 	beforeEach(() => {
 		deletedTables.length = 0;
 		executedQuery = undefined;
+		selectedWhere = undefined;
+		select.mockClear();
 		transaction.mockClear();
 	});
 
@@ -64,6 +84,32 @@ describe("ReadListenRepository.deletePairAndMatchHistory", () => {
 			await repository.deletePairAndMatchHistory("pair-1", "server-1"),
 		).toBe(true);
 		expect(deletedTables).toContain(readListenMatchEvaluation);
+	});
+});
+
+describe("ReadListenRepository.listAllPairRows", () => {
+	test("filters ready alignments using the current publication hashes", async () => {
+		const repository = new ReadListenRepository();
+
+		await repository.listAllPairRows("server-1", 0, 30, "ready");
+
+		const query = new PgDialect().sqlToQuery(selectedWhere as never).sql;
+		expect(query).toContain("read_listen_alignment");
+		expect(query).toContain("read_listen_ebook");
+		expect(query).toContain("read_listen_audiobook");
+		expect(query).toContain(" = ");
+	});
+
+	test("separates missing and stale alignments before pagination", async () => {
+		const repository = new ReadListenRepository();
+
+		await repository.listAllPairRows("server-1", 0, 30, "not_imported");
+		const missingQuery = new PgDialect().sqlToQuery(selectedWhere as never).sql;
+		expect(missingQuery).toContain("is null");
+
+		await repository.listAllPairRows("server-1", 0, 30, "stale");
+		const staleQuery = new PgDialect().sqlToQuery(selectedWhere as never).sql;
+		expect(staleQuery).toContain(" <> ");
 	});
 });
 

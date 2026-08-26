@@ -7,6 +7,7 @@ export const GetReadListenPairingsInput = z.object({
 export const ListReadListenPairingsInput = z.object({
 	offset: z.number().int().min(0).default(0),
 	limit: z.number().int().min(1).max(50).default(30),
+	alignment: z.enum(["any", "ready", "not_imported", "stale"]).default("ready"),
 });
 
 export const SearchReadListenPairingsInput = z.object({

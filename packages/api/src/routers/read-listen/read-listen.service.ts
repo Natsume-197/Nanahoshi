@@ -16,6 +16,7 @@ import {
 	readManagedAlignmentReport,
 } from "./alignment-artifact";
 import {
+	type ReadListenAlignmentFilter,
 	type ReadListenAlignmentRow,
 	type ReadListenGenerationRow,
 	type ReadListenPairRow,
@@ -345,12 +346,17 @@ export class ReadListenService {
 	async listPairings(
 		serverId: string,
 		scope: LibraryScope,
-		page: { offset?: number; limit?: number } = {},
+		page: {
+			offset?: number;
+			limit?: number;
+			alignment?: ReadListenAlignmentFilter;
+		} = {},
 	) {
 		const rows = await this.store.listAllPairRows(
 			serverId,
 			page.offset ?? 0,
 			page.limit ?? 50,
+			page.alignment ?? "any",
 		);
 		const pairIds = rows.map((row) => row.id);
 		const publicationIds = [

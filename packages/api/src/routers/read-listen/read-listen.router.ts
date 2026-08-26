@@ -61,7 +61,11 @@ export function createReadListenRouter(
 				const pairings = await service.listPairings(
 					context.serverId,
 					context.accessibleLibraryIds,
-					{ offset: input.offset, limit: input.limit + 1 },
+					{
+						offset: input.offset,
+						limit: input.limit + 1,
+						alignment: input.alignment,
+					},
 				);
 				const hasMore = pairings.length > input.limit;
 				const visible = await Promise.all(

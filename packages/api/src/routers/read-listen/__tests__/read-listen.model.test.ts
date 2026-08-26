@@ -3,9 +3,20 @@ import {
 	DecideReadListenMatchProposalInput,
 	DecideReadListenMatchProposalsInput,
 	GenerateReadListenAlignmentInput,
+	ListReadListenPairingsInput,
 } from "../read-listen.model";
 
 const pairUuid = "11111111-1111-4111-8111-111111111111";
+
+describe("ListReadListenPairingsInput", () => {
+	test("lists ready alignments by default", () => {
+		expect(ListReadListenPairingsInput.parse({})).toEqual({
+			offset: 0,
+			limit: 30,
+			alignment: "ready",
+		});
+	});
+});
 
 describe("GenerateReadListenAlignmentInput", () => {
 	test("leaves optional SRT verification disabled by default", () => {

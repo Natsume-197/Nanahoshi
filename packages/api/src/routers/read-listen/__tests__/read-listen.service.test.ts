@@ -270,7 +270,33 @@ describe("ReadListenService", () => {
 		const result = await service.listPairings("server-1", [1]);
 
 		expect(result).toEqual([]);
-		expect(store.listAllPairRows).toHaveBeenCalledWith("server-1", 0, 50);
+		expect(store.listAllPairRows).toHaveBeenCalledWith(
+			"server-1",
+			0,
+			50,
+			"any",
+		);
+	});
+
+	test("applies the alignment filter before paginating pairs", async () => {
+		const { service, store } = createHarness();
+		store.listAllPairRows.mockResolvedValue([pairRow]);
+		store.listAlignmentRows.mockResolvedValue([alignmentRow]);
+
+		const result = await service.listPairings("server-1", [1], {
+			offset: 30,
+			limit: 31,
+			alignment: "ready",
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0]?.alignment.status).toBe("ready");
+		expect(store.listAllPairRows).toHaveBeenCalledWith(
+			"server-1",
+			30,
+			31,
+			"ready",
+		);
 	});
 
 	test("canonicalizes the endpoints when association starts from an audiobook", async () => {

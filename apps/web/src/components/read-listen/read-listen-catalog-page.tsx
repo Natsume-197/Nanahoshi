@@ -266,6 +266,7 @@ export function ReadListenCatalogPage() {
 	const navigate = routeApi.useNavigate();
 	const canManagePairings = can("book", "editMetadata");
 	const isReviewingMatches = routeSearch.review === "matches";
+	const [alignment, setAlignment] = useState<AlignmentFilter>("ready");
 	const setIsReviewingMatches = (reviewing: boolean) =>
 		navigate({
 			search: (previous) => ({
@@ -277,7 +278,11 @@ export function ReadListenCatalogPage() {
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
 			...orpc.readListen.listPairings.infiniteOptions({
-				input: (pageParam: number) => ({ offset: pageParam, limit: 30 }),
+				input: (pageParam: number) => ({
+					offset: pageParam,
+					limit: 30,
+					alignment,
+				}),
 				initialPageParam: 0,
 				getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
 			}),
@@ -298,7 +303,6 @@ export function ReadListenCatalogPage() {
 	});
 	const [ebookLibraryUuid, setEbookLibraryUuid] = useState("any");
 	const [audiobookLibraryUuid, setAudiobookLibraryUuid] = useState("any");
-	const [alignment, setAlignment] = useState<AlignmentFilter>("any");
 	const { ebookLibraryOptions, audiobookLibraryOptions } = useMemo(() => {
 		const ebookLibraries = new Map<string, string>();
 		const audiobookLibraries = new Map<string, string>();
@@ -344,8 +348,7 @@ export function ReadListenCatalogPage() {
 				(ebookLibraryUuid === "any" ||
 					pairing.ebook.libraryUuid === ebookLibraryUuid) &&
 				(audiobookLibraryUuid === "any" ||
-					pairing.audiobook.libraryUuid === audiobookLibraryUuid) &&
-				(alignment === "any" || pairing.alignment.status === alignment),
+					pairing.audiobook.libraryUuid === audiobookLibraryUuid),
 		);
 
 		return filtered.sort((a, b) => {
@@ -357,14 +360,7 @@ export function ReadListenCatalogPage() {
 			}
 			return a.audiobook.title.localeCompare(b.audiobook.title);
 		});
-	}, [
-		pairings,
-		query,
-		ebookLibraryUuid,
-		audiobookLibraryUuid,
-		alignment,
-		sort,
-	]);
+	}, [pairings, query, ebookLibraryUuid, audiobookLibraryUuid, sort]);
 	const hasActiveFilters =
 		isSearching ||
 		ebookLibraryUuid !== "any" ||

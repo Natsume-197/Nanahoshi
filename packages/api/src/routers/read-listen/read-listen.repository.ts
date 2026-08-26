@@ -25,12 +25,15 @@ import {
 	desc,
 	eq,
 	inArray,
+	isNotNull,
 	isNull,
+	ne,
 	notExists,
 	or,
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -40,6 +43,23 @@ import {
 } from "../_shared/library-scope";
 
 export type ReadListenMediaType = "ebook" | "audiobook";
+export type ReadListenAlignmentFilter =
+	| "any"
+	| "ready"
+	| "not_imported"
+	| "stale";
+
+const readListenEbook = alias(book, "read_listen_ebook");
+const readListenAudiobook = alias(book, "read_listen_audiobook");
+const readListenPairSelection = {
+	id: readListenPair.id,
+	serverId: readListenPair.serverId,
+	ebookBookId: readListenPair.ebookBookId,
+	audiobookBookId: readListenPair.audiobookBookId,
+	createdByUserId: readListenPair.createdByUserId,
+	createdAt: readListenPair.createdAt,
+	updatedAt: readListenPair.updatedAt,
+};
 
 export type ReadListenPublication = {
 	id: number;
@@ -343,9 +363,78 @@ export class ReadListenRepository {
 		serverId: string,
 		offset = 0,
 		limit = 50,
+		alignment: ReadListenAlignmentFilter = "any",
 	): Promise<ReadListenPairRow[]> {
+		if (alignment === "not_imported") {
+			return await db
+				.select(readListenPairSelection)
+				.from(readListenPair)
+				.leftJoin(
+					readListenAlignment,
+					eq(readListenAlignment.pairId, readListenPair.id),
+				)
+				.where(
+					and(
+						eq(readListenPair.serverId, serverId),
+						isNull(readListenAlignment.id),
+					),
+				)
+				.orderBy(desc(readListenPair.updatedAt))
+				.offset(offset)
+				.limit(limit);
+		}
+
+		if (alignment === "ready" || alignment === "stale") {
+			const sourceStatusCondition =
+				alignment === "ready"
+					? and(
+							eq(
+								readListenAlignment.ebookCatalogHash,
+								readListenEbook.filehash,
+							),
+							eq(
+								readListenAlignment.audiobookCatalogHash,
+								readListenAudiobook.filehash,
+							),
+						)
+					: or(
+							ne(
+								readListenAlignment.ebookCatalogHash,
+								readListenEbook.filehash,
+							),
+							ne(
+								readListenAlignment.audiobookCatalogHash,
+								readListenAudiobook.filehash,
+							),
+						);
+			return await db
+				.select(readListenPairSelection)
+				.from(readListenPair)
+				.innerJoin(
+					readListenAlignment,
+					and(
+						eq(readListenAlignment.pairId, readListenPair.id),
+						isNotNull(readListenAlignment.id),
+					),
+				)
+				.innerJoin(
+					readListenEbook,
+					eq(readListenEbook.id, readListenPair.ebookBookId),
+				)
+				.innerJoin(
+					readListenAudiobook,
+					eq(readListenAudiobook.id, readListenPair.audiobookBookId),
+				)
+				.where(
+					and(eq(readListenPair.serverId, serverId), sourceStatusCondition),
+				)
+				.orderBy(desc(readListenPair.updatedAt))
+				.offset(offset)
+				.limit(limit);
+		}
+
 		return await db
-			.select()
+			.select(readListenPairSelection)
 			.from(readListenPair)
 			.where(eq(readListenPair.serverId, serverId))
 			.orderBy(desc(readListenPair.updatedAt))
