@@ -21,6 +21,8 @@ function FooterViewportObserver({
 	const ref = useRef<HTMLDivElement>(null);
 	useMountEffect(() => {
 		if (!ref.current) return;
+		const scrollRoot = ref.current.closest<HTMLElement>("#dashboard-main");
+		const viewportHeight = scrollRoot?.clientHeight || window.innerHeight;
 		const { connection } = navigator as NavigatorWithConnection;
 		let observer: IntersectionObserver | undefined;
 		let observedDistance = 0;
@@ -42,7 +44,7 @@ function FooterViewportObserver({
 					onVisible();
 					observer?.disconnect();
 				},
-				{ rootMargin: `${distance}px 0px` },
+				{ root: scrollRoot, rootMargin: `${distance}px 0px` },
 			);
 			if (ref.current) observer.observe(ref.current);
 		};
@@ -50,7 +52,7 @@ function FooterViewportObserver({
 		const updateDistance = () => {
 			animationFrame = undefined;
 			observeAtDistance(
-				getHomePrefetchDistance(window.innerHeight, {
+				getHomePrefetchDistance(viewportHeight, {
 					effectiveType: connection?.effectiveType,
 					saveData: connection?.saveData,
 					scrollVelocity: smoothedVelocity,
