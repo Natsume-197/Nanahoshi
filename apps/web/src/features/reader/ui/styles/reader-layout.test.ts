@@ -175,6 +175,81 @@ describe("reader layout", () => {
 		expect(bodyStyle.paddingRight).toBe("0px");
 	});
 
+	test("keeps EPUB page padding out of the vertical column height", () => {
+		const dom = new JSDOM(`
+			<style>${readerCss}</style>
+			<style>
+				.book-content .book-page {
+					margin-top: 5%;
+					padding-bottom: 2em;
+				}
+				.book-content .chapter-body {
+					height: 95%;
+					padding-top: 1em;
+				}
+			</style>
+			<main class="book-content book-content--continuous book-content--writing-vertical-rl">
+				<section>
+					<div class="nanahoshi-book-html-wrapper book-page">
+						<div class="nanahoshi-book-body-wrapper chapter-body"><p>本文</p></div>
+					</div>
+				</section>
+			</main>
+		`);
+		const htmlWrapper = dom.window.document.querySelector(
+			".nanahoshi-book-html-wrapper",
+		) as HTMLElement;
+		const bodyWrapper = dom.window.document.querySelector(
+			".nanahoshi-book-body-wrapper",
+		) as HTMLElement;
+		const htmlStyle = dom.window.getComputedStyle(htmlWrapper);
+		const bodyStyle = dom.window.getComputedStyle(bodyWrapper);
+
+		expect(htmlStyle.height).toBe("100%");
+		expect(htmlStyle.marginTop).toBe("0px");
+		expect(htmlStyle.paddingBottom).toBe("0px");
+		expect(bodyStyle.height).toBe("100%");
+		expect(bodyStyle.paddingTop).toBe("0px");
+	});
+
+	test("makes zero vertical padding exact in paginated vertical text", () => {
+		const dom = new JSDOM(`
+			<style>${readerCss}</style>
+			<style>
+				.book-content .book-page {
+					padding-top: 3em;
+					padding-bottom: 2em;
+				}
+				.book-content .chapter-body {
+					margin-top: 5%;
+					padding-top: 1em;
+				}
+			</style>
+			<main class="book-content book-content--paginated book-content--writing-vertical-rl">
+				<div class="book-content-container">
+					<section>
+						<div class="nanahoshi-book-html-wrapper book-page">
+							<div class="nanahoshi-book-body-wrapper chapter-body"><p>本文</p></div>
+						</div>
+					</section>
+				</div>
+			</main>
+		`);
+		const htmlWrapper = dom.window.document.querySelector(
+			".nanahoshi-book-html-wrapper",
+		) as HTMLElement;
+		const bodyWrapper = dom.window.document.querySelector(
+			".nanahoshi-book-body-wrapper",
+		) as HTMLElement;
+		const htmlStyle = dom.window.getComputedStyle(htmlWrapper);
+		const bodyStyle = dom.window.getComputedStyle(bodyWrapper);
+
+		expect(htmlStyle.paddingTop).toBe("0px");
+		expect(htmlStyle.paddingBottom).toBe("0px");
+		expect(bodyStyle.marginTop).toBe("0px");
+		expect(bodyStyle.paddingTop).toBe("0px");
+	});
+
 	test("justifies CJK text between characters without stretching its final line", () => {
 		const dom = new JSDOM(`
 			<style>${readerCss}</style>

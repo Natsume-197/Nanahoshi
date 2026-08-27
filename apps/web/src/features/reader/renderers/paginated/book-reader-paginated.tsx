@@ -84,23 +84,30 @@ function getHorizontalPadding() {
 	return viewportWidth() >= 768 ? 32 : 16;
 }
 
-function computeViewport(
+export function computeViewport(
 	verticalMode: boolean,
 	firstDimensionMargin: number,
 	secondDimensionMaxValue: number,
+	viewport?: { width: number; height: number },
+	horizontalPadding?: number,
 ) {
-	if (typeof window === "undefined") return { width: 0, height: 0 };
+	if (typeof window === "undefined" && !viewport)
+		return { width: 0, height: 0 };
+	const measuredViewport = viewport ?? {
+		width: viewportWidth(),
+		height: viewportHeight(),
+	};
+	const shellPadding = horizontalPadding ?? getHorizontalPadding();
 
-	const horizontalPadding = getHorizontalPadding();
-
-	let width =
-		viewportWidth() -
-		horizontalPadding * 2 -
-		(verticalMode && firstDimensionMargin ? firstDimensionMargin * 2 : 0);
+	// In vertical mode firstDimensionMargin is already physical left/right
+	// padding on the border-box book surface (buildReaderStyle). Subtracting it
+	// here as well applies the same setting twice and desynchronizes the CSS
+	// column width from the actual content box.
+	let width = measuredViewport.width - shellPadding * 2;
 	// No vertical padding: the text fills the whole screen height (the header
 	// strip and footer are transparent overlays, not reserved bands).
 	let height =
-		viewportHeight() -
+		measuredViewport.height -
 		(!verticalMode && firstDimensionMargin ? firstDimensionMargin * 2 : 0);
 
 	if (!verticalMode && secondDimensionMaxValue) {

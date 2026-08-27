@@ -382,7 +382,14 @@
 	.nanahoshi-book-html-wrapper,
 .book-content--continuous.book-content--writing-vertical-rl
 	.nanahoshi-book-body-wrapper {
-	height: 100%;
+	box-sizing: border-box !important;
+	height: 100% !important;
+	min-height: 0 !important;
+	max-height: none !important;
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+	padding-top: 0 !important;
+	padding-bottom: 0 !important;
 }
 
 .book-content--continuous.book-content--writing-vertical-rl > * {
@@ -398,6 +405,25 @@
 }
 
 /* Paginated mode: fixed-size scroll element with CSS columns */
+
+/* The adapter maps publication <html>/<body> classes onto generated wrappers.
+   In vertical pagination, publisher page padding on their physical top/bottom
+   becomes an apparent reader padding that survives even when the control is
+   0%. These nodes are reader structure, so the configured reading area owns
+   their physical vertical edges; paragraph spacing inside remains untouched. */
+.book-content--paginated.book-content--writing-vertical-rl
+	.book-content-container
+	> *,
+.book-content--paginated.book-content--writing-vertical-rl
+	.nanahoshi-book-html-wrapper,
+.book-content--paginated.book-content--writing-vertical-rl
+	.nanahoshi-book-body-wrapper {
+	box-sizing: border-box !important;
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+	padding-top: 0 !important;
+	padding-bottom: 0 !important;
+}
 
 .book-content--paginated {
 	overflow: hidden;

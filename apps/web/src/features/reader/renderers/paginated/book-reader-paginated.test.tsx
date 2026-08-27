@@ -4,6 +4,7 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	BookReaderPaginated,
+	computeViewport,
 	viewportCenteredTranslateX,
 } from "./book-reader-paginated";
 
@@ -77,6 +78,23 @@ afterEach(() => {
 describe("viewportCenteredTranslateX", () => {
 	test("aligns an illustration with the physical viewport centre", () => {
 		expect(viewportCenteredTranslateX(2560, 1144, 640)).toBe(-184);
+	});
+});
+
+describe("vertical page padding", () => {
+	test("applies the requested physical horizontal padding only once", () => {
+		const viewport = computeViewport(
+			true,
+			100,
+			0,
+			{ width: 1000, height: 700 },
+			32,
+		);
+
+		// The reader shell owns 32px on each side. The book surface should keep
+		// the remaining 936px and apply its 100px padding inside that surface,
+		// leaving 736px for text—not subtract the user padding here as well.
+		expect(viewport).toEqual({ width: 936, height: 700 });
 	});
 });
 
