@@ -121,6 +121,15 @@ export function getPaginatedPageHeight(
 		: `${viewportHeightPx}px`;
 }
 
+/** The physical X offset that centres a rendered illustration in the viewport. */
+export function viewportCenteredTranslateX(
+	viewportWidthPx: number,
+	leftPx: number,
+	widthPx: number,
+) {
+	return viewportWidthPx / 2 - (leftPx + widthPx / 2);
+}
+
 function waitForImageDecode(image: HTMLImageElement): Promise<void> {
 	if (typeof image.decode === "function") {
 		return image.decode();
@@ -305,12 +314,37 @@ export function BookReaderPaginated({
 		s.cancelStaging = undefined;
 	};
 
+	// Tategaki's multicolumn geometry positions an image-only EPUB section at
+	// its reading edge. Its exact physical X position varies with the viewport,
+	// reader padding, and publication CSS, so centre it from the measured box.
+	// Transforming the inner wrapper keeps that correction out of pagination.
+	const centerStandaloneIllustrations = () => {
+		if (!verticalMode) return;
+		const contentEl = contentElRef.current;
+		if (!contentEl) return;
+
+		for (const wrapper of Array.from(
+			contentEl.querySelectorAll<HTMLElement>(
+				".nanahoshi-book-body-wrapper.nanahoshi-no-text .nanahoshi-img-parent",
+			),
+		)) {
+			wrapper.style.removeProperty("transform");
+			const rect = wrapper.getBoundingClientRect();
+			wrapper.style.transform = `translateX(${viewportCenteredTranslateX(
+				viewportWidth(),
+				rect.left,
+				rect.width,
+			)}px)`;
+		}
+	};
+
 	// Re-measures the current section and re-anchors to the last user-intended
 	// reading position.
 	const relayoutNow = () => {
 		const s = internalsRef.current;
 		if (!s.calculator || !s.pageManager) return;
 		refitImages();
+		centerStandaloneIllustrations();
 		s.pageManager.scrollTo(0, false);
 		s.calculator.updateParagraphPos();
 		const exploredCharCount = Math.max(0, s.previousIntendedCount);
@@ -422,6 +456,7 @@ export function BookReaderPaginated({
 					? section.id
 					: "";
 				s.calculator?.updateCurrentSection(index);
+				centerStandaloneIllustrations();
 
 				// Geometry reads below synchronously lay out the decoded section. Keep
 				// replacement, measurement, and the destination-page scroll in one task:

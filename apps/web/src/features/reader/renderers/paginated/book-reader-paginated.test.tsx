@@ -2,7 +2,10 @@ import "@/test-utils/setup-dom";
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
-import { BookReaderPaginated } from "./book-reader-paginated";
+import {
+	BookReaderPaginated,
+	viewportCenteredTranslateX,
+} from "./book-reader-paginated";
 
 Object.defineProperty(document, "fonts", {
 	configurable: true,
@@ -69,6 +72,12 @@ afterEach(() => {
 			originalClientHeight,
 		);
 	}
+});
+
+describe("viewportCenteredTranslateX", () => {
+	test("aligns an illustration with the physical viewport centre", () => {
+		expect(viewportCenteredTranslateX(2560, 1144, 640)).toBe(-184);
+	});
 });
 
 describe("BookReaderPaginated image section navigation", () => {
