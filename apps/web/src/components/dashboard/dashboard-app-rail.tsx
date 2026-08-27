@@ -11,6 +11,7 @@ import {
 	Tag,
 	UserCircle,
 } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ComponentType, Fragment, type ReactNode } from "react";
 import {
@@ -28,6 +29,7 @@ import { useWindowEvent } from "@/hooks/use-window-event";
 import { toggleRail, useRailState } from "@/lib/rail-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 
 type NavIcon = ComponentType<{
 	weight?: "fill" | "regular";
@@ -39,8 +41,6 @@ interface RailItem {
 	href:
 		| "/dashboard"
 		| "/dashboard/books"
-		| "/dashboard/audiobooks"
-		| "/dashboard/read-listen"
 		| "/dashboard/collections"
 		| "/dashboard/series"
 		| "/dashboard/genres";
@@ -78,27 +78,12 @@ const railGroups: RailGroup[] = [
 		],
 	},
 	{
-		label: m["nav.library"],
 		items: [
 			{
 				href: "/dashboard/books",
-				label: m["nav.books"],
-				icon: BookOpen,
-				section: "books",
-				needsCatalog: true,
-			},
-			{
-				href: "/dashboard/audiobooks",
-				label: m["nav.audiobooks"],
-				icon: Headphones,
-				section: "audiobooks",
-				needsCatalog: true,
-			},
-			{
-				href: "/dashboard/read-listen",
-				label: m["nav.read_listen"],
+				label: m["nav.catalog"],
 				icon: BookOpenText,
-				section: "read-listen",
+				section: "catalog",
 				needsCatalog: true,
 			},
 		],
@@ -224,6 +209,11 @@ export function DashboardAppRail({
 	const section = resolveRailSection(locationPathname);
 	const moreActive = section === "more";
 	const expanded = useRailState() === "expanded";
+	const { data: libraries } = useQuery({
+		...orpc.libraries.getLibraries.queryOptions(),
+		staleTime: 30_000,
+		enabled: online && Boolean(activeOrganizationId),
+	});
 
 	useWindowEvent("keydown", (event) => {
 		if (
@@ -272,6 +262,35 @@ export function DashboardAppRail({
 								</Link>
 							);
 						})}
+						{group.items[0].section === "catalog" && libraries?.length ? (
+							<>
+								<RailGroupHeading label={m["nav.libraries"]()} />
+								{libraries.map((library) => {
+									const active = locationPathname.startsWith(
+										`/dashboard/libraries/${library.uuid}`,
+									);
+									const label = library.name ?? m["library.untitled"]();
+									const Icon =
+										library.mediaType === "audiobook" ? Headphones : BookOpen;
+
+									return (
+										<Link
+											key={library.uuid}
+											to="/dashboard/libraries/$uuid"
+											params={{ uuid: library.uuid }}
+											preload="intent"
+											aria-current={active ? "page" : undefined}
+											aria-disabled={catalogDisabled}
+											tabIndex={catalogDisabled ? -1 : undefined}
+											title={label}
+											className={blockClass(active, catalogDisabled)}
+										>
+											<BlockBody icon={Icon} label={label} active={active} />
+										</Link>
+									);
+								})}
+							</>
+						) : null}
 					</Fragment>
 				))}
 

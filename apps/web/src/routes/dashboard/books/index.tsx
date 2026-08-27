@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { CatalogPage } from "@/components/catalog/catalog-page";
 import { CatalogView } from "@/components/catalog/catalog-view";
 
 export const Route = createFileRoute("/dashboard/books/")({
@@ -18,14 +19,16 @@ function BooksCatalogPage() {
 	const navigate = Route.useNavigate();
 
 	return (
-		<CatalogView
-			source={{
-				kind: "all",
-				format: "ebook",
-				libraryUuid: library,
-				onLibraryChange: (next) =>
-					navigate({ search: { library: next }, replace: true }),
-			}}
-		/>
+		<CatalogPage section="books">
+			<CatalogView
+				source={{
+					kind: "all",
+					format: "ebook",
+					libraryUuid: library,
+					onLibraryChange: (next) =>
+						navigate({ search: { library: next }, replace: true }),
+				}}
+			/>
+		</CatalogPage>
 	);
 }

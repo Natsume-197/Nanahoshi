@@ -210,7 +210,7 @@ function StackedPairCover({ pairing }: { pairing: ReadListenPairing }) {
 	);
 }
 
-function PairGridCard({ pairing }: { pairing: ReadListenPairing }) {
+export function PairGridCard({ pairing }: { pairing: ReadListenPairing }) {
 	const title = pairing.audiobook.title;
 	const authorText = formatNames(pairing.audiobook.authors);
 

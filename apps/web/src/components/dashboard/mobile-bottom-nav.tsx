@@ -57,21 +57,9 @@ const LIBRARY_DRAWER_ID = "mobile-library-drawer";
 
 const catalogEntries = [
 	{
-		section: "books",
+		section: "catalog",
 		href: "/dashboard/books",
-		label: m["home.all_books"],
-		icon: BookOpen,
-	},
-	{
-		section: "audiobooks",
-		href: "/dashboard/audiobooks",
-		label: m["home.all_audiobooks"],
-		icon: Headphones,
-	},
-	{
-		section: "read-listen",
-		href: "/dashboard/read-listen",
-		label: m["nav.read_listen"],
+		label: m["nav.catalog"],
 		icon: BookOpenText,
 	},
 ] as const;
@@ -155,9 +143,7 @@ export function MobileBottomNav({
 	const railSection = resolveRailSection(location.pathname);
 
 	const isLibraryActive =
-		railSection === "books" ||
-		railSection === "audiobooks" ||
-		railSection === "read-listen" ||
+		railSection === "catalog" ||
 		location.pathname.startsWith("/dashboard/libraries") ||
 		browseNavItems.some((item) => location.pathname.startsWith(item.href));
 

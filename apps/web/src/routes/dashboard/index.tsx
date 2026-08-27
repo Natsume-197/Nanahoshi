@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { DashboardHomeContent } from "@/components/dashboard/home/dashboard-home-content";
+import { DashboardCategoryContent } from "@/components/dashboard/categories/dashboard-category-content";
 import { DASHBOARD_LIMIT } from "@/components/dashboard/home/section-skeleton";
 import { continueReadingQueryOptions } from "@/hooks/books/continue-reading-query";
 import { orpc } from "@/utils/orpc";
@@ -59,5 +59,5 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 function DashboardHome() {
-	return <DashboardHomeContent />;
+	return <DashboardCategoryContent />;
 }

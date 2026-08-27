@@ -815,6 +815,7 @@
 	},
 	"nav": {
 		"home": "ホーム",
+		"catalog": "カタログ",
 		"books": "本",
 		"audiobooks": "オーディオブック",
 		"read_listen": "読む・聴く",

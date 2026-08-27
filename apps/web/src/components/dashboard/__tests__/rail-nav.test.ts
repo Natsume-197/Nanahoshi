@@ -7,18 +7,17 @@ describe("resolveRailSection", () => {
 		expect(resolveRailSection("/dashboard/series")).not.toBe("home");
 	});
 
-	test("each catalog has its own entry", () => {
-		expect(resolveRailSection("/dashboard/books")).toBe("books");
-		expect(resolveRailSection("/dashboard/audiobooks")).toBe("audiobooks");
+	test("all catalog formats share the catalog entry", () => {
+		expect(resolveRailSection("/dashboard/books")).toBe("catalog");
+		expect(resolveRailSection("/dashboard/audiobooks")).toBe("catalog");
+		expect(resolveRailSection("/dashboard/read-listen")).toBe("catalog");
 	});
 
 	test("detail pages light the entry they belong to", () => {
-		expect(resolveRailSection("/dashboard/books/abc-123")).toBe("books");
-		expect(resolveRailSection("/dashboard/audiobooks/abc-123")).toBe(
-			"audiobooks",
-		);
+		expect(resolveRailSection("/dashboard/books/abc-123")).toBe("catalog");
+		expect(resolveRailSection("/dashboard/audiobooks/abc-123")).toBe("catalog");
 		expect(resolveRailSection("/dashboard/audiobooks/series/abc-123")).toBe(
-			"audiobooks",
+			"catalog",
 		);
 	});
 

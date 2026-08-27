@@ -1,8 +1,6 @@
 export type RailSection =
 	| "home"
-	| "books"
-	| "audiobooks"
-	| "read-listen"
+	| "catalog"
 	| "collections"
 	| "series"
 	| "genres"
@@ -17,9 +15,9 @@ const MORE_PREFIXES = [
 
 export function resolveRailSection(pathname: string): RailSection {
 	if (pathname === "/dashboard") return "home";
-	if (pathname.startsWith("/dashboard/read-listen")) return "read-listen";
-	if (pathname.startsWith("/dashboard/audiobooks")) return "audiobooks";
-	if (pathname.startsWith("/dashboard/books")) return "books";
+	if (pathname.startsWith("/dashboard/read-listen")) return "catalog";
+	if (pathname.startsWith("/dashboard/audiobooks")) return "catalog";
+	if (pathname.startsWith("/dashboard/books")) return "catalog";
 	if (pathname.startsWith("/dashboard/collections")) return "collections";
 	if (pathname.startsWith("/dashboard/series")) return "series";
 	if (pathname.startsWith("/dashboard/genres")) return "genres";

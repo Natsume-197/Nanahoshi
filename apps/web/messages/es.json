@@ -815,6 +815,7 @@
 	},
 	"nav": {
 		"home": "Inicio",
+		"catalog": "Catálogo",
 		"books": "Libros",
 		"audiobooks": "Audiolibros",
 		"read_listen": "Leer y escuchar",
