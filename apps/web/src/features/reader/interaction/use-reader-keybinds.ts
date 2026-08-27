@@ -13,7 +13,7 @@ interface UseReaderKeybindsArgs {
 	/** Physical page direction for visual books; independent of writing mode. */
 	visualDirection?: "ltr" | "rtl";
 	autoScrollMultiplier: number;
-	/** Any open overlay swallows the keys (it handles its own). */
+	/** Reader overlays that may own keyboard navigation. */
 	galleryOpen: boolean;
 	tocOpen: boolean;
 	settingsOpen: boolean;
@@ -69,6 +69,7 @@ export function useReaderKeybinds({
 			presentation.renderer === "visual"
 				? visualDirection === "rtl"
 				: verticalMode;
+		const isPageFlipKey = isPaginated && pageFlipCodes.has(event.code);
 		if (event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) {
 			return;
 		}
@@ -88,14 +89,21 @@ export function useReaderKeybinds({
 			if (event.key === "Escape") {
 				onCloseToc();
 				if (settingsOpen) onCloseSettings();
+				return;
 			}
-			return;
+			// The docked settings panel remains open after changing a toggle or
+			// stepper. Its buttons may keep focus, but page-turning keys should
+			// continue to control a paginated reader behind it.
+			if (tocOpen || !isPageFlipKey) return;
 		}
 		const target = event.target as HTMLElement | null;
+		const isEditingTarget = target?.closest(
+			'input, textarea, select, a, [contenteditable="true"]',
+		);
+		const isButtonTarget = target?.closest("button");
 		if (
-			target?.closest(
-				'input, textarea, select, button, a, [contenteditable="true"]',
-			)
+			isEditingTarget ||
+			(isButtonTarget && !(settingsOpen && isPageFlipKey))
 		) {
 			return;
 		}

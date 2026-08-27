@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import type { VisualProgressStyle } from "@/features/reader/presentation/visual-settings";
 
@@ -28,8 +27,6 @@ export function ReaderFooter({
 	passThrough = false,
 	visualProgress,
 }: ReaderFooterProps) {
-	const [showFooter, setShowFooter] = useState(true);
-
 	const current = visualProgress?.currentPage ?? exploredCharCount;
 	const total = visualProgress?.pageCount ?? bookCharCount;
 	const progress = Math.min(1, Math.max(0, current / (total || 1)));
@@ -57,19 +54,10 @@ export function ReaderFooter({
 			data-reader-progress-current={current}
 			data-reader-progress-total={total}
 			data-reader-progress-percent={(progress * 100).toFixed(2)}
-			className={`reader-ui-contain writing-horizontal-tb fixed left-0 z-10 flex h-[calc(2rem+var(--safe-area-bottom))] w-full items-center justify-between pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-xs leading-none ${bottomClass} ${passThrough ? "pointer-events-none" : ""}`}
+			className={`reader-ui-contain writing-horizontal-tb pointer-events-none fixed left-0 z-10 flex h-[calc(2rem+var(--safe-area-bottom))] w-full items-center justify-between pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] text-xs leading-none ${bottomClass}`}
 			style={{ color: theme.tooltipTextFontColor }}
 		>
-			{!passThrough && (
-				<button
-					type="button"
-					aria-label="Toggle progress display"
-					className="h-full flex-1"
-					onClick={() => setShowFooter((show) => !show)}
-				/>
-			)}
-			{showFooter &&
-				total > 0 &&
+			{total > 0 &&
 				graphicalProgress &&
 				(visualProgress?.style === "page-lines" ? (
 					<div
@@ -121,14 +109,14 @@ export function ReaderFooter({
 						/>
 					</div>
 				))}
-			{showFooter &&
-				total > 0 &&
+			{total > 0 &&
 				!graphicalProgress &&
 				(showCharacterCounter || showPercentage) && (
 					<button
 						type="button"
+						aria-label={`Copy reading progress: ${currentProgress}`}
 						title="Click to copy Progress"
-						className="writing-horizontal-tb pointer-events-auto absolute right-[max(0.5rem,var(--safe-area-right))] bottom-[calc(0.5rem+var(--safe-area-bottom))] z-10 select-none whitespace-pre text-xs leading-none"
+						className={`writing-horizontal-tb absolute right-[max(0.5rem,var(--safe-area-right))] bottom-[calc(1rem+var(--safe-area-bottom))] z-10 select-none whitespace-pre text-xs leading-none ${passThrough ? "pointer-events-none" : "pointer-events-auto"}`}
 						style={{ color: theme.tooltipTextFontColor }}
 						onClick={() => {
 							navigator.clipboard?.writeText(currentProgress).catch(() => {});

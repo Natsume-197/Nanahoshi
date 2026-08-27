@@ -55,6 +55,11 @@ describe("expanded player motion", () => {
 		expect(miniPlayerBarLayer(false, false)).toBe("z-[41]");
 	});
 
+	it("keeps Like out of the miniplayer while retaining it in the expanded player", () => {
+		expect(playerBar).not.toContain("PlayerLikeButton");
+		expect(expandedPlayer).toContain("PlayerLikeButton");
+	});
+
 	it("uses an interruptible transform transition in both directions", () => {
 		expect(css).toContain('.expanded-player-sheet[data-expanded="false"]');
 		expect(css).toContain("--expanded-player-open-dur: 400ms");

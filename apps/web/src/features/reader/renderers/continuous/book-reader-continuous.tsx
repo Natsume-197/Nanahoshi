@@ -298,12 +298,23 @@ export function BookReaderContinuous({
 		// this one measured value so tall images can never exceed the column
 		// (which would overflow it and let the page scroll on Y). Stays correct
 		// across the mobile dynamic viewport, unlike the value baked at render.
+		const viewportHeight = getViewportHeight();
+		const maxHeight = livePropsRef.current.secondDimensionMaxValue;
+		const columnHeight = maxHeight
+			? Math.min(maxHeight, viewportHeight)
+			: viewportHeight;
 		const column = readerColumnHeightCss(
-			getViewportHeight(),
+			viewportHeight,
 			livePropsRef.current.secondDimensionMaxValue,
 			false,
 		);
+		// Vertical auto margins collapse to zero in this continuous document flow.
+		// Centre the capped column explicitly inside the player-safe viewport so
+		// physical top and bottom padding stay equal.
+		const verticalInset = Math.max(0, (viewportHeight - columnHeight) / 2);
 		contentEl.style.height = column;
+		contentEl.style.marginTop = `${verticalInset}px`;
+		contentEl.style.marginBottom = `${verticalInset}px`;
 		contentEl.style.setProperty("--book-content-child-height", column);
 		// Vertical mode reads along the horizontal axis; the vertical axis must
 		// stay pinned at 0. `overflow-y: hidden` only hides the scrollbar — it
@@ -432,6 +443,7 @@ export function BookReaderContinuous({
 						) {
 							return;
 						}
+						applyVerticalReadingHeight();
 						const margin = livePropsRef.current.firstDimensionMargin || 0;
 						s.pageManager = new PageManagerContinuous(
 							verticalMode,

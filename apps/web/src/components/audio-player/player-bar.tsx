@@ -2,7 +2,6 @@ import { CaretUp, Headphones, WarningCircle, X } from "@phosphor-icons/react";
 import { memo, useMemo } from "react";
 import { MarqueeText } from "@/components/audio-player/marquee-text";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
-import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
 import {
@@ -336,7 +335,6 @@ export const PlayerBar = memo(function PlayerBar({
 								label={m["read_listen.open_reader"]()}
 							/>
 						)}
-						<PlayerLikeButton />
 						<div className={cn(readListen && "hidden lg:block")}>
 							<PlayerVolumeControl />
 						</div>

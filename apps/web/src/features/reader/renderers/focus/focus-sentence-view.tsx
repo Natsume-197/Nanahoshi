@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { FuriganaStyle } from "@/features/reader/presentation/settings";
 import type { FocusSentence } from "@/features/reader/renderers/focus/focus-sentences";
 import {
@@ -37,21 +37,30 @@ export function FocusSentenceView({
 	onTypingChange,
 }: FocusSentenceViewProps) {
 	const contentRef = useRef<HTMLDivElement | null>(null);
+	const showIndicatorRef = useRef(showIndicator);
+	const settledRef = useRef(false);
+	const lastGlyphRef = useRef<HTMLElement | undefined>(undefined);
+	showIndicatorRef.current = showIndicator;
+
+	const syncIndicator = (root: HTMLElement) => {
+		root.querySelector(".focus-sentence-indicator")?.remove();
+		if (!showIndicatorRef.current || sentence.kind !== "text") return;
+		insertSentenceIndicator(root, lastGlyphRef.current);
+	};
 
 	useMountEffect(() => {
 		const root = contentRef.current;
 		if (!root) return;
 		root.innerHTML = html;
-		const marks = showIndicator && sentence.kind === "text";
 		let watcher: ResizeObserver | undefined;
 		const settle = (lastGlyph?: HTMLElement) => {
 			typewriterRef.current = null;
 			onTypingChange(false);
-			if (!marks) return;
-			insertSentenceIndicator(root, lastGlyph);
-			watcher = new ResizeObserver(() =>
-				insertSentenceIndicator(root, lastGlyph),
-			);
+			settledRef.current = true;
+			lastGlyphRef.current = lastGlyph;
+			syncIndicator(root);
+			if (sentence.kind !== "text") return;
+			watcher = new ResizeObserver(() => syncIndicator(root));
 			watcher.observe(root);
 		};
 		if (
@@ -60,12 +69,12 @@ export function FocusSentenceView({
 			prefersReducedMotion()
 		) {
 			settle();
-			return;
+			return () => watcher?.disconnect();
 		}
 		const steps = prepareTypewriter(root);
 		if (!steps.length) {
 			settle();
-			return;
+			return () => watcher?.disconnect();
 		}
 		onTypingChange(true);
 		const handle = runTypewriter(steps, {
@@ -80,6 +89,15 @@ export function FocusSentenceView({
 			onTypingChange(false);
 		};
 	});
+
+	useEffect(() => {
+		const root = contentRef.current;
+		if (!root || !settledRef.current) return;
+		root.querySelector(".focus-sentence-indicator")?.remove();
+		if (showIndicator && sentence.kind === "text") {
+			insertSentenceIndicator(root, lastGlyphRef.current);
+		}
+	}, [showIndicator, sentence.kind]);
 
 	return (
 		<div
