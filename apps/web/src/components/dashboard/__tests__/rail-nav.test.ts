@@ -7,10 +7,13 @@ describe("resolveRailSection", () => {
 		expect(resolveRailSection("/dashboard/series")).not.toBe("home");
 	});
 
-	test("all catalog formats share the catalog entry", () => {
+	test("book and audiobook formats share the catalog entry", () => {
 		expect(resolveRailSection("/dashboard/books")).toBe("catalog");
 		expect(resolveRailSection("/dashboard/audiobooks")).toBe("catalog");
-		expect(resolveRailSection("/dashboard/read-listen")).toBe("catalog");
+	});
+
+	test("Read & Listen has its own sidebar entry", () => {
+		expect(resolveRailSection("/dashboard/read-listen")).toBe("read-listen");
 	});
 
 	test("detail pages light the entry they belong to", () => {

@@ -9,6 +9,7 @@ import {
 	Microphone,
 	Tag,
 	User,
+	Waveform,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -61,6 +62,12 @@ const catalogEntries = [
 		href: "/dashboard/books",
 		label: m["nav.catalog"],
 		icon: BookOpenText,
+	},
+	{
+		section: "read-listen",
+		href: "/dashboard/read-listen",
+		label: m["nav.read_listen"],
+		icon: Waveform,
 	},
 ] as const;
 

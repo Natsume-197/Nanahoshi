@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { CategorySelector } from "@/components/shared/category-selector";
 import { m } from "@/paraglide/messages";
 
-export type CatalogSection = "books" | "audiobooks" | "read-listen";
+export type CatalogSection = "books" | "audiobooks";
 
 const catalogSections = [
 	{ value: "books", label: m["nav.books"], to: "/dashboard/books" },
@@ -12,15 +12,10 @@ const catalogSections = [
 		label: m["nav.audiobooks"],
 		to: "/dashboard/audiobooks",
 	},
-	{
-		value: "read-listen",
-		label: m["nav.read_listen"],
-		to: "/dashboard/read-listen",
-	},
 ] as const satisfies readonly {
 	value: CatalogSection;
 	label: () => string;
-	to: "/dashboard/books" | "/dashboard/audiobooks" | "/dashboard/read-listen";
+	to: "/dashboard/books" | "/dashboard/audiobooks";
 }[];
 
 export function CatalogPage({

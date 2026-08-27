@@ -10,6 +10,7 @@ import {
 	Microphone,
 	Tag,
 	UserCircle,
+	Waveform,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -32,7 +33,7 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 type NavIcon = ComponentType<{
-	weight?: "fill" | "regular";
+	weight?: "bold" | "fill" | "regular";
 	className?: string;
 	"aria-hidden"?: "true";
 }>;
@@ -41,11 +42,13 @@ interface RailItem {
 	href:
 		| "/dashboard"
 		| "/dashboard/books"
+		| "/dashboard/read-listen"
 		| "/dashboard/collections"
 		| "/dashboard/series"
 		| "/dashboard/genres";
 	label: () => string;
 	icon: NavIcon;
+	activeWeight?: "bold" | "fill";
 	section: Exclude<RailSection, null | "more">;
 	/** Catalog destinations need the network and an active server; home doesn't
 	 *  — it has its own offline view. */
@@ -84,6 +87,14 @@ const railGroups: RailGroup[] = [
 				label: m["nav.catalog"],
 				icon: BookOpenText,
 				section: "catalog",
+				needsCatalog: true,
+			},
+			{
+				href: "/dashboard/read-listen",
+				label: m["nav.read_listen"],
+				icon: Waveform,
+				activeWeight: "bold",
+				section: "read-listen",
 				needsCatalog: true,
 			},
 		],
@@ -151,10 +162,12 @@ function BlockBody({
 	icon: Icon,
 	label,
 	active,
+	activeWeight = "fill",
 }: {
 	icon: NavIcon;
 	label: string;
 	active: boolean;
+	activeWeight?: "bold" | "fill";
 }): ReactNode {
 	return (
 		<>
@@ -162,13 +175,13 @@ function BlockBody({
 				className={cn(
 					"grid rail-expanded:size-6 size-9 shrink-0 place-items-center rounded-lg transition-colors duration-150 ease-out-quart",
 					active
-						? "bg-sidebar-accent/80 rail-expanded:bg-transparent"
+						? "bg-transparent"
 						: "group-hover/rail:bg-sidebar-accent/60 rail-expanded:group-hover/rail:bg-transparent group-aria-expanded/rail:bg-sidebar-accent/60 rail-expanded:group-aria-expanded/rail:bg-transparent",
 				)}
 			>
 				<Icon
 					aria-hidden="true"
-					weight={active ? "fill" : "regular"}
+					weight={active ? activeWeight : "regular"}
 					className="rail-expanded:size-6 size-5"
 				/>
 			</span>
@@ -258,7 +271,12 @@ export function DashboardAppRail({
 									title={label}
 									className={blockClass(active, disabled)}
 								>
-									<BlockBody icon={item.icon} label={label} active={active} />
+									<BlockBody
+										icon={item.icon}
+										label={label}
+										active={active}
+										activeWeight={item.activeWeight ?? "fill"}
+									/>
 								</Link>
 							);
 						})}
