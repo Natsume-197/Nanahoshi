@@ -1,9 +1,14 @@
 import { describe, expect, mock, test } from "bun:test";
 import type {
+	EbookDocument,
 	HtmlContent,
 	PagedContent,
 } from "@nanahoshi-v2/ebook-parser/types";
 import sharp from "sharp";
+
+const openEbookFile = mock(async (): Promise<EbookDocument> => {
+	throw new Error("openEbookFile mock was not configured");
+});
 
 mock.module("@nanahoshi-v2/env/server", () => ({
 	env: {
@@ -12,12 +17,14 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 	},
 }));
 mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi-v2/ebook-parser/node", () => ({ openEbookFile }));
 
 const {
 	classifyEbookIdentifiers,
 	findFallbackCover,
 	isBlankCover,
 	measureContentForm,
+	readLocalEbook,
 	sanitizeEmbeddedTitle,
 } = await import("../local-ebook");
 
@@ -48,6 +55,44 @@ async function detailedImage(width: number, height: number): Promise<Buffer> {
 }
 
 describe("local ebook catalog adapter", () => {
+	test("drops whitespace-only publication dates", async () => {
+		openEbookFile.mockResolvedValueOnce({
+			format: "azw3",
+			metadata: {
+				identifier: "B00HSC62IM",
+				identifiers: [{ value: "B00HSC62IM", scheme: "ASIN" }],
+				title: "盾の勇者の成り上がり 3 (MFブックス)",
+				subtitle: "",
+				authors: [],
+				publisher: "",
+				language: "ja",
+				published: " ",
+				description: "",
+				subjects: [],
+				rights: "",
+				contributors: [],
+			},
+			content: {
+				kind: "pages",
+				pages: [],
+				async openPage() {
+					return undefined;
+				},
+			},
+			async openCover() {
+				return undefined;
+			},
+			async close() {},
+		});
+
+		const metadata = await readLocalEbook(
+			"/library/shield-hero-3.azw3",
+			"b99a24ac-f20e-549f-bbc0-55cb19403cec",
+		);
+
+		expect(metadata.publishedDate).toBeUndefined();
+	});
+
 	test("removes absolute source paths embedded as publication titles", () => {
 		expect(
 			sanitizeEmbeddedTitle(

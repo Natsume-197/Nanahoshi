@@ -27,6 +27,7 @@ import {
 	normalizeEmbeddedUid,
 	normalizeIsbn,
 } from "../../../../modules/identifiers";
+import { normalizePublishedDate } from "./provider.utils";
 
 const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
 const COVER_CANDIDATE_SECTIONS = 6;
@@ -69,7 +70,7 @@ export async function readLocalEbook(
 			authors: metadata.authors.map(decodeText).filter(Boolean),
 			publisher: decodeText(metadata.publisher) || null,
 			language: normalizeLanguage(metadata.language),
-			publishedDate: metadata.published || undefined,
+			publishedDate: normalizePublishedDate(metadata.published) ?? undefined,
 			description: metadata.description || null,
 			...identifiers,
 			cover,
