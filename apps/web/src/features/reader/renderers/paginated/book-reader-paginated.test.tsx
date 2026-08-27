@@ -21,16 +21,18 @@ Object.defineProperty(window, "innerHeight", {
 	configurable: true,
 	value: 700,
 });
+let verticalAnchorTop: number | undefined;
 Object.defineProperty(window.Range.prototype, "getBoundingClientRect", {
 	configurable: true,
 	value: function getBoundingClientRect(this: Range) {
 		const isSecondPageAnchor = this.toString() === "対";
 		const left = isSecondPageAnchor ? 976 : 0;
+		const top = isSecondPageAnchor ? (verticalAnchorTop ?? 0) : 0;
 		const width = isSecondPageAnchor ? 10 : 0;
 		return {
-			top: 0,
+			top,
 			right: left + width,
-			bottom: 0,
+			bottom: top + 10,
 			left,
 			width,
 			height: 0,
@@ -56,6 +58,7 @@ const originalClientHeight = Object.getOwnPropertyDescriptor(
 
 afterEach(() => {
 	cleanup();
+	verticalAnchorTop = undefined;
 	HTMLElement.prototype.scrollTo = originalScrollTo;
 	HTMLImageElement.prototype.decode = originalDecode;
 	Element.prototype.replaceChildren = originalReplaceChildren;
@@ -110,6 +113,97 @@ describe("vertical page padding", () => {
 });
 
 describe("BookReaderPaginated image section navigation", () => {
+	test("aligns a Read & Listen tategaki sentence to a complete page", async () => {
+		verticalAnchorTop = 540;
+		HTMLElement.prototype.scrollTo = function scrollTo(options) {
+			if (typeof options === "object") {
+				this.scrollLeft = options.left ?? this.scrollLeft;
+				this.scrollTop = options.top ?? this.scrollTop;
+			}
+		};
+		Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+			configurable: true,
+			get() {
+				if (this.classList.contains("book-content--paginated")) return 500;
+				if (this.classList.contains("book-content-container")) return 200;
+				return 700;
+			},
+		});
+
+		let readerApi: BookReaderApi | null = null;
+		const view = render(
+			<BookReaderPaginated
+				htmlContent='<div id="nanahoshi-epub-p-001"><p>前前対象</p></div>'
+				language="ja"
+				verticalMode={true}
+				theme={{
+					id: "test",
+					fontColor: "black",
+					backgroundColor: "white",
+					selectionFontColor: "white",
+					selectionBackgroundColor: "black",
+					hintFuriganaShadowColor: "transparent",
+					hintFuriganaFontColor: "black",
+					tooltipTextFontColor: "black",
+				}}
+				fontFamilyGroupOne="serif"
+				fontFamilyGroupTwo="sans-serif"
+				fontWeight={null}
+				fontSize={28}
+				lineHeight={1.6}
+				textIndentation={0}
+				textMarginMode="auto"
+				textMarginValue={0}
+				verticalTextOrientation="mixed"
+				enableFontKerning={false}
+				enableFontVPAL={false}
+				prioritizeReaderStyles={false}
+				enableTextJustification={false}
+				enableTextWrapPretty={false}
+				secondDimensionMaxValue={0}
+				firstDimensionMargin={0}
+				hideFurigana={false}
+				furiganaStyle="Partial"
+				disableWheelNavigation={false}
+				navigationBlocked={false}
+				avoidPageBreak={false}
+				pageColumns={1}
+				reservePlayerSpace={true}
+				sections={[
+					{
+						reference: "nanahoshi-epub-p-001",
+						charactersWeight: 4,
+						startCharacter: 0,
+						characters: 4,
+					},
+				]}
+				initialPosition={undefined}
+				onPositionChange={() => {}}
+				onSectionProgressChange={() => {}}
+				apiRef={(api) => {
+					readerApi = api;
+				}}
+			/>,
+		);
+
+		await waitFor(() => expect(readerApi).not.toBeNull());
+		readerApi?.navigateToTextAnchor?.({
+			kind: "text-quote",
+			sectionReference: "nanahoshi-epub-p-001",
+			exact: "対象",
+		});
+
+		const scrollElement = view.container.querySelector(
+			".book-content--paginated",
+		) as HTMLElement;
+		await waitFor(() => {
+			// The visible page is 500px tall with a 40px page gap. Landing at
+			// 480px would expose two adjacent pages, exactly the split seen when
+			// synchronized narration crosses the page boundary.
+			expect(scrollElement.scrollTop).toBe(540);
+		});
+	});
+
 	test("keeps the global coordinate when mounting after another layout", async () => {
 		let svgArtworkReady = false;
 		let decodedSvgResources = 0;

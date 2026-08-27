@@ -1,7 +1,6 @@
 /**
- * Quick settings panel: the handful of settings worth changing mid-read.
- * Unlike the full settings overlay (draft, committed on close), every change
- * here commits immediately so the book updates in real time behind the panel.
+ * Reader settings panel. Every change commits immediately so the book updates
+ * in real time behind the panel.
  */
 
 import {
@@ -11,7 +10,6 @@ import {
 	Copy,
 	CursorClick,
 	Eye,
-	GearSix,
 	Pen,
 	PencilSimple,
 	Plus,
@@ -32,6 +30,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import type { ReaderProfile } from "@/features/reader/presentation/profiles";
 import type {
+	ReadAs,
 	ReaderPresentation,
 	ReaderPresentationChange,
 } from "@/features/reader/presentation/reader-presentation";
@@ -84,7 +83,6 @@ interface ReaderQuickSettingsProps {
 	onChange: (patch: Partial<ReaderSettings>) => void;
 	onVisualSettingsChange: (patch: Partial<VisualReaderSettings>) => void;
 	onPresentationChange: (change: ReaderPresentationChange) => void;
-	onOpenSettings: () => void;
 	onClose: () => void;
 }
 
@@ -160,12 +158,12 @@ export function ReaderQuickSettings({
 	onChange,
 	onVisualSettingsChange,
 	onPresentationChange,
-	onOpenSettings,
 	onClose,
 }: ReaderQuickSettingsProps) {
 	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
 	const isVisual = presentation.resolvedAs === "visual";
+	const resolvedReadAs = isVisual ? "Visual content" : "Text";
 	const canSelectPageColumns = canUsePageColumns(
 		presentation.renderer,
 		verticalMode,
@@ -683,6 +681,23 @@ export function ReaderQuickSettings({
 								/>
 							</div>
 						</QuickSettingsRow>
+						<QuickSettingsRow label="Sans font family">
+							<ThemedTextInput
+								ariaLabel="Sans font family"
+								theme={theme}
+								value={settings.fontFamilyGroupTwo}
+								list="reader-quick-sans-fonts"
+								onChange={(value) =>
+									onChange({
+										fontFamilyGroupTwo: value || "Noto Sans JP",
+									})
+								}
+							/>
+						</QuickSettingsRow>
+						<datalist id="reader-quick-sans-fonts">
+							<option value="Noto Sans JP" />
+							<option value="sans-serif" />
+						</datalist>
 						<QuickSettingsRow label="Font weight">
 							<div className="w-40">
 								<ThemedSelect
@@ -728,6 +743,42 @@ export function ReaderQuickSettings({
 								/>
 							</div>
 						</QuickSettingsRow>
+						{verticalMode && (
+							<>
+								<QuickSettingsRow label="Latin character orientation">
+									<div className="w-40">
+										<Segmented
+											theme={theme}
+											ariaLabel="Latin character orientation"
+											options={[
+												{ id: "mixed", text: "Mixed" },
+												{ id: "upright", text: "Upright" },
+											]}
+											selected={settings.verticalTextOrientation}
+											onSelect={(verticalTextOrientation) =>
+												onChange({ verticalTextOrientation })
+											}
+										/>
+									</div>
+								</QuickSettingsRow>
+								<QuickSettingsRow label="Font kerning">
+									<Toggle
+										theme={theme}
+										value={settings.enableFontKerning}
+										onChange={(enableFontKerning) =>
+											onChange({ enableFontKerning })
+										}
+									/>
+								</QuickSettingsRow>
+								<QuickSettingsRow label="Proportional vertical metrics">
+									<Toggle
+										theme={theme}
+										value={settings.enableFontVPAL}
+										onChange={(enableFontVPAL) => onChange({ enableFontVPAL })}
+									/>
+								</QuickSettingsRow>
+							</>
+						)}
 						<QuickSettingsRow label="Justify text">
 							<Toggle
 								theme={theme}
@@ -840,6 +891,32 @@ export function ReaderQuickSettings({
 					title="Layout"
 					showTitle={activeCategory === null}
 				>
+					{presentation.supportsVisual && (
+						<>
+							<QuickSettingsRow label="Read as">
+								<div className="w-64 max-w-full">
+									<Segmented
+										theme={theme}
+										ariaLabel="Read as"
+										options={[
+											{ id: "auto", text: "Automatic" },
+											{ id: "text", text: "Text" },
+											{ id: "visual", text: "Visual content" },
+										]}
+										selected={presentation.readAs}
+										onSelect={(value: ReadAs) =>
+											onPresentationChange({ type: "read-as", value })
+										}
+									/>
+								</div>
+							</QuickSettingsRow>
+							{presentation.readAs === "auto" && (
+								<p className="-mt-2 text-xs opacity-55">
+									Automatic currently uses {resolvedReadAs}.
+								</p>
+							)}
+						</>
+					)}
 					{isVisual ? (
 						<>
 							<label
@@ -952,6 +1029,15 @@ export function ReaderQuickSettings({
 									</div>
 								</QuickSettingsRow>
 							)}
+							{presentation.renderer === "text-paginated" && (
+								<QuickSettingsRow label="Avoid page break">
+									<Toggle
+										theme={theme}
+										value={settings.avoidPageBreak}
+										onChange={(avoidPageBreak) => onChange({ avoidPageBreak })}
+									/>
+								</QuickSettingsRow>
+							)}
 							<QuickSettingsRow label="Line height">
 								<fieldset aria-label="Line height">
 									<Stepper
@@ -1058,26 +1144,6 @@ export function ReaderQuickSettings({
 					onClose={handleCustomThemeDialogClose}
 				/>
 			)}
-
-			{activeCategory === null && (
-				<>
-					<Separator style={{ backgroundColor: mix(14) }} />
-					<button
-						type="button"
-						className="my-2 flex min-h-14 w-full cursor-pointer items-center gap-3 px-1 text-start outline-none transition-[opacity,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-						style={{ color: theme.fontColor }}
-						onClick={onOpenSettings}
-					>
-						<span className="min-w-0 flex-1 font-medium text-sm">
-							Advanced settings
-						</span>
-						<CaretRight
-							aria-hidden="true"
-							className="size-4 shrink-0 opacity-55"
-						/>
-					</button>
-				</>
-			)}
 		</>
 	);
 
@@ -1108,18 +1174,6 @@ export function ReaderQuickSettings({
 					</button>
 				);
 			})}
-			<button
-				type="button"
-				className="mt-3 flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl px-4 text-start outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-				style={{ color: theme.fontColor, backgroundColor: mix(5) }}
-				onClick={onOpenSettings}
-			>
-				<GearSix aria-hidden="true" className="size-5 shrink-0" weight="bold" />
-				<span className="min-w-0 flex-1 font-medium text-sm">
-					Advanced settings
-				</span>
-				<CaretRight aria-hidden="true" className="size-4 shrink-0 opacity-55" />
-			</button>
 		</div>
 	);
 

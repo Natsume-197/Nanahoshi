@@ -75,7 +75,6 @@ import { ReaderImageGallery } from "@/features/reader/ui/chrome/reader-image-gal
 import { ReaderLoadingScreen } from "@/features/reader/ui/chrome/reader-loading-screen";
 import { ReaderToc } from "@/features/reader/ui/chrome/reader-toc";
 import { ReaderQuickSettings } from "@/features/reader/ui/settings/reader-quick-settings";
-import { ReaderSettingsOverlay } from "@/features/reader/ui/settings/reader-settings";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
@@ -260,20 +259,13 @@ export function ReaderScreen({
 		);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
-	// Ref so the draft theme preview resolves themes saved in the same tick
+	// Ref so the custom-theme preview resolves themes saved in the same tick
 	// (the dialog commits the theme colors and selects the theme back to back).
 	const customThemesRef = useRef(customThemes);
-	// While the settings overlay is open, edits go to this draft; the reader
-	// keeps rendering the committed settings (zero relayouts between toggles)
-	// and everything is applied in one commit when the overlay closes.
-	const [draftSettings, setDraftSettings] = useState<ReaderSettings | null>(
-		null,
-	);
 	const [showHeader, setShowHeader] = useState(false);
 	const [tocOpen, setTocOpen] = useState(false);
 	const [galleryOpen, setGalleryOpen] = useState(false);
 	const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
-	const settingsOpen = draftSettings !== null;
 	const [sectionProgress, setSectionProgress] = useState<
 		Map<string, SectionWithProgress>
 	>(new Map());
@@ -319,8 +311,6 @@ export function ReaderScreen({
 	// Read by the async profile-sync callback, which outlives a render.
 	const settingsRef = useRef(settings);
 	settingsRef.current = settings;
-	const draftSettingsRef = useRef(draftSettings);
-	draftSettingsRef.current = draftSettings;
 	const previousUuidRef = useRef(uuid);
 	if (uuid !== previousUuidRef.current) {
 		previousUuidRef.current = uuid;
@@ -569,17 +559,6 @@ export function ReaderScreen({
 		setThemeColor(color);
 	};
 
-	const handleDraftChange = (patch: Partial<ReaderSettings>) => {
-		// Theme previews instantly: the overlay surface and body background use
-		// it; the book behind the (opaque) overlay updates on commit.
-		if (patch.theme) {
-			applyReaderBackground(
-				getReaderTheme(patch.theme, customThemesRef.current).backgroundColor,
-			);
-		}
-		setDraftSettings((prev) => (prev ? { ...prev, ...patch } : prev));
-	};
-
 	// Fullscreen overlays conceal the native scrollbar without removing its
 	// gutter. Changing scrollbar-width would resize the reading area and reflow
 	// the book underneath the overlay.
@@ -617,12 +596,6 @@ export function ReaderScreen({
 		overlayEntryPositionRef.current = undefined;
 	};
 
-	const openSettings = () => {
-		overlayEntryPositionRef.current ??= captureReaderPosition();
-		hideDocumentScrollbar();
-		setDraftSettings(settings);
-	};
-
 	const applyCommittedSettings = (
 		next: ReaderSettings,
 		prev: ReaderSettings,
@@ -643,26 +616,8 @@ export function ReaderScreen({
 		}
 	};
 
-	const closeSettings = () => {
-		const next = draftSettings;
-		const position = overlayEntryPositionRef.current ?? captureReaderPosition();
-		setDraftSettings(null);
-		if (!next) return;
-
-		restoreDocumentScrollbar(next.theme);
-		settingsRef.current = next;
-		setSettings(next);
-		setProfilesStore(
-			commitProfilesStore(
-				setProfileSettings(profilesStore, activeProfileId, next),
-			),
-		);
-		applyCommittedSettings(next, settings, position);
-		overlayEntryPositionRef.current = undefined;
-	};
-
-	// Swaps the live settings for another profile's (overlay closed): restyles
-	// the page chrome and remounts/relayouts the book like a settings commit.
+	// Swaps the live settings for another profile: restyles the page chrome and
+	// remounts/relayouts the book like a settings commit.
 	const applyProfileSettings = (next: ReaderSettings) => {
 		const prev = settingsRef.current;
 		const position = captureReaderPosition();
@@ -684,14 +639,9 @@ export function ReaderScreen({
 		applyProfileSettings(getProfileSettings(profilesStore, id));
 	};
 
-	// "Save as": the new profile becomes active and takes the draft (committed
-	// on overlay close); the outgoing profile keeps its pre-overlay settings.
+	// "Save as": the new profile becomes active and copies the current settings.
 	const handleProfileCreate = (name: string) => {
-		const { store, id } = createProfile(
-			profilesStore,
-			name,
-			draftSettings ?? settings,
-		);
+		const { store, id } = createProfile(profilesStore, name, settings);
 		setActiveProfileId(id);
 		setActiveProfileIdState(id);
 		setProfilesStore(commitProfilesStore(store));
@@ -722,15 +672,7 @@ export function ReaderScreen({
 		const committed = commitProfilesStore(next);
 		setProfilesStore(committed);
 		const nextSettings = getProfileSettings(committed, fallbackId);
-		if (draftSettings) {
-			applyReaderBackground(
-				getReaderTheme(nextSettings.theme, customThemesRef.current)
-					.backgroundColor,
-			);
-			setDraftSettings(nextSettings);
-		} else {
-			applyProfileSettings(nextSettings);
-		}
+		applyProfileSettings(nextSettings);
 	};
 
 	// Tint the browser chrome with the reader theme from mount (the loading
@@ -759,11 +701,7 @@ export function ReaderScreen({
 				setProfilesStore(profiles);
 				const id = getActiveProfileId(profiles);
 				setActiveProfileIdState(id);
-				// While the overlay is open the draft owns the screen; the draft
-				// commit simply overwrites the adopted settings on close (LWW).
-				if (draftSettingsRef.current === null) {
-					applyProfileSettings(getProfileSettings(profiles, id));
-				}
+				applyProfileSettings(getProfileSettings(profiles, id));
 			}
 		});
 	});
@@ -830,13 +768,10 @@ export function ReaderScreen({
 		autoScrollMultiplier: settings.autoScrollMultiplier,
 		galleryOpen,
 		tocOpen,
-		settingsOpen: settingsOpen || quickSettingsOpen,
+		settingsOpen: quickSettingsOpen,
 		navigationBlocked: Boolean(audioPlayerBook) && isAudioPlayerExpanded,
 		onCloseToc: () => setTocOpen(false),
-		onCloseSettings: () => {
-			if (quickSettingsOpen) closeQuickSettings();
-			else closeSettings();
-		},
+		onCloseSettings: closeQuickSettings,
 		onChangeChapter: changeChapter,
 		onAutoScrollMultiplierChange: (next) => {
 			handleSettingsChange({ autoScrollMultiplier: next });
@@ -932,8 +867,7 @@ export function ReaderScreen({
 	// Only truly structural settings remount the reader (different component /
 	// different scroll axis). Everything else — fonts, sizes, margins, furigana,
 	// columns, theme — applies live via re-render + api.relayout(). The reader
-	// always renders the committed settings, so draft edits in the overlay
-	// never touch it until closeSettings().
+	// always renders the committed profile settings.
 	const readerKey = [
 		uuid,
 		// Focus has a mode-neutral sentence index and updates its writing mode
@@ -1000,7 +934,7 @@ export function ReaderScreen({
 
 			<div
 				className="contents"
-				inert={settingsOpen || quickSettingsOpen || tocOpen || galleryOpen}
+				inert={quickSettingsOpen || tocOpen || galleryOpen}
 			>
 				<ReaderEngine
 					key={readerKey}
@@ -1027,7 +961,6 @@ export function ReaderScreen({
 						handlePresentationChange({ type: "text-layout", value: "scroll" })
 					}
 					navigationBlocked={
-						settingsOpen ||
 						quickSettingsOpen ||
 						tocOpen ||
 						galleryOpen ||
@@ -1041,7 +974,7 @@ export function ReaderScreen({
 							setReaderApiRevision((revision) => revision + 1);
 							// A flow/orientation switch can replace the controller while an
 							// overlay is still open; keep its modal lock gutter-free.
-							if (quickSettingsOpen || settingsOpen || galleryOpen) {
+							if (quickSettingsOpen || galleryOpen) {
 								if (supportsReaderScrollbar(controller)) {
 									controller.setScrollbarHidden(true);
 								}
@@ -1182,23 +1115,8 @@ export function ReaderScreen({
 				onChange={handleQuickSettingsChange}
 				onVisualSettingsChange={handleVisualSettingsChange}
 				onPresentationChange={handlePresentationChange}
-				onOpenSettings={() => {
-					setQuickSettingsOpen(false);
-					openSettings();
-				}}
 				onClose={closeQuickSettings}
 			/>
-
-			{draftSettings && (
-				<ReaderSettingsOverlay
-					presentation={presentation}
-					settings={draftSettings}
-					customThemes={customThemes}
-					onChange={handleDraftChange}
-					onPresentationChange={handlePresentationChange}
-					onClose={closeSettings}
-				/>
-			)}
 
 			{galleryOpen && (
 				<ReaderImageGallery

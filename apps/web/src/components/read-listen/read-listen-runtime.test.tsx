@@ -246,7 +246,7 @@ describe("ReadListenRuntime", () => {
 				onExitReadListen={() => {}}
 			/>,
 		);
-		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		expect(scrollIntoView).not.toHaveBeenCalled();
 		expect(continuousNavigateToTextAnchor).toHaveBeenCalledTimes(1);
 
 		const replacement = document.createElement("section");
@@ -271,7 +271,9 @@ describe("ReadListenRuntime", () => {
 			/>,
 		);
 
-		expect(scrollIntoView).toHaveBeenCalledTimes(2);
+		// Each renderer API owns its coordinate system; rebinding must not add a
+		// generic centered scroll on top of either semantic navigation.
+		expect(scrollIntoView).not.toHaveBeenCalled();
 		expect(paginatedNavigateToTextAnchor).toHaveBeenCalledTimes(1);
 	});
 

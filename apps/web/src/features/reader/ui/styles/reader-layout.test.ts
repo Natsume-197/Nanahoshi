@@ -12,9 +12,6 @@ const readerScreen = await Bun.file(
 const quickSettings = await Bun.file(
 	new URL("../settings/reader-quick-settings.tsx", import.meta.url),
 ).text();
-const fullSettings = await Bun.file(
-	new URL("../settings/reader-settings.tsx", import.meta.url),
-).text();
 const customThemeEditor = await Bun.file(
 	new URL("../controls/reader-custom-theme.tsx", import.meta.url),
 ).text();
@@ -349,7 +346,7 @@ describe("reader layout", () => {
 		);
 		expect(openSettingsHandler).not.toContain("setShowHeader(false)");
 		expect(readerScreen).toContain(
-			"inert={settingsOpen || quickSettingsOpen || tocOpen || galleryOpen}",
+			"inert={quickSettingsOpen || tocOpen || galleryOpen}",
 		);
 	});
 
@@ -408,32 +405,25 @@ describe("reader layout", () => {
 	});
 
 	test("moves frequent layout and text controls to quick settings", () => {
-		expect(fullSettings).not.toContain('key: "behaviour"');
-		expect(fullSettings).not.toContain('label: "Behaviour"');
-		expect(fullSettings).not.toContain('"Save reading position"');
-		expect(fullSettings).not.toContain('"Font size"');
-		expect(fullSettings).not.toContain('"Line height"');
-		expect(fullSettings).not.toContain('"Writing mode"');
-		expect(fullSettings).not.toContain('"Text layout"');
-		expect(fullSettings).not.toContain('"Page layout"');
-		expect(fullSettings).not.toContain('"Reading direction"');
-		expect(fullSettings).not.toContain('"Justify text"');
-		expect(fullSettings).not.toContain("onChange({ theme: id })");
-		expect(fullSettings).not.toContain('"Columns"');
-		expect(fullSettings).not.toContain('"Font weight"');
-		expect(fullSettings).not.toContain('"Pretty text wrap"');
-		expect(fullSettings).not.toContain('"Prioritize reader styles"');
-		expect(fullSettings).not.toContain('"Paragraph indentation"');
-		expect(fullSettings).not.toContain('"Paragraph spacing"');
-		expect(fullSettings).not.toContain('"Paragraph spacing size"');
-		expect(fullSettings).not.toContain('key: "profiles"');
-		expect(fullSettings).not.toContain('key: "reading"');
-		expect(fullSettings).not.toContain('key: "theme"');
-		expect(fullSettings).not.toContain("ReaderCustomThemeDialog");
-		expect(fullSettings).not.toContain('"Character counter"');
-		expect(fullSettings).not.toContain('"Percentage"');
-		expect(fullSettings).not.toContain('"Hide furigana"');
-		expect(fullSettings).not.toContain('"Disable wheel navigation"');
+		expect(quickSettings).not.toContain("Advanced settings");
+		expect(quickSettings).not.toContain("onOpenSettings");
+		expect(readerScreen).not.toContain("ReaderSettingsOverlay");
+		expect(readerScreen).not.toContain("draftSettings");
+		expect(quickSettings).toContain('<QuickSettingsRow label="Read as">');
+		expect(quickSettings).toContain('ariaLabel="Read as"');
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Avoid page break">',
+		);
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Sans font family">',
+		);
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Latin character orientation">',
+		);
+		expect(quickSettings).toContain('<QuickSettingsRow label="Font kerning">');
+		expect(quickSettings).toContain(
+			'<QuickSettingsRow label="Proportional vertical metrics">',
+		);
 		expect(quickSettings).toContain('<QuickSettingsRow label="Columns">');
 		expect(quickSettings).toContain('ariaLabel="Columns"');
 		expect(quickSettings).toContain('<QuickSettingsRow label="Font weight">');
@@ -514,7 +504,10 @@ describe("reader layout", () => {
 		);
 		expect(readerCss).toContain("--reader-player-reserve-current");
 		expect(paginatedReader).toContain("reservePlayerSpace");
-		expect(paginatedReader).toContain("contentEl.clientHeight");
+		expect(paginatedReader).toContain("scrollEl.clientHeight");
+		expect(paginatedReader).not.toContain(
+			"() => contentEl.clientHeight || viewportRef.current.height",
+		);
 		expect(getPaginatedPageHeight(800, false)).toBe("800px");
 		expect(getPaginatedPageHeight(800, true)).toBe(
 			"max(0px, calc(800px - var(--reader-player-reserve-current)))",

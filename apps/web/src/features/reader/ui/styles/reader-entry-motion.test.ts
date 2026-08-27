@@ -17,8 +17,8 @@ const loadingScreen = readFileSync(
 	new URL("../chrome/reader-loading-screen.tsx", import.meta.url),
 	"utf8",
 );
-const readerSettings = readFileSync(
-	new URL("../settings/reader-settings.tsx", import.meta.url),
+const readerQuickSettings = readFileSync(
+	new URL("../settings/reader-quick-settings.tsx", import.meta.url),
 	"utf8",
 );
 const readerEntryCss = css.slice(
@@ -43,8 +43,8 @@ describe("reader entry motion", () => {
 		expect(readerEntryCss).not.toContain(
 			"transform: translate3d(var(--page-slide-distance), 0, 0)",
 		);
-		expect(readerSettings).toContain("fixed inset-0");
-		expect(readerSettings).toContain('<nav className="w-52 shrink-0">');
+		expect(readerQuickSettings).toContain("fixed inset-y-0 right-0");
+		expect(readerQuickSettings).toContain("motion-safe:transition-transform");
 		expect(css).not.toContain(".reader-route-content {\n\tfilter:");
 	});
 

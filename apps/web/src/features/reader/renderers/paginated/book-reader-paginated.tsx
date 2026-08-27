@@ -329,7 +329,7 @@ export function BookReaderPaginated({
 	const refitImages = () => {
 		const s = internalsRef.current;
 		const height =
-			contentElRef.current?.clientHeight || viewportRef.current.height;
+			scrollElRef.current?.clientHeight || viewportRef.current.height;
 		if (!height) return;
 		for (const sectionEl of s.sectionEls) {
 			refitImageWidths(sectionEl as HTMLElement, height);
@@ -406,7 +406,7 @@ export function BookReaderPaginated({
 			if (lazyBook) {
 				const formatted = await lazyBook.loadSection(
 					index,
-					contentElRef.current?.clientHeight || viewportRef.current.height,
+					scrollElRef.current?.clientHeight || viewportRef.current.height,
 				);
 				container.innerHTML = formatted.elementHtml;
 				if (formatted.styleSheet) {
@@ -599,7 +599,11 @@ export function BookReaderPaginated({
 			s.sectionEls,
 			() => s.virtualScrollPos,
 			() => viewportRef.current.width,
-			() => contentEl.clientHeight || viewportRef.current.height,
+			// The multicolumn container can shrink to the text left on a page.
+			// Its clientHeight is therefore content geometry, not the page stride.
+			// Read & Listen anchors must snap against the visible player-safe
+			// surface or a sentence crossing the boundary exposes two pages.
+			() => scrollEl.clientHeight || viewportRef.current.height,
 			() => PAGE_GAP,
 			verticalMode,
 			scrollEl,
@@ -614,7 +618,7 @@ export function BookReaderPaginated({
 			s.sectionEls,
 			sections,
 			() => viewportRef.current.width,
-			() => contentEl.clientHeight || viewportRef.current.height,
+			() => scrollEl.clientHeight || viewportRef.current.height,
 			PAGE_GAP,
 			verticalMode,
 			{

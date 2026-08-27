@@ -200,6 +200,7 @@ export function ActiveReadListenCue({
 		let animationFrame = 0;
 		let cleanupHighlight: (() => void) | undefined;
 		let attempts = 0;
+		let readerOwnsFollowNavigation = false;
 		const sectionReference = toReaderSectionReference(
 			cue.text.sectionRef,
 			sourceFormat,
@@ -228,6 +229,7 @@ export function ActiveReadListenCue({
 				attempts === 0 &&
 				readerApiRef.current?.navigateToTextAnchor
 			) {
+				readerOwnsFollowNavigation = true;
 				readerApiRef.current.navigateToTextAnchor(readerAnchor);
 				retryInstall();
 				return;
@@ -236,6 +238,7 @@ export function ActiveReadListenCue({
 			if (!section) {
 				if (followText && attempts === 0) {
 					if (readerApiRef.current?.navigateToTextAnchor) {
+						readerOwnsFollowNavigation = true;
 						readerApiRef.current.navigateToTextAnchor(readerAnchor);
 					} else {
 						readerApiRef.current?.navigateToSection(sectionReference);
@@ -256,7 +259,11 @@ export function ActiveReadListenCue({
 			}
 			cleanupHighlight =
 				installReadListenActiveHighlight(resolved) ?? undefined;
-			if (followText && shouldMoveActiveCue(resolved, forceFollow)) {
+			if (
+				followText &&
+				!readerOwnsFollowNavigation &&
+				shouldMoveActiveCue(resolved, forceFollow)
+			) {
 				resolved.segments[0]?.node.parentElement?.scrollIntoView({
 					behavior: followScrollBehavior(),
 					block: "center",

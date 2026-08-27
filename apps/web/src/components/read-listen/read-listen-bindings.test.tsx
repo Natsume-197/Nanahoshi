@@ -133,8 +133,15 @@ describe("Read & Listen player bindings", () => {
 	});
 
 	test("passes a repeated cue occurrence to virtualized reader modes", () => {
-		document.body.innerHTML = "";
+		document.body.innerHTML =
+			'<main class="book-content book-content--paginated"><section id="nanahoshi-epub-chapter-xhtml"><p>はい。はい。</p></section></main>';
 		const navigateToTextAnchor = mock(() => {});
+		const pendingFrames: FrameRequestCallback[] = [];
+		const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = (callback) => {
+			pendingFrames.push(callback);
+			return pendingFrames.length;
+		};
 		const firstCue = {
 			id: "first-repeat",
 			text: {
@@ -156,24 +163,32 @@ describe("Read & Listen player bindings", () => {
 			globalStartMs: 1_000,
 			globalEndMs: 2_000,
 		};
-		render(
-			<ActiveReadListenCue
-				cue={secondCue}
-				sectionTargets={[
-					{ anchor: firstCue.text, value: firstCue },
-					{ anchor: secondCue.text, value: secondCue },
-				]}
-				followText
-				sourceFormat="epub"
-				readerApiRef={{
-					current: { navigateToTextAnchor } as unknown as BookReaderApi,
-				}}
-			/>,
-		);
+		try {
+			render(
+				<ActiveReadListenCue
+					cue={secondCue}
+					sectionTargets={[
+						{ anchor: firstCue.text, value: firstCue },
+						{ anchor: secondCue.text, value: secondCue },
+					]}
+					followText
+					sourceFormat="epub"
+					readerApiRef={{
+						current: { navigateToTextAnchor } as unknown as BookReaderApi,
+					}}
+				/>,
+			);
 
-		expect(navigateToTextAnchor).toHaveBeenCalledWith(
-			expect.objectContaining({ occurrence: 1 }),
-		);
+			expect(navigateToTextAnchor).toHaveBeenCalledWith(
+				expect.objectContaining({ occurrence: 1 }),
+			);
+			pendingFrames.shift()?.(0);
+			// Paginated/focus readers own their navigation geometry. A second generic
+			// scrollIntoView would center a tategaki sentence between page boundaries.
+			expect(scrollIntoView).not.toHaveBeenCalled();
+		} finally {
+			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+		}
 	});
 
 	test("reloads the audiobook paused after the player is stopped", () => {
