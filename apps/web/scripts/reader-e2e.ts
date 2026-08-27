@@ -2,11 +2,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Locator, type Page } from "playwright-core";
+import {
+	assertMiniplayerTategakiLayout,
+	assertZeroPaddingTategakiLayout,
+	type ReaderE2ERect,
+	type TategakiLayoutSnapshot,
+} from "./reader-e2e-layout";
 
 const baseUrl = process.env.READER_E2E_BASE_URL ?? "http://localhost:3001";
 const email = process.env.READER_E2E_EMAIL;
 const password = process.env.READER_E2E_PASSWORD;
 const textBookUuid = process.env.READER_E2E_BOOK_UUID;
+const readListenBookUuid = process.env.READER_E2E_READ_LISTEN_BOOK_UUID;
 const imageBookUuid = process.env.READER_E2E_IMAGE_BOOK_UUID;
 const visualBookUuid = process.env.READER_E2E_VISUAL_BOOK_UUID;
 const pdfBookUuid = process.env.READER_E2E_PDF_BOOK_UUID;
@@ -207,6 +214,152 @@ async function switchTextFlow(
 		state: "visible",
 		timeout: 15_000,
 	});
+}
+
+async function setPaddingToZero(
+	settings: Locator,
+	label: "Horizontal padding" | "Vertical padding",
+) {
+	const fieldset = settings.locator(`fieldset[aria-label="${label}"]`);
+	const decrease = fieldset.getByRole("button", { name: "Decrease" });
+	for (let step = 0; step <= 30 && (await decrease.isEnabled()); step++) {
+		await decrease.click();
+	}
+	assert(!(await decrease.isEnabled()), `${label} did not reach its minimum.`);
+	await eventually(
+		() => fieldset.innerText(),
+		(text) => text.includes("0%"),
+		`${label} did not display 0%`,
+	);
+}
+
+async function configureZeroPaddingTategaki(page: Page) {
+	await switchTextFlow(page, "Pages", "text-paginated");
+	const settings = await openQuickSettingsCategory(page, "Text");
+	await settings
+		.locator('fieldset[aria-label="Text orientation"]')
+		.getByRole("button", { name: "Vertical" })
+		.click();
+	await page.locator('[data-reader-renderer="text-paginated"]').waitFor({
+		state: "visible",
+		timeout: 15_000,
+	});
+	await setPaddingToZero(settings, "Horizontal padding");
+	await setPaddingToZero(settings, "Vertical padding");
+	await closeQuickSettings(page);
+	await hideReaderMenu(page);
+	await page.waitForTimeout(500);
+}
+
+async function readTategakiLayout(page: Page): Promise<TategakiLayoutSnapshot> {
+	return page
+		.locator('[data-reader-renderer="text-paginated"]')
+		.evaluate((surface): TategakiLayoutSnapshot => {
+			const route = surface.closest("main.reader-route-content");
+			const frame = surface.parentElement;
+			if (!(route instanceof HTMLElement) || !(frame instanceof HTMLElement)) {
+				throw new Error("Paginated reader geometry nodes were not found.");
+			}
+			const html = surface.querySelector<HTMLElement>(
+				".nanahoshi-book-html-wrapper",
+			);
+			const body = surface.querySelector<HTMLElement>(
+				".nanahoshi-book-body-wrapper",
+			);
+			if (!html || !body) {
+				throw new Error("Publication wrappers were not rendered.");
+			}
+			const rect = (element: Element): ReaderE2ERect => {
+				const value = element.getBoundingClientRect();
+				return {
+					top: value.top,
+					right: value.right,
+					bottom: value.bottom,
+					left: value.left,
+					width: value.width,
+					height: value.height,
+				};
+			};
+			const inset = (element: HTMLElement, property: string) =>
+				Number.parseFloat(
+					getComputedStyle(element).getPropertyValue(property),
+				) || 0;
+
+			return {
+				viewport: { width: window.innerWidth, height: window.innerHeight },
+				route: rect(route),
+				frame: rect(frame),
+				surface: rect(surface),
+				publicationInsets: {
+					htmlMarginTop: inset(html, "margin-top"),
+					htmlMarginBottom: inset(html, "margin-bottom"),
+					htmlPaddingTop: inset(html, "padding-top"),
+					htmlPaddingBottom: inset(html, "padding-bottom"),
+					bodyMarginTop: inset(body, "margin-top"),
+					bodyMarginBottom: inset(body, "margin-bottom"),
+					bodyPaddingTop: inset(body, "padding-top"),
+					bodyPaddingBottom: inset(body, "padding-bottom"),
+				},
+			};
+		});
+}
+
+async function verifyZeroPaddingTategaki(page: Page, uuid: string) {
+	for (const viewport of [
+		{ width: 1280, height: 900 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await openReader(page, uuid);
+		await configureZeroPaddingTategaki(page);
+		assertZeroPaddingTategakiLayout(await readTategakiLayout(page));
+	}
+}
+
+async function enableReadListen(page: Page) {
+	await showReaderMenu(page);
+	const toggle = page.getByRole("button", { name: "Read & Listen" });
+	await toggle.waitFor({ state: "visible", timeout: 15_000 });
+	if ((await toggle.getAttribute("aria-pressed")) !== "true") {
+		await toggle.click();
+	}
+	await eventually(
+		async () => page.url(),
+		(url) => new URL(url).searchParams.has("pair"),
+		"Read & Listen did not activate",
+	);
+	await page
+		.locator('.read-listen-player-dock[data-player-expanded="false"]')
+		.waitFor({ state: "visible", timeout: 20_000 });
+	await hideReaderMenu(page);
+}
+
+async function verifyMiniplayerTategaki(page: Page, uuid: string) {
+	for (const viewport of [
+		{ width: 1280, height: 900 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(viewport);
+		await openReader(page, uuid);
+		await configureZeroPaddingTategaki(page);
+		await enableReadListen(page);
+		await page.waitForTimeout(500);
+		const snapshot = await readTategakiLayout(page);
+		const player = await page
+			.locator('.read-listen-player-dock[data-player-expanded="false"]')
+			.evaluate((element): ReaderE2ERect => {
+				const value = element.getBoundingClientRect();
+				return {
+					top: value.top,
+					right: value.right,
+					bottom: value.bottom,
+					left: value.left,
+					width: value.width,
+					height: value.height,
+				};
+			});
+		assertMiniplayerTategakiLayout({ ...snapshot, player });
+	}
 }
 
 async function scrollSurfaceWithWheel(page: Page, surface: Locator) {
@@ -658,14 +811,25 @@ const browser = await chromium.launchPersistentContext(browserProfile, {
 });
 
 try {
-	const page = await browser.newPage({
-		viewport: { width: 1280, height: 900 },
-	});
+	const page = await browser.newPage();
+	await page.setViewportSize({ width: 1280, height: 900 });
 	await signIn(page);
 	if (scenarios.has("all") || scenarios.has("text")) {
 		const textUuid = required("READER_E2E_BOOK_UUID", textBookUuid);
 		await verifyContinuousRestoreAndScroll(page, textUuid);
 		await verifyTextLayoutsAndReflow(page);
+	}
+	if (scenarios.has("all") || scenarios.has("tategaki")) {
+		await verifyZeroPaddingTategaki(
+			page,
+			required("READER_E2E_BOOK_UUID", textBookUuid),
+		);
+	}
+	if (scenarios.has("all") || scenarios.has("read-listen-layout")) {
+		await verifyMiniplayerTategaki(
+			page,
+			required("READER_E2E_READ_LISTEN_BOOK_UUID", readListenBookUuid),
+		);
 	}
 	if (scenarios.has("all") || scenarios.has("image")) {
 		await verifyImageRestore(

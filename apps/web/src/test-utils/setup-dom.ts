@@ -28,3 +28,20 @@ g.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
 g.requestAnimationFrame = (callback: FrameRequestCallback) =>
 	setTimeout(() => callback(Date.now()), 0);
 g.cancelAnimationFrame = (id: number) => clearTimeout(id);
+Object.defineProperty(dom.window, "matchMedia", {
+	configurable: true,
+	value: (media: string): MediaQueryList => ({
+		matches: false,
+		media,
+		onchange: null,
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		addListener: () => {},
+		removeListener: () => {},
+		dispatchEvent: () => true,
+	}),
+});
+Object.defineProperty(dom.window.document, "fonts", {
+	configurable: true,
+	value: { ready: Promise.resolve() },
+});

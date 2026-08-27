@@ -41,6 +41,7 @@ describe("resolveReaderPresentation", () => {
 		const originalWindow = globalThis.window;
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,
+			writable: true,
 			value: {
 				localStorage: {
 					getItem: (key: string) => values.get(key) ?? null,
@@ -66,6 +67,7 @@ describe("resolveReaderPresentation", () => {
 		} finally {
 			Object.defineProperty(globalThis, "window", {
 				configurable: true,
+				writable: true,
 				value: originalWindow,
 			});
 		}

@@ -32,8 +32,10 @@ export function readerColumnHeight(
 		: vh;
 }
 
-/** CSS height for a fixed vertical reading column. Applying the optional cap
- * after the player-safe viewport keeps a small configured column unchanged. */
+/** CSS height for a fixed vertical reading column. The player reserve is
+ * outside the reading area, so subtract it after applying the configured cap:
+ * otherwise a capped column keeps its pre-player height and consumes the
+ * vertical padding that should remain visible above the player. */
 export function readerColumnHeightCss(
 	viewportHeightPx: number,
 	secondDimensionMaxValue: number,
@@ -46,6 +48,6 @@ export function readerColumnHeightCss(
 
 	const playerSafeHeight = `max(0px, calc(${viewportHeightPx}px - var(--reader-player-reserve-current)))`;
 	return secondDimensionMaxValue
-		? `min(${secondDimensionMaxValue}px, ${playerSafeHeight})`
+		? `max(0px, calc(min(${secondDimensionMaxValue}px, ${viewportHeightPx}px) - var(--reader-player-reserve-current)))`
 		: playerSafeHeight;
 }

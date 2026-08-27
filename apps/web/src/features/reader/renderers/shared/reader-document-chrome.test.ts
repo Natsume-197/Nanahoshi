@@ -30,7 +30,24 @@ const applyContinuousChrome = () =>
 		backgroundColor: "black",
 	});
 
+const applyVerticalContinuousChrome = () =>
+	applyReaderDocumentChrome({
+		mode: "continuous",
+		verticalMode: true,
+		backgroundColor: "black",
+	});
+
 describe("reader document chrome", () => {
+	test("keeps body-mounted controls horizontal in a vertical document", () => {
+		const cleanup = applyVerticalContinuousChrome();
+
+		expect(document.documentElement.style.writingMode).toBe("vertical-rl");
+		expect(document.body.style.writingMode).toBe("horizontal-tb");
+
+		cleanup();
+		expect(document.body.style.writingMode).toBe("");
+	});
+
 	test("does not reserve a native scrollbar gutter on compact viewports", () => {
 		compactViewport = true;
 		const cleanup = applyContinuousChrome();

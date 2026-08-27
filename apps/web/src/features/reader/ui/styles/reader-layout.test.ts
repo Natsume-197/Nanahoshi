@@ -88,6 +88,77 @@ describe("focus mode sentence box", () => {
 });
 
 describe("reader layout", () => {
+	test("does not paint browser focus frames around reader surfaces", () => {
+		const renderers = [
+			"text-paginated",
+			"text-scroll",
+			"text-focus",
+			"pdf",
+			"visual",
+		];
+		const dom = new JSDOM(`
+			<style>${readerCss}</style>
+			<main class="reader-route-content">
+				${renderers
+					.map(
+						(renderer) =>
+							`<section data-reader-renderer="${renderer}" tabindex="-1"></section>`,
+					)
+					.join("")}
+				<button type="button">Reader settings</button>
+			</main>
+		`);
+
+		for (const renderer of renderers) {
+			const surface = dom.window.document.querySelector(
+				`[data-reader-renderer="${renderer}"]`,
+			) as HTMLElement;
+			surface.focus();
+			expect(dom.window.document.activeElement).toBe(surface);
+			expect(dom.window.getComputedStyle(surface).outline).toBe("none");
+		}
+
+		const button = dom.window.document.querySelector("button") as HTMLElement;
+		button.focus();
+		expect(dom.window.getComputedStyle(button).outline).not.toBe("none");
+	});
+
+	test("keeps reader controls horizontal while the book writes vertically", () => {
+		const dom = new JSDOM(`
+			<style>${readerCss}</style>
+			<html style="writing-mode: vertical-rl">
+				<body style="writing-mode: horizontal-tb">
+					<main class="reader-route-content">
+						<button type="button">Playback speed</button>
+						<article class="book-content book-content--writing-vertical-rl">本文</article>
+					</main>
+					<div data-slot="popover-content">Playback speed settings</div>
+				</body>
+			</html>
+		`);
+		const route = dom.window.document.querySelector(
+			".reader-route-content",
+		) as HTMLElement;
+		const button = dom.window.document.querySelector("button") as HTMLElement;
+		const book = dom.window.document.querySelector(
+			".book-content",
+		) as HTMLElement;
+		const popover = dom.window.document.querySelector(
+			'[data-slot="popover-content"]',
+		) as HTMLElement;
+
+		expect(dom.window.getComputedStyle(route).writingMode).toBe(
+			"horizontal-tb",
+		);
+		expect(dom.window.getComputedStyle(button).writingMode).toBe(
+			"horizontal-tb",
+		);
+		expect(dom.window.getComputedStyle(popover).writingMode).toBe(
+			"horizontal-tb",
+		);
+		expect(dom.window.getComputedStyle(book).writingMode).toBe("vertical-rl");
+	});
+
 	test("gives synchronized narration a themed, non-color-only text treatment", () => {
 		expect(readerCss).toContain(
 			"var(--book-content-selection-background-color)",
@@ -449,7 +520,7 @@ describe("reader layout", () => {
 			"max(0px, calc(800px - var(--reader-player-reserve-current)))",
 		);
 		expect(readerColumnHeightCss(800, 400, true)).toBe(
-			"min(400px, max(0px, calc(800px - var(--reader-player-reserve-current))))",
+			"max(0px, calc(min(400px, 800px) - var(--reader-player-reserve-current)))",
 		);
 		expect(readerColumnHeightCss(800, 0, true)).toBe(
 			"max(0px, calc(800px - var(--reader-player-reserve-current)))",

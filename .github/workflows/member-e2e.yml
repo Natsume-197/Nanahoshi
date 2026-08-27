@@ -11,6 +11,10 @@ on:
         description: Ebook UUID readable by the baseline member
         required: true
         type: string
+      read_listen_book_uuid:
+        description: Optional paired ebook UUID for miniplayer geometry checks
+        required: false
+        type: string
       confirm_disposable:
         description: Confirm that base_url is an ephemeral deployment safe to mutate
         required: true
@@ -41,5 +45,15 @@ jobs:
           READER_E2E_PASSWORD: ${{ secrets.READER_E2E_PASSWORD }}
           READER_E2E_BOOK_UUID: ${{ inputs.book_uuid }}
           READER_E2E_BROWSER: /usr/bin/google-chrome
-          READER_E2E_SCENARIOS: text
+          READER_E2E_SCENARIOS: text,tategaki
+        run: bun run --cwd apps/web test:e2e:reader
+      - name: Reader miniplayer geometry
+        if: ${{ inputs.read_listen_book_uuid != '' }}
+        env:
+          READER_E2E_BASE_URL: ${{ inputs.base_url }}
+          READER_E2E_EMAIL: ${{ secrets.READER_E2E_EMAIL }}
+          READER_E2E_PASSWORD: ${{ secrets.READER_E2E_PASSWORD }}
+          READER_E2E_READ_LISTEN_BOOK_UUID: ${{ inputs.read_listen_book_uuid }}
+          READER_E2E_BROWSER: /usr/bin/google-chrome
+          READER_E2E_SCENARIOS: read-listen-layout
         run: bun run --cwd apps/web test:e2e:reader

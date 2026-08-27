@@ -35,6 +35,10 @@ export function applyReaderDocumentChrome(
 	};
 
 	setProp("writing-mode", o.verticalMode ? "vertical-rl" : "horizontal-tb");
+	// The root writing mode controls the document's physical reading axis, but
+	// app chrome and body-mounted portals (popovers, tooltips, menus) must remain
+	// horizontal. The book surface reasserts its own mode explicitly.
+	document.body.style.setProperty("writing-mode", "horizontal-tb");
 	document.body.style.setProperty("background-color", o.backgroundColor);
 
 	if (o.mode === "continuous") {
@@ -68,6 +72,7 @@ export function applyReaderDocumentChrome(
 	return () => {
 		for (const key of setKeys) de.removeProperty(key);
 		document.documentElement.classList.remove("reader-scrollbar-concealed");
+		document.body.style.removeProperty("writing-mode");
 		document.body.style.removeProperty("background-color");
 		document.body.classList.remove("overflow-hidden");
 		// Also clear scrollbar-color the settings overlay's theme preview may set

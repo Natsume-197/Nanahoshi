@@ -20,7 +20,7 @@ export VITE_SERVER_URL="${VITE_SERVER_URL:-http://localhost:3000}"
 
 # Deterministic order so local and CI enumerate identically.
 mapfile -t files < <(
-	find apps/server/src apps/web/src packages/api/src packages/auth/src packages/ebook-parser/src packages/read-listen/src packages/db/src scripts \
+	find apps/server/src apps/web/src apps/web/scripts packages/api/src packages/auth/src packages/ebook-parser/src packages/read-listen/src packages/db/src scripts \
 		\( -name "*.test.ts" -o -name "*.test.tsx" \) | sort
 )
 

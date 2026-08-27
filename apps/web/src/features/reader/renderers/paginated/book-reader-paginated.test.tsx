@@ -5,6 +5,7 @@ import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	BookReaderPaginated,
 	computeViewport,
+	paginatedReaderFrameStyle,
 	viewportCenteredTranslateX,
 } from "./book-reader-paginated";
 
@@ -95,6 +96,16 @@ describe("vertical page padding", () => {
 		// the remaining 936px and apply its 100px padding inside that surface,
 		// leaving 736px for text—not subtract the user padding here as well.
 		expect(viewport).toEqual({ width: 936, height: 700 });
+	});
+
+	test("centres a capped page in the player-safe vertical area", () => {
+		expect(paginatedReaderFrameStyle(32, true, 800, true)).toEqual({
+			paddingLeft: "32px",
+			paddingRight: "32px",
+			height: "max(0px, calc(800px - var(--reader-player-reserve-current)))",
+			display: "flex",
+			alignItems: "center",
+		});
 	});
 });
 

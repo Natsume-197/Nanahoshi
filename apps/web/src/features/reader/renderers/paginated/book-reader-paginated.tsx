@@ -128,6 +128,25 @@ export function getPaginatedPageHeight(
 		: `${viewportHeightPx}px`;
 }
 
+export function paginatedReaderFrameStyle(
+	horizontalPadding: number,
+	verticalMode: boolean,
+	viewportHeightPx: number,
+	reservePlayerSpace: boolean,
+): CSSProperties {
+	return {
+		paddingLeft: `${horizontalPadding}px`,
+		paddingRight: `${horizontalPadding}px`,
+		...(verticalMode
+			? {
+					height: getPaginatedPageHeight(viewportHeightPx, reservePlayerSpace),
+					display: "flex",
+					alignItems: "center",
+				}
+			: {}),
+	};
+}
+
 /** The physical X offset that centres a rendered illustration in the viewport. */
 export function viewportCenteredTranslateX(
 	viewportWidthPx: number,
@@ -884,10 +903,12 @@ export function BookReaderPaginated({
 			    under vertical-rl it becomes vertical padding, shrinking the
 			    page height and breaking the column math. */}
 			<div
-				style={{
-					paddingLeft: `${horizontalPadding}px`,
-					paddingRight: `${horizontalPadding}px`,
-				}}
+				style={paginatedReaderFrameStyle(
+					horizontalPadding,
+					verticalMode,
+					viewportHeight(),
+					reservePlayerSpace,
+				)}
 			>
 				<div
 					ref={scrollElRef}

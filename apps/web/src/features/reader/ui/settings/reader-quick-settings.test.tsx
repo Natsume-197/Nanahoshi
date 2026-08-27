@@ -8,9 +8,7 @@ import {
 } from "@/features/reader/presentation/settings";
 import { defaultVisualReaderSettings } from "@/features/reader/presentation/visual-settings";
 
-const { cleanup, fireEvent, render, screen } = await import(
-	"@testing-library/react"
-);
+const { cleanup, fireEvent, render } = await import("@testing-library/react");
 
 const { ReaderQuickSettings } = await import("./reader-quick-settings");
 
@@ -58,9 +56,9 @@ afterEach(cleanup);
 describe("ReaderQuickSettings docked panel", () => {
 	test("offers a close button, since the panel has no swipe or tap-outside", () => {
 		const onClose = mock(() => {});
-		renderPanel(onClose);
+		const panel = renderPanel(onClose);
 
-		fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
+		fireEvent.click(panel.getByRole("button", { name: "Close settings" }));
 
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});

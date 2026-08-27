@@ -2,6 +2,17 @@
 	writing-mode: horizontal-tb;
 }
 
+/* The document root may use the book's writing mode to establish its scroll
+   axis, while body-mounted reader chrome stays horizontal. Book surfaces must
+   therefore declare their mode instead of inheriting it from the document. */
+.book-content--writing-horizontal-tb {
+	writing-mode: horizontal-tb;
+}
+
+.book-content--writing-vertical-rl {
+	writing-mode: vertical-rl;
+}
+
 /* Fixed reader chrome (footer counter, header) whose content changes while
    reading. Containment stops those DOM updates from dirtying the book
    document's layout — without it every counter update forced a full relayout
@@ -42,7 +53,9 @@
 }
 
 .reader-route-content:focus,
-.reader-route-content:focus-visible {
+.reader-route-content:focus-visible,
+[data-reader-renderer]:focus,
+[data-reader-renderer]:focus-visible {
 	outline: none;
 }
 
