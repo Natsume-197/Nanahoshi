@@ -16,14 +16,14 @@
 		"@embedpdf/engines": "^2.15.0",
 		"@embedpdf/models": "^2.15.0",
 		"@embedpdf/pdfium": "^2.15.0",
-		"@napi-rs/canvas": "^1.0.5",
-		"fast-xml-parser": "^5.10.1",
+		"@napi-rs/canvas": "^1.0.8",
+		"fast-xml-parser": "^5.11.1",
 		"fflate": "^0.8.3",
 		"node-stream-zip": "^1.16.0"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
-		"@types/bun": "catalog:",
-		"typescript": "catalog:"
+		"@types/bun": "^1.4.0",
+		"typescript": "^7.0.2"
 	}
 }

@@ -92,7 +92,7 @@ export async function startTaskProgressListeners(): Promise<{
 		// "$" (BullMQ default) on first boot avoids replaying the whole stream.
 		const lastEventId = (await redis.get(LAST_ID_KEY(name))) ?? undefined;
 		const qe = new QueueEvents(name, {
-			connection: redis.options,
+			connection: redis,
 			lastEventId,
 		});
 

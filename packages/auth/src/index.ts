@@ -15,6 +15,7 @@ import {
 	organization,
 	username,
 } from "better-auth/plugins";
+import type { DiscordProfile } from "better-auth/social-providers";
 import { and, eq, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
@@ -76,16 +77,6 @@ type AuthenticatedAuditSession = {
 	session: { id: string; activeOrganizationId?: string | null };
 };
 
-type DiscordOAuthProfile = {
-	id: string;
-	username: string;
-	global_name: string | null;
-	discriminator: string;
-	avatar: string | null;
-	email: string | null;
-	verified: boolean;
-};
-
 /**
  * Fetches the Discord identity before Better Auth creates its local user row.
  * This is deliberately separate from the stored-account access check below:
@@ -93,15 +84,15 @@ type DiscordOAuthProfile = {
  */
 async function fetchDiscordProfile(
 	accessToken: string,
-): Promise<DiscordOAuthProfile | null> {
+): Promise<DiscordProfile | null> {
 	const res = await fetch("https://discord.com/api/v10/users/@me", {
 		headers: { Authorization: `Bearer ${accessToken}` },
 	});
 	if (!res.ok) return null;
-	return (await res.json()) as DiscordOAuthProfile;
+	return (await res.json()) as DiscordProfile;
 }
 
-function discordProfileImage(profile: DiscordOAuthProfile): string {
+function discordProfileImage(profile: DiscordProfile): string {
 	if (profile.avatar) {
 		const format = profile.avatar.startsWith("a_") ? "gif" : "png";
 		return `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.${format}`;
@@ -114,7 +105,7 @@ function discordProfileImage(profile: DiscordOAuthProfile): string {
 }
 
 /** Existing users still sign in normally; this guard protects only new accounts. */
-async function hasExistingDiscordIdentity(profile: DiscordOAuthProfile) {
+async function hasExistingDiscordIdentity(profile: DiscordProfile) {
 	const byDiscord = and(
 		eq(schema.account.providerId, "discord"),
 		eq(schema.account.accountId, profile.id),
@@ -365,7 +356,7 @@ const authConfig = {
 		// Social/OAuth callbacks create users without passing through the
 		// /sign-up/email gate above. Gate them here: after first setup, a new
 		// Discord user needs a pending email invitation or the invite-link code
-		// carried in the protected OAuth state. OIDC (/oauth2/callback)
+		// carried in the protected OAuth state. OIDC (/callback)
 		// is exempt — SSO provisioning is configured intentionally by the admin.
 		user: {
 			create: {
@@ -488,7 +479,7 @@ const authConfig = {
 			// OIDC provisions the membership here — after the session row exists — so
 			// session.create.before couldn't see it. Provision, then set the active
 			// org now. Non-OIDC sign-ins are already handled by session.create.before.
-			if (!ctx.path.startsWith("/oauth2/callback")) return;
+			if (!ctx.path.startsWith("/callback")) return;
 			if (!newSession?.session?.id || !newSession?.user?.id) return;
 
 			await provisionOidcUser(newSession.user.id).catch((err) => {
@@ -529,7 +520,6 @@ const authConfig = {
 
 						return {
 							user: {
-								id: profile.id,
 								name: profile.global_name || profile.username,
 								email: profile.email,
 								emailVerified: profile.verified,

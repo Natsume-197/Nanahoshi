@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-ARG BUN_VERSION=1.3.14
-ARG CALIBRE_VERSION=9.11.0
+ARG BUN_VERSION=1.4.0
+ARG CALIBRE_VERSION=9.13.0
 ARG HONOMIYA_REF=101b68b792152958eb28639cc5d5ff7254042fb9
 
 # ── Dependency manifests ─────────────────────────────────────────────

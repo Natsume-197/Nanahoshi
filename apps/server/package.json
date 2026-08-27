@@ -13,21 +13,21 @@
 		"start:worker": "PROCESS_ROLE=worker bun run dist/worker.mjs"
 	},
 	"dependencies": {
-		"@bull-board/api": "^8.5.0",
-		"@bull-board/hono": "^8.5.0",
+		"@bull-board/api": "^9.5.0",
+		"@bull-board/hono": "^9.5.0",
 		"@nanahoshi-v2/api": "workspace:*",
 		"@nanahoshi-v2/auth": "workspace:*",
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",
-		"@orpc/openapi": "^1.14.13",
-		"@orpc/server": "^1.14.13",
-		"@orpc/zod": "^1.14.13",
-		"hono": "^4.12.33",
-		"sharp": "^0.35.3"
+		"@orpc/openapi": "^1.15.0",
+		"@orpc/server": "^1.15.0",
+		"@orpc/zod": "^1.15.0",
+		"hono": "^4.13.5",
+		"sharp": "^0.35.4"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
-		"@types/bun": "^1.3.14",
+		"@types/bun": "^1.4.0",
 		"tsdown": "^0.22.14",
 		"typescript": "^7.0.2"
 	}

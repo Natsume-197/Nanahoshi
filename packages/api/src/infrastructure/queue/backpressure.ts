@@ -5,7 +5,6 @@ const PENDING_JOB_TYPES = [
 	"wait",
 	"prioritized",
 	"delayed",
-	"paused",
 	"waiting-children",
 ] as const;
 

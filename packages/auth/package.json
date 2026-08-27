@@ -11,16 +11,16 @@
 	},
 	"scripts": {},
 	"dependencies": {
-		"@better-auth/api-key": "^1.6.25",
+		"@better-auth/api-key": "^1.7.2",
 		"@nanahoshi-v2/db": "workspace:*",
 		"@nanahoshi-v2/env": "workspace:*",
-		"better-auth": "catalog:",
-		"drizzle-orm": "catalog:",
-		"nodemailer": "^9.0.3"
+		"better-auth": "^1.7.2",
+		"drizzle-orm": "^0.45.2",
+		"nodemailer": "^9.0.5"
 	},
 	"devDependencies": {
 		"@nanahoshi-v2/config": "workspace:*",
 		"@types/nodemailer": "^8.0.1",
-		"typescript": "catalog:"
+		"typescript": "^7.0.2"
 	}
 }

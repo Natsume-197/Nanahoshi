@@ -8,7 +8,6 @@ import {
 import { env } from "@nanahoshi-v2/env/web";
 import {
 	adminClient,
-	genericOAuthClient,
 	inferAdditionalFields,
 	organizationClient,
 	usernameClient,
@@ -37,6 +36,5 @@ export const authClient = createAuthClient({
 		}),
 		adminClient(),
 		usernameClient(),
-		genericOAuthClient(),
 	],
 });
