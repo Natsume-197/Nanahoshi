@@ -170,19 +170,19 @@ async function hideReaderMenu(page: Page) {
 }
 
 async function openQuickSettings(page: Page) {
-	const drawer = page.locator(
-		'[aria-labelledby="reader-quick-settings-title"]',
+	const settingsPanel = page.locator(
+		'[aria-labelledby="reader-quick-settings-title"],[aria-labelledby="reader-quick-settings-window-title"]',
 	);
-	if ((await drawer.getAttribute("aria-hidden")) !== "false") {
+	if (!(await settingsPanel.isVisible())) {
 		await showReaderMenu(page);
 		await page.getByRole("button", { name: "Open Quick Settings" }).click();
 	}
 	await eventually(
-		() => drawer.getAttribute("aria-hidden"),
-		(value) => value === "false",
+		() => settingsPanel.isVisible(),
+		Boolean,
 		"Quick settings did not open",
 	);
-	return drawer;
+	return settingsPanel;
 }
 
 async function closeQuickSettings(page: Page) {
@@ -461,6 +461,83 @@ async function verifyTextLayoutsAndReflow(page: Page) {
 	const continuous = await waitForProgress(page);
 	assertNearProgress(focusAfter, continuous, "Focus to continuous layout", 10);
 	await closeQuickSettings(page);
+}
+
+async function verifyPaginatedHasNoVerticalDocumentOverflow(
+	page: Page,
+	uuid: string,
+) {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openReader(page, uuid);
+	await switchTextFlow(page, "Pages", "text-paginated");
+	await page.waitForTimeout(500);
+
+	const readMetrics = () =>
+		page.evaluate(() => {
+			const route = document.querySelector<HTMLElement>(
+				"main.reader-route-content",
+			);
+			const surface = document.querySelector<HTMLElement>(
+				'[data-reader-renderer="text-paginated"]',
+			);
+			if (!route || !surface) {
+				throw new Error("Paginated reader overflow nodes were not found.");
+			}
+			const frame = surface.parentElement;
+			if (!frame) throw new Error("Paginated reader frame was not found.");
+			const measure = (element: HTMLElement) => ({
+				clientHeight: element.clientHeight,
+				scrollHeight: element.scrollHeight,
+				overflowY: getComputedStyle(element).overflowY,
+			});
+			return {
+				viewportHeight: window.innerHeight,
+				document: measure(document.documentElement),
+				body: measure(document.body),
+				route: measure(route),
+				frame: measure(frame),
+				surface: measure(surface),
+			};
+		});
+	const assertNoVerticalOverflow = async (state: string) => {
+		const metrics = await readMetrics();
+		for (const name of ["document", "body", "route", "frame"] as const) {
+			const node = metrics[name];
+			assert(
+				node.scrollHeight <= node.clientHeight + 1,
+				`Paginated mode created vertical ${name} overflow while ${state}: ${JSON.stringify(metrics)}`,
+			);
+		}
+		assert(
+			metrics.route.overflowY === "hidden",
+			`Paginated route can paint a vertical scrollbar while ${state}: ${JSON.stringify(metrics)}`,
+		);
+	};
+
+	await assertNoVerticalOverflow("settings are expanded");
+	await page.getByRole("button", { name: "Collapse settings window" }).click();
+	await assertNoVerticalOverflow("settings are collapsed");
+	await page.getByRole("button", { name: "Expand settings window" }).click();
+	await closeQuickSettings(page);
+	await hideReaderMenu(page);
+	await page.waitForTimeout(300);
+	await assertNoVerticalOverflow("horizontal settings are closed");
+
+	const textSettings = await openQuickSettingsCategory(page, "Text");
+	await textSettings
+		.locator('fieldset[aria-label="Text orientation"]')
+		.getByRole("button", { name: "Vertical" })
+		.click();
+	await page.locator('[data-reader-renderer="text-paginated"]').waitFor({
+		state: "visible",
+		timeout: 15_000,
+	});
+	await page.waitForTimeout(500);
+	await assertNoVerticalOverflow("vertical settings are expanded");
+	await closeQuickSettings(page);
+	await hideReaderMenu(page);
+	await page.waitForTimeout(300);
+	await assertNoVerticalOverflow("vertical settings are closed");
 }
 
 async function verifyImageRestore(page: Page, uuid: string) {
@@ -818,6 +895,16 @@ try {
 		const textUuid = required("READER_E2E_BOOK_UUID", textBookUuid);
 		await verifyContinuousRestoreAndScroll(page, textUuid);
 		await verifyTextLayoutsAndReflow(page);
+	}
+	if (
+		scenarios.has("all") ||
+		scenarios.has("text") ||
+		scenarios.has("paginated-overflow")
+	) {
+		await verifyPaginatedHasNoVerticalDocumentOverflow(
+			page,
+			required("READER_E2E_BOOK_UUID", textBookUuid),
+		);
 	}
 	if (scenarios.has("all") || scenarios.has("tategaki")) {
 		await verifyZeroPaddingTategaki(

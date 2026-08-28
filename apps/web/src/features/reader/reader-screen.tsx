@@ -894,7 +894,11 @@ export function ReaderScreen({
 			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
 			aria-label={bookTitle}
 			tabIndex={-1}
-			className="reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overflow-auto overscroll-none font-reader-sans"
+			className={`reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overscroll-none font-reader-sans ${
+				presentation.renderer === "text-scroll"
+					? "overflow-auto"
+					: "overflow-hidden"
+			}`}
 			style={
 				{
 					backgroundColor: theme.backgroundColor,

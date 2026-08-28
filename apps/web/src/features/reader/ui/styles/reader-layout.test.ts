@@ -174,7 +174,8 @@ describe("reader layout", () => {
 		expect(readerScreen).toContain(
 			"h-[calc(100dvh-var(--reader-player-reserve-current))]",
 		);
-		expect(readerScreen).toContain("overflow-auto overscroll-none");
+		expect(readerScreen).toContain('? "overflow-auto"');
+		expect(readerScreen).toContain(': "overflow-hidden"');
 		expect(readerScreen).toContain("scrollContainerRef={readerSurfaceRef}");
 		expect(readerScreen).toContain(
 			'"--reader-player-reserve-mobile": audioPlayerBook',
@@ -185,8 +186,8 @@ describe("reader layout", () => {
 	});
 
 	test("keeps the vertical reader scrollbar above the persistent player", () => {
-		expect(readerScreen).toContain(
-			"reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overflow-auto",
+		expect(readerScreen).toMatch(
+			/presentation\.renderer === "text-scroll"\s*\? "overflow-auto"\s*:\s*"overflow-hidden"/,
 		);
 	});
 
