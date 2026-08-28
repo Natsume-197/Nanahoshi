@@ -2,14 +2,22 @@ import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
+import { FOCUS_SENTENCE_NAVIGATION_EVENT } from "@/features/reader/renderers/focus/focus-navigation";
 import {
 	rememberReadListenReaderEntry,
 	rememberReadListenReaderPosition,
 } from "@/lib/read-listen/reader-session";
 
 let playerTime = 0;
+let playerPlaying = true;
 const seekTo = mock((time: number) => {
 	playerTime = time;
+});
+const pause = mock(() => {
+	playerPlaying = false;
+});
+const play = mock(() => {
+	playerPlaying = true;
 });
 const scrollIntoView = mock(() => {});
 let capturedReadListen:
@@ -49,6 +57,17 @@ const cues = [
 		audioFileIndex: 0,
 		startMs: 9_000,
 		endMs: 10_000,
+	},
+	{
+		id: "after-entry",
+		text: {
+			kind: "text-quote" as const,
+			sectionRef: "chapter.xhtml",
+			exact: "四。",
+		},
+		audioFileIndex: 0,
+		startMs: 10_000,
+		endMs: 11_000,
 	},
 ];
 
@@ -94,13 +113,17 @@ mock.module("@/context/audio-player-context", () => ({
 	useAudioPlayerActions: () => ({
 		loadAudiobook: () => {},
 		seekTo,
+		getGlobalCurrentTime: () => playerTime,
+		pause,
+		play,
 		setExpanded: () => {},
 	}),
 	useAudioPlayerBook: () => ({ uuid: "audio-1" }),
 	useAudioPlayerState: () => ({
 		audiobook: { uuid: "audio-1" },
 		globalCurrentTime: playerTime,
-		isPlaying: true,
+		isPlaying: playerPlaying,
+		speed: 1,
 	}),
 }));
 
@@ -115,7 +138,8 @@ mock.module("@/components/audio-player/player-host", () => ({
 	},
 }));
 
-const { ReadListenRuntime } = await import("./read-listen-runtime");
+const { ReadListenRuntime, readListenLineEndDelay, readListenLineStartTime } =
+	await import("./read-listen-runtime");
 
 beforeAll(() => {
 	const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -143,13 +167,186 @@ beforeAll(() => {
 afterEach(() => {
 	cleanup();
 	playerTime = 0;
+	playerPlaying = true;
 	seekTo.mockClear();
+	pause.mockClear();
+	play.mockClear();
 	scrollIntoView.mockClear();
 	capturedReadListen = undefined;
 	window.sessionStorage.clear();
 });
 
 describe("ReadListenRuntime", () => {
+	test("accounts for playback speed when scheduling a line-end pause", () => {
+		expect(
+			readListenLineEndDelay({
+				globalEndMs: 2_000,
+				globalCurrentTime: 1,
+				playbackRate: 2,
+			}),
+		).toBe(500);
+	});
+
+	test("adds preroll when a focus line requires a seek", () => {
+		expect(readListenLineStartTime(9_000)).toBe(8.8);
+		expect(readListenLineStartTime(100)).toBe(0);
+	});
+
+	test("pauses at the line end and resumes from the next focus line", async () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section></main>';
+		playerTime = 0.999;
+		const props = {
+			pairUuid: "pair-1",
+			ebookUuid: "ebook-1",
+			sourceFormat: "epub" as const,
+			readerApiRef: { current: null },
+			readerSurfaceRef: {
+				current: document.getElementById("reader-fixture"),
+			},
+			sections: [
+				{
+					reference: "nanahoshi-epub-chapter-xhtml",
+					charactersWeight: 1,
+					startCharacter: 0,
+					characters: 6,
+				},
+			],
+			readerDomRevision: "focus",
+			pauseAudioAfterLine: true,
+			onExitReadListen: () => {},
+		};
+		render(<ReadListenRuntime {...props} />);
+
+		await act(() => new Promise((resolve) => window.setTimeout(resolve, 5)));
+		expect(pause).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			props.readerSurfaceRef.current?.dispatchEvent(
+				new window.CustomEvent(FOCUS_SENTENCE_NAVIGATION_EVENT, {
+					bubbles: true,
+					detail: { character: 4, direction: 1 },
+				}),
+			);
+		});
+
+		expect(seekTo).not.toHaveBeenCalled();
+		expect(play).toHaveBeenCalledTimes(1);
+	});
+
+	test("starts the next focus line even when the current line is still playing", () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section></main>';
+		playerTime = 0.5;
+		const surface = document.getElementById("reader-fixture");
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: surface }}
+				sections={[
+					{
+						reference: "nanahoshi-epub-chapter-xhtml",
+						charactersWeight: 1,
+						startCharacter: 0,
+						characters: 6,
+					},
+				]}
+				readerDomRevision="focus"
+				pauseAudioAfterLine
+				onExitReadListen={() => {}}
+			/>,
+		);
+
+		act(() => {
+			surface?.dispatchEvent(
+				new window.CustomEvent(FOCUS_SENTENCE_NAVIGATION_EVENT, {
+					bubbles: true,
+					detail: { character: 4, direction: 1 },
+				}),
+			);
+		});
+
+		expect(seekTo).toHaveBeenCalledWith(8.8);
+		expect(play).toHaveBeenCalledTimes(1);
+	});
+
+	test("cancels the previous cue pause when focus navigation targets a new line", async () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p><p>四。</p></section></main>';
+		playerTime = 0.999;
+		const surface = document.getElementById("reader-fixture");
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: surface }}
+				sections={[
+					{
+						reference: "nanahoshi-epub-chapter-xhtml",
+						charactersWeight: 1,
+						startCharacter: 0,
+						characters: 8,
+					},
+				]}
+				readerDomRevision="focus"
+				pauseAudioAfterLine
+				onExitReadListen={() => {}}
+			/>,
+		);
+
+		act(() => {
+			surface?.dispatchEvent(
+				new window.CustomEvent(FOCUS_SENTENCE_NAVIGATION_EVENT, {
+					bubbles: true,
+					detail: { character: 4, direction: 1 },
+				}),
+			);
+		});
+
+		await act(() => new Promise((resolve) => window.setTimeout(resolve, 5)));
+		expect(seekTo).toHaveBeenCalledWith(9.8);
+		expect(play).toHaveBeenCalledTimes(1);
+		expect(pause).not.toHaveBeenCalled();
+	});
+
+	test("keeps the focus line target when the active cue crosses its boundary", async () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p><p>四。</p></section></main>';
+		playerTime = 9.95;
+		const surface = document.getElementById("reader-fixture");
+		const props = {
+			pairUuid: "pair-1",
+			ebookUuid: "ebook-1",
+			sourceFormat: "epub" as const,
+			readerApiRef: { current: null },
+			readerSurfaceRef: { current: surface },
+			sections: [
+				{
+					reference: "nanahoshi-epub-chapter-xhtml",
+					charactersWeight: 1,
+					startCharacter: 0,
+					characters: 8,
+				},
+			],
+			readerDomRevision: "focus",
+			pauseAudioAfterLine: true,
+			onExitReadListen: () => {},
+		};
+		const view = render(<ReadListenRuntime {...props} />);
+
+		await act(() => new Promise((resolve) => window.setTimeout(resolve, 10)));
+		playerTime = 10.01;
+		view.rerender(<ReadListenRuntime {...props} />);
+		await act(() => new Promise((resolve) => window.setTimeout(resolve, 60)));
+
+		expect(pause).toHaveBeenCalledTimes(1);
+	});
+
 	test("does not move the reader when the mode seeks audio from its entry position", () => {
 		document.body.innerHTML =
 			'<section id="nanahoshi-epub-chapter-xhtml"><p>一。</p><p>二。</p><p>三。</p></section>';

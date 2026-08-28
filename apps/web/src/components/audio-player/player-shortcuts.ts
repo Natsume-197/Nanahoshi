@@ -12,6 +12,7 @@ export type PlayerShortcut =
 
 export interface ShortcutEvent {
 	key: string;
+	defaultPrevented?: boolean;
 	shiftKey?: boolean;
 	ctrlKey?: boolean;
 	metaKey?: boolean;
@@ -48,6 +49,7 @@ export function resolvePlayerShortcut(
 	event: ShortcutEvent,
 	options: { isExpanded: boolean },
 ): PlayerShortcut | null {
+	if (event.defaultPrevented) return null;
 	if (event.ctrlKey || event.metaKey || event.altKey) return null;
 	if (isOwnedElsewhere(event.target)) return null;
 

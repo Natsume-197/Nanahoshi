@@ -158,6 +158,8 @@ export interface ReaderSettings {
 	pageColumns: number;
 	focusTextSpeed: FocusTextSpeed;
 	focusSentenceIndicator: boolean;
+	/** Read & Listen focus mode: stop at each aligned line until navigation. */
+	focusPauseAudioAfterLine: boolean;
 }
 
 export const READER_SETTINGS_VERSION = 2;
@@ -195,6 +197,7 @@ export const defaultReaderSettings: ReaderSettings = {
 	pageColumns: 2,
 	focusTextSpeed: "normal",
 	focusSentenceIndicator: true,
+	focusPauseAudioAfterLine: false,
 };
 
 /**
@@ -301,6 +304,7 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		"hideFurigana",
 		"avoidPageBreak",
 		"focusSentenceIndicator",
+		"focusPauseAudioAfterLine",
 	] as const;
 	for (const key of booleanKeys) {
 		if (typeof stored[key] === "boolean") next[key] = stored[key];

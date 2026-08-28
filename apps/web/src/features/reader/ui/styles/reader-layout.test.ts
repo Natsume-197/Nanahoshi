@@ -56,6 +56,9 @@ describe("focus mode sentence box", () => {
 		expect(cssRule(".book-content--focus .focus-sentence-content")).toContain(
 			"position: relative",
 		);
+		expect(marker).toContain("border-radius: 50%");
+		expect(marker).toContain("border: 0.1em solid currentColor");
+		expect(marker).toContain("border-right-color: transparent");
 		expect(marker).toContain("focus-sentence-indicator-spin");
 		expect(readerCss).toContain("@keyframes focus-sentence-indicator-spin");
 		expect(cssRule("@keyframes focus-sentence-indicator-spin")).toContain(

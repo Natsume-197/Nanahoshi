@@ -22,6 +22,7 @@ export type ReadListenPlaybackSession = {
 	nextCue: ReadListenTimelineCue | undefined;
 	isAudiobookLoaded: boolean;
 	isPlaying: boolean;
+	playbackRate: number;
 	globalCurrentTime: number;
 	alignmentRevision: string;
 	retry: () => void;
@@ -120,6 +121,7 @@ export function useReadListenPlaybackSession({
 		nextCue,
 		isAudiobookLoaded,
 		isPlaying: player.isPlaying,
+		playbackRate: player.speed,
 		globalCurrentTime: player.globalCurrentTime,
 		alignmentRevision: sessionQuery.data?.alignment.createdAt ?? "pending",
 		retry,

@@ -98,3 +98,14 @@ describe("focus mode text speed", () => {
 		).toBe(defaultReaderSettings.focusTextSpeed);
 	});
 });
+
+test("preserves the focus line audio preference", () => {
+	expect(
+		normalizeReaderSettings({ focusPauseAudioAfterLine: true })
+			.focusPauseAudioAfterLine,
+	).toBe(true);
+	expect(
+		normalizeReaderSettings({ focusPauseAudioAfterLine: "yes" })
+			.focusPauseAudioAfterLine,
+	).toBe(false);
+});

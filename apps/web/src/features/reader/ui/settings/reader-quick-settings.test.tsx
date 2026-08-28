@@ -29,6 +29,8 @@ function renderPanel(
 	overrides: {
 		presentation?: ReaderPresentation;
 		settings?: ReaderSettings;
+		readListenActive?: boolean;
+		onChange?: (patch: Partial<ReaderSettings>) => void;
 	} = {},
 ) {
 	const panelSettings = overrides.settings ?? defaultReaderSettings;
@@ -45,13 +47,14 @@ function renderPanel(
 			]}
 			activeProfileId="default"
 			isMobile={isMobile}
+			readListenActive={overrides.readListenActive ?? false}
 			onProfileSwitch={() => {}}
 			onProfileCreate={() => {}}
 			onProfileRename={() => {}}
 			onProfileDuplicate={() => {}}
 			onProfileDelete={() => {}}
 			onCustomThemesChange={() => {}}
-			onChange={() => {}}
+			onChange={overrides.onChange ?? (() => {})}
 			onVisualSettingsChange={() => {}}
 			onPresentationChange={() => {}}
 			onClose={onClose}
@@ -115,5 +118,31 @@ describe("ReaderQuickSettings docked panel", () => {
 		expect(panel.getByText("Latin character orientation")).toBeTruthy();
 		expect(panel.getByText("Font kerning")).toBeTruthy();
 		expect(panel.getByText("Proportional vertical metrics")).toBeTruthy();
+	});
+
+	test("offers line-by-line audio playback only in Read & Listen focus mode", () => {
+		const onChange = mock(() => {});
+		const panel = renderPanel(() => {}, false, {
+			presentation: {
+				...presentation,
+				textLayout: "focus",
+				renderer: "text-focus",
+			},
+			readListenActive: true,
+			onChange,
+		});
+
+		fireEvent.click(panel.getByRole("button", { name: "Layout" }));
+		const label = panel.getByText("Line-by-line audio (VN)");
+		const row = label.closest("div");
+		const toggle = Array.from(row?.querySelectorAll("button") ?? []).find(
+			(button) => button.textContent === "On",
+		);
+		if (!toggle) throw new Error("Missing line playback toggle");
+		fireEvent.click(toggle);
+
+		expect(onChange).toHaveBeenCalledWith({
+			focusPauseAudioAfterLine: true,
+		});
 	});
 });

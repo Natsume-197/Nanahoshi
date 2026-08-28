@@ -134,17 +134,12 @@
 
 .focus-sentence-indicator {
 	position: absolute;
+	box-sizing: border-box;
 	width: 0.62em;
 	height: 0.62em;
+	border: 0.1em solid currentColor;
+	border-right-color: transparent;
 	border-radius: 50%;
-	background: conic-gradient(
-		from 0deg,
-		currentColor 0deg,
-		color-mix(in oklab, currentColor 25%, transparent) 140deg,
-		transparent 300deg
-	);
-	-webkit-mask: radial-gradient(closest-side, transparent 78%, black 80%);
-	mask: radial-gradient(closest-side, transparent 78%, black 80%);
 	animation:
 		focus-sentence-indicator-in 180ms ease-out both,
 		focus-sentence-indicator-spin 2.4s linear 180ms infinite;
@@ -170,10 +165,8 @@
 @media (prefers-reduced-motion: reduce) {
 	.focus-sentence-indicator {
 		animation: none;
-		background: currentColor;
-		-webkit-mask: none;
-		mask: none;
-		opacity: 0.6;
+		border-right-color: currentColor;
+		opacity: 0.7;
 	}
 }
 

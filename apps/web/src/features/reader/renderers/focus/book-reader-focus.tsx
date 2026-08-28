@@ -9,6 +9,7 @@ import {
 import type { ReaderTextAnchor } from "@/features/reader/document/types";
 import type { FocusTextSpeed } from "@/features/reader/presentation/settings";
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
+import { announceFocusSentenceNavigation } from "@/features/reader/renderers/focus/focus-navigation";
 import { FocusSentenceView } from "@/features/reader/renderers/focus/focus-sentence-view";
 import {
 	type FocusDocument,
@@ -97,6 +98,7 @@ export function BookReaderFocus({
 		undefined,
 	);
 	const typewriterRef = useRef<TypewriterHandle | null>(null);
+	const surfaceRef = useRef<HTMLElement | null>(null);
 	const typesRef = useRef(textSpeed !== "instant");
 	typesRef.current = textSpeed !== "instant";
 	const onPositionChangeRef = useRef(onPositionChange);
@@ -181,6 +183,13 @@ export function BookReaderFocus({
 		showSentence(requested, {
 			animate: direction === 1 && typesRef.current,
 		});
+		const sentence = parsed.sentences[requested];
+		if (sentence && surfaceRef.current) {
+			announceFocusSentenceNavigation(surfaceRef.current, {
+				character: sentence.startCharacter,
+				direction,
+			});
+		}
 	};
 
 	// This adapter is registered when the session document becomes available.
@@ -330,6 +339,7 @@ export function BookReaderFocus({
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: sentence navigation has its own keybinds (PageUp/PageDown, arrows); this only adds the pointer affordance
 		<section
+			ref={surfaceRef}
 			data-reader-renderer="text-focus"
 			aria-label="Focus reader"
 			lang={language || undefined}

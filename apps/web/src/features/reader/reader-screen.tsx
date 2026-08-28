@@ -1003,6 +1003,10 @@ export function ReaderScreen({
 							initialTextPosition={readListenEntryCharacter}
 							readerDomRevision={`${readerKey}:${readerApiRevision}`}
 							playheadRef={readListenPlayheadRef}
+							pauseAudioAfterLine={
+								presentation.renderer === "text-focus" &&
+								settings.focusPauseAudioAfterLine
+							}
 							theme={theme}
 							onExitReadListen={exitReadListen}
 						/>
@@ -1106,6 +1110,7 @@ export function ReaderScreen({
 				profiles={profilesStore.profiles}
 				activeProfileId={activeProfileId}
 				isMobile={isMobile}
+				readListenActive={Boolean(readListenPairUuid)}
 				onProfileSwitch={handleQuickProfileSwitch}
 				onProfileCreate={handleProfileCreate}
 				onProfileRename={handleProfileRename}

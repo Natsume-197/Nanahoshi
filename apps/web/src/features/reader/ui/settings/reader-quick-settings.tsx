@@ -74,6 +74,7 @@ interface ReaderQuickSettingsProps {
 	profiles: ReaderProfile[];
 	activeProfileId: string;
 	isMobile: boolean;
+	readListenActive: boolean;
 	onProfileSwitch: (id: string) => void;
 	onProfileCreate: (name: string) => void;
 	onProfileRename: (id: string, name: string) => void;
@@ -149,6 +150,7 @@ export function ReaderQuickSettings({
 	profiles,
 	activeProfileId,
 	isMobile,
+	readListenActive,
 	onProfileSwitch,
 	onProfileCreate,
 	onProfileRename,
@@ -1010,6 +1012,17 @@ export function ReaderQuickSettings({
 											}
 										/>
 									</QuickSettingsRow>
+									{readListenActive && (
+										<QuickSettingsRow label="Line-by-line audio (VN)">
+											<Toggle
+												theme={theme}
+												value={settings.focusPauseAudioAfterLine}
+												onChange={(focusPauseAudioAfterLine) =>
+													onChange({ focusPauseAudioAfterLine })
+												}
+											/>
+										</QuickSettingsRow>
+									)}
 								</>
 							)}
 							{canSelectPageColumns && (

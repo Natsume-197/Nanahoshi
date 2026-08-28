@@ -116,6 +116,8 @@ interface AudioPlayerActions {
 		options?: { autoplay?: boolean; startTime?: number },
 	) => void;
 	togglePlay: () => void;
+	play: () => void;
+	pause: () => void;
 	seekTo: (time: number) => void;
 	seekRelative: (seconds: number) => void;
 	/** Imperative snapshot for navigation flows that must not subscribe to ticks. */
@@ -612,6 +614,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			audio.pause();
 		}
 	}, []);
+	const play = useCallback(() => {
+		audioRef.current?.play().catch(() => {});
+	}, []);
+	const pause = useCallback(() => {
+		audioRef.current?.pause();
+	}, []);
 
 	const seekTo = useCallback(
 		(time: number) => {
@@ -862,6 +870,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		() => ({
 			loadAudiobook,
 			togglePlay,
+			play,
+			pause,
 			seekTo,
 			seekRelative,
 			getGlobalCurrentTime,
@@ -881,6 +891,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		[
 			loadAudiobook,
 			togglePlay,
+			play,
+			pause,
 			seekTo,
 			seekRelative,
 			getGlobalCurrentTime,

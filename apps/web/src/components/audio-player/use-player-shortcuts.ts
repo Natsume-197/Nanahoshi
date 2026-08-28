@@ -29,6 +29,7 @@ export function usePlayerShortcuts() {
 		const shortcut = resolvePlayerShortcut(
 			{
 				key: event.key,
+				defaultPrevented: event.defaultPrevented,
 				shiftKey: event.shiftKey,
 				ctrlKey: event.ctrlKey,
 				metaKey: event.metaKey,
