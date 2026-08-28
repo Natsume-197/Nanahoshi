@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import {
 	type CSSProperties,
+	type PointerEvent,
 	type RefObject,
 	useCallback,
 	useRef,
@@ -225,6 +226,16 @@ export function DashboardLayout() {
 	// The phone header is home chrome. Every other mobile route already has the
 	// persistent bottom navigation and should give its full height to content.
 	const showMobileHeader = location.pathname === "/dashboard";
+	const handleMobileHeaderPointerDown = useCallback(
+		(event: PointerEvent<HTMLElement>) => {
+			if (event.pointerType === "mouse") return;
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			if (!target.closest("button, a, [role=button], [role=menuitem]")) return;
+			if (typeof navigator.vibrate === "function") navigator.vibrate(8);
+		},
+		[],
+	);
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
@@ -311,6 +322,7 @@ export function DashboardLayout() {
 				{!standalone && (
 					<header
 						ref={headerRef}
+						onPointerDown={handleMobileHeaderPointerDown}
 						inert={playerExpanded}
 						// px-4 below md so the server badge's leading edge lands on the
 						// same line as the page's own px-4 content (section titles,
