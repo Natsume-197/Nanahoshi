@@ -708,6 +708,13 @@
       "when": 1787713832976,
       "tag": "0100_stiff_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1787925736183,
+      "tag": "0101_orange_spiral",
+      "breakpoints": true
     }
   ]
 }
