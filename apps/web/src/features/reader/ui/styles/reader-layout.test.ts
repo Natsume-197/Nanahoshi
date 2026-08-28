@@ -349,11 +349,15 @@ describe("reader layout", () => {
 		);
 		expect(openSettingsHandler).not.toContain("setShowHeader(false)");
 		expect(readerScreen).toContain(
-			"inert={quickSettingsOpen || tocOpen || galleryOpen}",
+			"inert={(quickSettingsOpen && isMobile) || tocOpen || galleryOpen}",
 		);
+		expect(readerScreen).toContain(
+			"settingsOpen: quickSettingsOpen && isMobile",
+		);
+		expect(readerScreen).toContain("(quickSettingsOpen && isMobile) ||");
 	});
 
-	test("keeps the mobile drawer and uses a desktop sliding side panel", () => {
+	test("keeps the mobile drawer and uses a desktop floating dialog", () => {
 		expect(readerScreen).toContain("<ReaderQuickSettings");
 		expect(readerScreen).not.toContain(
 			"{quickSettingsOpen && (\n\t\t\t\t<ReaderQuickSettings",
@@ -362,15 +366,26 @@ describe("reader layout", () => {
 		expect(quickSettings).toContain('"--drawer-content-height": "60dvh"');
 		expect(quickSettings).toContain('"--drawer-content-max-height": "60dvh"');
 		expect(quickSettings.match(/modal=\{false\}/g)).toHaveLength(1);
-		expect(quickSettings).not.toContain("DialogPrimitive");
 		expect(quickSettings).toContain("reader-quick-settings-sheet");
-		expect(quickSettings).toContain("aria-hidden={!open}");
-		expect(quickSettings).toContain("inert={!open}");
+		expect(quickSettings).toContain("reader-quick-settings-dialog");
+		expect(quickSettings).toContain('"min(42rem, calc(100dvh - 2rem))"');
+		expect(quickSettings).toContain('"min(36rem, calc(100vw - 2rem))"');
+		expect(quickSettings).toContain("hidden={!open}");
+		expect(quickSettings).toContain('role="dialog"');
+		expect(quickSettings).toContain("beginDesktopDialogDrag");
+		expect(quickSettings).toContain("setPointerCapture(event.pointerId)");
+		expect(quickSettings).toContain("desktopDialogOffsetRef.current.x");
+		expect(quickSettings).toContain("applyDesktopDialogOffset");
+		expect(quickSettings).toContain('willChange: "transform"');
+		expect(quickSettings).toContain("border-b px-2");
+		expect(quickSettings).toContain('className="size-3.5"');
 		expect(quickSettings).toContain(
-			'aria-describedby="reader-quick-settings-description"',
+			'aria-label="Move settings window. Use arrow keys to reposition; press Home to center."',
 		);
-		expect(quickSettings).toContain("translate-x-full");
-		expect(quickSettings).toContain("motion-safe:transition-transform");
+		expect(quickSettings).toContain("toggleDesktopDialogCollapsed");
+		expect(quickSettings).toContain("beginDesktopDialogResize");
+		expect(quickSettings).toContain("resizeDesktopDialogWithKeyboard");
+		expect(quickSettings).not.toContain("translate-x-full");
 		expect(globalStyles).toContain(
 			".reader-quick-settings-sheet[data-ending-style]",
 		);

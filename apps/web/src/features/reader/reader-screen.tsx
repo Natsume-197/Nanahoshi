@@ -768,7 +768,7 @@ export function ReaderScreen({
 		autoScrollMultiplier: settings.autoScrollMultiplier,
 		galleryOpen,
 		tocOpen,
-		settingsOpen: quickSettingsOpen,
+		settingsOpen: quickSettingsOpen && isMobile,
 		navigationBlocked: Boolean(audioPlayerBook) && isAudioPlayerExpanded,
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: closeQuickSettings,
@@ -934,7 +934,7 @@ export function ReaderScreen({
 
 			<div
 				className="contents"
-				inert={quickSettingsOpen || tocOpen || galleryOpen}
+				inert={(quickSettingsOpen && isMobile) || tocOpen || galleryOpen}
 			>
 				<ReaderEngine
 					key={readerKey}
@@ -954,14 +954,14 @@ export function ReaderScreen({
 					onPdfFullscreen={onFullscreenClick}
 					onPdfOpenSettings={() => {
 						overlayEntryPositionRef.current = captureReaderPosition();
-						hideDocumentScrollbar();
+						if (isMobile) hideDocumentScrollbar();
 						setQuickSettingsOpen(true);
 					}}
 					onExitFocus={() =>
 						handlePresentationChange({ type: "text-layout", value: "scroll" })
 					}
 					navigationBlocked={
-						quickSettingsOpen ||
+						(quickSettingsOpen && isMobile) ||
 						tocOpen ||
 						galleryOpen ||
 						(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
@@ -974,7 +974,7 @@ export function ReaderScreen({
 							setReaderApiRevision((revision) => revision + 1);
 							// A flow/orientation switch can replace the controller while an
 							// overlay is still open; keep its modal lock gutter-free.
-							if (quickSettingsOpen || galleryOpen) {
+							if ((quickSettingsOpen && isMobile) || galleryOpen) {
 								if (supportsReaderScrollbar(controller)) {
 									controller.setScrollbarHidden(true);
 								}
@@ -1056,7 +1056,7 @@ export function ReaderScreen({
 					onSearchClick={() => {}}
 					onQuickSettingsClick={() => {
 						overlayEntryPositionRef.current = captureReaderPosition();
-						hideDocumentScrollbar();
+						if (isMobile) hideDocumentScrollbar();
 						setQuickSettingsOpen(true);
 					}}
 					readListenAvailable={readListenAvailable}

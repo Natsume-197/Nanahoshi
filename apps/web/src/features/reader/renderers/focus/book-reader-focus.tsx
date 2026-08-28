@@ -23,6 +23,7 @@ import {
 	typewriterRate,
 } from "@/features/reader/renderers/focus/focus-typewriter";
 import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
+import { isReaderOverlayEvent } from "@/features/reader/renderers/shared/reader-overlay-event";
 import {
 	buildReaderClasses,
 	buildReaderStyle,
@@ -41,19 +42,6 @@ interface BookReaderFocusProps extends BaseReaderProps {
 
 const clamp = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
-
-const isOverlayEvent = (event: Event) =>
-	event
-		.composedPath()
-		.some(
-			(target) =>
-				target instanceof Element &&
-				Boolean(
-					target.closest(
-						'[role="dialog"],[data-slot="drawer-popup"],[data-reader-overlay]',
-					),
-				),
-		);
 
 export function BookReaderFocus({
 	language,
@@ -253,7 +241,7 @@ export function BookReaderFocus({
 			disableWheelNavigationRef.current ||
 			navigationBlockedRef.current ||
 			!parsedRef.current ||
-			isOverlayEvent(event)
+			isReaderOverlayEvent(event)
 		) {
 			return;
 		}
@@ -323,7 +311,7 @@ export function BookReaderFocus({
 
 	const handleSurfaceClick = (event: ReactMouseEvent<HTMLElement>) => {
 		if (navigationBlocked || !sentence) return;
-		if (isOverlayEvent(event.nativeEvent)) return;
+		if (isReaderOverlayEvent(event.nativeEvent)) return;
 		if (window.getSelection()?.isCollapsed === false) return;
 		const surface = event.currentTarget.getBoundingClientRect();
 		moveSentence(

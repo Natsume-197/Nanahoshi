@@ -1,6 +1,12 @@
 import "@/test-utils/setup-dom";
 import { afterEach, describe, expect, test } from "bun:test";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import {
+	act,
+	cleanup,
+	fireEvent,
+	render,
+	waitFor,
+} from "@testing-library/react";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	BookReaderPaginated,
@@ -69,6 +75,8 @@ afterEach(() => {
 			"scrollWidth",
 			originalScrollWidth,
 		);
+	} else {
+		Reflect.deleteProperty(HTMLElement.prototype, "scrollWidth");
 	}
 	if (originalClientHeight) {
 		Object.defineProperty(
@@ -76,6 +84,8 @@ afterEach(() => {
 			"clientHeight",
 			originalClientHeight,
 		);
+	} else {
+		Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
 	}
 });
 
@@ -404,5 +414,95 @@ describe("BookReaderPaginated image section navigation", () => {
 			expect(scrollElement.querySelector("#anchor-target")).not.toBeNull();
 			expect(scrollElement.scrollLeft).toBe(976);
 		});
+	});
+});
+
+describe("BookReaderPaginated wheel navigation", () => {
+	test("does not turn pages when the wheel originates in a reader overlay", async () => {
+		let readerApi: BookReaderApi | null = null;
+		let wheelScrolls = 0;
+		HTMLElement.prototype.scrollTo = function scrollTo(options) {
+			if (typeof options === "object") {
+				this.scrollLeft = options.left ?? this.scrollLeft;
+				this.scrollTop = options.top ?? this.scrollTop;
+			}
+			wheelScrolls += 1;
+		};
+		Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+			configurable: true,
+			get() {
+				return this.classList.contains("book-content--paginated") ? 2000 : 0;
+			},
+		});
+
+		render(
+			<BookReaderPaginated
+				htmlContent='<div id="nanahoshi-epub-p-001"><p>Page one and page two.</p></div>'
+				language="en"
+				verticalMode={false}
+				theme={{
+					id: "test",
+					fontColor: "black",
+					backgroundColor: "white",
+					selectionFontColor: "white",
+					selectionBackgroundColor: "black",
+					hintFuriganaShadowColor: "transparent",
+					hintFuriganaFontColor: "black",
+					tooltipTextFontColor: "black",
+				}}
+				fontFamilyGroupOne="serif"
+				fontFamilyGroupTwo="sans-serif"
+				fontWeight={null}
+				fontSize={20}
+				lineHeight={1.6}
+				textIndentation={0}
+				textMarginMode="auto"
+				textMarginValue={0}
+				verticalTextOrientation="mixed"
+				enableFontKerning={false}
+				enableFontVPAL={false}
+				prioritizeReaderStyles={false}
+				enableTextJustification={false}
+				enableTextWrapPretty={false}
+				secondDimensionMaxValue={0}
+				firstDimensionMargin={0}
+				hideFurigana={false}
+				furiganaStyle="Partial"
+				disableWheelNavigation={false}
+				navigationBlocked={false}
+				avoidPageBreak={false}
+				pageColumns={1}
+				reservePlayerSpace={false}
+				sections={[
+					{
+						reference: "nanahoshi-epub-p-001",
+						charactersWeight: 22,
+						startCharacter: 0,
+						characters: 22,
+					},
+				]}
+				initialPosition={undefined}
+				onPositionChange={() => {}}
+				onSectionProgressChange={() => {}}
+				apiRef={(api) => {
+					readerApi = api;
+				}}
+			/>,
+		);
+
+		await waitFor(() => expect(readerApi).not.toBeNull());
+		const overlay = document.createElement("aside");
+		overlay.dataset.readerOverlay = "";
+		const settingsControl = document.createElement("button");
+		overlay.append(settingsControl);
+		document.body.append(overlay);
+		const scrollsBeforeWheel = wheelScrolls;
+
+		try {
+			fireEvent.wheel(settingsControl, { deltaY: 120 });
+			expect(wheelScrolls).toBe(scrollsBeforeWheel);
+		} finally {
+			overlay.remove();
+		}
 	});
 });

@@ -13,6 +13,7 @@ import { SectionCharacterStatsCalculator } from "@/features/reader/renderers/pag
 import { resolveReaderTextAnchorOffset } from "@/features/reader/renderers/paginated/text-anchor";
 import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
 import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
+import { isReaderOverlayEvent } from "@/features/reader/renderers/shared/reader-overlay-event";
 import {
 	buildReaderClasses,
 	buildReaderStyle,
@@ -683,7 +684,11 @@ export function BookReaderPaginated({
 
 		// Wheel flips pages (nanahoshi: throttled, passive)
 		const handleWheel = (ev: WheelEvent) => {
-			if (disableWheelNavigationRef.current || navigationBlockedRef.current) {
+			if (
+				disableWheelNavigationRef.current ||
+				navigationBlockedRef.current ||
+				isReaderOverlayEvent(ev)
+			) {
 				return;
 			}
 			const now = Date.now();

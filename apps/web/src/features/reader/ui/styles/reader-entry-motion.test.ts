@@ -43,8 +43,9 @@ describe("reader entry motion", () => {
 		expect(readerEntryCss).not.toContain(
 			"transform: translate3d(var(--page-slide-distance), 0, 0)",
 		);
-		expect(readerQuickSettings).toContain("fixed inset-y-0 right-0");
-		expect(readerQuickSettings).toContain("motion-safe:transition-transform");
+		expect(readerQuickSettings).toContain("reader-quick-settings-dialog");
+		expect(readerQuickSettings).toContain('willChange: "transform"');
+		expect(readerQuickSettings).not.toContain("backdropClassName");
 		expect(css).not.toContain(".reader-route-content {\n\tfilter:");
 	});
 
