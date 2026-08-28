@@ -9,6 +9,13 @@ const contextMenu = readFileSync(
 	new URL("../ui/context-menu.tsx", import.meta.url),
 	"utf8",
 );
+const menuActions = readFileSync(
+	new URL(
+		"../../hooks/books/use-book-context-menu-actions.ts",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("continue-card detail navigation", () => {
 	test("offers a native menu link only for continue cards", () => {
@@ -37,5 +44,26 @@ describe("permanent book deletion", () => {
 		expect(menu).toContain('m["book.delete_confirm_action"]()');
 		expect(menu).toContain("aria-busy={isDeletePermanentlyBusy}");
 		expect(menu).toContain("showCloseButton={!isDeletePermanentlyBusy}");
+	});
+
+	test("invalidates both Continue feeds after deletion", () => {
+		const deletionMutationStart = menuActions.indexOf(
+			"const deletePermanentlyMutation",
+		);
+		const deletionMutationEnd = menuActions.indexOf(
+			"const isLiked",
+			deletionMutationStart,
+		);
+		const deletionMutation = menuActions.slice(
+			deletionMutationStart,
+			deletionMutationEnd,
+		);
+
+		expect(deletionMutation).toContain(
+			"orpc.readingProgress.listInProgress.key()",
+		);
+		expect(deletionMutation).toContain(
+			"orpc.listeningProgress.listInProgress.key()",
+		);
 	});
 });

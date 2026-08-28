@@ -315,6 +315,8 @@ export function useBookContextMenuActions(
 				orpc.audiobooks.listRecent.key(),
 				orpc.audiobooks.listRandom.key(),
 				orpc.audiobooks.search.key(),
+				orpc.readingProgress.listInProgress.key(),
+				orpc.listeningProgress.listInProgress.key(),
 				orpc.recommendations.key(),
 			]);
 
