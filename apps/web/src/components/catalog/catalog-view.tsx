@@ -13,10 +13,6 @@ import {
 } from "@/components/books/book-context-menu";
 import { SurpriseButton } from "@/components/catalog/surprise-button";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -27,7 +23,6 @@ import {
 	MultiFilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
-import { ViewToggle } from "@/components/shared/view-toggle";
 import type { MediaType } from "@/hooks/books/use-toggle-like";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
@@ -37,8 +32,6 @@ import {
 	saveUiSnapshot,
 } from "@/lib/scroll-restoration";
 import { m } from "@/paraglide/messages";
-import { getCoverFilename } from "@/utils/covers";
-import { resolveYear } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -87,19 +80,11 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 
 	const storageKey = isLibrary ? "nh-library-view" : "nh-books-view";
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey,
-		defaultSort: "recent",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey,
+			defaultSort: "recent",
+		});
 
 	// Library-only filters. Unused (and unrendered) for the all-catalog view.
 	// Snapshotted per history entry (like sort/search in useCollectionView) so
@@ -368,9 +353,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					ariaLabel={m["library_page.sort_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label={m["library_page.view"]()}>
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 		</FilterBar>
 	) : (
 		<FilterBar>
@@ -406,9 +388,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 					ariaLabel={m["library_page.sort_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label={m["library_page.view"]()}>
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 		</FilterBar>
 	);
 
@@ -434,8 +413,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				extraActions={
 					isLibrary ? undefined : <SurpriseButton format={format} />
 				}
-				view={view}
-				onViewChange={setView}
 				items={books}
 				getKey={(book) => book.uuid}
 				hasNextPage={hasNextPage}
@@ -457,36 +434,6 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 							coverFrameRatio={isAudiobook ? "square" : "book"}
 							tint={book.mainColor}
 							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
-				)}
-				listHeader={
-					<CollectionTableHeader
-						metaLabel={m["library_page.list_meta_year"]()}
-					/>
-				}
-				renderListItem={(book, index) => (
-					<BookContextMenuTrigger
-						bookUuid={book.uuid}
-						mediaType={book.mediaType}
-					>
-						<CollectionTableRow
-							index={index + 1}
-							linkProps={
-								book.mediaType === "audiobook"
-									? {
-											to: "/dashboard/audiobooks/$uuid",
-											params: { uuid: book.uuid },
-										}
-									: {
-											to: "/dashboard/books/$uuid",
-											params: { uuid: book.uuid },
-										}
-							}
-							coverFilename={getCoverFilename(book.cover)}
-							title={book.title ?? book.filename}
-							authors={book.authors}
-							meta={resolveYear(book.publishedDate)}
 						/>
 					</BookContextMenuTrigger>
 				)}

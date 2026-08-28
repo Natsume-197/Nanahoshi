@@ -1,5 +1,4 @@
 import {
-	ArrowLeft,
 	ArrowRight,
 	Books,
 	Clock,
@@ -12,7 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -79,7 +77,6 @@ export function DashboardHeaderSearch() {
 	const { recent, add: addRecent, remove: removeRecent } = useRecentSearches();
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
-	const [mobileExpanded, setMobileExpanded] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
 
 	// Mirror the route into the input: it keeps whatever was searched while on
@@ -152,14 +149,6 @@ export function DashboardHeaderSearch() {
 
 	function focusSearch() {
 		setOpen(true);
-		// On mobile the input lives in the expandable overlay; on desktop it's
-		// always visible (and expanding would steal the click-outside container).
-		if (
-			typeof window !== "undefined" &&
-			window.matchMedia("(max-width: 767px)").matches
-		) {
-			setMobileExpanded(true);
-		}
 		requestAnimationFrame(() => inputRef.current?.focus());
 	}
 
@@ -187,7 +176,9 @@ export function DashboardHeaderSearch() {
 				!e.ctrlKey &&
 				!e.altKey &&
 				!isEditableTarget(e.target);
-			if (isCmdK || isSlash) {
+			const desktopSearchVisible =
+				window.matchMedia("(min-width: 768px)").matches;
+			if (desktopSearchVisible && (isCmdK || isSlash)) {
 				e.preventDefault();
 				e.stopPropagation();
 				focusSearch();
@@ -208,7 +199,6 @@ export function DashboardHeaderSearch() {
 		setOpen(false);
 		setQuery("");
 		setActiveIndex(-1);
-		setMobileExpanded(false);
 	}
 
 	function runSearch(value: string) {
@@ -217,7 +207,6 @@ export function DashboardHeaderSearch() {
 		addRecent(q);
 		setOpen(false);
 		setActiveIndex(-1);
-		setMobileExpanded(false);
 		navigate({ to: "/dashboard/search", search: { q } });
 	}
 
@@ -301,7 +290,6 @@ export function DashboardHeaderSearch() {
 		if (e.key === "Escape") {
 			setOpen(false);
 			setActiveIndex(-1);
-			setMobileExpanded(false);
 			inputRef.current?.blur();
 			return;
 		}
@@ -654,69 +642,12 @@ export function DashboardHeaderSearch() {
 	) : null;
 
 	return (
-		<>
-			{/* Mobile: search icon button */}
-			<Button
-				variant="ghost"
-				size="icon-lg"
-				// Optical, not box, alignment: this is the last thing in the mobile
-				// bar, and its 18px glyph sits 9px inside a 2.25rem hit area. Pulling
-				// the box out by that inset puts the glyph on the same 1rem gutter as
-				// the server badge opposite it, which is a solid shape and needs no
-				// such correction. Touch pointers get a 2.75rem box (see index.css),
-				// which buries the glyph 4px deeper — the correction has to follow the
-				// box that is actually rendered, or the glyph drifts off the gutter on
-				// every phone.
-				className="order-2 -me-[calc((2.25rem-18px)/2)] coarse:-me-[calc((2.75rem-18px)/2)] shrink-0 rounded-full text-foreground md:order-none md:me-0 md:hidden [&_svg]:size-[18px]"
-				onClick={() => {
-					setMobileExpanded(true);
-					requestAnimationFrame(() => inputRef.current?.focus());
-				}}
-				aria-label={m["common.search"]()}
-			>
-				<MagnifyingGlass weight="bold" />
-			</Button>
-
-			{/* Mobile: expanded search overlay */}
-			{mobileExpanded && (
-				<div
-					ref={containerRef}
-					// Same 1rem gutter as the bar it replaces, so the row doesn't shift
-					// sideways when search opens — and the same height variable, so a
-					// shorter bar (landscape) can't leave the overlay taller than what
-					// it covers.
-					className="theme-gradient-surface fixed inset-x-0 top-0 z-50 flex h-[calc(var(--mobile-header-height)+var(--safe-area-top))] items-center gap-2 bg-background pt-[var(--safe-area-top)] pr-[max(1rem,var(--safe-area-right))] pl-[max(1rem,var(--safe-area-left))] md:hidden"
-				>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={() => {
-							setMobileExpanded(false);
-							setOpen(false);
-							setQuery("");
-							setActiveIndex(-1);
-						}}
-						aria-label={m["aria.close_search"]()}
-					>
-						<ArrowLeft className="size-5" />
-					</Button>
-					<div className="relative flex-1">
-						{searchInput}
-						{dropdown}
-					</div>
-				</div>
-			)}
-
-			{/* Desktop: always visible search bar. Capped and centred on the header's
-			    middle grid column — min-w-0 lets it give way to the icon cluster on
-			    narrow panels instead of pushing it off. */}
-			<div
-				ref={mobileExpanded ? undefined : containerRef}
-				className="relative hidden min-w-0 md:col-start-2 md:block md:w-[34rem] md:max-w-full"
-			>
-				{searchInput}
-				{dropdown}
-			</div>
-		</>
+		<div
+			ref={containerRef}
+			className="relative hidden min-w-0 md:col-start-2 md:block md:w-[34rem] md:max-w-full"
+		>
+			{searchInput}
+			{dropdown}
+		</div>
 	);
 }

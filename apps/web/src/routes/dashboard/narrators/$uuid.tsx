@@ -7,16 +7,11 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { PAGE_SHELL } from "@/lib/page-layout";
-import { getCoverFilename } from "@/utils/covers";
 import { client, orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -50,19 +45,11 @@ function NarratorAudiobooksPage() {
 	});
 	const shouldSearch = entity != null;
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey: "nh-narrator-view",
-		defaultSort: "newest",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey: "nh-narrator-view",
+			defaultSort: "newest",
+		});
 
 	const {
 		data,
@@ -131,8 +118,6 @@ function NarratorAudiobooksPage() {
 				onSortChange={setSort}
 				sortOptions={SORT_OPTIONS}
 				sortAriaLabel="Sort audiobooks"
-				view={view}
-				onViewChange={setView}
 				items={audiobooks}
 				getKey={(audiobook) => audiobook.uuid}
 				hasNextPage={hasNextPage}
@@ -151,22 +136,6 @@ function NarratorAudiobooksPage() {
 							mediaType="audiobook"
 							coverFrameRatio="square"
 							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
-				)}
-				listHeader={<CollectionTableHeader />}
-				renderListItem={(audiobook, index) => (
-					<BookContextMenuTrigger bookUuid={audiobook.uuid}>
-						<CollectionTableRow
-							withMeta={false}
-							index={index + 1}
-							linkProps={{
-								to: "/dashboard/audiobooks/$uuid",
-								params: { uuid: audiobook.uuid },
-							}}
-							coverFilename={getCoverFilename(audiobook.cover)}
-							title={audiobook.title ?? audiobook.filename}
-							authors={audiobook.authors}
 						/>
 					</BookContextMenuTrigger>
 				)}

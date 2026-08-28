@@ -9,10 +9,6 @@ import {
 } from "@/components/books/book-card-shell";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -22,7 +18,6 @@ import {
 	FilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
-import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { coverPresets, getCoverFilename } from "@/utils/covers";
@@ -116,19 +111,11 @@ function SeriesPage() {
 		return opts.length > 0 ? opts : [...FORMAT_OPTIONS];
 	}, [hasBooks, hasAudiobooks]);
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey: "nh-series-view",
-		defaultSort: "name",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey: "nh-series-view",
+			defaultSort: "name",
+		});
 
 	const sortOptions: readonly SortOption<SortMode>[] = [
 		{ value: "name", label: "Title" },
@@ -247,9 +234,6 @@ function SeriesPage() {
 					ariaLabel="Sort series"
 				/>
 			</FilterField>
-			<FilterField label="View">
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 		</FilterBar>
 	);
 
@@ -271,8 +255,6 @@ function SeriesPage() {
 			sortOptions={sortOptions}
 			sortAriaLabel="Sort series"
 			filterBar={filterBar}
-			view={view}
-			onViewChange={setView}
 			items={seriesList}
 			getKey={(s) => s.uuid}
 			hasNextPage={hasNextPage}
@@ -307,36 +289,6 @@ function SeriesPage() {
 							subtitleLines={isAudiobook ? 1 : 2}
 						/>
 					</div>
-				</SeriesContextMenu>
-			)}
-			listHeader={
-				<CollectionTableHeader
-					withAuthor
-					metaLabel={isAudiobook ? "Audiobooks" : "Books"}
-				/>
-			}
-			renderListItem={(s, index) => (
-				<SeriesContextMenu href={detailPath.replace("$uuid", s.uuid)}>
-					<CollectionTableRow
-						withAuthor
-						index={index + 1}
-						linkProps={{
-							to: detailPath,
-							params: { uuid: s.uuid },
-						}}
-						coverFilename={getCoverFilename(s.cover)}
-						coverFallback={
-							isAudiobook ? (
-								<Headphones className="size-4 text-muted-foreground/40" />
-							) : (
-								<Books className="size-4 text-muted-foreground/40" />
-							)
-						}
-						title={s.name}
-						subtitle={seriesCount(s.count, isAudiobook)}
-						authors={s.author ? [s.author] : undefined}
-						meta={s.count}
-					/>
 				</SeriesContextMenu>
 			)}
 			emptyState={

@@ -6,6 +6,7 @@ import {
 	Folder,
 	Headphones,
 	House,
+	MagnifyingGlass,
 	Microphone,
 	Tag,
 	User,
@@ -43,6 +44,14 @@ const tabs = [
 		href: "/dashboard" as const,
 		exact: true,
 		needsNetwork: false,
+	},
+	{
+		kind: "link",
+		label: m["common.search"],
+		icon: MagnifyingGlass,
+		href: "/dashboard/search" as const,
+		exact: true,
+		needsNetwork: true,
 	},
 	{
 		kind: "link",
@@ -102,8 +111,8 @@ const browseNavItems = [
 //
 // basis-0 + min-w-0: without them a long label (es "Colecciones" is 69px at
 // 12px) widens its own tab and squeezes the others, so the icons stop being
-// evenly spaced. At four tabs the equal share on a 320px screen is 80px, which
-// fits every label we ship at 12px; the truncate is the net for a longer locale.
+// evenly spaced. Five tabs still leave 64px each at 320px; labels truncate while
+// every destination retains the same full-height touch target.
 const tabClass = (isActive: boolean, disabled: boolean) =>
 	cn(
 		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-xs transition-colors",
@@ -211,7 +220,7 @@ export function MobileBottomNav({
 		<>
 			<nav
 				data-slot="mobile-bottom-nav"
-				className="theme-gradient-surface fixed inset-x-0 bottom-0 z-30 bg-sidebar pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] [background-attachment:scroll] [background-position:left_bottom] md:hidden"
+				className="theme-gradient-surface fixed inset-x-0 bottom-0 z-30 border-sidebar-border border-t bg-sidebar pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] [background-attachment:scroll] [background-position:left_bottom] md:hidden"
 			>
 				<div className="flex h-[var(--mobile-tabbar-height)] items-center justify-around">
 					{tabs.map((tab) => {

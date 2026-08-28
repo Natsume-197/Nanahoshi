@@ -7,16 +7,12 @@ import {
 	createBookCardShellRowHeightEstimator,
 } from "@/components/books/book-card-shell";
 import { QueryErrorState } from "@/components/libraries/query-error-state";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { m } from "@/paraglide/messages";
-import { coverPresets, getCoverFilename } from "@/utils/covers";
+import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
@@ -42,19 +38,11 @@ export const Route = createFileRoute("/dashboard/publishers/")({
 });
 
 function PublishersPage() {
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey: "nh-publishers-view",
-		defaultSort: "name",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey: "nh-publishers-view",
+			defaultSort: "name",
+		});
 
 	const {
 		data,
@@ -107,8 +95,6 @@ function PublishersPage() {
 			sortOptions={SORT_OPTIONS}
 			sortAriaLabel={m["common.sort"]()}
 			hideSortWhileSearching
-			view={view}
-			onViewChange={setView}
 			items={publishersList}
 			getKey={(p) => p.uuid}
 			hasNextPage={hasNextPage}
@@ -131,26 +117,6 @@ function PublishersPage() {
 					}
 					title={p.name}
 					subtitle={publisherBookCount(p.bookCount)}
-				/>
-			)}
-			listHeader={
-				<CollectionTableHeader withAuthor={false} metaLabel="Books" />
-			}
-			renderListItem={(p, index) => (
-				<CollectionTableRow
-					withAuthor={false}
-					index={index + 1}
-					linkProps={{
-						to: "/dashboard/publishers/$uuid",
-						params: { uuid: p.uuid },
-					}}
-					coverFilename={getCoverFilename(p.cover)}
-					coverFallback={
-						<Buildings className="size-4 text-muted-foreground/40" />
-					}
-					title={p.name}
-					subtitle={publisherBookCount(p.bookCount)}
-					meta={p.bookCount}
 				/>
 			)}
 			emptyState={

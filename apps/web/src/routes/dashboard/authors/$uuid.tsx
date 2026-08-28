@@ -12,14 +12,9 @@ import {
 } from "@/components/books/book-context-menu";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
-import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
 import {
 	type RowHeightEstimate,
 	VirtualizedCardGrid,
@@ -29,7 +24,6 @@ import { useAbilities } from "@/hooks/use-abilities";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
-import { getCoverFilename } from "@/utils/covers";
 import { formatAvgRating, getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -49,13 +43,11 @@ type WorkItem = {
 	authors?: { id?: number | null; name: string }[] | null;
 };
 
-// One author section (Books or Audiobooks): grid of cards or a table list,
-// sharing the same wiring so the two sections never drift apart.
+// One author section (Books or Audiobooks), sharing the same grid wiring so the
+// two sections never drift apart.
 function WorksSection<T extends WorkItem>({
 	heading,
-	view,
 	items,
-	to,
 	mediaType,
 	gridRowEstimate,
 	hasNextPage,
@@ -63,9 +55,7 @@ function WorksSection<T extends WorkItem>({
 	fetchNextPage,
 }: {
 	heading: ReactNode;
-	view: ViewMode;
 	items: T[];
-	to: "/dashboard/books/$uuid" | "/dashboard/audiobooks/$uuid";
 	mediaType: "ebook" | "audiobook";
 	gridRowEstimate: RowHeightEstimate;
 	hasNextPage?: boolean;
@@ -76,60 +66,30 @@ function WorksSection<T extends WorkItem>({
 		<section className="space-y-3">
 			{heading ? <h2 className="font-semibold text-lg">{heading}</h2> : null}
 			<BookContextMenuRoot mediaType={mediaType}>
-				{view === "list" ? (
-					<div className="overflow-hidden rounded-xl border border-border/60">
-						<CollectionTableHeader />
-						<VirtualizedCardGrid
-							items={items}
-							getKey={(item) => item.uuid}
-							gap={0}
-							columns={1}
-							estimateRowHeight={56}
-							hasNextPage={hasNextPage}
-							isFetchingNextPage={isFetchingNextPage}
-							fetchNextPage={fetchNextPage}
-							renderItem={(item, index) => (
-								<BookContextMenuTrigger bookUuid={item.uuid}>
-									<CollectionTableRow
-										withMeta={false}
-										index={index + 1}
-										linkProps={{ to, params: { uuid: item.uuid } }}
-										coverFilename={getCoverFilename(item.cover)}
-										title={item.title ?? item.filename}
-										authors={item.authors}
-									/>
-								</BookContextMenuTrigger>
-							)}
-						/>
-					</div>
-				) : (
-					<VirtualizedCardGrid
-						items={items}
-						getKey={(item) => item.uuid}
-						gap={8}
-						estimateRowHeight={gridRowEstimate}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={fetchNextPage}
-						renderItem={(item) => (
-							<BookContextMenuTrigger bookUuid={item.uuid}>
-								<BookCard
-									uuid={item.uuid}
-									title={item.title ?? null}
-									filename={item.filename}
-									cover={item.cover ?? null}
-									tint={item.mainColor}
-									authors={item.authors ?? undefined}
-									mediaType={mediaType}
-									coverFrameRatio={
-										mediaType === "audiobook" ? "square" : "book"
-									}
-									contextMenuEnabled={false}
-								/>
-							</BookContextMenuTrigger>
-						)}
-					/>
-				)}
+				<VirtualizedCardGrid
+					items={items}
+					getKey={(item) => item.uuid}
+					gap={8}
+					estimateRowHeight={gridRowEstimate}
+					hasNextPage={hasNextPage}
+					isFetchingNextPage={isFetchingNextPage}
+					fetchNextPage={fetchNextPage}
+					renderItem={(item) => (
+						<BookContextMenuTrigger bookUuid={item.uuid}>
+							<BookCard
+								uuid={item.uuid}
+								title={item.title ?? null}
+								filename={item.filename}
+								cover={item.cover ?? null}
+								tint={item.mainColor}
+								authors={item.authors ?? undefined}
+								mediaType={mediaType}
+								coverFrameRatio={mediaType === "audiobook" ? "square" : "book"}
+								contextMenuEnabled={false}
+							/>
+						</BookContextMenuTrigger>
+					)}
+				/>
 			</BookContextMenuRoot>
 		</section>
 	);
@@ -161,19 +121,11 @@ function AuthorBooksPage() {
 	});
 	const shouldSearch = entity != null;
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey: "nh-author-view",
-		defaultSort: "newest",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey: "nh-author-view",
+			defaultSort: "newest",
+		});
 
 	const booksQuery = useInfiniteQuery({
 		queryKey: ["books", "author", uuid, sort, query],
@@ -300,7 +252,6 @@ function AuthorBooksPage() {
 										placeholder="Search works…"
 										ariaLabel="Search works by this author"
 									/>
-									{hasItems && <ViewToggle view={view} onChange={setView} />}
 									{hasItems && (
 										<SortSelect
 											value={sort}
@@ -343,9 +294,7 @@ function AuthorBooksPage() {
 			{books.length > 0 && (
 				<WorksSection
 					heading={showHeadings ? "Books" : null}
-					view={view}
 					items={books}
-					to="/dashboard/books/$uuid"
 					mediaType="ebook"
 					gridRowEstimate={BOOK_CARD_ROW_ESTIMATE}
 					hasNextPage={booksQuery.hasNextPage}
@@ -357,9 +306,7 @@ function AuthorBooksPage() {
 			{audiobooks.length > 0 && (
 				<WorksSection
 					heading={showHeadings ? "Audiobooks" : null}
-					view={view}
 					items={audiobooks}
-					to="/dashboard/audiobooks/$uuid"
 					mediaType="audiobook"
 					gridRowEstimate={AUDIOBOOK_CARD_ROW_ESTIMATE}
 					hasNextPage={audiobooksQuery.hasNextPage}

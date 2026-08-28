@@ -7,10 +7,6 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -20,16 +16,13 @@ import {
 	FilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
-import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
-import { getCoverFilename } from "@/utils/covers";
 import {
 	type BookSortMode,
 	filterAndSortBooks,
 } from "@/utils/filter-sort-books";
-import { resolveYear } from "@/utils/format";
 
 const GRID_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
@@ -79,10 +72,9 @@ type EntityBooksViewProps<T extends EntityBook> = {
 
 /**
  * Shared shell for a single-entity book list (series, genre, tag, publisher):
- * a book grid/list with a year column and the book context menu wired in. Rows
- * carrying a `mediaType` link to their own format's detail page. Owns view
- * state and client-side filter/sort; the route supplies data, copy, and any
- * entity-specific actions/dialogs.
+ * a book grid with the book context menu wired in. Items carrying a `mediaType`
+ * link to their own format's detail page. Owns client-side filter/sort; the
+ * route supplies data, copy, and any entity-specific actions/dialogs.
  */
 export function EntityBooksView<T extends EntityBook>({
 	storageKey,
@@ -99,16 +91,8 @@ export function EntityBooksView<T extends EntityBook>({
 	extraActions,
 	children,
 }: EntityBooksViewProps<T>) {
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<BookSortMode>({ storageKey, defaultSort });
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<BookSortMode>({ storageKey, defaultSort });
 
 	// null = auto: land on the entity's first available format.
 	const [formatChoice, setFormatChoice] =
@@ -129,23 +113,12 @@ export function EntityBooksView<T extends EntityBook>({
 		return filterAndSortBooks(rows, query, sort);
 	}, [rawBooks, formatFilter, format, query, sort]);
 
-	const linkFor = (book: EntityBook) =>
-		book.mediaType === "audiobook"
-			? ({
-					to: "/dashboard/audiobooks/$uuid",
-					params: { uuid: book.uuid },
-				} as const)
-			: ({
-					to: "/dashboard/books/$uuid",
-					params: { uuid: book.uuid },
-				} as const);
-
 	const formatOptions: readonly FilterOption[] = [
 		{ value: "ebook", label: m["search.books"]() },
 		{ value: "audiobook", label: m["search.audiobooks"]() },
 	];
 
-	// Same filter-bar layout as Browse (catalog-view): search, format, sort, view.
+	// Same filter-bar layout as Browse (catalog-view): search, format and sort.
 	const filterBar = formatFilter ? (
 		<FilterBar>
 			<FilterField
@@ -176,9 +149,6 @@ export function EntityBooksView<T extends EntityBook>({
 					ariaLabel={m["entity_page.sort_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label={m["library_page.view"]()}>
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 			{extraActions ? (
 				<div className="flex items-end justify-end">{extraActions}</div>
 			) : null}
@@ -205,8 +175,6 @@ export function EntityBooksView<T extends EntityBook>({
 				onSortChange={setSort}
 				sortOptions={sortOptions}
 				sortAriaLabel={m["entity_page.sort_aria"]()}
-				view={view}
-				onViewChange={setView}
 				extraActions={extraActions}
 				filterBar={filterBar}
 				items={books}
@@ -226,26 +194,6 @@ export function EntityBooksView<T extends EntityBook>({
 							authors={book.authors}
 							mediaType={book.mediaType ?? "ebook"}
 							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
-				)}
-				listHeader={
-					<CollectionTableHeader
-						metaLabel={m["library_page.list_meta_year"]()}
-					/>
-				}
-				renderListItem={(book, index) => (
-					<BookContextMenuTrigger
-						bookUuid={book.uuid}
-						mediaType={book.mediaType ?? "ebook"}
-					>
-						<CollectionTableRow
-							index={index + 1}
-							linkProps={linkFor(book)}
-							coverFilename={getCoverFilename(book.cover)}
-							title={book.title ?? book.filename}
-							authors={book.authors}
-							meta={resolveYear(book.publishedDate)}
 						/>
 					</BookContextMenuTrigger>
 				)}

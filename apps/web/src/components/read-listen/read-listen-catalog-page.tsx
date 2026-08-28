@@ -8,10 +8,6 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -19,7 +15,6 @@ import {
 	FilterField,
 	FilterSelect,
 } from "@/components/shared/filter-bar";
-import { ViewToggle } from "@/components/shared/view-toggle";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -288,19 +283,11 @@ export function ReadListenCatalogPage() {
 			}),
 		});
 	const pairings = data?.pages.flatMap((page) => page.items) ?? [];
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<ReadListenSort>({
-		storageKey: "nh-read-listen-view",
-		defaultSort: "recent",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<ReadListenSort>({
+			storageKey: "nh-read-listen-view",
+			defaultSort: "recent",
+		});
 	const [ebookLibraryUuid, setEbookLibraryUuid] = useState("any");
 	const [audiobookLibraryUuid, setAudiobookLibraryUuid] = useState("any");
 	const { ebookLibraryOptions, audiobookLibraryOptions } = useMemo(() => {
@@ -427,9 +414,6 @@ export function ReadListenCatalogPage() {
 					ariaLabel={m["library_page.sort_aria"]()}
 				/>
 			</FilterField>
-			<FilterField label={m["library_page.view"]()}>
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 		</FilterBar>
 	);
 	if (isReviewingMatches) {
@@ -466,8 +450,6 @@ export function ReadListenCatalogPage() {
 						</Button>
 					) : undefined
 				}
-				view={view}
-				onViewChange={setView}
 				items={visiblePairings}
 				hasNextPage={hasNextPage}
 				fetchNextPage={() => void fetchNextPage()}
@@ -481,31 +463,6 @@ export function ReadListenCatalogPage() {
 						mediaType="audiobook"
 					>
 						<PairGridCard pairing={pairing} />
-					</BookContextMenuTrigger>
-				)}
-				listHeader={
-					<CollectionTableHeader metaLabel={m["read_listen.ebook"]()} />
-				}
-				renderListItem={(pairing, index) => (
-					<BookContextMenuTrigger
-						bookUuid={pairing.audiobook.uuid}
-						mediaType="audiobook"
-					>
-						<CollectionTableRow
-							index={index + 1}
-							linkProps={{
-								to: "/dashboard/audiobooks/$uuid",
-								params: { uuid: pairing.audiobook.uuid },
-								preload: "intent",
-							}}
-							coverFilename={getCoverFilename(pairing.audiobook.cover)}
-							coverFallback={
-								<Headphones className="size-4 text-muted-foreground" />
-							}
-							title={pairing.audiobook.title}
-							authors={pairing.audiobook.authors}
-							meta={pairing.ebook.title}
-						/>
 					</BookContextMenuTrigger>
 				)}
 				emptyState={

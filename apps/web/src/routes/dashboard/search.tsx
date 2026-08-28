@@ -18,7 +18,14 @@ import {
 	redirect,
 	useRouter,
 } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import {
+	type FormEvent,
+	type ReactNode,
+	useCallback,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -26,6 +33,11 @@ import {
 import { HitLink } from "@/components/dashboard/search/top-results-hit-link";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
@@ -663,8 +675,9 @@ function SearchPage() {
 	const { q } = Route.useSearch();
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
-	const { recent: recentSearches } = useRecentSearches();
+	const { recent: recentSearches, add: addRecentSearch } = useRecentSearches();
 	const router = useRouter();
+	const [draftQuery, setDraftQuery] = useState(q);
 	const [filterSnapshotKey] = useState(
 		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
 	);
@@ -675,8 +688,18 @@ function SearchPage() {
 	const prevQueryRef = useRef(normalizedQuery);
 	if (normalizedQuery !== prevQueryRef.current) {
 		prevQueryRef.current = normalizedQuery;
+		setDraftQuery(q);
 		setFilter("all");
 	}
+	const submitMobileSearch = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const nextQuery = draftQuery.trim();
+		if (nextQuery) addRecentSearch(nextQuery);
+		void router.navigate({
+			to: "/dashboard/search",
+			search: { q: nextQuery },
+		});
+	};
 	const isAll = filter === "all";
 	const { data: topSearch, isLoading: isTopLoading } = useQuery({
 		...orpc.search.top.queryOptions({
@@ -903,6 +926,29 @@ function SearchPage() {
 	return (
 		<div className={cn(PAGE_GUTTER, "mx-auto w-full py-6 md:py-8")}>
 			<div className="space-y-8" aria-busy={isSearchLoading || undefined}>
+				<search className="md:hidden">
+					<form onSubmit={submitMobileSearch}>
+						<InputGroup className="h-11 rounded-2xl bg-control">
+							<InputGroupAddon
+								align="inline-start"
+								className="ps-3.5 pe-1 text-foreground"
+							>
+								<MagnifyingGlass aria-hidden="true" className="size-5" />
+							</InputGroupAddon>
+							<InputGroupInput
+								type="search"
+								name="q"
+								enterKeyHint="search"
+								autoComplete="off"
+								aria-label={m["common.search"]()}
+								placeholder={m["search.placeholder"]()}
+								value={draftQuery}
+								onChange={(event) => setDraftQuery(event.target.value)}
+								className="h-11 px-0 text-base placeholder:text-muted-foreground"
+							/>
+						</InputGroup>
+					</form>
+				</search>
 				<p role="status" className="sr-only">
 					{statusMessage}
 				</p>

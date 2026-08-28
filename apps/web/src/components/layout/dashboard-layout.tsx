@@ -201,15 +201,6 @@ function ServerSwitchOverlay() {
 // bottom tab bar, which is its real navigation.
 const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
 
-// Routes that drop the top bar below md only. Detail pages lead with their own
-// navigation, while the collections index already carries a page toolbar; on a
-// phone the global bar only duplicates that chrome. Desktop keeps the full bar.
-const MOBILE_CHROMELESS_ROUTE_IDS = new Set([
-	"/dashboard/collections/",
-	"/dashboard/books/$uuid",
-	"/dashboard/audiobooks/$uuid",
-]);
-
 export function DashboardLayout() {
 	const location = useLocation();
 	const router = useRouter();
@@ -231,14 +222,9 @@ export function DashboardLayout() {
 		STANDALONE_ROUTES.has(location.pathname) ||
 		(location.pathname === "/dashboard/read-listen" &&
 			(location.search as { review?: string }).review === "matches");
-	// Matched route ids, not the pathname: `/dashboard/audiobooks/series/$uuid`
-	// is a detail-looking path that must keep its chrome.
-	const mobileChromeless = useRouterState({
-		select: (state) =>
-			state.matches.some((match) =>
-				MOBILE_CHROMELESS_ROUTE_IDS.has(match.routeId),
-			),
-	});
+	// The phone header is home chrome. Every other mobile route already has the
+	// persistent bottom navigation and should give its full height to content.
+	const showMobileHeader = location.pathname === "/dashboard";
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
@@ -253,8 +239,8 @@ export function DashboardLayout() {
 	useMountEffect(() => {
 		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
 	});
-	// Mobile top bar gets out of the way while reading and comes back the moment
-	// you scroll up. Drives the header element directly — no render per frame.
+	// On home, the mobile top bar gets out of the way while scrolling and comes
+	// back immediately on upward movement. This drives the element directly.
 	useAutoHideHeader(headerRef, scrollContainerRef);
 
 	const handleReselectActiveTab = useCallback(() => {
@@ -304,6 +290,10 @@ export function DashboardLayout() {
 						"--mobile-player-offset": showPlayerBar
 							? "var(--mobile-player-height)"
 							: "0px",
+						// Give the mobile bar balanced breathing room above and below its
+						// controls while preserving one shared overlay measurement.
+						"--mobile-header-reserve":
+							"calc(var(--mobile-header-height) + 0.5rem)",
 						// Detail-page artwork uses the visible height, not just the viewport
 						// height, so its actions remain above the fixed desktop player.
 						"--desktop-player-offset": showPlayerBar
@@ -334,13 +324,11 @@ export function DashboardLayout() {
 						// revealing: getting the bar back should feel immediate, losing it
 						// shouldn't snatch.
 						//
-						// max-md:gap-1.5 — below md the trailing icons are three peers
-						// (members, bell, search) split across two flex children; one gap
-						// for all of them, or the split reads as a grouping that isn't
-						// there. The badge re-adds the difference itself.
+						// max-md:gap-1.5 keeps the mobile members and notification actions
+						// compact while the server badge retains the remaining width.
 						className={cn(
-							"theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-height)*-1)] max-md:gap-1.5 max-md:data-[hidden=true]:-translate-y-full md:grid md:h-16 md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4",
-							mobileChromeless && "max-md:hidden",
+							"theme-gradient-surface relative z-20 flex h-[var(--mobile-header-height)] shrink-0 items-center gap-3 bg-background px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-[var(--ease-smooth-out)] motion-safe:data-[hidden=true]:duration-[260ms] max-md:mb-[calc(var(--mobile-header-reserve)*-1)] max-md:h-[var(--mobile-header-reserve)] max-md:gap-1.5 max-md:border-sidebar-border max-md:border-b max-md:data-[hidden=true]:-translate-y-full md:grid md:h-16 md:grid-cols-[1fr_auto_1fr] md:bg-sidebar md:px-3 lg:px-4",
+							!showMobileHeader && "max-md:hidden",
 						)}
 					>
 						{/* Server switcher leads the bar at every size — it's what tells
@@ -359,8 +347,6 @@ export function DashboardLayout() {
 
 						<DashboardHeaderSearch />
 
-						{/* On mobile search is the last thing in the bar, so the cluster
-						    sits just left of it and the bell lands next to it. */}
 						<div className="order-1 flex shrink-0 items-center gap-1.5 md:order-none md:col-start-3 md:justify-self-end">
 							<div className="hidden md:contents">
 								<CreateMenu />
@@ -438,10 +424,10 @@ export function DashboardLayout() {
 									// keeps anchor targets clear of it.
 									className={cn(
 										"min-w-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable] focus:outline-none",
-										// No bar below md on these routes, so the padding standing
-										// in for it would just be a gap above the artwork.
-										!mobileChromeless &&
-											"max-md:pt-[var(--mobile-header-height)] max-md:[scroll-padding-top:var(--mobile-header-height)]",
+										// Only home has a bar below md, so only home reserves its
+										// overlay height above the routed content.
+										showMobileHeader &&
+											"max-md:pt-[var(--mobile-header-reserve)] max-md:[scroll-padding-top:var(--mobile-header-reserve)]",
 									)}
 								>
 									{/* Inside the scroll area: the bar overlays the top of this

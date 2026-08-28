@@ -3,7 +3,6 @@ import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { type SortOption, SortSelect } from "@/components/shared/sort-select";
-import { type ViewMode, ViewToggle } from "@/components/shared/view-toggle";
 import {
 	type RowHeightEstimate,
 	VirtualizedCardGrid,
@@ -48,14 +47,10 @@ interface CollectionViewProps<TItem, TSort extends string> {
 
 	/**
 	 * Full-width filter row rendered under the toolbar (AniList-style). When set,
-	 * the toolbar's built-in controls (search/view/sort) are hidden so the page
+	 * the toolbar's built-in controls (search/sort) are hidden so the page
 	 * owns all filtering UI in the bar instead. `extraActions` still shows.
 	 */
 	filterBar?: ReactNode;
-
-	// View toggle
-	view: ViewMode;
-	onViewChange: (view: ViewMode) => void;
 
 	// Data
 	items: TItem[];
@@ -63,7 +58,7 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	hasNextPage?: boolean;
 	fetchNextPage?: () => void;
 
-	// Grid view
+	// Grid
 	gridRowEstimate: RowHeightEstimate;
 	renderGridItem: (item: TItem, index: number) => ReactNode;
 	/** Square artwork throughout (audiobooks), so the skeletons match the tiles. */
@@ -76,12 +71,6 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	/** Replaces the cover-shaped loading skeletons when the tiles are not covers. */
 	gridSkeleton?: ReactNode;
 
-	// List view
-	renderListItem: (item: TItem, index: number) => ReactNode;
-	listRowEstimate?: RowHeightEstimate;
-	/** Optional sticky header row; when set the list is wrapped in a bordered table. */
-	listHeader?: ReactNode;
-
 	// Empty states
 	emptyState: ReactNode;
 	/** Falls back to `emptyState` when omitted. */
@@ -89,10 +78,10 @@ interface CollectionViewProps<TItem, TSort extends string> {
 }
 
 /**
- * Shared chrome for a searchable, sortable, grid/list collection page
+ * Shared chrome for a searchable, sortable collection grid
  * (likes, series, library …). Owns the toolbar + skeleton + empty + virtualized
- * grid/list layout; callers supply the data and item renderers. Pair with
- * `useCollectionView` for the search/sort/view state.
+ * grid layout; callers supply the data and item renderers. Pair with
+ * `useCollectionView` for the search/sort state.
  */
 export function CollectionView<TItem, TSort extends string>({
 	title,
@@ -114,8 +103,6 @@ export function CollectionView<TItem, TSort extends string>({
 	hideSortWhileSearching = false,
 	extraActions,
 	filterBar,
-	view,
-	onViewChange,
 	items,
 	getKey,
 	hasNextPage,
@@ -125,9 +112,6 @@ export function CollectionView<TItem, TSort extends string>({
 	squareArtwork = false,
 	gridLayout,
 	gridSkeleton,
-	renderListItem,
-	listRowEstimate = 56,
-	listHeader,
 	emptyState,
 	searchEmptyState,
 }: CollectionViewProps<TItem, TSort>) {
@@ -136,21 +120,6 @@ export function CollectionView<TItem, TSort extends string>({
 	const usesFilterBar = !!filterBar;
 	const showSort =
 		!!sortOptions && hasItems && !(hideSortWhileSearching && isSearching);
-
-	const renderListGrid = () => (
-		<VirtualizedCardGrid
-			key="list"
-			items={items}
-			getKey={getKey}
-			gap={0}
-			columns={1}
-			estimateRowHeight={listRowEstimate}
-			hasNextPage={hasNextPage}
-			isFetchingNextPage={isFetchingNextPage}
-			fetchNextPage={fetchNextPage}
-			renderItem={renderListItem}
-		/>
-	);
 
 	return (
 		<div className={cn(PAGE_SHELL, "space-y-6")}>
@@ -172,9 +141,6 @@ export function CollectionView<TItem, TSort extends string>({
 										placeholder={searchPlaceholder}
 										ariaLabel={searchAriaLabel}
 									/>
-									{hasItems && (
-										<ViewToggle view={view} onChange={onViewChange} />
-									)}
 									{showSort && sortOptions && (
 										<SortSelect
 											value={sort}
@@ -209,31 +175,22 @@ export function CollectionView<TItem, TSort extends string>({
 				!hasItems &&
 				(isSearching ? (searchEmptyState ?? emptyState) : emptyState)}
 
-			{hasItems &&
-				(view === "grid" ? (
-					<VirtualizedCardGrid
-						key="grid"
-						items={items}
-						getKey={getKey}
-						// Match the dashboard home rails so cover grids have the same
-						// breathing room as the rest of the dashboard.
-						gap={gridLayout?.gap ?? 20}
-						minTileWidth={gridLayout?.minTileWidth}
-						minColumns={gridLayout?.minColumns}
-						estimateRowHeight={gridRowEstimate}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={fetchNextPage}
-						renderItem={renderGridItem}
-					/>
-				) : listHeader ? (
-					<div className="overflow-hidden rounded-xl border border-border/60">
-						{listHeader}
-						{renderListGrid()}
-					</div>
-				) : (
-					renderListGrid()
-				))}
+			{hasItems && (
+				<VirtualizedCardGrid
+					items={items}
+					getKey={getKey}
+					// Match the dashboard home rails so cover grids have the same
+					// breathing room as the rest of the dashboard.
+					gap={gridLayout?.gap ?? 20}
+					minTileWidth={gridLayout?.minTileWidth}
+					minColumns={gridLayout?.minColumns}
+					estimateRowHeight={gridRowEstimate}
+					hasNextPage={hasNextPage}
+					isFetchingNextPage={isFetchingNextPage}
+					fetchNextPage={fetchNextPage}
+					renderItem={renderGridItem}
+				/>
+			)}
 		</div>
 	);
 }

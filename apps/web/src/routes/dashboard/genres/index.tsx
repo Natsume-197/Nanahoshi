@@ -1,4 +1,3 @@
-import { Tag } from "@phosphor-icons/react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo } from "react";
@@ -10,10 +9,6 @@ import {
 } from "@/components/catalog/genre-tile";
 import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { CollectionSearch } from "@/components/shared/collection-search";
-import {
-	CollectionTableHeader,
-	CollectionTableRow,
-} from "@/components/shared/collection-table-row";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -23,7 +18,6 @@ import {
 	FilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
-import { ViewToggle } from "@/components/shared/view-toggle";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
@@ -64,19 +58,11 @@ function GenresPage() {
 	const isTags = facet === "tags";
 	const isAudiobook = format === "audiobook";
 
-	const {
-		view,
-		setView,
-		sort,
-		setSort,
-		search,
-		setSearch,
-		query,
-		isSearching,
-	} = useCollectionView<SortMode>({
-		storageKey: "nh-genres-view",
-		defaultSort: "name",
-	});
+	const { sort, setSort, search, setSearch, query, isSearching } =
+		useCollectionView<SortMode>({
+			storageKey: "nh-genres-view",
+			defaultSort: "name",
+		});
 
 	const facetOptions: readonly FilterOption[] = [
 		{ value: "genres", label: m["nav.genres"]() },
@@ -191,9 +177,6 @@ function GenresPage() {
 					ariaLabel={isTags ? "Sort tags" : "Sort genres"}
 				/>
 			</FilterField>
-			<FilterField label={m["library_page.view"]()}>
-				<ViewToggle view={view} onChange={setView} fullWidth />
-			</FilterField>
 		</FilterBar>
 	);
 
@@ -225,8 +208,6 @@ function GenresPage() {
 			sortOptions={SORT_OPTIONS}
 			sortAriaLabel={m["common.sort"]()}
 			filterBar={filterBar}
-			view={view}
-			onViewChange={setView}
 			items={entities}
 			getKey={(g) => g.uuid}
 			hasNextPage={hasNextPage}
@@ -242,21 +223,6 @@ function GenresPage() {
 					coverFilename={getCoverFilename(g.cover) ?? undefined}
 					tint={g.mainColor}
 					square={g.square}
-				/>
-			)}
-			listHeader={
-				<CollectionTableHeader withAuthor={false} metaLabel="Books" />
-			}
-			renderListItem={(g, index) => (
-				<CollectionTableRow
-					withAuthor={false}
-					index={index + 1}
-					linkProps={detailLink(g.uuid)}
-					coverFilename={getCoverFilename(g.cover)}
-					coverFallback={<Tag className="size-4 text-muted-foreground/40" />}
-					title={capitalizeFirst(g.name)}
-					subtitle={entityBookCount(g.bookCount)}
-					meta={g.bookCount}
 				/>
 			)}
 			emptyState={

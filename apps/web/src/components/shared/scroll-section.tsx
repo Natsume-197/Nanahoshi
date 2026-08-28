@@ -296,7 +296,7 @@ export function ScrollSection({
 								// subtractions are (columns - 1) x the md gap: every
 								// multi-column step only ever matches above md, so 1.25rem
 								// is the gap to divide out.
-								"grid snap-x snap-proximity @[42rem]:auto-cols-[calc((100%-1.25rem)/2)] @[60rem]:auto-cols-[calc((100%-2.5rem)/3)] @[78rem]:auto-cols-[calc((100%-3.75rem)/4)] auto-cols-[calc(100%-1.5rem)] grid-flow-col grid-rows-1 gap-4 [scroll-padding-inline:1rem] md:gap-5 md:[scroll-padding-inline:1.5rem] lg:[scroll-padding-inline:2rem] [&>*]:snap-start"
+								"grid snap-x snap-mandatory @[42rem]:auto-cols-[calc((100%-1.25rem)/2)] @[60rem]:auto-cols-[calc((100%-2.5rem)/3)] @[78rem]:auto-cols-[calc((100%-3.75rem)/4)] auto-cols-[calc(100%-1.5rem)] grid-flow-col grid-rows-1 gap-4 [scroll-padding-inline:1rem] md:snap-proximity md:gap-5 md:[scroll-padding-inline:1.5rem] lg:[scroll-padding-inline:2rem] [&>*]:snap-start"
 							: "flex gap-4 md:gap-5 lg:gap-5",
 					)}
 				>
