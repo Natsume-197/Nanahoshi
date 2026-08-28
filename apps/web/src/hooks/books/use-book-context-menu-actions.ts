@@ -302,6 +302,47 @@ export function useBookContextMenuActions(
 			toast.error(getErrorMessage(error, m["toast.shelf_remove_failed"]()));
 		},
 	});
+	const deletePermanentlyMutation = useMutation({
+		mutationFn: (input: { uuid: string; mediaType: MediaType }) =>
+			client.books.deletePermanently({ uuid: input.uuid }),
+		onSuccess: async (result, variables) => {
+			await invalidateEverywhere(queryClient, [
+				orpc.books.listAll.key(),
+				orpc.books.listRecent.key(),
+				orpc.books.listRandom.key(),
+				orpc.books.search.key(),
+				orpc.audiobooks.list.key(),
+				orpc.audiobooks.listRecent.key(),
+				orpc.audiobooks.listRandom.key(),
+				orpc.audiobooks.search.key(),
+				orpc.recommendations.key(),
+			]);
+
+			const detailPath =
+				variables.mediaType === "audiobook"
+					? `/dashboard/audiobooks/${variables.uuid}`
+					: `/dashboard/books/${variables.uuid}`;
+			if (router.state.location.pathname === detailPath) {
+				await router.navigate({
+					to:
+						variables.mediaType === "audiobook"
+							? "/dashboard/audiobooks"
+							: "/dashboard/books",
+					replace: true,
+				});
+			}
+			await router.invalidate();
+
+			toast.success(
+				result.sourceWasMissing
+					? m["toast.book_removed_missing_source"]()
+					: m["toast.book_deleted_permanently"](),
+			);
+		},
+		onError: () => {
+			toast.error(m["toast.book_delete_permanently_failed"]());
+		},
+	});
 
 	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const isInContinueReading = resolveIsInContinueList({
@@ -412,12 +453,27 @@ export function useBookContextMenuActions(
 	const handleRemoveShelf = useCallback(() => {
 		removeShelfMutation.mutate();
 	}, [removeShelfMutation]);
+	const handleDeletePermanently = useCallback(
+		async (uuid: string, targetMediaType: MediaType) => {
+			try {
+				await deletePermanentlyMutation.mutateAsync({
+					uuid,
+					mediaType: targetMediaType,
+				});
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		[deletePermanentlyMutation],
+	);
 
 	return {
 		collectionsMemberships: collectionsMembershipQuery.data ?? [],
 		currentShelfStatus: (shelfQuery.data?.status as string | undefined) ?? null,
 		handleOpenInNewTab,
 		handleDownload,
+		handleDeletePermanently,
 		handleCreateCollection,
 		handleRemoveFromContinueReading,
 		handleRemoveShelf,
@@ -426,6 +482,7 @@ export function useBookContextMenuActions(
 		handleToggleLike,
 		isAudiobook,
 		isCollectionActionBusy,
+		isDeletePermanentlyBusy: deletePermanentlyMutation.isPending,
 		isCollectionsLoading:
 			collectionsMembershipQuery.isFetching && !collectionsMembershipQuery.data,
 		isInContinueReading,

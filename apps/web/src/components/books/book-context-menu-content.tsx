@@ -8,6 +8,7 @@ import {
 	Heart,
 	Info,
 	ThumbsDown,
+	Trash,
 	XCircle,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { AddToListModal } from "@/components/books/add-to-list-modal";
 import { useBookContextMenu } from "@/components/books/book-context-menu";
+import { Button } from "@/components/ui/button";
 import {
 	ContextMenuContent,
 	ContextMenuGroup,
@@ -23,6 +25,7 @@ import {
 	ContextMenuLinkItem,
 	ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import { Modal } from "@/components/ui/modal";
 import { useBookContextMenuActions } from "@/hooks/books/use-book-context-menu-actions";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
@@ -58,11 +61,13 @@ export function BookContextMenuContentPanel() {
 	);
 	const {
 		handleDownload,
+		handleDeletePermanently,
 		handleOpenInNewTab,
 		handleRemoveFromContinueReading,
 		handleToggleLike,
 		isAudiobook,
 		isInContinueReading,
+		isDeletePermanentlyBusy,
 		isLiked,
 		isLikeActionBusy,
 		isReadingProgressActionBusy,
@@ -76,9 +81,14 @@ export function BookContextMenuContentPanel() {
 		? can("audiobook", "download")
 		: can("book", "download");
 	const canLike = can("like", "create");
+	const canDelete = can("book", "delete");
 
 	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
 	const [isKindleDialogOpen, setIsKindleDialogOpen] = useState(false);
+	const [deleteTarget, setDeleteTarget] = useState<{
+		uuid: string;
+		mediaType: typeof activeMediaType;
+	} | null>(null);
 
 	const hasActiveBook = activeBookUuid.length > 0;
 	const detailRoute = isAudiobook
@@ -227,7 +237,72 @@ export function BookContextMenuContentPanel() {
 						</ContextMenuGroup>
 					</>
 				)}
+				{canDelete && (
+					<>
+						<ContextMenuSeparator />
+						<ContextMenuGroup>
+							<ContextMenuItem
+								variant="destructive"
+								disabled={!hasActiveBook}
+								onClick={() =>
+									setDeleteTarget({
+										uuid: activeBookUuid,
+										mediaType: activeMediaType,
+									})
+								}
+							>
+								<Trash />
+								{m["book.delete_permanently"]()}
+							</ContextMenuItem>
+						</ContextMenuGroup>
+					</>
+				)}
 			</ContextMenuContent>
+
+			<Modal
+				open={deleteTarget !== null}
+				onOpenChange={(open) => {
+					if (!open && !isDeletePermanentlyBusy) setDeleteTarget(null);
+				}}
+				title={m["book.delete_confirm_title"]()}
+				description={m["book.delete_confirm_description"]()}
+				showCloseButton={!isDeletePermanentlyBusy}
+				footer={
+					<>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isDeletePermanentlyBusy}
+							onClick={() => setDeleteTarget(null)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={isDeletePermanentlyBusy || deleteTarget === null}
+							aria-busy={isDeletePermanentlyBusy}
+							onClick={() => {
+								if (!deleteTarget) return;
+								void handleDeletePermanently(
+									deleteTarget.uuid,
+									deleteTarget.mediaType,
+								).then((deleted) => {
+									if (deleted) setDeleteTarget(null);
+								});
+							}}
+						>
+							{isDeletePermanentlyBusy && (
+								<CircleNotch
+									data-icon="inline-start"
+									className="animate-spin motion-reduce:animate-none"
+								/>
+							)}
+							{m["book.delete_confirm_action"]()}
+						</Button>
+					</>
+				}
+			/>
 
 			{hasActiveBook && (
 				<AddToListModal

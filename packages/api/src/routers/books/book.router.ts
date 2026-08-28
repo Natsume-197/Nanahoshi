@@ -406,6 +406,23 @@ export const bookRouter = {
 			return { success: result !== null };
 		}),
 
+	deletePermanently: protectedProcedure
+		.input(BookUuidInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"delete",
+				))
+			) {
+				throw new ForbiddenError("You cannot delete this book");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			return bookService.deleteBookPermanently(input.uuid, serverId, scope);
+		}),
+
 	// Manually group two or more books as editions of the same logical book. The
 	// largest file becomes the canonical (visible) entry; the rest are hidden but
 	// remain downloadable from its detail page. Locked so a rescan won't undo it.

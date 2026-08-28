@@ -11,6 +11,7 @@ import type {
 import { logger } from "../../lib/logger";
 import { membersRepository } from "../members/members.repository";
 import { bookRepository, type LibraryScope } from "./book.repository";
+import { deleteBookPermanently as deleteBookPermanentlyFromSource } from "./book-deletion.service";
 
 export const searchBooks = async (
 	request: SearchBooksRequest,
@@ -51,6 +52,15 @@ export const getRandomBooks = async (
 	scope: LibraryScope = "ALL",
 ) => {
 	return bookRepository.listRandom(limit, serverId, scope);
+};
+
+export const deleteBookPermanently = async (
+	uuid: string,
+	serverId?: string,
+	scope: LibraryScope = "ALL",
+) => {
+	if (!serverId) throw new NotFoundError("Book not found");
+	return deleteBookPermanentlyFromSource(uuid, serverId, scope);
 };
 
 export const getBookWithMetadata = async (

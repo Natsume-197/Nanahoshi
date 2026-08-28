@@ -8,6 +8,7 @@ import {
 	bookSeries,
 	enrichmentState,
 	library,
+	libraryPath,
 	publisher,
 	series,
 } from "@nanahoshi-v2/db/schema/general";
@@ -253,6 +254,64 @@ export class BookRepository {
 
 		const [result] = await db.select().from(book).where(eq(book.uuid, uuid));
 		return result ?? null;
+	}
+
+	async getDeletionSource(
+		uuid: string,
+		serverId: string,
+		scope: LibraryScope,
+	): Promise<{
+		id: number;
+		uuid: string;
+		filename: string;
+		libraryId: number;
+		libraryPathId: number;
+		libraryRoot: string;
+		libraryMediaType: "ebook" | "audiobook";
+		relativePath: string;
+	} | null> {
+		const scopeCondition = accessibleCondition(scope);
+		const [result] = await db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				libraryId: book.libraryId,
+				libraryPathId: book.libraryPathId,
+				libraryRoot: libraryPath.path,
+				libraryMediaType: library.mediaType,
+				relativePath: book.relativePath,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.innerJoin(libraryPath, eq(libraryPath.id, book.libraryPathId))
+			.where(
+				and(
+					eq(book.uuid, uuid),
+					eq(library.serverId, serverId),
+					...(scopeCondition ? [scopeCondition] : []),
+				),
+			)
+			.limit(1);
+
+		if (
+			!result ||
+			result.libraryId == null ||
+			result.libraryPathId == null ||
+			result.relativePath == null ||
+			(result.libraryMediaType !== "ebook" &&
+				result.libraryMediaType !== "audiobook")
+		) {
+			return null;
+		}
+
+		return {
+			...result,
+			libraryId: result.libraryId,
+			libraryPathId: result.libraryPathId,
+			relativePath: result.relativePath,
+			libraryMediaType: result.libraryMediaType,
+		};
 	}
 
 	async getByUuidAndMediaType(

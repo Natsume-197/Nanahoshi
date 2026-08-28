@@ -10,9 +10,7 @@ import {
 	processAudiobook,
 } from "../../modules/audiobookProcessor";
 import {
-	enqueueBookEnrich,
 	enqueueBookRegroup,
-	findMemberToPromote,
 	regroupBookDuplicates,
 } from "../../modules/duplicateGrouping";
 import { enqueueMetadataEnrichment } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
@@ -24,13 +22,12 @@ import {
 	reserve,
 } from "../../modules/taskManager";
 import { bookRepository } from "../../routers/books/book.repository";
+import { removeCatalogBookByRelativePath } from "../../routers/books/book-deletion.service";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
-import { enrichmentStateRepository } from "../../routers/enrichment/enrichment.repository";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { redis } from "../queue/redis";
-import { fetchBookRelatedEntities } from "../search/catalog-relations";
 
 const log = logger.child({ component: "file-event-worker" });
 
@@ -365,59 +362,11 @@ async function handleFileEvent(job: Job) {
 
 			await markAudioFilesDone();
 		} else if (action === "delete") {
-			// Get the book before deleting so related files and entities can be cleaned.
-			const existing = await bookRepository.getByRelativePath(
+			await removeCatalogBookByRelativePath(
 				relativePath,
 				libraryPathId,
+				serverId ?? undefined,
 			);
-			// Fetch related entities before deleting the book
-			const relatedEntities = existing
-				? await fetchBookRelatedEntities(existing.id).catch(() => undefined)
-				: undefined;
-			// Capture a member to promote before the FK clears the pointers.
-			const promote = existing
-				? await findMemberToPromote(existing.id).catch(() => null)
-				: null;
-
-			await bookRepository.removeBookByRelativePath(
-				relativePath,
-				libraryPathId,
-			);
-			if (promote) {
-				// Re-form the group around the surviving copy and enrich it, since
-				// it was a hidden copy until now (one source of truth).
-				await regroupBookDuplicates(promote.id).catch((err) =>
-					log.error({ err, bookId: promote.id }, "Regroup-on-promote failed"),
-				);
-				if (
-					serverId &&
-					(await enrichmentStateRepository.shouldReopenAfterDuplicateRelease(
-						promote.id,
-					))
-				) {
-					await enqueueBookEnrich(promote.id, promote.uuid).catch((err) =>
-						log.error(
-							{ err, bookId: promote.id },
-							"Enrich enqueue failed for promoted book",
-						),
-					);
-				}
-			}
-			if (existing) {
-				// Clean up affected orphaned series and authors.
-				if (relatedEntities) {
-					await Promise.all([
-						...relatedEntities.authorIds.map((id) =>
-							bookMetadataRepository.deleteAuthorIfOrphaned(id),
-						),
-						...relatedEntities.seriesIds.map((id) =>
-							bookMetadataRepository.deleteSeriesIfOrphaned(id),
-						),
-					]).catch((err) =>
-						log.error({ err, bookId: existing.id }, "Entity cleanup failed"),
-					);
-				}
-			}
 		}
 
 		return { path, action };
