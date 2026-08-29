@@ -1,11 +1,4 @@
-import {
-	Archive,
-	Books,
-	CheckCircle,
-	Hourglass,
-	Prohibit,
-	Warning,
-} from "@phosphor-icons/react";
+import { Books, CheckCircle, Hourglass, Warning } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -25,9 +18,7 @@ export type ScopeSelection = { bucket: BucketFilter; lifecycle?: Lifecycle };
 export const BUCKET_LABELS: Record<Bucket, () => string> = {
 	in_progress: () => m["enrichment.bucket_in_progress"](),
 	attention: () => m["enrichment.bucket_attention"](),
-	stopped: () => m["enrichment.bucket_stopped"](),
 	completed: () => m["enrichment.bucket_completed"](),
-	history: () => m["enrichment.bucket_history"](),
 };
 
 // One weight across the column (regular). CircleNotch is deliberately absent:
@@ -36,9 +27,7 @@ export const BUCKET_LABELS: Record<Bucket, () => string> = {
 const BUCKET_ICONS: Record<Bucket, ReactNode> = {
 	in_progress: <Hourglass />,
 	attention: <Warning />,
-	stopped: <Prohibit />,
 	completed: <CheckCircle />,
-	history: <Archive />,
 };
 
 // "In progress" the bucket (running + scheduled) and "in progress" the
@@ -59,9 +48,7 @@ const NAV_TREE: { bucket: Bucket; children: Lifecycle[] }[] = [
 		bucket: "attention",
 		children: ["unresolved", "no_match", "review", "partial", "failed"],
 	},
-	{ bucket: "stopped", children: [] },
 	{ bucket: "completed", children: [] },
-	{ bucket: "history", children: [] },
 ];
 
 function NavRow({

@@ -1119,19 +1119,7 @@ export const enrichmentState = pgTable(
 			withTimezone: true,
 			mode: "string",
 		}),
-		// Cancelling a deferred retry is durable. The generation invalidates jobs
-		// that were already leased into BullMQ before the cancellation arrived.
-		retryCancelledAt: timestamp("retry_cancelled_at", {
-			withTimezone: true,
-			mode: "string",
-		}),
 		retryGeneration: integer("retry_generation").notNull().default(0),
-		// Retired from the work tray without deleting the book or its metadata.
-		// Archived rows are excluded from every bucket except History.
-		archivedAt: timestamp("archived_at", {
-			withTimezone: true,
-			mode: "string",
-		}),
 	},
 	(table) => [
 		foreignKey({
@@ -1141,11 +1129,8 @@ export const enrichmentState = pgTable(
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),
-		// Match-manager buckets filter and count by status at 80k+ rows; the
-		// active tray always excludes archived rows.
-		index("enrichment_state_status_idx")
-			.on(table.status)
-			.where(sql`${table.archivedAt} IS NULL`),
+		// Match-manager buckets filter and count by status at 80k+ rows.
+		index("enrichment_state_status_idx").on(table.status),
 		// Only scheduled retries are ever leased, and they are a tiny minority of
 		// rows — partial keeps the index small and off the write path of every
 		// enrichment that leaves next_retry_at NULL.
@@ -1158,17 +1143,6 @@ export const enrichmentState = pgTable(
 		check(
 			"enrichment_state_retryable_status_check",
 			sql`${table.nextRetryAt} IS NULL OR ${table.status} IN ('pending', 'partial')`,
-		),
-		check(
-			"enrichment_state_cancelled_retry_check",
-			sql`${table.retryCancelledAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
-		),
-		// Archiving retires a book from the tray, so it can never keep a pending
-		// retry appointment: the dispatcher would go on enriching a row the user
-		// filed away.
-		check(
-			"enrichment_state_archived_retry_check",
-			sql`${table.archivedAt} IS NULL OR ${table.nextRetryAt} IS NULL`,
 		),
 	],
 );
@@ -1188,6 +1162,24 @@ export const bookMetadataOriginal = pgTable(
 			columns: [table.bookId],
 			foreignColumns: [book.id],
 			name: "book_metadata_original_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+	],
+);
+
+/** Original local metadata for an audiobook, before provider enrichment. */
+export const audiobookMetadataOriginal = pgTable(
+	"audiobook_metadata_original",
+	{
+		bookId: bigint("book_id", { mode: "number" }).primaryKey().notNull(),
+		data: jsonb().notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "audiobook_metadata_original_book_id_fkey",
 		})
 			.onUpdate("cascade")
 			.onDelete("cascade"),

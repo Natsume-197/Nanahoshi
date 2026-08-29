@@ -19,7 +19,7 @@ export function isTerminalStatus(status: EnrichmentStatus | null): boolean {
  * Who asked. `automatic` is the pipeline running on its own (scan, promote,
  * ungroup, deferred retry) and obeys every rule. `explicit` is a human acting
  * on these exact books (manual retry, library refresh, admin reprocess): it
- * overrides library pause, archival and terminal status, because refusing a
+ * overrides library pause and terminal status, because refusing a
  * direct request silently is worse than doing the work.
  */
 export type EnrichmentTrigger = "automatic" | "explicit";
@@ -30,18 +30,14 @@ export type AdmissionFacts = {
 	libraryPausedAt: string | null;
 	/** null when the book has no enrichment_state row yet. */
 	status: EnrichmentStatus | null;
-	archivedAt: string | null;
 	nextRetryAt: string | null;
-	retryCancelledAt: string | null;
 	retryGeneration: number;
 };
 
 export type AdmissionDenial =
 	| "hidden_copy"
 	| "library_paused"
-	| "archived"
 	| "terminal"
-	| "retry_cancelled"
 	| "stale_generation";
 
 export type Admission = { ok: true } | { ok: false; reason: AdmissionDenial };
@@ -53,12 +49,12 @@ const deny = (reason: AdmissionDenial): Admission => ({ ok: false, reason });
  * May this book enter the Catalog Enrichment Pipeline right now?
  *
  * Authoritative at dequeue time, not at enqueue time: a library can be paused,
- * a book archived and a retry cancelled while the job waits in Redis, so only
+ * a retry cancelled while the job waits in Redis, so only
  * the worker sees the state that actually decides. Enqueue-side checks are a
  * best-effort filter to avoid queueing work that will be thrown away.
  *
  * `retryGeneration` is carried by deferred-retry jobs and fences the ones that
- * were already leased when the user cancelled or archived.
+ * were already leased when the user cancelled a retry.
  */
 export function admit(
 	facts: AdmissionFacts,
@@ -74,18 +70,14 @@ export function admit(
 	if (trigger === "explicit") return ADMITTED;
 
 	if (facts.libraryPausedAt != null) return deny("library_paused");
-	if (facts.archivedAt != null) return deny("archived");
 	if (isTerminalStatus(facts.status)) return deny("terminal");
 
 	// A retry job is only valid for the appointment that created it.
 	if (retryGeneration != null) {
 		const current =
-			facts.retryGeneration === retryGeneration &&
-			facts.nextRetryAt != null &&
-			facts.retryCancelledAt == null;
+			facts.retryGeneration === retryGeneration && facts.nextRetryAt != null;
 		return current ? ADMITTED : deny("stale_generation");
 	}
-	if (facts.retryCancelledAt != null) return deny("retry_cancelled");
 	return ADMITTED;
 }
 

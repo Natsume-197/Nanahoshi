@@ -180,70 +180,25 @@ describe("EnrichmentStateRepository duplicate release", () => {
 	});
 });
 
-describe("EnrichmentStateRepository stop / archive", () => {
-	test("stop is a no-op for an empty selection", async () => {
+describe("EnrichmentStateRepository cancelRetries", () => {
+	test("cancellation is a no-op for an empty selection", async () => {
 		updateWhere = null;
-		const stopped = await enrichmentStateRepository.stop([]);
-		expect(stopped).toBe(0);
+		const cancelled = await enrichmentStateRepository.cancelRetries([]);
+		expect(cancelled).toBe(0);
 		expect(updateWhere).toBeNull();
 	});
 
-	test("stop only targets retryable, non-archived, not-yet-stopped rows", async () => {
+	test("cancellation clears only scheduled retries", async () => {
 		returningRows = [{ bookId: 1 }, { bookId: 2 }];
-		const stopped = await enrichmentStateRepository.stop([1, 2]);
-		expect(stopped).toBe(2);
+		const cancelled = await enrichmentStateRepository.cancelRetries([1, 2]);
+		expect(cancelled).toBe(2);
 
-		// Cancellation is durable and fences leased jobs; the pending retry clears.
-		expect(updateSet?.retryCancelledAt).toBeDefined();
+		// Bumping the generation fences leased jobs; the retry clears.
 		expect(updateSet?.nextRetryAt).toBeNull();
 		expect(updateSet?.retryGeneration).toBeDefined();
 
 		const where = compiledWhere();
-		expect(where).toContain(`"enrichment_state"."status" in (`);
-		expect(where).toContain(`"enrichment_state"."archived_at" is null`);
-		expect(where).toContain(`"enrichment_state"."retry_cancelled_at" is null`);
-	});
-
-	test("archive stamps archived_at only for not-yet-archived rows", async () => {
-		returningRows = [{ bookId: 3 }];
-		const archived = await enrichmentStateRepository.archive([3]);
-		expect(archived).toBe(1);
-		expect(updateSet?.archivedAt).toBeDefined();
-		expect(updateSet?.archivedAt).not.toBeNull();
-		expect(compiledWhere()).toContain(
-			`"enrichment_state"."archived_at" is null`,
-		);
-	});
-
-	// Archiving retires a book, so it must also drop the pending appointment:
-	// otherwise the dispatcher keeps enriching a row filed away in History, and
-	// restoring it would show a retry that no longer exists.
-	test("archive also stops the book, like stop does", async () => {
-		returningRows = [{ bookId: 3 }];
-		await enrichmentStateRepository.archive([3]);
-		expect(updateSet?.nextRetryAt).toBeNull();
-		expect(updateSet?.retryCancelledAt).toBeDefined();
-
-		const cancelledAt = new PgDialect().sqlToQuery(
-			updateSet?.retryCancelledAt as Parameters<PgDialect["sqlToQuery"]>[0],
-		).sql;
-		// An already-stopped book keeps its original cancellation timestamp.
-		expect(cancelledAt).toContain("coalesce");
-
-		const generation = new PgDialect().sqlToQuery(
-			updateSet?.retryGeneration as Parameters<PgDialect["sqlToQuery"]>[0],
-		).sql;
-		expect(generation).toContain(`"retry_generation" + `);
-	});
-
-	test("unarchive clears archived_at only for archived rows", async () => {
-		returningRows = [{ bookId: 3 }];
-		const restored = await enrichmentStateRepository.unarchive([3]);
-		expect(restored).toBe(1);
-		expect(updateSet?.archivedAt).toBeNull();
-		expect(compiledWhere()).toContain(
-			`"enrichment_state"."archived_at" is not null`,
-		);
+		expect(where).toContain(`"enrichment_state"."next_retry_at" is not null`);
 	});
 });
 

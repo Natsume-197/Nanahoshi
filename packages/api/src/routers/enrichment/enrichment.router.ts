@@ -2,14 +2,12 @@ import { requirePermission } from "../../index";
 import {
 	ActionableCountsInput,
 	ApproveEnrichmentInput,
-	ArchiveEnrichmentInput,
 	EnrichmentDetailInput,
 	ListEnrichmentInput,
 	ProviderStatusInput,
 	ResolveProviderFailuresInput,
 	RetryEnrichmentInput,
-	StopEnrichmentInput,
-	UnarchiveEnrichmentInput,
+	TargetSelection,
 } from "./enrichment.model";
 import { enrichmentService } from "./enrichment.service";
 
@@ -55,27 +53,15 @@ export const enrichmentRouter = {
 		}),
 
 	cancelRetry: requirePermission("library", "scan")
-		.input(StopEnrichmentInput)
+		.input(TargetSelection)
 		.handler(async ({ input, context }) => {
 			return enrichmentService.cancelRetry(context.serverId, input);
 		}),
 
-	stop: requirePermission("library", "scan")
-		.input(StopEnrichmentInput)
+	restoreOriginal: requirePermission("library", "scan")
+		.input(TargetSelection)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.stop(context.serverId, input);
-		}),
-
-	archive: requirePermission("library", "scan")
-		.input(ArchiveEnrichmentInput)
-		.handler(async ({ input, context }) => {
-			return enrichmentService.archive(context.serverId, input);
-		}),
-
-	unarchive: requirePermission("library", "scan")
-		.input(UnarchiveEnrichmentInput)
-		.handler(async ({ input, context }) => {
-			return enrichmentService.unarchive(context.serverId, input);
+			return enrichmentService.restoreOriginal(context.serverId, input);
 		}),
 
 	approve: requirePermission("library", "scan")

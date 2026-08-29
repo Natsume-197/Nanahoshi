@@ -10,6 +10,7 @@ import {
 	useMutation,
 	useQuery,
 } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -250,6 +251,19 @@ export function MetadataOrgSettings() {
 				<p className="text-pretty text-foreground/65 text-sm leading-relaxed">
 					{m["settings.metadata.providers_desc"]()}
 				</p>
+			</div>
+
+			<div className="max-w-2xl border-primary/20 border-l-2 py-1 pl-4">
+				<p className="font-medium text-sm">
+					{m["settings.metadata.match_review_title"]()}
+				</p>
+				<div className="mt-2">
+					<Button asChild size="sm" variant="outline">
+						<Link to="/dashboard/metadata">
+							{m["enrichment.open_match_manager"]()}
+						</Link>
+					</Button>
+				</div>
 			</div>
 
 			<div className="grid @3xl/metadata-providers:grid-cols-2 grid-cols-1 gap-5">

@@ -32,9 +32,7 @@ function captureCountFilters() {
 		return {
 			in_progress: 0,
 			attention: 0,
-			stopped: 0,
 			completed: 0,
-			history: 0,
 		};
 	}) as typeof enrichmentStateRepository.countsByBucket;
 	enrichmentStateRepository.countsByLifecycle = (async (

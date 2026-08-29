@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { ListEnrichmentInput, StopEnrichmentInput } from "../enrichment.model";
+import { ListEnrichmentInput, TargetSelection } from "../enrichment.model";
 
-describe("StopEnrichmentInput (shared target selection)", () => {
+describe("TargetSelection (shared target selection)", () => {
 	test("accepts an explicit bulk selection", () => {
 		expect(
-			StopEnrichmentInput.safeParse({
+			TargetSelection.safeParse({
 				bookUuids: ["d8abf479-fc06-46c4-a853-0b5fa4fe9ef2"],
 			}).success,
 		).toBe(true);
@@ -12,16 +12,16 @@ describe("StopEnrichmentInput (shared target selection)", () => {
 
 	test("accepts a filtered bulk selection scoped by bucket", () => {
 		expect(
-			StopEnrichmentInput.safeParse({
+			TargetSelection.safeParse({
 				filter: { bucket: "in_progress" },
 			}).success,
 		).toBe(true);
 	});
 
 	test("requires exactly one target mode", () => {
-		expect(StopEnrichmentInput.safeParse({}).success).toBe(false);
+		expect(TargetSelection.safeParse({}).success).toBe(false);
 		expect(
-			StopEnrichmentInput.safeParse({
+			TargetSelection.safeParse({
 				bookUuids: ["d8abf479-fc06-46c4-a853-0b5fa4fe9ef2"],
 				filter: {},
 			}).success,

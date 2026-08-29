@@ -51,6 +51,60 @@ type EnrichInput = Partial<AudiobookMetadata> & {
 };
 
 export class AudiobookMetadataService {
+	/** Restores the complete local snapshot, including every catalog relation. */
+	async restoreOriginal(bookId: number) {
+		const original =
+			await audiobookMetadataRepository.getOriginalMetadata(bookId);
+		if (!original) return null;
+		const snapshot = original as {
+			metadata: Record<string, unknown>;
+			authors: AudiobookAuthor[];
+			narrators: { name: string }[];
+			series: { name: string; position: number | null } | null;
+			genres: string[];
+			tags: string[];
+			chapters: {
+				index: number;
+				title: string | null;
+				startTime: number;
+				endTime: number;
+			}[];
+		};
+		await Promise.all([
+			audiobookMetadataRepository.clearBookAuthors(bookId),
+			audiobookMetadataRepository.clearBookNarrators(bookId),
+			audiobookMetadataRepository.clearBookSeries(bookId),
+			audiobookMetadataRepository.clearBookGenres(bookId),
+			audiobookMetadataRepository.clearBookTags(bookId),
+			audiobookMetadataRepository.replaceChapters(bookId, []),
+			audiobookMetadataRepository.resetMetadata(bookId),
+		]);
+		const {
+			bookId: _bookId,
+			fieldSources: _sources,
+			lockedFields: _locks,
+			...metadata
+		} = snapshot.metadata;
+		const saved = await this.saveMetadata(
+			{
+				...(metadata as Partial<AudiobookMetadata>),
+				authors: snapshot.authors,
+				narrators: snapshot.narrators,
+				series: snapshot.series ?? undefined,
+				genres: snapshot.genres,
+				tags: snapshot.tags,
+			},
+			bookId,
+			{ respectLocks: false, source: "local" },
+		);
+		await audiobookMetadataRepository.replaceChapters(
+			bookId,
+			snapshot.chapters,
+		);
+		await enrichmentStateRepository.resetForRetry([bookId]);
+		return saved;
+	}
+
 	// Search a single provider for matching audiobooks; returns lightweight
 	// candidates for the user to pick from.
 	async searchProvider(
@@ -566,6 +620,7 @@ export class AudiobookMetadataService {
 			fieldSources?: Record<string, string>;
 		},
 	) {
+		await audiobookMetadataRepository.saveOriginalMetadata(bookId);
 		// Catalog entities are scoped per-server; resolve the book's owning server.
 		const serverId =
 			await audiobookMetadataRepository.getServerIdByBookId(bookId);
@@ -577,7 +632,10 @@ export class AudiobookMetadataService {
 		);
 
 		// ── 1. Publisher ────────────────────────────────────────────
-		let publisherId: number | undefined;
+		const originalPublisherId = (metadata as Record<string, unknown>)
+			.publisherId;
+		let publisherId =
+			typeof originalPublisherId === "number" ? originalPublisherId : undefined;
 		const publisherName =
 			typeof metadata.publisher === "string"
 				? metadata.publisher

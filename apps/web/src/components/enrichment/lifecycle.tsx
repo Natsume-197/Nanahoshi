@@ -17,14 +17,12 @@ export type EnrichmentStatus =
 export const LIFECYCLE_LABELS: Record<Lifecycle, () => string> = {
 	running: () => m["enrichment.lc_running"](),
 	scheduled: () => m["enrichment.lc_scheduled"](),
-	stopped: () => m["enrichment.lc_stopped"](),
 	review: () => m["enrichment.lc_review"](),
 	unresolved: () => m["enrichment.lc_unresolved"](),
 	no_match: () => m["enrichment.lc_no_match"](),
 	partial: () => m["enrichment.lc_partial"](),
 	failed: () => m["enrichment.lc_failed"](),
 	done: () => m["enrichment.lc_done"](),
-	archived: () => m["enrichment.lc_archived"](),
 };
 
 type LifecycleTone =
@@ -38,14 +36,12 @@ type LifecycleTone =
 export const LIFECYCLE_VARIANTS = {
 	running: "info",
 	scheduled: "info",
-	stopped: "secondary",
 	review: "warning",
 	unresolved: "warning",
 	no_match: "destructive",
 	partial: "warning",
 	failed: "destructive",
 	done: "success",
-	archived: "outline",
 } as const satisfies Record<Lifecycle, LifecycleTone>;
 
 // Solid dot fill per tone. Tones are shared across lifecycles on purpose

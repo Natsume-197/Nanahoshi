@@ -3,8 +3,6 @@
 // way or the prefetched entry lands under a different query key and is wasted.
 
 export type EnrichmentLifecycle =
-	| "archived"
-	| "stopped"
 	| "scheduled"
 	| "review"
 	| "unresolved"
@@ -14,17 +12,12 @@ export type EnrichmentLifecycle =
 	| "running"
 	| "done";
 
-export type EnrichmentBucket =
-	| "in_progress"
-	| "attention"
-	| "stopped"
-	| "completed"
-	| "history";
+export type EnrichmentBucket = "in_progress" | "attention" | "completed";
 
 export type EnrichmentSort = "recent" | "oldest" | "title";
 export type MediaTypeFilter = "ebook" | "audiobook" | typeof ALL_TYPES;
 
-/** Sidebar root: every bucket at once (archived rows stay out, server-side). */
+/** Sidebar root: every bucket at once. */
 export const ALL_BUCKETS = "all" as const;
 export type BucketFilter = EnrichmentBucket | typeof ALL_BUCKETS;
 
@@ -38,8 +31,6 @@ export const DEFAULT_SORT: EnrichmentSort = "recent";
 // lifecycle lives in exactly one bucket, which is what lets the sidebar jump
 // straight to a lifecycle and derive the bucket that must travel with it.
 export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
-	archived: "history",
-	stopped: "stopped",
 	scheduled: "in_progress",
 	review: "attention",
 	unresolved: "attention",

@@ -7,7 +7,6 @@ describe("metadata retry projection", () => {
 			metadataRetryProjection({
 				nextRetryAt: "2026-07-22T21:00:00.000Z",
 				providerAttempts: 1,
-				retryCancelledAt: null,
 				hasFailures: true,
 			}),
 		).toEqual({
@@ -23,25 +22,8 @@ describe("metadata retry projection", () => {
 			metadataRetryProjection({
 				nextRetryAt: null,
 				providerAttempts: 3,
-				retryCancelledAt: null,
 				hasFailures: true,
 			}).state,
 		).toBe("exhausted");
-	});
-
-	test("a durable cancellation outranks a previously scheduled retry", () => {
-		expect(
-			metadataRetryProjection({
-				nextRetryAt: "2026-07-22T21:00:00.000Z",
-				providerAttempts: 1,
-				retryCancelledAt: "2026-07-22T20:59:00.000Z",
-				hasFailures: true,
-			}),
-		).toEqual({
-			state: "cancelled",
-			nextRetryAt: null,
-			attempts: 1,
-			maxAttempts: 3,
-		});
 	});
 });

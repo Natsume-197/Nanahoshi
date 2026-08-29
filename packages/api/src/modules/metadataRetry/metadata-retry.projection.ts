@@ -18,29 +18,14 @@ export type MetadataRetryProjection =
 			nextRetryAt: null;
 			attempts: number;
 			maxAttempts: number;
-	  }
-	| {
-			state: "cancelled";
-			nextRetryAt: null;
-			attempts: number;
-			maxAttempts: number;
 	  };
 
 export function metadataRetryProjection(input: {
 	nextRetryAt: string | null;
 	providerAttempts: number | null;
-	retryCancelledAt: string | null;
 	hasFailures: boolean;
 }): MetadataRetryProjection {
 	const attempts = input.providerAttempts ?? 0;
-	if (input.retryCancelledAt) {
-		return {
-			state: "cancelled",
-			nextRetryAt: null,
-			attempts,
-			maxAttempts: MAX_PROVIDER_RETRY_ATTEMPTS,
-		};
-	}
 	if (input.nextRetryAt) {
 		return {
 			state: "scheduled",

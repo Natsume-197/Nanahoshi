@@ -8,19 +8,10 @@ import { MatchManager } from "@/components/enrichment/match-manager";
 import { optionalString } from "@/lib/search-validators";
 import { orpc } from "@/utils/orpc";
 
-const BUCKET_VALUES = [
-	"all",
-	"in_progress",
-	"attention",
-	"stopped",
-	"completed",
-	"history",
-] as const;
+const BUCKET_VALUES = ["all", "in_progress", "attention", "completed"] as const;
 const TYPE_VALUES = ["ebook", "audiobook"] as const;
 const SORT_VALUES = ["recent", "oldest", "title"] as const;
 const LIFECYCLE_VALUES = [
-	"archived",
-	"stopped",
 	"scheduled",
 	"review",
 	"no_match",

@@ -37,8 +37,12 @@ const mockGetCoverByBookId = mock(() => Promise.resolve(null as string | null));
 const mockSetLockedFields = mock(() => Promise.resolve());
 const mockAddLockedFields = mock(() => Promise.resolve());
 const mockRemoveLockedFields = mock(() => Promise.resolve());
+const mockSaveOriginalMetadata = mock(() => Promise.resolve(null));
+const mockGetOriginalMetadata = mock(() => Promise.resolve(null));
 
 const repositoryMock = {
+	saveOriginalMetadata: mockSaveOriginalMetadata,
+	getOriginalMetadata: mockGetOriginalMetadata,
 	getLockedFields: mockGetLockedFields,
 	getCoverByBookId: mockGetCoverByBookId,
 	setLockedFields: mockSetLockedFields,
@@ -71,6 +75,7 @@ const repositoryMock = {
 	upsertTagsAndLink: mockUpsertTagsAndLink,
 	clearBookTags: mock(() => Promise.resolve()),
 	replaceChapters: mockReplaceChapters,
+	resetMetadata: mock(() => Promise.resolve()),
 	resolveInferredSeries: mock((name: string) =>
 		Promise.resolve({ id: 1, name }),
 	),
@@ -108,6 +113,10 @@ const mockRecordFailures = spyOn(
 	enrichmentStateRepository,
 	"recordFailures",
 ).mockImplementation(() => Promise.resolve());
+const mockResetForRetry = spyOn(
+	enrichmentStateRepository,
+	"resetForRetry",
+).mockImplementation(() => Promise.resolve());
 const { CatalogProviderError } = await import(
 	"../../../../modules/catalogEnrichment"
 );
@@ -129,6 +138,7 @@ afterAll(() => {
 	itunesSearchSpy.mockRestore();
 	itunesGetByIdSpy.mockRestore();
 	mockGetEnrichmentState.mockRestore();
+	mockResetForRetry.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "Great Story" };
@@ -199,6 +209,10 @@ beforeEach(() => {
 	mockSetLockedFields.mockClear();
 	mockAddLockedFields.mockClear();
 	mockRemoveLockedFields.mockClear();
+	mockSaveOriginalMetadata.mockClear();
+	mockGetOriginalMetadata.mockReset();
+	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
+	mockResetForRetry.mockClear();
 	repositoryMock.upsertNarrator.mockClear();
 	repositoryMock.clearBookNarrators.mockClear();
 	repositoryMock.clearBookAuthors.mockClear();
@@ -1020,5 +1034,37 @@ describe("applyManualEdit", () => {
 			"Fantasy",
 			"server-1",
 		);
+	});
+});
+
+describe("restoreOriginal", () => {
+	test("replaces enriched metadata and relations with the original snapshot", async () => {
+		mockGetOriginalMetadata.mockImplementation(() =>
+			Promise.resolve({
+				metadata: { bookId: 1, title: "Local title", publisherId: 7 },
+				authors: [{ name: "Local author", role: "Author" }],
+				narrators: [{ name: "Local narrator" }],
+				series: { name: "Local series", position: 2 },
+				genres: ["Local genre"],
+				tags: ["local-tag"],
+				chapters: [{ index: 0, title: "Chapter 1", startTime: 0, endTime: 60 }],
+			}),
+		);
+
+		await audiobookMetadataService.restoreOriginal(1);
+
+		expect(repositoryMock.clearBookAuthors).toHaveBeenCalledWith(1);
+		expect(repositoryMock.clearBookNarrators).toHaveBeenCalledWith(1);
+		expect(repositoryMock.clearBookSeries).toHaveBeenCalledWith(1);
+		expect(repositoryMock.clearBookGenres).toHaveBeenCalledWith(1);
+		expect(repositoryMock.clearBookTags).toHaveBeenCalledWith(1);
+		expect(mockUpsertMetadata).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ title: "Local title", publisherId: 7 }),
+		);
+		expect(mockReplaceChapters).toHaveBeenLastCalledWith(1, [
+			{ index: 0, title: "Chapter 1", startTime: 0, endTime: 60 },
+		]);
+		expect(mockResetForRetry).toHaveBeenCalledWith([1]);
 	});
 });

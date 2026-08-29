@@ -45,9 +45,6 @@ export type RowActions = {
 	onRefresh: () => void;
 	onCancelRetry: () => void;
 	onApprove: () => void;
-	onStop: () => void;
-	onArchive: () => void;
-	onUnarchive: () => void;
 	onFix: () => void;
 	onSelectCandidate: (candidate: MatchDecisionCandidate) => void;
 };

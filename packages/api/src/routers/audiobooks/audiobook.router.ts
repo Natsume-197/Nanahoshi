@@ -278,4 +278,28 @@ export const audiobooksRouter = {
 			);
 			return { success: true };
 		}),
+
+	restoreOriginalMetadata: protectedProcedure
+		.input(GetAudiobookInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			if (!details) return { success: false };
+			const result = await audiobookMetadataService.restoreOriginal(details.id);
+			return { success: result !== null };
+		}),
 };

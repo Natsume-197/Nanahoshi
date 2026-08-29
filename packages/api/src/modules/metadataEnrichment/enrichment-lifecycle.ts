@@ -8,12 +8,9 @@ import { MAX_PROVIDER_RETRY_ATTEMPTS } from "../metadataRetry/metadata-retry.pol
 /**
  * The single, human-facing state of a book in the metadata tray. Collapses two
  * orthogonal DB axes — match quality (`enrichment_state.status`) and transient
- * provider-retry state (`next_retry_at` / `retry_cancelled_at`) — into one
- * label so a row can never show a contradiction like "pending" + "cancelled".
+ * provider-retry state (`next_retry_at`) — into one label.
  */
 export type EnrichmentLifecycle =
-	| "archived"
-	| "stopped"
 	| "scheduled"
 	| "review"
 	| "unresolved"
@@ -24,16 +21,9 @@ export type EnrichmentLifecycle =
 	| "done";
 
 /** Task-oriented tray view. Each lifecycle belongs to exactly one bucket. */
-export type EnrichmentBucket =
-	| "in_progress"
-	| "attention"
-	| "stopped"
-	| "completed"
-	| "history";
+export type EnrichmentBucket = "in_progress" | "attention" | "completed";
 
 export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
-	archived: "history",
-	stopped: "stopped",
 	scheduled: "in_progress",
 	review: "attention",
 	unresolved: "attention",
@@ -47,8 +37,6 @@ export const LIFECYCLE_BUCKET: Record<EnrichmentLifecycle, EnrichmentBucket> = {
 export type LifecycleRow = {
 	status: EnrichmentStatus;
 	nextRetryAt: string | null;
-	retryCancelledAt: string | null;
-	archivedAt: string | null;
 	providerAttempts: number;
 	hasFailures: boolean;
 	decision: EnrichmentDecision | null;
@@ -68,16 +56,6 @@ const RULES: {
 	ts: (row: LifecycleRow) => boolean;
 	sql: SQL;
 }[] = [
-	{
-		lifecycle: "archived",
-		ts: (row) => row.archivedAt != null,
-		sql: sql`es.archived_at IS NOT NULL`,
-	},
-	{
-		lifecycle: "stopped",
-		ts: (row) => row.retryCancelledAt != null,
-		sql: sql`es.retry_cancelled_at IS NOT NULL`,
-	},
 	{
 		lifecycle: "scheduled",
 		ts: (row) => row.nextRetryAt != null,

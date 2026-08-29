@@ -1,7 +1,5 @@
 import {
-	Archive,
 	ArrowClockwise,
-	ArrowCounterClockwise,
 	ArrowLeft,
 	ArrowsDownUp,
 	CaretDown,
@@ -46,7 +44,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -107,8 +104,6 @@ type FixTarget = {
 	mediaType: "ebook" | "audiobook";
 };
 
-type StopRequest = { bookUuids?: string[]; useFilter?: boolean; count: number };
-
 // What each bucket is, plus what the actions offered there actually do. Kept
 // next to SelectionActions so the two stay in step: the same bucket→actions
 // mapping decides which buttons render and which lines the help shows.
@@ -118,23 +113,15 @@ const BUCKET_HELP: Record<
 > = {
 	in_progress: {
 		summary: () => m["enrichment.help_bucket_in_progress"](),
-		actions: ["retry", "stop", "archive"],
+		actions: ["retry"],
 	},
 	attention: {
 		summary: () => m["enrichment.help_bucket_attention"](),
-		actions: ["retry", "approve", "stop", "archive"],
-	},
-	stopped: {
-		summary: () => m["enrichment.help_bucket_stopped"](),
-		actions: ["reprocess", "archive"],
+		actions: ["retry", "approve"],
 	},
 	completed: {
 		summary: () => m["enrichment.help_bucket_completed"](),
-		actions: ["archive"],
-	},
-	history: {
-		summary: () => m["enrichment.help_bucket_history"](),
-		actions: ["restore"],
+		actions: ["retry"],
 	},
 };
 
@@ -143,25 +130,9 @@ const ACTION_HELP = {
 		label: () => m["enrichment.retry"](),
 		body: () => m["enrichment.help_action_retry"](),
 	},
-	reprocess: {
-		label: () => m["enrichment.action_reprocess"](),
-		body: () => m["enrichment.help_action_reprocess"](),
-	},
 	approve: {
 		label: () => m["enrichment.approve"](),
 		body: () => m["enrichment.help_action_approve"](),
-	},
-	stop: {
-		label: () => m["enrichment.action_stop"](),
-		body: () => m["enrichment.help_action_stop"](),
-	},
-	archive: {
-		label: () => m["enrichment.action_archive"](),
-		body: () => m["enrichment.help_action_archive"](),
-	},
-	restore: {
-		label: () => m["enrichment.action_restore"](),
-		body: () => m["enrichment.help_action_restore"](),
 	},
 } as const;
 
@@ -295,9 +266,8 @@ export function MatchManager() {
 	const [detailUuid, setDetailUuid] = useState<string | null>(null);
 	const [detailFallback, setDetailFallback] = useState<MatchRow | null>(null);
 	const [fixTarget, setFixTarget] = useState<FixTarget | null>(null);
-	const [stopRequest, setStopRequest] = useState<StopRequest | null>(null);
-	const [archiveRequest, setArchiveRequest] = useState<number | null>(null);
 	const [providerFixOpen, setProviderFixOpen] = useState(false);
+	const [restoreRequest, setRestoreRequest] = useState<number | null>(null);
 	// Spin only for a refresh the user asked for. `isFetching` is true on every
 	// background poll too, so binding the icon to it would spin the header every
 	// few seconds unprompted.
@@ -391,12 +361,8 @@ export function MatchManager() {
 	const cancelRetryMutation = useMutation(
 		orpc.enrichment.cancelRetry.mutationOptions(),
 	);
-	const stopMutation = useMutation(orpc.enrichment.stop.mutationOptions());
-	const archiveMutation = useMutation(
-		orpc.enrichment.archive.mutationOptions(),
-	);
-	const unarchiveMutation = useMutation(
-		orpc.enrichment.unarchive.mutationOptions(),
+	const restoreMutation = useMutation(
+		orpc.enrichment.restoreOriginal.mutationOptions(),
 	);
 	const pauseSettled = {
 		onSuccess: (result: { paused: boolean }) => {
@@ -502,9 +468,7 @@ export function MatchManager() {
 		retryMutation.isPending ||
 		approveMutation.isPending ||
 		cancelRetryMutation.isPending ||
-		stopMutation.isPending ||
-		archiveMutation.isPending ||
-		unarchiveMutation.isPending ||
+		restoreMutation.isPending ||
 		selectCandidateMutation.isPending;
 
 	// The open row, preferring the live list entry so the pane follows the
@@ -525,10 +489,7 @@ export function MatchManager() {
 		setDetailFallback(item);
 	};
 	const anyDialogOpen =
-		stopRequest != null ||
-		archiveRequest != null ||
-		fixTarget != null ||
-		providerFixOpen;
+		fixTarget != null || providerFixOpen || restoreRequest != null;
 	// Escape closes the pane, matching what it would do if this were the modal.
 	useWindowEvent("keydown", (event: KeyboardEvent) => {
 		if (event.key !== "Escape" || anyDialogOpen || detailUuid == null) return;
@@ -611,38 +572,6 @@ export function MatchManager() {
 			{ bookUuids: [uuid] },
 			mutationSettled(m["enrichment.approve_enqueued"]({ count: 1 })),
 		);
-	// Archive is reversible, so an explicit uuid set archives immediately with an
-	// undo toast — no confirmation friction. Only "select all results" (below)
-	// gets a confirm dialog, since there's no uuid list to hand back for undo.
-	const archiveWithUndo = (bookUuids: string[]) =>
-		archiveMutation.mutate(
-			{ bookUuids },
-			{
-				onSuccess: () => {
-					clearSelection();
-					invalidateAll();
-					toast.success(
-						m["enrichment.archived_toast"]({ count: bookUuids.length }),
-						{
-							action: {
-								label: m["enrichment.undo"](),
-								onClick: () =>
-									unarchiveMutation.mutate(
-										{ bookUuids },
-										{ onSuccess: invalidateAll },
-									),
-							},
-						},
-					);
-				},
-				onError: (error) => toast.error(error.message),
-			},
-		);
-	const unarchiveOne = (uuid: string) =>
-		unarchiveMutation.mutate(
-			{ bookUuids: [uuid] },
-			mutationSettled(m["enrichment.restored_toast"]({ count: 1 })),
-		);
 	const openFix = (item: MatchRow) =>
 		setFixTarget({
 			bookUuid: item.bookUuid,
@@ -655,9 +584,6 @@ export function MatchManager() {
 		onRefresh: () => retryOne(item.bookUuid, true),
 		onCancelRetry: () => cancelRetryOne(item.bookUuid),
 		onApprove: () => approveOne(item.bookUuid),
-		onStop: () => setStopRequest({ bookUuids: [item.bookUuid], count: 1 }),
-		onArchive: () => archiveWithUndo([item.bookUuid]),
-		onUnarchive: () => unarchiveOne(item.bookUuid),
 		onFix: () => openFix(item),
 		onSelectCandidate: (candidate) =>
 			selectCandidateMutation.mutate({ item, candidate }),
@@ -665,45 +591,11 @@ export function MatchManager() {
 
 	// ── Bulk actions ─────────────────────────────────────────────────────────
 	const runBulk = (
-		mutation:
-			| typeof retryMutation
-			| typeof approveMutation
-			| typeof archiveMutation
-			| typeof unarchiveMutation,
+		mutation: typeof retryMutation | typeof approveMutation,
 		message: string,
 		extra: Record<string, unknown> = {},
 	) =>
 		mutation.mutate({ ...targetInput(), ...extra }, mutationSettled(message));
-
-	const confirmStop = () => {
-		if (!stopRequest) return;
-		const input = stopRequest.useFilter
-			? { filter: filterScope }
-			: { bookUuids: stopRequest.bookUuids ?? [] };
-		stopMutation.mutate(
-			input,
-			mutationSettled(
-				m["enrichment.stopped_result"]({ count: stopRequest.count }),
-			),
-		);
-		setStopRequest(null);
-	};
-
-	// Bulk archive: explicit selections are undoable (archive now + undo toast);
-	// a whole-filter archive is confirmed first.
-	const bulkArchive = () => {
-		if (selectAllFilter) setArchiveRequest(total);
-		else archiveWithUndo([...selected]);
-	};
-	const confirmArchive = () => {
-		archiveMutation.mutate(
-			{ filter: filterScope },
-			mutationSettled(
-				m["enrichment.archived_toast"]({ count: archiveRequest ?? 0 }),
-			),
-		);
-		setArchiveRequest(null);
-	};
 
 	const goToPage = (page: number) => setOffset((page - 1) * PAGE_SIZE);
 
@@ -729,25 +621,15 @@ export function MatchManager() {
 	const emptyDescription =
 		bucket === "attention"
 			? m["enrichment.empty_attention_desc"]()
-			: bucket === "stopped"
-				? m["enrichment.empty_stopped_desc"]()
-				: bucket === "completed"
-					? m["enrichment.empty_completed_desc"]()
-					: bucket === "history"
-						? m["enrichment.empty_history_desc"]()
-						: bucket === "in_progress"
-							? m["enrichment.empty_in_progress_desc"]()
-							: m["enrichment.empty_all_desc"]();
+			: bucket === "completed"
+				? m["enrichment.empty_completed_desc"]()
+				: bucket === "in_progress"
+					? m["enrichment.empty_in_progress_desc"]()
+					: m["enrichment.empty_all_desc"]();
 
 	// When the current scope is empty, point at the most relevant non-empty one
 	// — a nudge instead of a surprising auto-switch on load.
-	const SUGGEST_ORDER: Bucket[] = [
-		"attention",
-		"in_progress",
-		"stopped",
-		"completed",
-		"history",
-	];
+	const SUGGEST_ORDER: Bucket[] = ["attention", "in_progress", "completed"];
 	const suggestedBucket =
 		items.length === 0 && counts
 			? SUGGEST_ORDER.find((key) => key !== bucket && (counts[key] ?? 0) > 0)
@@ -1182,7 +1064,10 @@ export function MatchManager() {
 								eligibility={selectAllFilter ? eligibility : undefined}
 								onRetry={() =>
 									retryMutation.mutate(
-										targetInput(),
+										{
+											...targetInput(),
+											refresh: bucket === "completed",
+										},
 										retrySettled(selectionCount),
 									)
 								}
@@ -1192,20 +1077,7 @@ export function MatchManager() {
 										m["enrichment.approve_enqueued"]({ count: selectionCount }),
 									)
 								}
-								onStop={() =>
-									setStopRequest({
-										useFilter: selectAllFilter,
-										bookUuids: selectAllFilter ? undefined : [...selected],
-										count: selectionCount,
-									})
-								}
-								onArchive={bulkArchive}
-								onRestore={() =>
-									runBulk(
-										unarchiveMutation,
-										m["enrichment.restored_toast"]({ count: selectionCount }),
-									)
-								}
+								onRestore={() => setRestoreRequest(selectionCount)}
 							/>
 							<Button
 								size="sm"
@@ -1317,51 +1189,33 @@ export function MatchManager() {
 			)}
 
 			<Modal
-				open={stopRequest != null}
-				onOpenChange={(open) => !open && setStopRequest(null)}
-				title={m["enrichment.stop_confirm_title"]({
-					count: stopRequest?.count ?? 0,
+				open={restoreRequest != null}
+				onOpenChange={(open) => !open && setRestoreRequest(null)}
+				title={m["enrichment.restore_original_title"]({
+					count: restoreRequest ?? 0,
 				})}
-				description={m["enrichment.stop_confirm_body"]()}
+				description={m["enrichment.restore_original_body"]()}
 			>
 				<div className="flex justify-end gap-2">
-					<Button variant="outline" onClick={() => setStopRequest(null)}>
+					<Button variant="outline" onClick={() => setRestoreRequest(null)}>
 						{m["enrichment.action_cancel"]()}
 					</Button>
 					<Button
 						variant="destructive"
-						onClick={confirmStop}
-						disabled={stopMutation.isPending}
+						disabled={restoreMutation.isPending}
+						onClick={() => {
+							restoreMutation.mutate(targetInput(), {
+								onSuccess: () => {
+									setRestoreRequest(null);
+									clearSelection();
+									invalidateAll();
+									toast.success(m["enrichment.restore_original_done"]());
+								},
+								onError: (error) => toast.error(error.message),
+							});
+						}}
 					>
-						{stopMutation.isPending ? (
-							<CircleNotch data-icon="inline-start" className="animate-spin" />
-						) : (
-							<Prohibit data-icon="inline-start" />
-						)}
-						{m["enrichment.stop_confirm_cta"]()}
-					</Button>
-				</div>
-			</Modal>
-
-			<Modal
-				open={archiveRequest != null}
-				onOpenChange={(open) => !open && setArchiveRequest(null)}
-				title={m["enrichment.archive_confirm_title"]({
-					count: archiveRequest ?? 0,
-				})}
-				description={m["enrichment.archive_confirm_body"]()}
-			>
-				<div className="flex justify-end gap-2">
-					<Button variant="outline" onClick={() => setArchiveRequest(null)}>
-						{m["enrichment.action_cancel"]()}
-					</Button>
-					<Button onClick={confirmArchive} disabled={archiveMutation.isPending}>
-						{archiveMutation.isPending ? (
-							<CircleNotch data-icon="inline-start" className="animate-spin" />
-						) : (
-							<Archive data-icon="inline-start" />
-						)}
-						{m["enrichment.archive_confirm_cta"]()}
+						{m["enrichment.restore_original"]()}
 					</Button>
 				</div>
 			</Modal>
@@ -1486,31 +1340,25 @@ function EnrichmentRow({
 	// library is a sidebar filter and would only repeat itself down the column.
 	const sourceName = item.filename?.replace(/\.[^./\\]+$/, "") ?? null;
 	const firstFailure = item.failures[0];
-	const {
-		automaticRetryAt,
-		automaticRetryCancelled,
-		automaticRetryScheduled,
-		providerRetryExhausted,
-	} = resolveRetryView(item.retry);
+	const { automaticRetryAt, automaticRetryScheduled, providerRetryExhausted } =
+		resolveRetryView(item.retry);
 	const failureProvider = firstFailure
 		? (providerLabels[firstFailure.provider] ?? firstFailure.provider)
 		: "";
 	const failureLine = firstFailure
-		? automaticRetryCancelled
-			? m["enrichment.retry_cancelled_summary"]({ provider: failureProvider })
-			: automaticRetryScheduled && automaticRetryAt
-				? m["enrichment.automatic_retry_summary"]({
+		? automaticRetryScheduled && automaticRetryAt
+			? m["enrichment.automatic_retry_summary"]({
+					provider: failureProvider,
+					minutes: minutesFromMs(automaticRetryAt.getTime() - Date.now()),
+				})
+			: providerRetryExhausted
+				? m["enrichment.retry_exhausted_summary"]({
 						provider: failureProvider,
-						minutes: minutesFromMs(automaticRetryAt.getTime() - Date.now()),
 					})
-				: providerRetryExhausted
-					? m["enrichment.retry_exhausted_summary"]({
-							provider: failureProvider,
-						})
-					: m["enrichment.provider_failure_summary"]({
-							provider: failureProvider,
-							reason: failureLabel(firstFailure.code),
-						})
+				: m["enrichment.provider_failure_summary"]({
+						provider: failureProvider,
+						reason: failureLabel(firstFailure.code),
+					})
 		: null;
 
 	return (
@@ -1667,44 +1515,27 @@ function RowMenu({
 						</DropdownMenuItem>
 					</>
 				)}
-				{lifecycle === "running" && (
-					<DropdownMenuItem onClick={actions.onStop}>
-						{m["enrichment.action_stop"]()}
-					</DropdownMenuItem>
-				)}
 				{(lifecycle === "review" || lifecycle === "partial") && (
 					<DropdownMenuItem onClick={actions.onApprove}>
 						{m["enrichment.approve"]()}
 					</DropdownMenuItem>
 				)}
-				{lifecycle !== "running" && lifecycle !== "archived" && (
+				{lifecycle !== "running" && (
 					<DropdownMenuItem onClick={actions.onFix}>
 						{m["enrichment.fix_match"]()}
 					</DropdownMenuItem>
 				)}
 				{lifecycle === "done" ? (
 					<DropdownMenuItem onClick={actions.onRefresh}>
-						{m["enrichment.action_refresh"]()}
+						{m["enrichment.retry"]()}
 					</DropdownMenuItem>
 				) : (
 					lifecycle !== "running" &&
 					lifecycle !== "scheduled" && (
 						<DropdownMenuItem onClick={actions.onRetry}>
-							{lifecycle === "stopped"
-								? m["enrichment.action_reprocess"]()
-								: m["enrichment.retry"]()}
+							{m["enrichment.retry"]()}
 						</DropdownMenuItem>
 					)
-				)}
-				<DropdownMenuSeparator />
-				{lifecycle === "archived" ? (
-					<DropdownMenuItem onClick={actions.onUnarchive}>
-						{m["enrichment.action_restore"]()}
-					</DropdownMenuItem>
-				) : (
-					<DropdownMenuItem onClick={actions.onArchive}>
-						{m["enrichment.action_archive"]()}
-					</DropdownMenuItem>
 				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -1717,23 +1548,17 @@ function SelectionActions({
 	eligibility,
 	onRetry,
 	onApprove,
-	onStop,
-	onArchive,
 	onRestore,
 }: {
 	bucket: BucketFilter;
 	busy: boolean;
 	eligibility?: {
 		retryable: number;
-		stoppable: number;
 		approvable: number;
-		archivable: number;
-		restorable: number;
+		refreshable: number;
 	};
 	onRetry: () => void;
 	onApprove: () => void;
-	onStop: () => void;
-	onArchive: () => void;
 	onRestore: () => void;
 }) {
 	const hint = (count: number | undefined) =>
@@ -1743,43 +1568,28 @@ function SelectionActions({
 			</span>
 		);
 
-	if (bucket === "history") {
-		return (
+	const showApprove = bucket === "attention" || bucket === ALL_BUCKETS;
+	return (
+		<>
 			<Button
 				size="sm"
 				variant="outline"
-				onClick={onRestore}
-				disabled={busy || eligibility?.restorable === 0}
+				onClick={onRetry}
+				disabled={
+					busy ||
+					(bucket === "completed"
+						? eligibility?.refreshable === 0
+						: eligibility?.retryable === 0)
+				}
 			>
-				<ArrowCounterClockwise data-icon="inline-start" />
-				{m["enrichment.action_restore"]()}
-				{hint(eligibility?.restorable)}
+				<ArrowClockwise data-icon="inline-start" />
+				{m["enrichment.retry"]()}
+				{hint(
+					bucket === "completed"
+						? eligibility?.refreshable
+						: eligibility?.retryable,
+				)}
 			</Button>
-		);
-	}
-
-	const showApprove = bucket === "attention" || bucket === ALL_BUCKETS;
-	const showStop =
-		bucket === "in_progress" ||
-		bucket === "attention" ||
-		bucket === ALL_BUCKETS;
-
-	return (
-		<>
-			{bucket !== "completed" && (
-				<Button
-					size="sm"
-					variant="outline"
-					onClick={onRetry}
-					disabled={busy || eligibility?.retryable === 0}
-				>
-					<ArrowClockwise data-icon="inline-start" />
-					{bucket === "stopped"
-						? m["enrichment.action_reprocess"]()
-						: m["enrichment.retry"]()}
-					{hint(eligibility?.retryable)}
-				</Button>
-			)}
 			{showApprove && (
 				<Button
 					size="sm"
@@ -1792,28 +1602,11 @@ function SelectionActions({
 					{hint(eligibility?.approvable)}
 				</Button>
 			)}
-			{showStop && (
-				<Button
-					size="sm"
-					variant="outline"
-					onClick={onStop}
-					disabled={busy || eligibility?.stoppable === 0}
-				>
-					<Prohibit data-icon="inline-start" />
-					{m["enrichment.action_stop"]()}
-					{hint(eligibility?.stoppable)}
+			{bucket === "completed" && (
+				<Button size="sm" variant="outline" onClick={onRestore} disabled={busy}>
+					{m["enrichment.restore_original"]()}
 				</Button>
 			)}
-			<Button
-				size="sm"
-				variant="outline"
-				onClick={onArchive}
-				disabled={busy || eligibility?.archivable === 0}
-			>
-				<Archive data-icon="inline-start" />
-				{m["enrichment.action_archive"]()}
-				{hint(eligibility?.archivable)}
-			</Button>
 		</>
 	);
 }

@@ -10,8 +10,6 @@ import {
 const base: LifecycleRow = {
 	status: "pending",
 	nextRetryAt: null,
-	retryCancelledAt: null,
-	archivedAt: null,
 	providerAttempts: 0,
 	hasFailures: false,
 	decision: null,
@@ -84,36 +82,6 @@ describe("resolveLifecycle — one label per row", () => {
 });
 
 describe("precedence — the contradiction fixes", () => {
-	// The exact bug the rework targets: a pending book with a cancelled retry
-	// must read as a single "stopped by you", never "pending" + "cancelled".
-	test("cancelled retry wins over the underlying pending status", () => {
-		expect(
-			resolveLifecycle(
-				row({ status: "pending", retryCancelledAt: "2026-07-24T00:00:00Z" }),
-			),
-		).toBe("stopped");
-	});
-
-	test("cancelled retry wins even for a partial match", () => {
-		expect(
-			resolveLifecycle(
-				row({ status: "partial", retryCancelledAt: "2026-07-24T00:00:00Z" }),
-			),
-		).toBe("stopped");
-	});
-
-	test("archived wins over everything, including stopped and review", () => {
-		expect(
-			resolveLifecycle(
-				row({
-					status: "review",
-					retryCancelledAt: "2026-07-24T00:00:00Z",
-					archivedAt: "2026-07-24T00:00:00Z",
-				}),
-			),
-		).toBe("archived");
-	});
-
 	test("scheduled retry outranks the exhausted-failure signal", () => {
 		expect(
 			resolveLifecycle(
@@ -149,8 +117,6 @@ describe("precedence — the contradiction fixes", () => {
 describe("bucket mapping", () => {
 	test("every lifecycle maps to a bucket", () => {
 		const lifecycles: EnrichmentLifecycle[] = [
-			"archived",
-			"stopped",
 			"scheduled",
 			"review",
 			"unresolved",
@@ -193,13 +159,7 @@ describe("bucket mapping", () => {
 		).toBe("in_progress");
 	});
 
-	test("stopped, completed and history are distinct buckets", () => {
-		expect(
-			resolveBucket(row({ retryCancelledAt: "2026-07-24T00:00:00Z" })),
-		).toBe("stopped");
+	test("completed is its own bucket", () => {
 		expect(resolveBucket(row({ status: "enriched" }))).toBe("completed");
-		expect(resolveBucket(row({ archivedAt: "2026-07-24T00:00:00Z" }))).toBe(
-			"history",
-		);
 	});
 });

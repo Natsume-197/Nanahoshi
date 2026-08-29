@@ -1,4 +1,5 @@
 import {
+	ArrowCounterClockwise,
 	BookmarkSimple,
 	CircleNotch,
 	DotsThree,
@@ -9,8 +10,8 @@ import {
 	PencilSimple,
 	Sparkle,
 } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useLoaderData } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import { Fragment, useId, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -388,9 +389,24 @@ function HeroActions({
 	const { can } = useAbilities();
 	const canEnrich = can("book", "editMetadata");
 	const canDownload = can("audiobook", "download");
+	const router = useRouter();
 	const [isMatchOpen, setIsMatchOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isDownloading, setIsDownloading] = useState(false);
+	const restoreMutation = useMutation({
+		mutationFn: () =>
+			client.audiobooks.restoreOriginalMetadata({ uuid: bookUuid }),
+		onSuccess: async (result) => {
+			if (result.success) {
+				toast.success(m["toast.metadata_restored"]());
+				await router.invalidate();
+			} else {
+				toast.info(m["toast.metadata_none_original"]());
+			}
+		},
+		onError: (error) =>
+			toast.error(getErrorMessage(error, m["toast.metadata_restore_failed"]())),
+	});
 
 	const handleDownload = async () => {
 		if (isDownloading) return;
@@ -479,6 +495,18 @@ function HeroActions({
 					>
 						<Sparkle aria-hidden="true" />
 						{m["match.action"]()}
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="min-h-10"
+						onClick={() => restoreMutation.mutate()}
+						disabled={restoreMutation.isPending}
+					>
+						{restoreMutation.isPending ? (
+							<CircleNotch className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<ArrowCounterClockwise />
+						)}
+						{m["book.restore_metadata"]()}
 					</DropdownMenuItem>
 				</>
 			)}

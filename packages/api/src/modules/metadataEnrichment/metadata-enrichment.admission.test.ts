@@ -10,9 +10,7 @@ function facts(overrides: Partial<AdmissionFacts> = {}): AdmissionFacts {
 		duplicateOfBookId: null,
 		libraryPausedAt: null,
 		status: null,
-		archivedAt: null,
 		nextRetryAt: null,
-		retryCancelledAt: null,
 		retryGeneration: 0,
 		...overrides,
 	};
@@ -30,11 +28,9 @@ describe("automatic trigger obeys every rule", () => {
 	const denials: [string, Partial<AdmissionFacts>, string][] = [
 		["hidden copy", { duplicateOfBookId: 42 }, "hidden_copy"],
 		["paused library", { libraryPausedAt: AT }, "library_paused"],
-		["archived", { archivedAt: AT }, "archived"],
 		["terminal: enriched", { status: "enriched" }, "terminal"],
 		["terminal: no_match", { status: "no_match" }, "terminal"],
 		["terminal: review", { status: "review" }, "terminal"],
-		["cancelled retry", { retryCancelledAt: AT }, "retry_cancelled"],
 	];
 
 	for (const [name, overrides, reason] of denials) {
@@ -54,12 +50,10 @@ describe("automatic trigger obeys every rule", () => {
 });
 
 describe("explicit trigger overrides everything but a hidden copy", () => {
-	test("a human request beats pause, archival, terminal and cancellation", () => {
+	test("a human request beats pause and terminal status", () => {
 		const blocked = facts({
 			libraryPausedAt: AT,
-			archivedAt: AT,
 			status: "enriched",
-			retryCancelledAt: AT,
 		});
 		expect(admit(blocked, explicit)).toEqual({ ok: true });
 	});
@@ -100,37 +94,17 @@ describe("retry generation fences stale jobs", () => {
 		});
 	});
 
-	test("denies a retry cancelled after the job was leased", () => {
-		// cancelRetries/stop/archive all clear nextRetryAt and bump the
-		// generation, so an in-flight job loses on both counts.
+	test("denies a retry once its appointment is cancelled", () => {
+		// Cancellation clears nextRetryAt and bumps the generation, so an
+		// in-flight job loses on both counts.
 		const cancelled = facts({
 			status: "pending",
 			nextRetryAt: null,
-			retryCancelledAt: AT,
 			retryGeneration: 4,
 		});
 		expect(admit(cancelled, { ...automatic, retryGeneration: 3 })).toEqual({
 			ok: false,
 			reason: "stale_generation",
-		});
-	});
-
-	test("archiving stops a scheduled retry from being admitted", () => {
-		// The state archive() now leaves behind.
-		const archived = facts({
-			status: "pending",
-			archivedAt: AT,
-			nextRetryAt: null,
-			retryCancelledAt: AT,
-			retryGeneration: 4,
-		});
-		expect(admit(archived, { ...automatic, retryGeneration: 3 })).toEqual({
-			ok: false,
-			reason: "archived",
-		});
-		expect(admit(archived, automatic)).toEqual({
-			ok: false,
-			reason: "archived",
 		});
 	});
 });
@@ -140,9 +114,7 @@ describe("precedence", () => {
 		const everything = facts({
 			duplicateOfBookId: 42,
 			libraryPausedAt: AT,
-			archivedAt: AT,
 			status: "enriched",
-			retryCancelledAt: AT,
 		});
 		expect(admit(everything, automatic)).toEqual({
 			ok: false,
@@ -154,10 +126,9 @@ describe("precedence", () => {
 		});
 	});
 
-	test("pause is reported before archival and terminal", () => {
+	test("pause is reported before terminal", () => {
 		const both = facts({
 			libraryPausedAt: AT,
-			archivedAt: AT,
 			status: "enriched",
 		});
 		expect(admit(both, automatic)).toEqual({

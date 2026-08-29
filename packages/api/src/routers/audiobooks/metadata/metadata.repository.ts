@@ -4,6 +4,7 @@ import {
 	audiobookChapter,
 	audiobookGenre,
 	audiobookMetadata,
+	audiobookMetadataOriginal,
 	audiobookSeries,
 	audiobookTag,
 	audioFile,
@@ -26,6 +27,50 @@ type AudioFileInsert = typeof audioFile.$inferInsert;
 type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
 export class AudiobookMetadataRepository {
+	/** Stores the local row before any provider can overwrite it. */
+	async saveOriginalMetadata(bookId: number) {
+		const [
+			metadata,
+			authors,
+			narrators,
+			seriesEntries,
+			genres,
+			tags,
+			chapters,
+		] = await Promise.all([
+			this.findByBookId(bookId),
+			this.getBookAuthorsWithRoles(bookId),
+			this.getBookNarrators(bookId),
+			this.getBookSeries(bookId),
+			this.getBookGenres(bookId),
+			this.getBookTags(bookId),
+			this.getChapters(bookId),
+		]);
+		if (!metadata) return null;
+		const original = {
+			metadata,
+			authors,
+			narrators,
+			series: seriesEntries[0] ?? null,
+			genres,
+			tags,
+			chapters,
+		};
+		await db
+			.insert(audiobookMetadataOriginal)
+			.values({ bookId, data: original })
+			.onConflictDoNothing({ target: audiobookMetadataOriginal.bookId });
+		return original;
+	}
+
+	async getOriginalMetadata(bookId: number) {
+		const [row] = await db
+			.select({ data: audiobookMetadataOriginal.data })
+			.from(audiobookMetadataOriginal)
+			.where(eq(audiobookMetadataOriginal.bookId, bookId));
+		return row?.data ?? null;
+	}
+
 	// ---------- 1. UPSERT audiobook_metadata ----------
 	async upsertMetadata(bookId: number, metadata: Record<string, unknown>) {
 		const existing = await db
@@ -136,6 +181,14 @@ export class AudiobookMetadataRepository {
 			.where(eq(audiobookAuthor.bookId, bookId));
 	}
 
+	async getBookAuthorsWithRoles(bookId: number) {
+		return db
+			.select({ name: author.name, role: audiobookAuthor.role })
+			.from(audiobookAuthor)
+			.innerJoin(author, eq(author.id, audiobookAuthor.authorId))
+			.where(eq(audiobookAuthor.bookId, bookId));
+	}
+
 	async clearBookAuthors(bookId: number) {
 		await db.delete(audiobookAuthor).where(eq(audiobookAuthor.bookId, bookId));
 	}
@@ -187,6 +240,14 @@ export class AudiobookMetadataRepository {
 			.from(bookNarrator)
 			.innerJoin(narrator, eq(narrator.id, bookNarrator.narratorId))
 			.where(eq(bookNarrator.bookId, bookId));
+	}
+
+	async getBookSeries(bookId: number) {
+		return db
+			.select({ name: series.name, position: audiobookSeries.position })
+			.from(audiobookSeries)
+			.innerJoin(series, eq(series.id, audiobookSeries.seriesId))
+			.where(eq(audiobookSeries.bookId, bookId));
 	}
 
 	async clearBookNarrators(bookId: number) {
@@ -262,6 +323,15 @@ export class AudiobookMetadataRepository {
 		await db.delete(audiobookGenre).where(eq(audiobookGenre.bookId, bookId));
 	}
 
+	async getBookGenres(bookId: number) {
+		return db
+			.select({ name: genre.name })
+			.from(audiobookGenre)
+			.innerJoin(genre, eq(genre.id, audiobookGenre.genreId))
+			.where(eq(audiobookGenre.bookId, bookId))
+			.then((rows) => rows.map((row) => row.name));
+	}
+
 	// ---------- 10b. Tags ----------
 	/** Upserts tags (normalized for cross-provider dedupe) and links them. */
 	async upsertTagsAndLink(bookId: number, tags: string[], serverId: string) {
@@ -289,6 +359,15 @@ export class AudiobookMetadataRepository {
 		await db.delete(audiobookTag).where(eq(audiobookTag.bookId, bookId));
 	}
 
+	async getBookTags(bookId: number) {
+		return db
+			.select({ name: tag.name })
+			.from(audiobookTag)
+			.innerJoin(tag, eq(tag.id, audiobookTag.tagId))
+			.where(eq(audiobookTag.bookId, bookId))
+			.then((rows) => rows.map((row) => row.name));
+	}
+
 	// ---------- 11. Chapters ----------
 	async replaceChapters(
 		bookId: number,
@@ -309,6 +388,47 @@ export class AudiobookMetadataRepository {
 		await db
 			.insert(audiobookChapter)
 			.values(chapters.map((ch) => ({ ...ch, bookId })));
+	}
+
+	async getChapters(bookId: number) {
+		return db
+			.select({
+				index: audiobookChapter.index,
+				title: audiobookChapter.title,
+				startTime: audiobookChapter.startTime,
+				endTime: audiobookChapter.endTime,
+			})
+			.from(audiobookChapter)
+			.where(eq(audiobookChapter.bookId, bookId))
+			.orderBy(audiobookChapter.index);
+	}
+
+	async resetMetadata(bookId: number) {
+		await db
+			.update(audiobookMetadata)
+			.set({
+				title: null,
+				subtitle: null,
+				description: null,
+				publishedDate: null,
+				languageCode: null,
+				isbn: null,
+				asin: null,
+				cover: null,
+				duration: null,
+				codec: null,
+				bitRate: null,
+				channels: null,
+				sampleRate: null,
+				explicit: null,
+				abridged: null,
+				publisherId: null,
+				ebookFile: null,
+				mainColor: null,
+				fieldSources: {},
+				lockedFields: [],
+			})
+			.where(eq(audiobookMetadata.bookId, bookId));
 	}
 
 	// ---------- 12. Field provenance ----------

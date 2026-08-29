@@ -4,15 +4,11 @@ import { z } from "zod";
 export const EnrichmentBucketEnum = z.enum([
 	"in_progress",
 	"attention",
-	"stopped",
 	"completed",
-	"history",
 ]);
 
 // One label per row (see modules/metadataEnrichment/enrichment-lifecycle).
 export const EnrichmentLifecycleEnum = z.enum([
-	"archived",
-	"stopped",
 	"scheduled",
 	"review",
 	"unresolved",
@@ -56,7 +52,7 @@ const TARGET_SELECTION_MESSAGE = {
 	message: "Provide either bookUuids or filter",
 };
 
-const TargetSelection = z
+export const TargetSelection = z
 	.object(targetSelectionShape)
 	.refine(exactlyOneTarget, TARGET_SELECTION_MESSAGE);
 
@@ -68,9 +64,6 @@ export const RetryEnrichmentInput = z
 	})
 	.refine(exactlyOneTarget, TARGET_SELECTION_MESSAGE);
 
-export const StopEnrichmentInput = TargetSelection;
-export const ArchiveEnrichmentInput = TargetSelection;
-export const UnarchiveEnrichmentInput = TargetSelection;
 export const ApproveEnrichmentInput = TargetSelection;
 
 export const ActionableCountsInput = TrayFilter;

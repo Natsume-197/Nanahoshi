@@ -1,12 +1,9 @@
 import {
-	Archive,
 	ArrowClockwise,
-	ArrowCounterClockwise,
 	ArrowSquareOut,
 	CheckCircle,
 	Lock,
 	PencilSimple,
-	Prohibit,
 	Warning,
 	X,
 	XCircle,
@@ -70,18 +67,6 @@ function DetailActions({
 }) {
 	const primary = () => {
 		switch (lifecycle) {
-			case "running":
-				return (
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={actions.onStop}
-						disabled={busy}
-					>
-						<Prohibit data-icon="inline-start" />
-						{m["enrichment.action_stop"]()}
-					</Button>
-				);
 			case "scheduled":
 				return (
 					<Button
@@ -117,20 +102,6 @@ function DetailActions({
 						{m["enrichment.retry"]()}
 					</Button>
 				);
-			case "stopped":
-				return (
-					<Button size="sm" onClick={actions.onRetry} disabled={busy}>
-						<ArrowClockwise data-icon="inline-start" />
-						{m["enrichment.action_reprocess"]()}
-					</Button>
-				);
-			case "archived":
-				return (
-					<Button size="sm" onClick={actions.onUnarchive} disabled={busy}>
-						<ArrowCounterClockwise data-icon="inline-start" />
-						{m["enrichment.action_restore"]()}
-					</Button>
-				);
 			default:
 				return (
 					<Button
@@ -140,7 +111,7 @@ function DetailActions({
 						disabled={busy}
 					>
 						<ArrowClockwise data-icon="inline-start" />
-						{m["enrichment.action_refresh"]()}
+						{m["enrichment.retry"]()}
 					</Button>
 				);
 		}
@@ -155,11 +126,7 @@ function DetailActions({
 			onClick: actions.onRetry,
 		});
 	}
-	if (
-		lifecycle === "review" ||
-		lifecycle === "failed" ||
-		lifecycle === "stopped"
-	) {
+	if (lifecycle === "review" || lifecycle === "failed") {
 		secondary.push({
 			key: "fix",
 			label: m["enrichment.fix_match"](),
@@ -184,13 +151,6 @@ function DetailActions({
 			onClick: actions.onApprove,
 		});
 	}
-	if (lifecycle === "failed" || lifecycle === "partial") {
-		secondary.push({
-			key: "stop",
-			label: m["enrichment.action_stop"](),
-			onClick: actions.onStop,
-		});
-	}
 
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
@@ -206,24 +166,6 @@ function DetailActions({
 					{action.label}
 				</Button>
 			))}
-			<Button
-				size="sm"
-				variant="ghost"
-				className="ms-auto text-muted-foreground"
-				onClick={
-					lifecycle === "archived" ? actions.onUnarchive : actions.onArchive
-				}
-				disabled={busy}
-			>
-				{lifecycle === "archived" ? (
-					<ArrowCounterClockwise data-icon="inline-start" />
-				) : (
-					<Archive data-icon="inline-start" />
-				)}
-				{lifecycle === "archived"
-					? m["enrichment.action_restore"]()
-					: m["enrichment.action_archive"]()}
-			</Button>
 		</div>
 	);
 }
@@ -266,12 +208,8 @@ export function MatchDetailPanel({
 		item.mediaType === "audiobook"
 			? "/dashboard/audiobooks/$uuid"
 			: "/dashboard/books/$uuid";
-	const {
-		automaticRetryAt,
-		automaticRetryCancelled,
-		automaticRetryScheduled,
-		providerRetryExhausted,
-	} = resolveRetryView(item.retry);
+	const { automaticRetryAt, automaticRetryScheduled, providerRetryExhausted } =
+		resolveRetryView(item.retry);
 	const firstFailure = item.failures[0];
 	const failureProvider = firstFailure
 		? (labels[firstFailure.provider] ?? firstFailure.provider)
@@ -422,13 +360,6 @@ export function MatchDetailPanel({
 									minutes: minutesFromMs(
 										automaticRetryAt.getTime() - Date.now(),
 									),
-								})}
-							</p>
-						)}
-						{automaticRetryCancelled && (
-							<p className="text-muted-foreground text-sm">
-								{m["enrichment.retry_cancelled_summary"]({
-									provider: failureProvider,
 								})}
 							</p>
 						)}

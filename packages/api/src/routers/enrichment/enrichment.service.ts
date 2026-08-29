@@ -4,10 +4,12 @@ import { providerQuotaScope } from "../../infrastructure/providerQuotaScope";
 import { resolveLifecycle } from "../../modules/metadataEnrichment/enrichment-lifecycle";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { metadataRetryProjection } from "../../modules/metadataRetry/metadata-retry.projection";
+import { audiobookMetadataService } from "../audiobooks/metadata/metadata.service";
 import {
 	AUDIOBOOK_PROVIDER_IDS,
 	AUDIOBOOK_PROVIDER_MANIFEST,
 } from "../audiobooks/metadata/providers/provider.manifest";
+import { bookMetadataService } from "../books/metadata/metadata.service";
 import {
 	BOOK_PROVIDER_IDS,
 	BOOK_PROVIDER_MANIFEST,
@@ -67,8 +69,6 @@ export class EnrichmentService {
 				lifecycle: resolveLifecycle({
 					status: item.status,
 					nextRetryAt: item.nextRetryAt,
-					retryCancelledAt: item.retryCancelledAt,
-					archivedAt: item.archivedAt,
 					providerAttempts: item.providerAttempts,
 					hasFailures: item.failures.length > 0,
 					decision: item.decision,
@@ -76,7 +76,6 @@ export class EnrichmentService {
 				retry: metadataRetryProjection({
 					nextRetryAt: item.nextRetryAt,
 					providerAttempts: item.providerAttempts,
-					retryCancelledAt: item.retryCancelledAt,
 					hasFailures: item.failures.length > 0,
 				}),
 			})),
@@ -108,7 +107,6 @@ export class EnrichmentService {
 			retry: metadataRetryProjection({
 				nextRetryAt: detail.nextRetryAt,
 				providerAttempts: detail.providerAttempts,
-				retryCancelledAt: detail.retryCancelledAt,
 				hasFailures: (detail.failures?.length ?? 0) > 0,
 			}),
 			providerLabels: ALL_PROVIDER_LABELS,
@@ -198,7 +196,7 @@ export class EnrichmentService {
 			);
 		}
 
-		// A single reprocess over every non-archived book in the library that
+		// A single reprocess over every book in the library that
 		// still carries a failure, so they settle without the disabled providers.
 		const { enqueued } = await this.retry(serverId, {
 			filter: { libraryUuid: input.libraryUuid, withFailures: true },
@@ -266,38 +264,22 @@ export class EnrichmentService {
 		return { cancelled };
 	}
 
-	// "Stop extraction": suspends all automatic work for retryable books.
-	async stop(serverId: string, input: TargetSelectionInput) {
+	async restoreOriginal(serverId: string, input: TargetSelectionInput) {
 		const targets = await enrichmentStateRepository.resolveTargets(
 			serverId,
 			input,
 		);
-		const stopped = await enrichmentStateRepository.stop(
-			targets.map(({ bookId }) => bookId),
+		const results = await Promise.all(
+			targets.map((target) =>
+				target.mediaType === "audiobook"
+					? audiobookMetadataService.restoreOriginal(target.bookId)
+					: bookMetadataService.restoreOriginal(target.bookId),
+			),
 		);
-		return { stopped, matched: targets.length };
-	}
-
-	async archive(serverId: string, input: TargetSelectionInput) {
-		const targets = await enrichmentStateRepository.resolveTargets(
-			serverId,
-			input,
-		);
-		const archived = await enrichmentStateRepository.archive(
-			targets.map(({ bookId }) => bookId),
-		);
-		return { archived };
-	}
-
-	async unarchive(serverId: string, input: TargetSelectionInput) {
-		const targets = await enrichmentStateRepository.resolveTargets(
-			serverId,
-			input,
-		);
-		const restored = await enrichmentStateRepository.unarchive(
-			targets.map(({ bookId }) => bookId),
-		);
-		return { restored };
+		return {
+			restored: results.filter(Boolean).length,
+			matched: targets.length,
+		};
 	}
 
 	// Human sign-off on weak (title-only) matches: review → enriched.

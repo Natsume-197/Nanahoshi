@@ -94,9 +94,8 @@ export class EnrichmentStateRepository {
 						? sql`${enrichmentState.providerAttempts} + ${attemptDelta}`
 						: 0,
 					nextRetryAt: retryable
-						? sql`CASE WHEN ${enrichmentState.retryCancelledAt} IS NOT NULL OR ${enrichmentState.providerAttempts} + ${attemptDelta} >= ${MAX_PROVIDER_RETRY_ATTEMPTS} THEN NULL ELSE ${requestedRetryAt}::timestamptz END`
+						? sql`CASE WHEN ${enrichmentState.providerAttempts} + ${attemptDelta} >= ${MAX_PROVIDER_RETRY_ATTEMPTS} THEN NULL ELSE ${requestedRetryAt}::timestamptz END`
 						: null,
-					retryCancelledAt: retryable ? enrichmentState.retryCancelledAt : null,
 				},
 			});
 	}
@@ -138,7 +137,6 @@ export class EnrichmentStateRepository {
 					failures,
 					lastRunAt: sql`now()`,
 					nextRetryAt: sql`CASE
-							WHEN ${enrichmentState.retryCancelledAt} IS NOT NULL THEN NULL
 							WHEN ${enrichmentState.attempts} + 1 >= ${MAX_PARTIAL_ENRICH_ATTEMPTS} THEN NULL
 							WHEN ${enrichmentState.providerAttempts} + ${attemptDelta} >= ${MAX_PROVIDER_RETRY_ATTEMPTS} THEN NULL
 							ELSE ${requestedRetryAt}::timestamptz
@@ -160,7 +158,6 @@ export class EnrichmentStateRepository {
 				lastRunAt: sql`now()`,
 				providerAttempts: 0,
 				nextRetryAt: null,
-				retryCancelledAt: null,
 			})
 			.onConflictDoUpdate({
 				target: enrichmentState.bookId,
@@ -170,7 +167,6 @@ export class EnrichmentStateRepository {
 					lastRunAt: sql`now()`,
 					providerAttempts: 0,
 					nextRetryAt: null,
-					retryCancelledAt: null,
 				},
 			});
 	}
@@ -204,7 +200,6 @@ export class EnrichmentStateRepository {
 					providerAttempts: sql`${enrichmentState.providerAttempts} + ${attemptDelta}`,
 					nextRetryAt: sql`CASE
 						WHEN ${enrichmentState.status} NOT IN ('pending', 'partial') THEN NULL
-						WHEN ${enrichmentState.retryCancelledAt} IS NOT NULL THEN NULL
 						WHEN ${enrichmentState.providerAttempts} + ${attemptDelta} >= ${MAX_PROVIDER_RETRY_ATTEMPTS} THEN NULL
 						ELSE ${nextRetry}::timestamptz
 					END`,
@@ -255,9 +250,7 @@ export class EnrichmentStateRepository {
 				duplicateOfBookId: book.duplicateOfBookId,
 				libraryPausedAt: library.autoEnrichPausedAt,
 				status: enrichmentState.status,
-				archivedAt: enrichmentState.archivedAt,
 				nextRetryAt: enrichmentState.nextRetryAt,
-				retryCancelledAt: enrichmentState.retryCancelledAt,
 				retryGeneration: enrichmentState.retryGeneration,
 			})
 			.from(book)
@@ -312,15 +305,14 @@ export class EnrichmentStateRepository {
 				attempts: 0,
 				providerAttempts: 0,
 				nextRetryAt: null,
-				retryCancelledAt: null,
 				retryGeneration: sql`${enrichmentState.retryGeneration} + 1`,
 			})
 			.where(inArray(enrichmentState.bookId, bookIds));
 	}
 
 	/**
-	 * Stops the current automatic retry cycle. Incrementing the generation fences
-	 * jobs that were already leased into Redis; a manual retry opens a new cycle.
+	 * Cancels a scheduled automatic retry. Incrementing the generation fences
+	 * jobs that were already leased into Redis; later scans may enqueue it again.
 	 */
 	async cancelRetries(bookIds: number[]): Promise<number> {
 		if (bookIds.length === 0) return 0;
@@ -328,7 +320,6 @@ export class EnrichmentStateRepository {
 			.update(enrichmentState)
 			.set({
 				nextRetryAt: null,
-				retryCancelledAt: sql`now()`,
 				retryGeneration: sql`${enrichmentState.retryGeneration} + 1`,
 			})
 			.where(
@@ -339,74 +330,6 @@ export class EnrichmentStateRepository {
 			)
 			.returning({ bookId: enrichmentState.bookId });
 		return cancelled.length;
-	}
-
-	/**
-	 * "Stop extraction": suspends automatic work for retryable books, whether or
-	 * not a retry was scheduled yet. Marks the cancellation durably (also fencing
-	 * any already-leased jobs via the generation) and clears the pending retry.
-	 * A manual reprocess reopens the book. Saved metadata is never touched.
-	 */
-	async stop(bookIds: number[]): Promise<number> {
-		if (bookIds.length === 0) return 0;
-		const stopped = await db
-			.update(enrichmentState)
-			.set({
-				nextRetryAt: null,
-				retryCancelledAt: sql`now()`,
-				retryGeneration: sql`${enrichmentState.retryGeneration} + 1`,
-			})
-			.where(
-				and(
-					inArray(enrichmentState.bookId, bookIds),
-					isNull(enrichmentState.archivedAt),
-					inArray(enrichmentState.status, ["pending", "partial"]),
-					isNull(enrichmentState.retryCancelledAt),
-				),
-			)
-			.returning({ bookId: enrichmentState.bookId });
-		return stopped.length;
-	}
-
-	/** Retire books from the active tray. Never deletes the book or its metadata. */
-	async archive(bookIds: number[]): Promise<number> {
-		if (bookIds.length === 0) return 0;
-		const archived = await db
-			.update(enrichmentState)
-			.set({
-				archivedAt: sql`now()`,
-				// Retiring a book also stops it, exactly like stop(): the pending
-				// appointment is dropped and the generation fences jobs already
-				// leased into BullMQ. Without this an archived book keeps being
-				// dispatched, and restoring it would show a retry that is gone.
-				nextRetryAt: null,
-				retryCancelledAt: sql`coalesce(${enrichmentState.retryCancelledAt}, now())`,
-				retryGeneration: sql`${enrichmentState.retryGeneration} + 1`,
-			})
-			.where(
-				and(
-					inArray(enrichmentState.bookId, bookIds),
-					isNull(enrichmentState.archivedAt),
-				),
-			)
-			.returning({ bookId: enrichmentState.bookId });
-		return archived.length;
-	}
-
-	/** Restore archived books back into their natural bucket. */
-	async unarchive(bookIds: number[]): Promise<number> {
-		if (bookIds.length === 0) return 0;
-		const restored = await db
-			.update(enrichmentState)
-			.set({ archivedAt: null })
-			.where(
-				and(
-					inArray(enrichmentState.bookId, bookIds),
-					isNotNull(enrichmentState.archivedAt),
-				),
-			)
-			.returning({ bookId: enrichmentState.bookId });
-		return restored.length;
 	}
 
 	/** Redis admission failed after a manual reset; keep the intent durable. */
@@ -443,7 +366,6 @@ export class EnrichmentStateRepository {
 				JOIN book b ON b.id = es.book_id
 				JOIN library l ON l.id = b.library_id
 				WHERE es.next_retry_at <= now()
-					AND es.retry_cancelled_at IS NULL
 					AND es.provider_attempts < ${MAX_PROVIDER_RETRY_ATTEMPTS}
 					AND es.status IN ('pending', 'partial')
 					AND b.duplicate_of_book_id IS NULL
@@ -492,9 +414,7 @@ export class EnrichmentStateRepository {
 		const counts: Record<EnrichmentBucket, number> = {
 			in_progress: 0,
 			attention: 0,
-			stopped: 0,
 			completed: 0,
-			history: 0,
 		};
 		for (const row of rows as { bucket: EnrichmentBucket; count: number }[]) {
 			counts[row.bucket] = row.count;
@@ -518,11 +438,7 @@ export class EnrichmentStateRepository {
 			JOIN library l ON l.id = b.library_id
 			WHERE l.server_id = ${serverId}
 				AND b.duplicate_of_book_id IS NULL
-				${
-					filter.bucket
-						? sql`AND ${bucketCaseSql()} = ${filter.bucket}`
-						: sql`AND es.archived_at IS NULL`
-				}
+				${filter.bucket ? sql`AND ${bucketCaseSql()} = ${filter.bucket}` : sql``}
 				${filter.libraryUuid ? sql`AND l.uuid = ${filter.libraryUuid}` : sql``}
 				${filter.mediaType ? sql`AND l.media_type = ${filter.mediaType}` : sql``}
 				${filter.withFailures ? sql`AND jsonb_array_length(es.failures) > 0` : sql``}
@@ -538,7 +454,7 @@ export class EnrichmentStateRepository {
 		return counts;
 	}
 
-	// How many active (non-archived, still-unresolved) books each provider has a
+	// How many unresolved books each provider has a
 	// permanent failure on. Transient failures belong to the automatic retry
 	// flow and must never make a provider eligible for permanent disabling.
 	async providerFailureSummary(
@@ -553,7 +469,6 @@ export class EnrichmentStateRepository {
 			CROSS JOIN LATERAL jsonb_array_elements(es.failures) AS f
 			WHERE l.server_id = ${serverId}
 				AND b.duplicate_of_book_id IS NULL
-				AND es.archived_at IS NULL
 				AND es.status IN ('pending', 'partial')
 				AND f->>'kind' = 'permanent'
 				-- Only count a provider that failed AND didn't end up matching this
@@ -585,7 +500,6 @@ export class EnrichmentStateRepository {
 			JOIN library l ON l.id = b.library_id
 			WHERE l.server_id = ${serverId}
 				AND b.duplicate_of_book_id IS NULL
-				AND es.archived_at IS NULL
 				AND es.status IN ('pending', 'partial')
 				AND EXISTS (
 					SELECT 1
@@ -607,18 +521,14 @@ export class EnrichmentStateRepository {
 		const { rows } = await db.execute(sql`
 			SELECT
 				count(*) FILTER (
-					WHERE es.archived_at IS NULL AND es.status <> 'enriched'
+					WHERE es.status <> 'enriched'
 				)::int AS "retryable",
 				count(*) FILTER (
-					WHERE es.archived_at IS NULL
-						AND es.retry_cancelled_at IS NULL
-						AND es.status IN ('pending', 'partial')
-				)::int AS "stoppable",
-				count(*) FILTER (
-					WHERE es.archived_at IS NULL AND es.status = 'review'
+					WHERE es.status = 'review'
 				)::int AS "approvable",
-				count(*) FILTER (WHERE es.archived_at IS NULL)::int AS "archivable",
-				count(*) FILTER (WHERE es.archived_at IS NOT NULL)::int AS "restorable"
+				count(*) FILTER (
+					WHERE es.status = 'enriched'
+				)::int AS "refreshable"
 			FROM enrichment_state es
 			JOIN book b ON b.id = es.book_id
 			JOIN library l ON l.id = b.library_id
@@ -628,33 +538,22 @@ export class EnrichmentStateRepository {
 		`);
 		return (rows[0] ?? {
 			retryable: 0,
-			stoppable: 0,
 			approvable: 0,
-			archivable: 0,
-			restorable: 0,
+			refreshable: 0,
 		}) as {
 			retryable: number;
-			stoppable: number;
 			approvable: number;
-			archivable: number;
-			restorable: number;
+			refreshable: number;
 		};
 	}
 
-	// Shared tray scoping: server + non-duplicate, plus optional bucket / library
-	// / text filters. A bucket filter uses the shared CASE, so archived rows only
-	// ever surface under the History bucket; with no bucket we exclude them so
-	// the active tray never mixes in archived work. Requires the es/b/l joins and
-	// (for the query filter) the bm/am joins to be present in the caller.
+	// Shared tray scoping: server + non-duplicate, plus optional bucket, library,
+	// and text filters. Requires the es/b/l joins and the bm/am joins for search.
 	#trayConditions(serverId: string, filter: TrayFilter): SQL {
 		return sql`
 			l.server_id = ${serverId}
 			AND b.duplicate_of_book_id IS NULL
-			${
-				filter.bucket
-					? sql`AND ${bucketCaseSql()} = ${filter.bucket}`
-					: sql`AND es.archived_at IS NULL`
-			}
+				${filter.bucket ? sql`AND ${bucketCaseSql()} = ${filter.bucket}` : sql``}
 			${filter.lifecycle ? sql`AND ${lifecycleCaseSql()} = ${filter.lifecycle}` : sql``}
 			${filter.libraryUuid ? sql`AND l.uuid = ${filter.libraryUuid}` : sql``}
 			${filter.mediaType ? sql`AND l.media_type = ${filter.mediaType}` : sql``}
@@ -694,8 +593,6 @@ export class EnrichmentStateRepository {
 				es.provider_attempts AS "providerAttempts",
 				es.last_run_at AS "lastRunAt",
 				es.next_retry_at AS "nextRetryAt",
-				es.retry_cancelled_at AS "retryCancelledAt",
-				es.archived_at AS "archivedAt",
 				count(*) OVER ()::int AS "totalCount"
 			FROM enrichment_state es
 			JOIN book b ON b.id = es.book_id
@@ -722,8 +619,6 @@ export class EnrichmentStateRepository {
 			providerAttempts: number;
 			lastRunAt: string | null;
 			nextRetryAt: string | null;
-			retryCancelledAt: string | null;
-			archivedAt: string | null;
 			totalCount: number;
 		}[];
 		const total = items[0]?.totalCount ?? 0;
@@ -798,7 +693,6 @@ export class EnrichmentStateRepository {
 				es.provider_attempts AS "providerAttempts",
 				es.last_run_at AS "lastRunAt",
 				es.next_retry_at AS "nextRetryAt",
-				es.retry_cancelled_at AS "retryCancelledAt",
 				COALESCE(bm.field_sources, am.field_sources, '{}'::jsonb) AS "fieldSources",
 				COALESCE(bm.locked_fields, am.locked_fields, '{}'::text[]) AS "lockedFields"
 			FROM book b
@@ -823,7 +717,6 @@ export class EnrichmentStateRepository {
 			providerAttempts: number | null;
 			lastRunAt: string | null;
 			nextRetryAt: string | null;
-			retryCancelledAt: string | null;
 			fieldSources: Record<string, { p: string; at: string }>;
 			lockedFields: string[];
 		} | null;
