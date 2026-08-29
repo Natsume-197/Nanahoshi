@@ -84,14 +84,38 @@ async function signIn(page: Page) {
 	await waitForReactHydration(page);
 	const emailInput = page.locator('input[type="email"]');
 	const passwordInput = page.locator('input[type="password"]');
-	await emailInput.click();
-	await emailInput.press("ControlOrMeta+A");
-	await emailInput.pressSequentially(required("READER_E2E_EMAIL", email));
-	await passwordInput.click();
-	await passwordInput.press("ControlOrMeta+A");
-	await passwordInput.pressSequentially(
-		required("READER_E2E_PASSWORD", password),
-	);
+	if (scenarios.has("autofill-login")) {
+		// Password managers may write DOM values without keyboard/change events.
+		// The auth form must still read those values when it is submitted.
+		await page.evaluate(
+			({ autofillEmail, autofillPassword }) => {
+				const emailElement = document.querySelector<HTMLInputElement>(
+					'input[name="email"]',
+				);
+				const passwordElement = document.querySelector<HTMLInputElement>(
+					'input[name="password"]',
+				);
+				if (!emailElement || !passwordElement) {
+					throw new Error("Sign-in fields are missing");
+				}
+				emailElement.value = autofillEmail;
+				passwordElement.value = autofillPassword;
+			},
+			{
+				autofillEmail: required("READER_E2E_EMAIL", email),
+				autofillPassword: required("READER_E2E_PASSWORD", password),
+			},
+		);
+	} else {
+		await emailInput.click();
+		await emailInput.press("ControlOrMeta+A");
+		await emailInput.pressSequentially(required("READER_E2E_EMAIL", email));
+		await passwordInput.click();
+		await passwordInput.press("ControlOrMeta+A");
+		await passwordInput.pressSequentially(
+			required("READER_E2E_PASSWORD", password),
+		);
+	}
 	const submit = page.locator('button[type="submit"]');
 	await eventually(
 		() => submit.isEnabled(),
@@ -102,8 +126,14 @@ async function signIn(page: Page) {
 	try {
 		await eventually(
 			async () => page.url(),
-			(url) => !new URL(url).pathname.startsWith("/login"),
-			"Sign-in did not leave the login route",
+			(url) => new URL(url).pathname === "/dashboard",
+			"Sign-in did not reach the dashboard",
+		);
+		await page.getByRole("main").waitFor({ state: "visible", timeout: 15_000 });
+		await page.waitForTimeout(2_000);
+		assert(
+			new URL(page.url()).pathname === "/dashboard",
+			`Sign-in returned to ${new URL(page.url()).pathname}`,
 		);
 	} catch (error) {
 		const alerts = await page.locator('[role="alert"]').allTextContents();

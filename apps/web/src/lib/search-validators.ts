@@ -13,3 +13,13 @@ export function optionalAppPath(value: unknown): string | undefined {
 export function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value !== "" ? value : undefined;
 }
+
+const UUID_PATTERN =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Optional canonical UUID without pulling a schema library into route config. */
+export function optionalUuid(value: unknown): string | undefined {
+	return typeof value === "string" && UUID_PATTERN.test(value)
+		? value
+		: undefined;
+}

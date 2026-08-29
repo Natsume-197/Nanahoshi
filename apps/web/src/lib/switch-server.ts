@@ -1,5 +1,5 @@
 import { authClient } from "@/lib/auth-client";
-import { QUERY_PERSIST_KEY } from "@/lib/offline";
+import { QUERY_PERSIST_KEY } from "@/lib/query-cache-keys";
 import { setSwitchingServer } from "@/lib/switching-server-store";
 import { client, queryClient } from "@/utils/orpc";
 

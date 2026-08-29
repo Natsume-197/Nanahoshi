@@ -805,9 +805,6 @@
 		"have_account": "Already have an account?",
 		"sign_in_link": "Sign in",
 		"err": {
-			"email_invalid": "Invalid email address",
-			"password_min": "Password must be at least 8 characters",
-			"name_min": "Name must be at least 2 characters",
 			"username_min": "Username must be at least 3 characters",
 			"username_max": "Username must be 30 characters or less",
 			"username_chars": "Only letters, numbers, periods and underscores"

@@ -22,7 +22,7 @@ import { resolveInviteSignupState } from "@/lib/invite-signup-state";
 import { optionalString } from "@/lib/search-validators";
 import { switchActiveServer } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
-import { client, orpc, queryClient } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite/$code")({
 	component: InvitePage,
@@ -36,18 +36,18 @@ export const Route = createFileRoute("/invite/$code")({
 	beforeLoad: ({ context }) => {
 		return { session: context.session };
 	},
-	loader: async ({ params }) => {
+	loader: async ({ params, context }) => {
 		// SSR goes through a server function so the API sees the visitor's cookie:
 		// preview.alreadyMember/discordLinked are per-user, and the plain client has
 		// no cookie jar on the server (it would always answer as a signed-out
 		// visitor). It also must never be cached there — the server query client is
-		// process-wide. On the client the fetch goes through the cache, so the
-		// component's useQuery reuses this same request instead of firing a second one.
+		// shared ORPC transport. On the client the fetch goes through the request's
+		// router cache, so useQuery reuses it instead of firing a second request.
 		try {
 			const [preview, sso] = await Promise.all([
 				typeof window === "undefined"
 					? getInvitePreview({ data: params.code })
-					: queryClient.ensureQueryData(
+					: context.queryClient.ensureQueryData(
 							orpc.inviteLinks.preview.queryOptions({
 								input: { code: params.code },
 							}),

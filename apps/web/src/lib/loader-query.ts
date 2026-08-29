@@ -7,9 +7,9 @@ import type { QueryClient } from "@tanstack/react-query";
  * intent preload just loaded. `router.invalidate()` re-runs the active route's
  * loader with cause "stay", which bypasses the cache so edits render fresh.
  *
- * SSR always calls through: the server-side query client is process-wide, so
- * caching per-user loader results there would leak across requests. Keys are
- * prefixed "loader" and excluded from localStorage persistence (see orpc.ts).
+ * SSR always calls through because the browser-only preload/click deduplication
+ * has no value there. Keys are prefixed "loader" and excluded from persistent
+ * browser storage.
  */
 export function fetchLoaderQuery<T>(
 	queryClient: QueryClient,

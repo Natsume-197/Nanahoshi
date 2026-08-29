@@ -1,10 +1,4 @@
-import { clearReaderBookCache } from "@/features/reader/document/reader-book-cache";
-import {
-	clearPendingProgressForOwner,
-	setPendingProgressOwner,
-} from "@/features/reader/session/pending-progress";
-
-export const QUERY_PERSIST_KEY = "nanahoshi-query-cache";
+import { QUERY_PERSIST_KEY } from "@/lib/query-cache-keys";
 
 /** Removes book copies created by the former offline reader. */
 export function removeLegacyBookStorage(): void {
@@ -18,9 +12,16 @@ export function removeLegacyBookStorage(): void {
 
 /** Sign-out cleanup for every browser cache, including private reader files. */
 export async function clearOfflineCaches(): Promise<void> {
+	const [
+		{ clearPendingProgressForOwner, setPendingProgressOwner },
+		readerCache,
+	] = await Promise.all([
+		import("@/features/reader/session/pending-progress"),
+		import("@/features/reader/document/reader-book-cache"),
+	]);
 	clearPendingProgressForOwner();
 	setPendingProgressOwner(null);
-	await clearReaderBookCache();
+	await readerCache.clearReaderBookCache();
 	try {
 		window.localStorage.removeItem(QUERY_PERSIST_KEY);
 		window.localStorage.removeItem("nanahoshi:recent-searches");

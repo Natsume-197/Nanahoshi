@@ -1,6 +1,5 @@
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 import { Button } from "../ui/button";
 
 type Step = 1 | 2;
@@ -41,8 +40,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 export function CreateWorkspaceForm() {
-	const navigate = useNavigate();
-	const router = useRouter();
 	const [step, setStep] = useState<Step>(1);
 	const [workspaceName, setWorkspaceName] = useState("");
 	const [workspaceSlug, setWorkspaceSlug] = useState("");
@@ -61,13 +58,11 @@ export function CreateWorkspaceForm() {
 			// dashboard instead of retyping them at /login.
 			const { error } = await authClient.signIn.email({ email, password });
 			if (error) {
-				navigate({ to: "/login" });
+				window.location.replace("/login");
 				return;
 			}
-			queryClient.removeQueries({ queryKey: ["auth", "session"] });
-			await router.invalidate();
 			toast.success(m["setup.complete"]());
-			navigate({ to: "/dashboard" });
+			window.location.replace("/dashboard");
 		},
 		onError: (error) => {
 			toast.error(error.message || m["setup.failed"]());

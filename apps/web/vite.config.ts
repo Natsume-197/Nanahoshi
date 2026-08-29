@@ -4,7 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	plugins: [
 		// Compiles ./messages/{locale}.json into ./src/paraglide on dev/build.
 		// Locale comes from the `locale` cookie (no URL prefix), resolved per
@@ -12,7 +12,8 @@ export default defineConfig({
 		paraglideVitePlugin({
 			project: "./project.inlang",
 			outdir: "./src/paraglide",
-			outputStructure: "message-modules",
+			outputStructure:
+				command === "serve" ? "locale-modules" : "message-modules",
 			strategy: ["cookie", "preferredLanguage", "baseLocale"],
 			cookieName: "locale",
 		}),
@@ -32,4 +33,4 @@ export default defineConfig({
 	server: {
 		port: 3001,
 	},
-});
+}));

@@ -18,21 +18,18 @@ export const Route = createFileRoute("/sign-up")({
 			if (search.redirect) throw redirect({ href: search.redirect });
 			throw redirect({ to: "/dashboard" });
 		}
-		// A fresh install creates its admin through the setup wizard, not here.
-		if (!(await client.setup.isConfigured())) {
+		// One public request supplies both the setup gate and registration methods.
+		const sso = await client.setup.ssoStatus();
+		if (!sso.configured) {
 			throw redirect({ to: "/setup" });
 		}
+		return { sso };
 	},
 	component: RouteComponent,
 });
 
 function RouteComponent() {
 	const { redirect: redirectTo, error } = Route.useSearch();
-	return (
-		<SignUpForm
-			redirectTo={redirectTo}
-			oauthError={error}
-			onSwitchToSignIn={() => {}}
-		/>
-	);
+	const { sso } = Route.useRouteContext();
+	return <SignUpForm sso={sso} redirectTo={redirectTo} oauthError={error} />;
 }

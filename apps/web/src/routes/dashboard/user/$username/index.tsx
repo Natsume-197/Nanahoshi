@@ -33,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 import { getHeaderImageSources } from "@/utils/profile-images";
 
 const SHELF_STATUS_VALUES: ShelfStatus[] = [
@@ -80,6 +80,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 				: undefined,
 	}),
 	loader: ({ params: { username }, context }) => {
+		if (typeof window === "undefined") return;
 		const session = context.session;
 		const isOwnProfile =
 			(session?.user as { username?: string } | undefined)?.username ===
@@ -89,7 +90,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 			? orpc.profile.getProfile.queryOptions()
 			: orpc.profile.getPublicProfile.queryOptions({ input: { username } });
 
-		queryClient.prefetchQuery(profileQuery);
+		context.queryClient.prefetchQuery(profileQuery);
 	},
 	pendingComponent: ProfileSkeleton,
 });

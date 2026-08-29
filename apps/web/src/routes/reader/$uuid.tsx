@@ -1,20 +1,21 @@
 import { ORPCError } from "@orpc/client";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
-import { z } from "zod";
 import {
 	ReaderRoutePending,
 	ReaderScreen,
 } from "@/features/reader/reader-screen";
 import { getBook } from "@/functions/books/get-book";
+import { optionalUuid } from "@/lib/search-validators";
 
 export const Route = createFileRoute("/reader/$uuid")({
 	component: ReaderRoute,
 	pendingComponent: ReaderRoutePending,
 	pendingMs: 0,
 	pendingMinMs: 0,
-	validateSearch: z.object({
-		pair: z.string().uuid().optional(),
-	}),
+	validateSearch: (search: Record<string, unknown>): { pair?: string } => {
+		const pair = optionalUuid(search.pair);
+		return pair ? { pair } : {};
+	},
 	beforeLoad: ({ context }) => {
 		if (!context.session) throw redirect({ to: "/login" });
 		return { session: context.session };

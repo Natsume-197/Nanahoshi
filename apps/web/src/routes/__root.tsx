@@ -6,21 +6,12 @@ import {
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
-import { PlayerHostProvider } from "@/components/audio-player/player-host";
-import { SettingsModalHost } from "@/components/layout/settings-modal-host";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AudioPlayerProvider } from "@/context/audio-player-context";
 import { LocaleContext } from "@/context/locale-context";
-import {
-	flushPendingProgress,
-	setPendingProgressOwner,
-} from "@/features/reader/session/pending-progress";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
-import { useWindowEvent } from "@/hooks/use-window-event";
 import { removeLegacyBookStorage } from "@/lib/offline";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
@@ -34,8 +25,15 @@ import {
 	type Locale,
 	setLocale as paraglideSetLocale,
 } from "@/paraglide/runtime";
-import { type orpc, setupQueryPersistence } from "@/utils/orpc";
+import type { orpc } from "@/utils/orpc";
 import appCss from "../index.css?url";
+
+const AuthenticatedAppProviders = lazy(async () => {
+	const module = await import(
+		"@/components/layout/authenticated-app-providers"
+	);
+	return { default: module.AuthenticatedAppProviders };
+});
 
 export interface RouterAppContext {
 	orpc: typeof orpc;
@@ -150,8 +148,8 @@ function RootDocument() {
 	// Locale lives in state so a language switch re-renders instantly (no page
 	// reload). `setLocale` persists the cookie with reload disabled; the `key` on
 	// the routed subtree below remounts it so every m.*() re-resolves — including
-	// React.memo'd components. Kept below AudioPlayerProvider so audio keeps
-	// playing across a language change.
+	// React.memo'd components. The audio provider stays outside that keyed subtree
+	// so playback continues across a language change.
 	const [locale, setLocaleState] = useState<Locale>(getLocale);
 	const setLocale = useCallback((next: Locale) => {
 		// Persist to the Paraglide cookie (no page reload); state drives the remount.
@@ -167,14 +165,7 @@ function RootDocument() {
 		applyPaletteVars(palette?.vars ?? null);
 		storePalette(palette);
 		refreshThemeColor();
-		// After hydration on purpose: restoring the persisted cache earlier makes
-		// the first client render disagree with the SSR HTML (see orpc.ts).
-		setupQueryPersistence();
 		removeLegacyBookStorage();
-	});
-
-	useWindowEvent("online", () => {
-		flushPendingProgress();
 	});
 
 	return (
@@ -196,18 +187,17 @@ function RootDocument() {
 			<body suppressHydrationWarning>
 				<LocaleContext value={{ locale, setLocale }}>
 					<TooltipProvider>
-						{/* Settings modals live above the locale key so switching
-						    language re-renders them in place instead of closing them. */}
-						<SettingsModalHost>
-							{session && <AuthenticatedSessionLifecycle />}
-							<AudioPlayerProvider>
-								<PlayerHostProvider>
+						{session ? (
+							<Suspense fallback={null}>
+								<AuthenticatedAppProviders userId={session.user.id}>
 									{/* key={locale} remounts the routed tree on a language
 									    switch so memo'd components re-run their m.*() calls. */}
 									<Outlet key={locale} />
-								</PlayerHostProvider>
-							</AudioPlayerProvider>
-						</SettingsModalHost>
+								</AuthenticatedAppProviders>
+							</Suspense>
+						) : (
+							<Outlet key={locale} />
+						)}
 					</TooltipProvider>
 				</LocaleContext>
 				<Toaster />
@@ -215,14 +205,4 @@ function RootDocument() {
 			</body>
 		</html>
 	);
-}
-
-function AuthenticatedSessionLifecycle() {
-	const { session } = Route.useRouteContext();
-	setPendingProgressOwner(session?.user.id ?? null);
-	useMountEffect(() => {
-		flushPendingProgress(session?.user.id ?? null);
-	});
-	useSessionLifecycle();
-	return null;
 }

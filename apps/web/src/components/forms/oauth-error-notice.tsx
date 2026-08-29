@@ -16,7 +16,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, () => string> = {
 		m["auth.oauth_err.account_already_linked"],
 };
 
-export function oauthErrorMessage(code: string): string {
+function oauthErrorMessage(code: string): string {
 	const known = OAUTH_ERROR_MESSAGES[code];
 	return known ? known() : m["auth.oauth_err.generic"]({ code });
 }

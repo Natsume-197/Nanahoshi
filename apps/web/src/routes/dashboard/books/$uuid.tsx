@@ -12,7 +12,7 @@ import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { fetchLoaderQuery } from "@/lib/loader-query";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({
 	component: BookLayout,
@@ -23,10 +23,10 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 		}
 		return { session: context.session };
 	},
-	loader: async ({ params, cause }) => {
+	loader: async ({ params, cause, context }) => {
 		try {
 			const { book, switchedOrgId } = await fetchLoaderQuery(
-				queryClient,
+				context.queryClient,
 				["loader", "book-detail", params.uuid],
 				() => getBook({ data: params.uuid }),
 				cause,
@@ -38,22 +38,22 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 			// process-wide, so seeding per-user state there would leak across
 			// requests (see lib/loader-query.ts).
 			if (typeof window !== "undefined") {
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.readingProgress.getProgress.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.bookShelf.get.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.likedBooks.getLikeStatus.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.collections.listBookMemberships.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),

@@ -39,8 +39,6 @@ export const Route = createFileRoute("/dashboard/invitations")({
 	},
 });
 
-const INVITATION_QUERY_KEY = ["my-invitations"] as const;
-
 function InvitationsPage() {
 	const router = useRouter();
 	const qc = useQueryClient();
@@ -85,15 +83,15 @@ function InvitationsPage() {
 		};
 	});
 
+	const invitationsQuery = orpc.invitations.listMine.queryOptions();
 	const { data: invitations, isLoading } = useQuery({
-		...orpc.invitations.listMine.queryOptions(),
-		queryKey: INVITATION_QUERY_KEY,
+		...invitationsQuery,
 		// Only fetch the list if we're not mid-accept
 		enabled: tokenStatus === "idle" || tokenStatus === "error",
 	});
 
 	const invalidate = () =>
-		qc.invalidateQueries({ queryKey: INVITATION_QUERY_KEY });
+		qc.invalidateQueries({ queryKey: invitationsQuery.queryKey });
 
 	const handleAccept = async (invitationId: string, orgId: string) => {
 		const { error } = await authClient.organization.acceptInvitation({
@@ -221,7 +219,9 @@ function InvitationsPage() {
 										{inv.organizationName}
 									</p>
 									<p className="mt-0.5 text-muted-foreground text-xs capitalize">
-										{m["member_invitations.role"]({ role: inv.role })}
+										{m["member_invitations.role"]({
+											role: inv.role ?? "",
+										})}
 										{inv.expiresAt && (
 											<>
 												{" "}

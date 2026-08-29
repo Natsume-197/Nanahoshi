@@ -19,21 +19,18 @@ export const Route = createFileRoute("/login")({
 			if (search.redirect) throw redirect({ href: search.redirect });
 			throw redirect({ to: "/dashboard" });
 		}
-		// A fresh install has no accounts to sign into — go initialize instead.
-		if (!(await client.setup.isConfigured())) {
+		// One public request supplies both the setup gate and auth methods.
+		const sso = await client.setup.ssoStatus();
+		if (!sso.configured) {
 			throw redirect({ to: "/setup" });
 		}
+		return { sso };
 	},
 	component: RouteComponent,
 });
 
 function RouteComponent() {
 	const { redirect: redirectTo, error } = Route.useSearch();
-	return (
-		<SignInForm
-			redirectTo={redirectTo}
-			oauthError={error}
-			onSwitchToSignUp={() => {}}
-		/>
-	);
+	const { sso } = Route.useRouteContext();
+	return <SignInForm sso={sso} redirectTo={redirectTo} oauthError={error} />;
 }

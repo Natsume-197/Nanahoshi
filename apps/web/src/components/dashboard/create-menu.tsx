@@ -1,13 +1,7 @@
 import { Books, FolderPlus, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import {
-	type CreateLibraryData,
-	CreateLibraryWizard,
-} from "@/components/libraries/create-library-wizard";
+import { lazy, Suspense, useState } from "react";
 import { getUploadableLibraries } from "@/components/libraries/library-ui-state";
-import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
-import { CreateCollectionDialog } from "@/components/shared/create-collection-button";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -16,9 +10,13 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAbilities } from "@/hooks/use-abilities";
-import { useCreateLibrary } from "@/hooks/use-create-library";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+
+const CreateMenuDialogs = lazy(async () => {
+	const module = await import("@/components/dashboard/create-menu-dialogs");
+	return { default: module.CreateMenuDialogs };
+});
 
 /**
  * The header's create shortcut: one "+" that opens what the user is allowed to
@@ -30,6 +28,7 @@ export function CreateMenu() {
 	const [showLibraryWizard, setShowLibraryWizard] = useState(false);
 	const [showCollectionDialog, setShowCollectionDialog] = useState(false);
 	const [showUploadModal, setShowUploadModal] = useState(false);
+	const [dialogsMounted, setDialogsMounted] = useState(false);
 
 	const canCreateLibrary = can("library", "create");
 	const canCreateCollection = can("collection", "create");
@@ -44,11 +43,11 @@ export function CreateMenu() {
 	const uploadable = getUploadableLibraries(libraries ?? []);
 	const canUploadHere = canUpload && uploadable.length > 0;
 
-	const createLibrary = useCreateLibrary({
-		onCreated: () => setShowLibraryWizard(false),
-	});
-
 	if (!canCreateLibrary && !canCreateCollection && !canUploadHere) return null;
+	const openDialog = (open: () => void) => {
+		setDialogsMounted(true);
+		open();
+	};
 
 	return (
 		<>
@@ -73,7 +72,7 @@ export function CreateMenu() {
 					{canCreateLibrary && (
 						<DropdownMenuItem
 							className="gap-2.5"
-							onClick={() => setShowLibraryWizard(true)}
+							onClick={() => openDialog(() => setShowLibraryWizard(true))}
 						>
 							<Books />
 							<span className="flex-1">{m["library.new"]()}</span>
@@ -82,7 +81,7 @@ export function CreateMenu() {
 					{canCreateCollection && (
 						<DropdownMenuItem
 							className="gap-2.5"
-							onClick={() => setShowCollectionDialog(true)}
+							onClick={() => openDialog(() => setShowCollectionDialog(true))}
 						>
 							<FolderPlus />
 							<span className="flex-1">{m["collection.new"]()}</span>
@@ -91,7 +90,7 @@ export function CreateMenu() {
 					{canUploadHere && (
 						<DropdownMenuItem
 							className="gap-2.5"
-							onClick={() => setShowUploadModal(true)}
+							onClick={() => openDialog(() => setShowUploadModal(true))}
 						>
 							<UploadSimple />
 							<span className="flex-1">{m["nav.upload"]()}</span>
@@ -100,28 +99,21 @@ export function CreateMenu() {
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			{canCreateLibrary && (
-				<CreateLibraryWizard
-					key={showLibraryWizard ? "open" : "closed"}
-					open={showLibraryWizard}
-					onOpenChange={setShowLibraryWizard}
-					onSubmit={(data: CreateLibraryData) => createLibrary.mutate(data)}
-					isPending={createLibrary.isPending}
-				/>
-			)}
-			{canCreateCollection && (
-				<CreateCollectionDialog
-					open={showCollectionDialog}
-					onOpenChange={setShowCollectionDialog}
-				/>
-			)}
-			{canUploadHere && (
-				<UploadBooksModal
-					libraries={uploadable}
-					open={showUploadModal}
-					onOpenChange={setShowUploadModal}
-					showLibraryPicker
-				/>
+			{dialogsMounted && (
+				<Suspense fallback={null}>
+					<CreateMenuDialogs
+						canCreateLibrary={canCreateLibrary}
+						canCreateCollection={canCreateCollection}
+						canUpload={canUploadHere}
+						libraries={uploadable}
+						showLibraryWizard={showLibraryWizard}
+						setShowLibraryWizard={setShowLibraryWizard}
+						showCollectionDialog={showCollectionDialog}
+						setShowCollectionDialog={setShowCollectionDialog}
+						showUploadModal={showUploadModal}
+						setShowUploadModal={setShowUploadModal}
+					/>
+				</Suspense>
 			)}
 		</>
 	);

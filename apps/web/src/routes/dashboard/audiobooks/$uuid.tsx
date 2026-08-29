@@ -11,7 +11,7 @@ import { getAudiobook } from "@/functions/books/get-audiobook";
 import { fetchLoaderQuery } from "@/lib/loader-query";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
-import { orpc, queryClient } from "@/utils/orpc";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 	component: AudiobookLayout,
@@ -22,10 +22,10 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 		}
 		return { session: context.session };
 	},
-	loader: async ({ params, cause }) => {
+	loader: async ({ params, cause, context }) => {
 		try {
 			const audiobook = await fetchLoaderQuery(
-				queryClient,
+				context.queryClient,
 				["loader", "audiobook-detail", params.uuid],
 				() => getAudiobook({ data: params.uuid }),
 				cause,
@@ -35,17 +35,17 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 			// await). Client only: the SSR query client is process-wide, so seeding
 			// per-user state there would leak across requests (see lib/loader-query.ts).
 			if (typeof window !== "undefined") {
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.listeningProgress.getProgress.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.audiobookShelf.get.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				queryClient.prefetchQuery(
+				context.queryClient.prefetchQuery(
 					orpc.likedBooks.getLikeStatus.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),

@@ -4,8 +4,8 @@ import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/setup/")({
 	beforeLoad: async () => {
-		const isConfigured = await client.setup.isConfigured();
-		if (isConfigured) {
+		const { configured } = await client.setup.ssoStatus();
+		if (configured) {
 			throw redirect({
 				to: "/dashboard",
 			});

@@ -15,15 +15,16 @@ import { setupRepository } from "./setup.repository";
 type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;
 
 export const setupRouter = {
-	isConfigured: publicProcedure.handler(async () => {
-		return await isAppConfigured();
-	}),
 	/** Public: which external sign-in providers are available, for the auth screens. */
 	ssoStatus: publicProcedure.handler(async () => {
-		const registration = await getRegistrationSettings();
+		const [registration, configured] = await Promise.all([
+			getRegistrationSettings(),
+			isAppConfigured(),
+		]);
 		const discordConfigured =
 			!!env.DISCORD_CLIENT_ID && !!env.DISCORD_CLIENT_SECRET;
 		return {
+			configured,
 			enabled: !!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
 			providerId: env.OIDC_PROVIDER_ID,
 			label: env.OIDC_PROVIDER_LABEL,
@@ -78,7 +79,7 @@ export const setupRouter = {
 			await ensureDefaultRole(orgId);
 
 			// The tx wrote the first_setup flag directly; refresh the in-process
-			// cache so isConfigured (and the sign-up gate) see it immediately.
+			// cache so the public auth gate sees it immediately.
 			await markAppConfigured();
 
 			return result;

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { getOrganizations } from "@/functions/get-organizations";
 
@@ -9,15 +9,19 @@ export const Route = createFileRoute("/dashboard")({
 	// front of every section change. The OrgSwitcher keeps its own better-auth
 	// subscription for live updates; this only feeds the initial render.
 	beforeLoad: async ({ context }) => {
+		if (!context.session) throw redirect({ to: "/login" });
 		if (typeof window === "undefined") {
-			return { organizations: await getOrganizations() };
+			return {
+				session: context.session,
+				organizations: await getOrganizations(),
+			};
 		}
 		const organizations = await context.queryClient.ensureQueryData({
 			queryKey: ["organizations", "dashboard"],
 			queryFn: () => getOrganizations(),
 			staleTime: 5 * 60_000,
 		});
-		return { organizations };
+		return { session: context.session, organizations };
 	},
 	component: DashboardLayout,
 });
