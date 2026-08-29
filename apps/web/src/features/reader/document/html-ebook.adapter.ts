@@ -95,6 +95,7 @@ export async function adaptHtmlEbook(
 		const styles = new Set<string>();
 		let bodyTextLength = 0;
 		let imageCount = 0;
+		let currentChapterReference: string | undefined;
 
 		const preparedSections = await mapConcurrent(
 			content.sections,
@@ -144,13 +145,14 @@ export async function adaptHtmlEbook(
 				const wrapper = staging.createElement("div");
 				wrapper.id = sectionReference(sourceFormat, sectionRef.id);
 				wrapper.appendChild(htmlWrapper);
+				const adaptedSection: Section = {
+					reference: wrapper.id,
+					charactersWeight: 1,
+					label: labels.get(sectionRef.id),
+				};
 				return {
 					wrapper,
-					section: {
-						reference: wrapper.id,
-						charactersWeight: 1,
-						label: labels.get(sectionRef.id),
-					},
+					section: adaptedSection,
 					styles: sectionStyles,
 					textLength: sectionTextLength,
 					imageCount: sectionImageCount,
@@ -159,6 +161,11 @@ export async function adaptHtmlEbook(
 		);
 		for (const prepared of preparedSections) {
 			if (!prepared) continue;
+			if (prepared.section.label) {
+				currentChapterReference = prepared.section.reference;
+			} else if (currentChapterReference && labels.size > 0) {
+				prepared.section.parentChapter = currentChapterReference;
+			}
 			root.appendChild(prepared.wrapper);
 			sections.push(prepared.section);
 			for (const css of prepared.styles) styles.add(css);

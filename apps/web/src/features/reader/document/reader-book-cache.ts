@@ -11,7 +11,7 @@ const DATABASE_NAME = "NanahoshiReaderCache";
 const DATABASE_VERSION = 1;
 const FILES_STORE = "files";
 const FACTS_STORE = "facts";
-const FACTS_SCHEMA_VERSION = 2;
+const FACTS_SCHEMA_VERSION = 3;
 
 export interface ReaderBookCacheKey {
 	serverId: string;

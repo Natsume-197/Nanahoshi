@@ -23,7 +23,7 @@ describe("reader book facts", () => {
 	test("restores facts for the same section order", () => {
 		const facts = {
 			...data,
-			schemaVersion: 2 as const,
+			schemaVersion: 3 as const,
 			sectionCharacterCounts: [12, 30],
 		};
 		const rebuilt = {
@@ -48,7 +48,7 @@ describe("reader book facts", () => {
 	test("rejects facts when the source section order changed", () => {
 		const facts = {
 			...data,
-			schemaVersion: 2 as const,
+			schemaVersion: 3 as const,
 			sectionCharacterCounts: [12, 30],
 		};
 		expect(
