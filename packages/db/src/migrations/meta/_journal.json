@@ -715,6 +715,13 @@
       "when": 1787925736183,
       "tag": "0101_orange_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1787966344955,
+      "tag": "0102_next_pandemic",
+      "breakpoints": true
     }
   ]
 }

@@ -149,7 +149,7 @@ function oklchToRgb(lightness: number, chroma: number, hue: number) {
 function parseThemeColor(value: string): [number, number, number, number] {
 	const rgba = value.match(/rgba?\((.+)\)/)?.[1]?.split(",");
 	if (rgba) {
-		const [red, green, blue, alpha = "1"] = rgba.map((part) =>
+		const [red, green, blue, alpha = 1] = rgba.map((part) =>
 			Number.parseFloat(part.trim()),
 		);
 		return [red ?? 0, green ?? 0, blue ?? 0, alpha ?? 1];
@@ -466,7 +466,7 @@ export function ReaderCustomThemeDialog({
 	onPreviewRef.current = onPreview;
 
 	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
+		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
 			if (event.key === "Escape") onClose();
 		};
 		window.addEventListener("keydown", handleKeyDown);

@@ -435,10 +435,10 @@ export function ReaderScreen({
 		serverId: bookServerId,
 		fileSizeBytes: book?.filesizeKb ? book.filesizeKb * 1024 : undefined,
 		fileHash: book?.filehash,
-		fileName: book?.filename,
+		fileName: book?.filename ?? undefined,
 		pageCount: book?.pageCount,
 		sourceFormat: bookSourceFormat,
-		language: book?.languageCode,
+		language: book?.languageCode ?? undefined,
 		contentForm: book?.contentForm,
 		allowLazySections,
 		readerSettings: settings,
@@ -855,7 +855,7 @@ export function ReaderScreen({
 	// Structural remounts (view/writing mode change) restore the position the
 	// reader was at, not the original load-time position.
 	const initialPosition =
-		readerSessionRef.current.snapshot().position ??
+		readerSessionRef.current?.snapshot().position ??
 		(exploredRef.current >= 0
 			? {
 					exploredCharCount: exploredRef.current,

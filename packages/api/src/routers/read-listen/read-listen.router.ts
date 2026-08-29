@@ -19,7 +19,6 @@ import {
 	ListReadListenPairingsInput,
 	RemoveReadListenPairInput,
 	RemoveReadListenReviewedMatchesInput,
-	RemoveReadListenReviewedMatchInput,
 	SearchReadListenCandidatesInput,
 	SearchReadListenPairingsInput,
 	StartReadListenMatchAnalysisInput,
@@ -312,22 +311,6 @@ export function createReadListenRouter(
 					target: input.target,
 					action: input.action,
 					decidedByUserId: context.session.user.id,
-					serverId: context.serverId,
-					scope,
-				});
-			}),
-
-		removeReviewedMatch: orgReadProcedure
-			.input(RemoveReadListenReviewedMatchInput)
-			.handler(async ({ input, context }) => {
-				const scope = await getLibraryIdsForBookAction(
-					context.session.user.id,
-					context.serverId,
-					context.pc,
-					"editMetadata",
-				);
-				return readListenMatchReviewLifecycle.remove({
-					reviewIds: [input.proposalUuid],
 					serverId: context.serverId,
 					scope,
 				});

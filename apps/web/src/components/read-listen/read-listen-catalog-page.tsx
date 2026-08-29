@@ -341,11 +341,11 @@ export function ReadListenCatalogPage() {
 		return filtered.sort((a, b) => {
 			if (sort === "recent") return b.createdAt.localeCompare(a.createdAt);
 			if (sort === "author") {
-				return formatNames(a.audiobook.authors).localeCompare(
-					formatNames(b.audiobook.authors),
+				return (formatNames(a.audiobook.authors) ?? "").localeCompare(
+					formatNames(b.audiobook.authors) ?? "",
 				);
 			}
-			return a.audiobook.title.localeCompare(b.audiobook.title);
+			return (a.audiobook.title ?? "").localeCompare(b.audiobook.title ?? "");
 		});
 	}, [pairings, query, ebookLibraryUuid, audiobookLibraryUuid, sort]);
 	const hasActiveFilters =

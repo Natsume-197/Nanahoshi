@@ -530,16 +530,6 @@ html[data-rail="expanded"] {
 	background-attachment: fixed;
 }
 
-@utility chrome-notch {
-	inline-size: var(--radius-2xl);
-	block-size: var(--radius-2xl);
-	mask-image: radial-gradient(
-		circle var(--radius-2xl) at 0 100%,
-		transparent 0 96%,
-		#000 100%
-	);
-}
-
 @keyframes skeleton-pulse {
 	0%,
 	100% {

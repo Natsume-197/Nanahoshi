@@ -17,3 +17,15 @@ const SETTINGS_SECTIONS = [
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+export type OrgSettingsSection =
+	| "general"
+	| "stats"
+	| "libraries"
+	| "metadata"
+	| "recommendations"
+	| "opds"
+	| "members"
+	| "roles"
+	| "invitations"
+	| "access";

@@ -184,7 +184,6 @@ const LibrarySchema = z.object({
 	isCronWatch: z.boolean().nullable().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	realtimeWatchEnabled: z.boolean().default(true),
-	isPublic: z.boolean(),
 	mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 	automaticGroupingEnabled: z.boolean().default(true),
 	// Output shape: unvalidated ids on purpose, so a row written by an older
@@ -215,7 +214,6 @@ export const CreateLibraryInputSchema = z
 		isCronWatch: z.boolean().default(false),
 		scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 		realtimeWatchEnabled: z.boolean().default(true),
-		isPublic: z.boolean().default(false),
 		mediaType: z.enum(["ebook", "audiobook"]).default("ebook"),
 		// Default (per media type) is applied in library.service.createLibrary.
 		metadataProviders: MetadataProvidersSchema.optional(),
@@ -273,7 +271,6 @@ export const UpdateLibraryInput = z.object({
 	isCronWatch: z.boolean().optional(),
 	scanIntervalMinutes: z.number().int().positive().nullable().optional(),
 	realtimeWatchEnabled: z.boolean().optional(),
-	isPublic: z.boolean().optional(),
 	automaticGroupingEnabled: z.boolean().optional(),
 	// Validated against the library's mediaType in library.service.updateLibrary.
 	metadataProviders: MetadataProvidersSchema.optional(),

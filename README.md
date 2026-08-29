@@ -22,8 +22,7 @@ The web application is available at `http://localhost:3001` and the API at
 a fresh installation becomes the instance administrator. Later registrations
 require an invitation according to the configured policy.
 
-Before upgrading, create and verify a backup. Recovery procedures and the
-configuration reference are documented in [docs/operations.md](docs/operations.md).
+Before upgrading, create and verify a backup with `bun run backup`.
 
 ## Contribution and attribution
 

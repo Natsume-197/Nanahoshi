@@ -10,10 +10,6 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
 
-/**
- * Visibility only. Renaming lives on the library header, where the name already
- * is — a separate "Name / Edit" row said the same thing twice.
- */
 export function GeneralSection({
 	library,
 	canManage,
@@ -54,24 +50,6 @@ export function GeneralSection({
 					/>
 				</SettingControlRow>
 			)}
-
-			<SettingControlRow
-				label={
-					<h3 className="font-medium text-base text-foreground">
-						{m["library.public_title"]()}
-					</h3>
-				}
-				description={m["library.public_desc_full"]()}
-			>
-				<Switch
-					checked={library.isPublic}
-					disabled={!canManage || updateMutation.isPending}
-					onCheckedChange={(checked) =>
-						updateMutation.mutate({ uuid: library.uuid, isPublic: checked })
-					}
-					aria-label={m["library.toggle_public"]()}
-				/>
-			</SettingControlRow>
 		</SettingRows>
 	);
 }

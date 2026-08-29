@@ -207,7 +207,6 @@ try {
 			name: `__scan_acceptance_${Date.now()}`,
 			isCronWatch: false,
 			scanIntervalMinutes: null,
-			isPublic: false,
 			mediaType: "ebook",
 			automaticGroupingEnabled: sourceLibrary.automaticGroupingEnabled ?? true,
 			metadataProviders: sourceLibrary.metadataProviders,

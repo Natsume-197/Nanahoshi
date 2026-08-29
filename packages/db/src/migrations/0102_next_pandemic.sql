@@ -1,0 +1,1 @@
+ALTER TABLE "library" DROP COLUMN "is_public";

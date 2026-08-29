@@ -394,7 +394,12 @@ export function InstanceActivitySettings() {
 		setServerId("");
 	};
 	const active = activityQuery.data?.activePlayback ?? [];
-	const audit = activityQuery.data?.audit ?? [];
+	const audit: SecurityAuditEntry[] = (activityQuery.data?.audit ?? []).map(
+		(entry) => ({
+			...entry,
+			outcome: entry.outcome === "success" ? "success" : "failure",
+		}),
+	);
 	const downloads = activityQuery.data?.downloads ?? [];
 
 	return (

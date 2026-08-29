@@ -70,10 +70,6 @@ export const RemoveReadListenPairInput = z.object({
 	pairUuid: z.string().uuid(),
 });
 
-export const RemoveReadListenReviewedMatchInput = z.object({
-	proposalUuid: z.string().uuid(),
-});
-
 export const RemoveReadListenReviewedMatchesInput = z.union([
 	z.object({ proposalUuids: z.array(z.string().uuid()).min(1).max(50) }),
 	z.object({

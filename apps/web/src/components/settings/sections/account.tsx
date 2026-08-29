@@ -81,6 +81,9 @@ export function AccountSettings() {
 	const isDiscordLinked = accountsQuery.data?.some(
 		(a) => a.providerId === "discord",
 	);
+	const discordAccount = accountsQuery.data?.find(
+		(account) => account.providerId === "discord",
+	);
 
 	const linkDiscordMutation = useMutation({
 		mutationFn: async () => {
@@ -99,7 +102,8 @@ export function AccountSettings() {
 
 	const unlinkDiscordMutation = useMutation({
 		mutationFn: async () => {
-			await authClient.unlinkAccount({ providerId: "discord" });
+			if (!discordAccount) return;
+			await authClient.unlinkAccount({ accountId: discordAccount.id });
 		},
 		onSuccess: () => {
 			accountsQuery.refetch();

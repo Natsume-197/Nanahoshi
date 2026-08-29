@@ -318,7 +318,6 @@ export class LibraryRepository {
 			isCronWatch?: boolean;
 			scanIntervalMinutes?: number | null;
 			realtimeWatchEnabled?: boolean;
-			isPublic?: boolean;
 			automaticGroupingEnabled?: boolean;
 			metadataProviders?: MetadataProvidersConfig;
 			metadataConfig?: MetadataConfig;

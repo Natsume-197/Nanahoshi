@@ -104,19 +104,19 @@ export function usePlayerSync({
 
 		if (started) syncRef.current?.();
 		if (stopped) {
-			enqueue(() =>
-				client.presence
+			enqueue(async () => {
+				await client.presence
 					.clearActivity({ context: { keepalive: true } })
-					.catch(() => {}),
-			);
+					.catch(() => {});
+			});
 		}
 	}, [bookUuid, enabled, enqueue]);
 
 	// Sync on unmount, then clear "listening" presence (see the hook for the
 	// sync-before-clear ordering).
-	useClearActivityOnUnmount(() =>
-		enabledRef.current ? syncRef.current?.() : undefined,
-	);
+	useClearActivityOnUnmount(async () => {
+		if (enabledRef.current) await syncRef.current?.();
+	});
 
 	return { syncNow: syncProgress };
 }

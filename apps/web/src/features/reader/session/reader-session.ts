@@ -186,8 +186,9 @@ export function useReaderSession(bookUuid: string) {
 	const bookCharCountRef = useRef(0);
 	const positionClockRef = useRef(0);
 	const readerUuidRef = useRef(bookUuid);
-	const readerSessionRef =
-		useRef<ReturnType<typeof createReaderSessionCoordinator>>();
+	const readerSessionRef = useRef<ReturnType<
+		typeof createReaderSessionCoordinator
+	> | null>(null);
 	if (!readerSessionRef.current) {
 		readerSessionRef.current = createReaderSessionCoordinator({
 			save: (position) =>

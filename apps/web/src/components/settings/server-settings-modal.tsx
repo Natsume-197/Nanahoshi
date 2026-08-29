@@ -22,6 +22,7 @@ import { RolesSettings } from "@/components/settings/sections/roles";
 import { StatsSettings } from "@/components/settings/sections/stats";
 import { resolveVisibleOrgSettingsSection } from "@/components/settings/server-settings-access";
 import { SettingsDialogShell } from "@/components/settings/settings-dialog-shell";
+import type { OrgSettingsSection } from "@/components/settings/settings-sections";
 import type {
 	SettingsNavGroup,
 	SettingsNavIcon,
@@ -30,21 +31,7 @@ import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 
-const ORG_SETTINGS_SECTIONS = [
-	"general",
-	"stats",
-	"libraries",
-	"metadata",
-	"recommendations",
-	"opds",
-	"members",
-	"roles",
-	"invitations",
-	"access",
-] as const;
-
-export type OrgSettingsSection = (typeof ORG_SETTINGS_SECTIONS)[number];
-
+export type { OrgSettingsSection } from "@/components/settings/settings-sections";
 /** Deep-link action to perform on open, beyond just showing the section. */
 export type OrgSettingsIntent = "create-library";
 

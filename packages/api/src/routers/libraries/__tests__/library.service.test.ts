@@ -245,7 +245,6 @@ function makeLibrary(overrides: Record<string, unknown> = {}) {
 		name: "Test Library",
 		serverId: "org-A",
 		isCronWatch: false,
-		isPublic: false,
 		mediaType: "ebook",
 		metadataProviders: ["ranobedb"],
 		createdAt: new Date().toISOString(),

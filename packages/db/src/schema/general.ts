@@ -302,7 +302,6 @@ export const library = pgTable(
 		realtimeWatchEnabled: boolean("realtime_watch_enabled")
 			.default(true)
 			.notNull(),
-		isPublic: boolean("is_public").default(false).notNull(),
 		serverId: text("server_id").notNull(),
 		mediaType: libraryMediaTypeEnum("media_type").default("ebook").notNull(),
 		// Automatic edition grouping can be disabled per ebook library. Manual

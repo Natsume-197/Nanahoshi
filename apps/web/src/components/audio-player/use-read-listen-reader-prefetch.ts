@@ -28,5 +28,5 @@ export function useReadListenReaderPrefetch(
 		void preloadRoute().catch(() => {});
 	}, [preloadRoute]);
 
-	return { prepare };
+	return { prepare, warm: prepare };
 }

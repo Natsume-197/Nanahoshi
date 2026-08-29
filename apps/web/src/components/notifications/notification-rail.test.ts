@@ -17,8 +17,6 @@ describe("notification rail", () => {
 		expect(notifications).toContain(
 			'className={cn(\n\t\t\t\t\t"absolute inset-y-0 right-0',
 		);
-		// The desktop rail is squared to connect directly with the layout border.
-		expect(notifications).not.toContain("<ChromeNotch />");
 		expect(notifications).not.toContain("PopoverContent");
 	});
 

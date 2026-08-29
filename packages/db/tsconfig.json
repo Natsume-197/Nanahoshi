@@ -6,5 +6,6 @@
 		"sourceMap": true,
 		"outDir": "dist",
 		"composite": true
-	}
+	},
+	"exclude": ["scripts", "src/**/__tests__/**", "src/**/*.test.ts"]
 }

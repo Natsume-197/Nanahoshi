@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import type { SortOption } from "@/components/shared/sort-select";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { m } from "@/paraglide/messages";
-import { coverPresets } from "@/utils/covers";
+import { coverPresets, getCoverFilename } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 30;
