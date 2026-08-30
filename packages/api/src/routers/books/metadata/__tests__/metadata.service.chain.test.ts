@@ -440,6 +440,27 @@ beforeEach(() => {
 });
 
 describe("enrichFromProviders", () => {
+	test("does not overwrite a cover that no provider contributed", async () => {
+		ranobedbSpy.mockImplementation(async () =>
+			acceptedProviderResult({ description: "provider description" }),
+		);
+
+		await bookMetadataService.enrichFromProviders(
+			{
+				...BASE_INPUT,
+				cover: "data/covers/acquired-before-ingest.jpg",
+			},
+			["ranobedb"],
+		);
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBe("provider description");
+		expect(saved.cover).toBeUndefined();
+	});
+
 	test("runs providers in default order: ranobedb first, HTTP providers after amazon", async () => {
 		const calls: string[] = [];
 		const track = (name: string) => async () => {

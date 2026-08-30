@@ -769,6 +769,16 @@ export class BookMetadataService {
 		for (const key of Object.keys(metadataFields)) {
 			if (locked.has(key)) delete metadataFields[key];
 		}
+		// Provider enrichment carries the accumulated database record through the
+		// matching pipeline. Do not write that snapshot's cover back unless a
+		// provider actually contributed it: cover ingest may have renamed the file
+		// and advanced the stored path while the provider request was in flight.
+		if (
+			options?.fieldSources &&
+			!Object.hasOwn(options.fieldSources, "cover")
+		) {
+			delete metadataFields.cover;
+		}
 		const toSave: Record<string, unknown> = {
 			...metadataFields,
 			publisherId,
@@ -857,12 +867,12 @@ export class BookMetadataService {
 		await bookMetadataRepository.mergeFieldSources(bookId, provenance);
 
 		// ── 7. Enqueue cover ingest (non-blocking) ──────────────────
-		if (metadata.cover && !locked.has("cover")) {
+		if (typeof metadataFields.cover === "string" && metadataFields.cover) {
 			await coverIngestQueue.add(
 				"ingest",
 				{
 					bookId: Number(bookId),
-					coverPath: metadata.cover,
+					coverPath: metadataFields.cover,
 				},
 				{ removeOnComplete: true, removeOnFail: 100 },
 			);
