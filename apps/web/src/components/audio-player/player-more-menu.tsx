@@ -1,12 +1,8 @@
-import {
-	ArrowSquareOut,
-	BookOpenText,
-	DotsThreeVertical,
-	X,
-} from "@phosphor-icons/react";
+import { ArrowSquareOut, DotsThreeVertical, X } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
 import { JumpSettings } from "@/components/audio-player/player-jump-settings";
+import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import { Button } from "@/components/ui/button";
 import {
 	Drawer,
@@ -77,7 +73,7 @@ function MoreActions({
 						onOpenReadListenReader();
 					}}
 				>
-					<BookOpenText aria-hidden="true" className="size-4" />
+					<ReadListenIcon aria-hidden="true" className="size-4" />
 					{m["read_listen.open_full_reader"]()}
 				</Button>
 			)}

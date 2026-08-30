@@ -29,6 +29,7 @@ function PopoverTrigger({
 
 function PopoverContent({
 	className,
+	positionerClassName,
 	align = "center",
 	sideOffset = 4,
 	...props
@@ -36,7 +37,7 @@ function PopoverContent({
 	Pick<
 		React.ComponentProps<typeof PopoverPrimitive.Positioner>,
 		"align" | "side" | "sideOffset" | "alignOffset" | "collisionPadding"
-	>) {
+	> & { positionerClassName?: string }) {
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Positioner
@@ -46,7 +47,7 @@ function PopoverContent({
 				// The positioner is the positioned element: the popup's own z-50 is on
 				// a static child and does nothing, so fixed overlays (the audio dock,
 				// the expanded player) paint over it. Same fix as select/dropdown.
-				className="isolate z-50"
+				className={cn("isolate z-50", positionerClassName)}
 			>
 				<PopoverPrimitive.Popup
 					data-slot="popover-content"

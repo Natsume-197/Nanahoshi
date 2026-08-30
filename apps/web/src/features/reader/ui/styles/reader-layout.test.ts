@@ -380,8 +380,9 @@ describe("reader layout", () => {
 		expect(quickSettings).toContain('willChange: "transform"');
 		expect(quickSettings).toContain("border-b px-2");
 		expect(quickSettings).toContain('className="size-3.5"');
+		expect(quickSettings).not.toContain("DotsSixVertical");
 		expect(quickSettings).toContain(
-			'aria-label="Move settings window. Use arrow keys to reposition; press Home to center."',
+			'aria-label={m["reader_settings.move_window"]()}',
 		);
 		expect(quickSettings).toContain("toggleDesktopDialogCollapsed");
 		expect(quickSettings).toContain("beginDesktopDialogResize");
@@ -395,7 +396,7 @@ describe("reader layout", () => {
 		);
 	});
 
-	test("groups quick settings behind icon-labelled category buttons on every screen", () => {
+	test("groups quick settings behind text-only category buttons on every screen", () => {
 		expect(quickSettings).toContain(
 			"useState<QuickSettingsCategory | null>(null)",
 		);
@@ -404,23 +405,33 @@ describe("reader layout", () => {
 		);
 		expect(quickSettings).toContain("settingsCategories.map((category)");
 		expect(quickSettings).toContain("setSelectedCategory(category.id)");
-		expect(quickSettings).toContain('aria-label="Back to settings categories"');
+		expect(quickSettings).toContain(
+			'aria-label={m["reader_settings.back_to_categories"]()}',
+		);
 		expect(quickSettings).toContain(
 			"onClick={() => setSelectedCategory(null)}",
 		);
-		expect(quickSettings).toContain(
+		expect(quickSettings).not.toContain(
 			'id: "profiles" as const, label: "Profiles", icon: Users',
 		);
 		expect(quickSettings).toContain(
-			'id: "visual" as const, label: "Visual", icon: Eye',
+			'aria-labelledby="reader-profiles-heading"',
+		);
+		expect(quickSettings).toContain("{profileManager}");
+		expect(quickSettings.indexOf("{profileManager}")).toBeLessThan(
+			quickSettings.indexOf("settingsCategories.map((category)"),
 		);
 		expect(quickSettings).toContain(
-			'id: "layout" as const, label: "Layout", icon: Rows',
+			'id: "visual" as const, label: m["reader_settings.category_visual"]()',
 		);
 		expect(quickSettings).toContain(
-			'id: "behaviour" as const, label: "Behaviour", icon: CursorClick',
+			'id: "layout" as const, label: m["reader_settings.category_layout"]()',
 		);
-		expect(quickSettings).toContain('className="size-5 shrink-0"');
+		expect(quickSettings).toContain(
+			'label: m["reader_settings.category_behaviour"]()',
+		);
+		expect(quickSettings).not.toContain("const Icon = category.icon");
+		expect(quickSettings).toContain("sm:min-h-10");
 	});
 
 	test("moves frequent layout and text controls to quick settings", () => {
@@ -428,71 +439,63 @@ describe("reader layout", () => {
 		expect(quickSettings).not.toContain("onOpenSettings");
 		expect(readerScreen).not.toContain("ReaderSettingsOverlay");
 		expect(readerScreen).not.toContain("draftSettings");
-		expect(quickSettings).toContain('<QuickSettingsRow label="Read as">');
-		expect(quickSettings).toContain('ariaLabel="Read as"');
+		expect(quickSettings).toContain('m["reader_settings.read_as"]()');
+		expect(quickSettings).toContain('m["reader_settings.avoid_page_break"]()');
+		expect(quickSettings).toContain('m["reader_settings.sans_font_family"]()');
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Avoid page break">',
+			'm["reader_settings.latin_character_orientation"]()',
 		);
+		expect(quickSettings).toContain('m["reader_settings.font_kerning"]()');
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Sans font family">',
+			'm["reader_settings.proportional_vertical_metrics"]()',
 		);
+		expect(quickSettings).toContain('m["reader_settings.columns"]()');
+		expect(quickSettings).toContain('m["reader_settings.font_weight"]()');
+		expect(quickSettings.indexOf('m["reader_settings.font"]()')).toBeLessThan(
+			quickSettings.indexOf('m["reader_settings.font_weight"]()'),
+		);
+		expect(
+			quickSettings.indexOf('m["reader_settings.font_weight"]()'),
+		).toBeLessThan(
+			quickSettings.indexOf('m["reader_settings.text_orientation"]()'),
+		);
+		expect(quickSettings).toContain('m["reader_settings.pretty_text_wrap"]()');
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Latin character orientation">',
-		);
-		expect(quickSettings).toContain('<QuickSettingsRow label="Font kerning">');
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Proportional vertical metrics">',
-		);
-		expect(quickSettings).toContain('<QuickSettingsRow label="Columns">');
-		expect(quickSettings).toContain('ariaLabel="Columns"');
-		expect(quickSettings).toContain('<QuickSettingsRow label="Font weight">');
-		expect(quickSettings.indexOf('label="Font"')).toBeLessThan(
-			quickSettings.indexOf('label="Font weight"'),
-		);
-		expect(quickSettings.indexOf('label="Font weight"')).toBeLessThan(
-			quickSettings.indexOf('label="Text orientation"'),
-		);
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Pretty text wrap">',
+			'm["reader_settings.prioritize_reader_styles"]()',
 		);
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Prioritize reader styles">',
+			'm["reader_settings.paragraph_indentation"]()',
 		);
+		expect(quickSettings).toContain('m["reader_settings.paragraph_spacing"]()');
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Paragraph indentation">',
+			'm["reader_settings.paragraph_spacing_size"]()',
 		);
-		expect(quickSettings).toContain('aria-label="Paragraph indentation"');
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Paragraph spacing">',
-		);
-		expect(quickSettings).toContain('ariaLabel="Paragraph spacing"');
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Paragraph spacing size">',
-		);
-		expect(quickSettings).toContain('<QuickSettingsRow label="Hide furigana">');
+		expect(quickSettings).toContain('m["reader_settings.hide_furigana"]()');
 		expect(quickSettings).toContain("settings.hideFurigana");
+		expect(quickSettings).toContain('m["reader_settings.character_counter"]()');
+		expect(quickSettings).toContain('m["reader_settings.percentage"]()');
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Character counter">',
-		);
-		expect(quickSettings).toContain('<QuickSettingsRow label="Percentage">');
-		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Progress indicator">',
+			'm["reader_settings.progress_indicator"]()',
 		);
 		expect(quickSettings).toContain("onProfileSwitch: (id: string) => void");
 		expect(quickSettings).toContain(
 			"onCustomThemesChange: (next: CustomReaderThemes) => void",
 		);
-		expect(quickSettings).toContain(">Create theme<");
+		expect(quickSettings).toContain('m["reader_settings.create_theme"]()');
 		expect(quickSettings).toContain("ReaderCustomThemeDialog");
 		expect(customThemeEditor).not.toContain("Reading preview");
 		expect(customThemeEditor).toContain("onPreview");
-		expect(customThemeEditor).toContain("Restore");
+		expect(customThemeEditor).toContain(
+			'm["reader_settings.restore_nanahoshi"]()',
+		);
 		expect(customThemeEditor).toContain('aria-modal="true"');
 		expect(customThemeEditor).toContain(
 			"backgroundColor: theme.backgroundColor",
 		);
-		expect(customThemeEditor).toContain("saturation and brightness");
-		expect(customThemeEditor).toContain("RGB value");
+		expect(customThemeEditor).toContain(
+			'm["reader_settings.saturation_brightness"]',
+		);
+		expect(customThemeEditor).toContain('m["reader_settings.rgb_value"]');
 		expect(readerScreen).toContain("profiles={profilesStore.profiles}");
 		expect(readerScreen).toContain(
 			"onCustomThemesChange={handleCustomThemesChange}",
@@ -501,15 +504,16 @@ describe("reader layout", () => {
 	});
 
 	test("mirrors Behaviour controls in quick settings", () => {
-		expect(quickSettings).toContain('title="Behaviour"');
+		expect(quickSettings).toContain(
+			'title={m["reader_settings.category_behaviour"]()}',
+		);
 		expect(quickSettings).not.toContain("readingPositionMode");
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Keep position on resize">',
+			'm["reader_settings.keep_position_on_resize"]()',
 		);
-		expect(quickSettings).toContain('ariaLabel="Keep position on resize"');
 		expect(quickSettings).toContain("settings.autoPositionOnResize");
 		expect(quickSettings).toContain(
-			'<QuickSettingsRow label="Disable wheel navigation">',
+			'm["reader_settings.disable_wheel_navigation"]()',
 		);
 		expect(quickSettings).toContain("settings.disableWheelNavigation");
 	});

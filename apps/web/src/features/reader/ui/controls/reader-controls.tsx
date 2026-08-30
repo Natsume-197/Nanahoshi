@@ -9,6 +9,7 @@ import { Minus, Plus } from "@phosphor-icons/react";
 import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 
 export function readerMix(theme: ReaderTheme, pct: number): string {
 	return `color-mix(in oklab, ${theme.fontColor} ${pct}%, ${theme.backgroundColor})`;
@@ -129,8 +130,8 @@ export function Toggle({
 			theme={theme}
 			ariaLabel={ariaLabel}
 			options={[
-				{ id: false, text: "Off" },
-				{ id: true, text: "On" },
+				{ id: false, text: m["reader_settings.toggle_off"]() },
+				{ id: true, text: m["reader_settings.toggle_on"]() },
 			]}
 			selected={value}
 			onSelect={onChange}
@@ -166,7 +167,7 @@ export function Stepper({
 		>
 			<button
 				type="button"
-				aria-label="Decrease"
+				aria-label={m["reader_settings.decrease"]()}
 				disabled={!canDecrease}
 				className="flex h-full w-11 cursor-pointer items-center justify-center opacity-60 transition-[opacity,scale] duration-150 hover:opacity-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25 sm:w-10"
 				onClick={() => onStep(-1)}
@@ -178,7 +179,7 @@ export function Stepper({
 			</span>
 			<button
 				type="button"
-				aria-label="Increase"
+				aria-label={m["reader_settings.increase"]()}
 				disabled={!canIncrease}
 				className="flex h-full w-11 cursor-pointer items-center justify-center opacity-60 transition-[opacity,scale] duration-150 hover:opacity-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25 sm:w-10"
 				onClick={() => onStep(1)}
@@ -308,6 +309,7 @@ export function ThemedOption({
 }
 
 export function ThemedTextInput({
+	id,
 	theme,
 	value,
 	placeholder,
@@ -316,6 +318,7 @@ export function ThemedTextInput({
 	onChange,
 	onKeyDown,
 }: {
+	id?: string;
 	theme: ReaderTheme;
 	value: string;
 	placeholder?: string;
@@ -326,6 +329,7 @@ export function ThemedTextInput({
 }) {
 	return (
 		<input
+			id={id}
 			type="text"
 			className="h-9 w-full rounded-md border bg-transparent px-2 text-sm outline-none transition-colors duration-150 focus:border-current sm:h-8"
 			style={{ borderColor: readerMix(theme, 25), color: theme.fontColor }}

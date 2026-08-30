@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "@phosphor-icons/react";
 import {
+	type CSSProperties,
 	createContext,
 	type FormEvent,
 	type ReactNode,
@@ -58,6 +59,8 @@ interface ModalProps {
 	 */
 	onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
 	className?: string;
+	layerClassName?: string;
+	style?: CSSProperties;
 	/** Show the built-in close (X) button. Defaults to true. */
 	showCloseButton?: boolean;
 	/**
@@ -84,6 +87,8 @@ export function Modal({
 	footer,
 	onSubmit,
 	className,
+	layerClassName,
+	style,
 	showCloseButton = true,
 	bare,
 }: ModalProps) {
@@ -164,7 +169,7 @@ export function Modal({
 				<DialogPrimitive.Backdrop
 					forceRender
 					data-slot="modal-backdrop"
-					className={OVERLAY_CLASS}
+					className={cn(OVERLAY_CLASS, layerClassName)}
 				/>
 				<DialogPrimitive.Popup
 					finalFocus={() => {
@@ -178,8 +183,10 @@ export function Modal({
 					className={cn(
 						CONTENT_CLASS,
 						"bg-background text-foreground sm:max-w-md",
+						layerClassName,
 						className,
 					)}
+					style={style}
 				>
 					<DialogLayerProvider>
 						{open ? content : exitingContentRef.current}

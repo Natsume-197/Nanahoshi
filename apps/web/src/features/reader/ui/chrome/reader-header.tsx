@@ -1,6 +1,5 @@
 import {
 	ArrowsOut,
-	BookOpenText,
 	DotsThreeVertical,
 	Flag,
 	Images,
@@ -16,6 +15,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { m } from "@/paraglide/messages";
 
@@ -201,10 +201,10 @@ export function ReaderHeader({
 								ariaLabel={m["read_listen.title"]()}
 								onClick={onReadListenClick}
 							>
-								<BookOpenText
+								<ReadListenIcon
 									aria-hidden="true"
 									className="size-5"
-									weight={readListenActive ? "fill" : "regular"}
+									weight={readListenActive ? "bold" : "regular"}
 								/>
 							</IconButton>
 						)}

@@ -1,5 +1,6 @@
-import { BookOpenText, Crosshair, CursorClick } from "@phosphor-icons/react";
+import { Crosshair, CursorClick } from "@phosphor-icons/react";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
+import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import type { ReaderThemeColors } from "@/features/reader/presentation/settings";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -43,10 +44,10 @@ export function ReadListenOpenButton({
 			onPointerDown={onCommitIntent}
 			className={cn(pressed && "bg-accent text-accent-foreground", className)}
 		>
-			<BookOpenText
+			<ReadListenIcon
 				aria-hidden="true"
 				className="size-5"
-				weight={pressed ? "fill" : "regular"}
+				weight={pressed ? "bold" : "regular"}
 			/>
 		</PlayerIconButton>
 	);

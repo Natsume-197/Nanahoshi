@@ -39,6 +39,7 @@ function DropdownMenuTrigger({
 
 function DropdownMenuContent({
 	className,
+	positionerClassName,
 	align = "start",
 	side,
 	sideOffset = 4,
@@ -49,7 +50,7 @@ function DropdownMenuContent({
 	Pick<
 		React.ComponentProps<typeof DropdownMenuPrimitive.Positioner>,
 		"align" | "side" | "sideOffset" | "alignOffset" | "collisionPadding"
-	>) {
+	> & { positionerClassName?: string }) {
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Positioner
@@ -59,7 +60,7 @@ function DropdownMenuContent({
 				alignOffset={alignOffset}
 				collisionPadding={collisionPadding}
 				data-slot="dropdown-menu-positioner"
-				className="isolate z-50 outline-none"
+				className={cn("isolate z-50 outline-none", positionerClassName)}
 			>
 				<DropdownMenuPrimitive.Popup
 					data-slot="dropdown-menu-content"

@@ -10,6 +10,8 @@ import {
 import { defaultVisualReaderSettings } from "@/features/reader/presentation/visual-settings";
 
 const { cleanup, fireEvent, render } = await import("@testing-library/react");
+const { m } = await import("@/paraglide/messages");
+const { setLocale } = await import("@/paraglide/runtime");
 
 const { constrainQuickSettingsDialogOffset, ReaderQuickSettings } =
 	await import("./reader-quick-settings");
@@ -32,6 +34,15 @@ function renderPanel(
 		settings?: ReaderSettings;
 		readListenActive?: boolean;
 		onChange?: (patch: Partial<ReaderSettings>) => void;
+		profiles?: Array<{
+			id: string;
+			name: string;
+			settings: ReaderSettings;
+		}>;
+		onProfileCreate?: (name: string) => void;
+		onProfileRename?: (id: string, name: string) => void;
+		onProfileDuplicate?: (id: string) => void;
+		onProfileDelete?: (id: string) => void;
 	} = {},
 ) {
 	const panelSettings = overrides.settings ?? defaultReaderSettings;
@@ -43,17 +54,19 @@ function renderPanel(
 			settings={panelSettings}
 			theme={getReaderTheme(panelSettings.theme, {})}
 			customThemes={{}}
-			profiles={[
-				{ id: "default", name: "Default", settings: defaultReaderSettings },
-			]}
+			profiles={
+				overrides.profiles ?? [
+					{ id: "default", name: "Default", settings: defaultReaderSettings },
+				]
+			}
 			activeProfileId="default"
 			isMobile={isMobile}
 			readListenActive={overrides.readListenActive ?? false}
 			onProfileSwitch={() => {}}
-			onProfileCreate={() => {}}
-			onProfileRename={() => {}}
-			onProfileDuplicate={() => {}}
-			onProfileDelete={() => {}}
+			onProfileCreate={overrides.onProfileCreate ?? (() => {})}
+			onProfileRename={overrides.onProfileRename ?? (() => {})}
+			onProfileDuplicate={overrides.onProfileDuplicate ?? (() => {})}
+			onProfileDelete={overrides.onProfileDelete ?? (() => {})}
 			onCustomThemesChange={() => {}}
 			onChange={overrides.onChange ?? (() => {})}
 			onVisualSettingsChange={() => {}}
@@ -64,6 +77,7 @@ function renderPanel(
 }
 
 beforeEach(() => {
+	setLocale("en", { reload: false });
 	Object.defineProperty(window, "innerWidth", {
 		configurable: true,
 		value: 1024,
@@ -77,6 +91,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ReaderQuickSettings desktop dialog", () => {
+	test("provides reader settings copy in every supported locale", () => {
+		setLocale("es", { reload: false });
+		expect(m["reader_settings.text_size"]()).toBe("Tamaño del texto");
+		expect(m["reader_settings.create_theme"]()).toBe("Crear tema");
+
+		setLocale("ja", { reload: false });
+		expect(m["reader_settings.text_size"]()).toBe("文字サイズ");
+		expect(m["reader_settings.create_theme"]()).toBe("テーマを作成");
+	});
+
 	test("exposes dialog semantics and a close button", () => {
 		const onClose = mock(() => {});
 		const panel = renderPanel(onClose);
@@ -191,7 +215,7 @@ describe("ReaderQuickSettings desktop dialog", () => {
 
 		expect(surface.dataset.collapsed).toBe("true");
 		expect(surface.style.height).toBe("44px");
-		expect(panel.queryByRole("button", { name: "Profiles" })).toBeNull();
+		expect(panel.queryByRole("button", { name: "Add" })).toBeNull();
 
 		fireEvent.click(
 			panel.getByRole("button", { name: "Expand settings window" }),
@@ -199,7 +223,7 @@ describe("ReaderQuickSettings desktop dialog", () => {
 
 		expect(surface.dataset.collapsed).toBeUndefined();
 		expect(surface.style.height).toBe("672px");
-		expect(panel.getByRole("button", { name: "Profiles" })).toBeTruthy();
+		expect(panel.getByRole("button", { name: "Add" })).toBeTruthy();
 	});
 
 	test("resizes directly from the bottom-right handle", () => {
@@ -265,6 +289,97 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		const panel = renderPanel(() => {});
 
 		expect(panel.queryByText("Advanced settings")).toBeNull();
+	});
+
+	test("keeps profiles outside the settings categories", () => {
+		const panel = renderPanel(() => {});
+
+		expect(
+			panel.getByRole("heading", { name: "Reading profile" }),
+		).toBeTruthy();
+		expect(panel.getByRole("button", { name: "Add" })).toBeTruthy();
+		expect(
+			panel.getByRole("combobox", { name: "Active reading profile" }),
+		).toBeTruthy();
+		expect(panel.queryByRole("button", { name: "Profiles" })).toBeNull();
+	});
+
+	test("layers the profile menu above the floating settings window", () => {
+		const panel = renderPanel(() => {});
+		const manageButton = panel.getByRole("button", { name: "Manage" });
+
+		fireEvent.click(manageButton);
+		const menu = panel.getByRole("menu", { name: "Manage" });
+		const positioner = menu.parentElement;
+
+		expect(positioner?.className).toContain("z-[70]");
+		fireEvent.click(manageButton);
+	});
+
+	test("creates a named profile from an explicit form", () => {
+		const onProfileCreate = mock(() => {});
+		const panel = renderPanel(() => {}, false, { onProfileCreate });
+
+		fireEvent.click(panel.getByRole("button", { name: "Add" }));
+		const input = panel.getByRole("textbox", { name: "Profile name" });
+		expect(input.closest('[data-slot="popover-content"]')).toBeTruthy();
+		fireEvent.change(input, {
+			target: { value: "Night reading" },
+		});
+		fireEvent.click(panel.getByRole("button", { name: "Create" }));
+
+		expect(onProfileCreate).toHaveBeenCalledWith("Night reading");
+		expect(panel.queryByRole("textbox", { name: "Profile name" })).toBeNull();
+	});
+
+	test("renames a profile with visible save and cancel actions", () => {
+		const onProfileRename = mock(() => {});
+		const panel = renderPanel(() => {}, false, { onProfileRename });
+
+		fireEvent.click(panel.getByRole("button", { name: "Manage" }));
+		fireEvent.click(panel.getByRole("menuitem", { name: "Rename" }));
+		const input = panel.getByRole("textbox", { name: "Profile name" });
+		expect(input.closest('[data-slot="popover-content"]')).toBeTruthy();
+		fireEvent.change(input, { target: { value: "Focused" } });
+		fireEvent.click(panel.getByRole("button", { name: "Save" }));
+
+		expect(onProfileRename).toHaveBeenCalledWith("default", "Focused");
+	});
+
+	test("duplicates the active profile from the manage menu", () => {
+		const onProfileDuplicate = mock(() => {});
+		const panel = renderPanel(() => {}, false, { onProfileDuplicate });
+
+		fireEvent.click(panel.getByRole("button", { name: "Manage" }));
+		fireEvent.click(panel.getByRole("menuitem", { name: "Duplicate" }));
+
+		expect(onProfileDuplicate).toHaveBeenCalledWith("default");
+	});
+
+	test("confirms before deleting a profile", () => {
+		const onProfileDelete = mock(() => {});
+		const panel = renderPanel(() => {}, false, {
+			onProfileDelete,
+			profiles: [
+				{ id: "default", name: "Default", settings: defaultReaderSettings },
+				{ id: "night", name: "Night", settings: defaultReaderSettings },
+			],
+		});
+
+		fireEvent.change(
+			panel.getByRole("combobox", { name: "Active reading profile" }),
+			{ target: { value: "night" } },
+		);
+		fireEvent.click(panel.getByRole("button", { name: "Manage" }));
+		fireEvent.click(panel.getByRole("menuitem", { name: "Delete" }));
+		expect(onProfileDelete).not.toHaveBeenCalled();
+		expect(
+			panel.getByRole("dialog", { name: "Delete “Default”?" }),
+		).toBeTruthy();
+		expect(panel.getByText(/This action cannot be undone/)).toBeTruthy();
+
+		fireEvent.click(panel.getByRole("button", { name: "Delete profile" }));
+		expect(onProfileDelete).toHaveBeenCalledWith("default");
 	});
 
 	test("hides Read as when text is the only supported content type", () => {

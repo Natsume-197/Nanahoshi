@@ -180,6 +180,7 @@ export function renameProfile(
 export function duplicateProfile(
 	store: ReaderProfilesStore,
 	id: string,
+	formatCopyName: (name: string) => string = (name) => `${name} (copy)`,
 ): { store: ReaderProfilesStore; id: string } {
 	const source = store.profiles.find((profile) => profile.id === id);
 	if (!source) return { store, id };
@@ -188,7 +189,7 @@ export function duplicateProfile(
 	const profiles = [...store.profiles];
 	profiles.splice(index + 1, 0, {
 		id: copyId,
-		name: `${source.name} (copy)`,
+		name: formatCopyName(source.name),
 		settings: source.settings,
 	});
 	return { store: { ...store, profiles }, id: copyId };

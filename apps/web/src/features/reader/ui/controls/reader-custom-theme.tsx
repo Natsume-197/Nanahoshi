@@ -17,6 +17,7 @@ import {
 	ThemedOption,
 	ThemedSelect,
 } from "@/features/reader/ui/controls/reader-controls";
+import { m } from "@/paraglide/messages";
 
 interface CustomThemeValue {
 	hexExpression: string;
@@ -305,7 +306,7 @@ function ColorInputRow({
 				<button
 					type="button"
 					aria-expanded={open}
-					aria-label={`Choose ${label} color`}
+					aria-label={m["reader_settings.choose_color"]({ label })}
 					className="size-8 shrink-0 cursor-pointer rounded-full border border-current/30 outline-none transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2"
 					style={{ backgroundColor: values.hexExpression }}
 					onClick={() => setOpen((current) => !current)}
@@ -316,9 +317,12 @@ function ColorInputRow({
 					<div
 						role="slider"
 						tabIndex={0}
-						aria-label={`${label} saturation and brightness`}
+						aria-label={m["reader_settings.saturation_brightness"]({ label })}
 						aria-valuenow={Math.round(hsv.s * 100)}
-						aria-valuetext={`saturation ${Math.round(hsv.s * 100)}%, brightness ${Math.round(hsv.v * 100)}%`}
+						aria-valuetext={m["reader_settings.saturation_brightness_value"]({
+							saturation: Math.round(hsv.s * 100),
+							brightness: Math.round(hsv.v * 100),
+						})}
 						className="relative h-32 cursor-crosshair touch-none overflow-hidden rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
 						style={{
 							backgroundColor: `hsl(${hsv.h} 100% 50%)`,
@@ -347,7 +351,7 @@ function ColorInputRow({
 					<div
 						role="slider"
 						tabIndex={0}
-						aria-label={`${label} hue`}
+						aria-label={m["reader_settings.hue"]({ label })}
 						aria-valuemin={0}
 						aria-valuemax={360}
 						aria-valuenow={Math.round(hsv.h)}
@@ -382,7 +386,7 @@ function ColorInputRow({
 								HEX
 							</span>
 							<input
-								aria-label={`${label} hex value`}
+								aria-label={m["reader_settings.hex_value"]({ label })}
 								className="h-9 rounded-lg bg-black/10 px-2 font-mono text-xs outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
 								spellCheck={false}
 								value={hexDraft}
@@ -402,7 +406,7 @@ function ColorInputRow({
 								RGB
 							</span>
 							<input
-								aria-label={`${label} RGB value`}
+								aria-label={m["reader_settings.rgb_value"]({ label })}
 								className="h-9 rounded-lg bg-black/10 px-2 font-mono text-xs outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
 								spellCheck={false}
 								value={rgbDraft}
@@ -505,13 +509,13 @@ export function ReaderCustomThemeDialog({
 		nameInput?.setCustomValidity("");
 
 		if (!themeName) {
-			nameInput?.setCustomValidity("You have to enter a Name!");
+			nameInput?.setCustomValidity(m["reader_settings.theme_name_required"]());
 			nameInput?.reportValidity();
 			return;
 		}
 
 		if (readerThemes.some((t) => t.id === themeName)) {
-			nameInput?.setCustomValidity("This Name is reserved!");
+			nameInput?.setCustomValidity(m["reader_settings.theme_name_reserved"]());
 			nameInput?.reportValidity();
 			return;
 		}
@@ -521,6 +525,14 @@ export function ReaderCustomThemeDialog({
 
 	const surface = readerMix(theme, 7);
 	const hairline = readerMix(theme, 20);
+	const themeLabels: Record<string, string> = {
+		"nanahoshi-theme": "Nanahoshi",
+		"light-theme": m["reader_settings.theme_light"](),
+		"ecru-theme": m["reader_settings.theme_sepia"](),
+		"dark-theme": m["reader_settings.theme_dark"](),
+		"attribute-theme": m["reader_settings.theme_contrast"](),
+		"black-theme": m["reader_settings.theme_black"](),
+	};
 
 	return (
 		<div
@@ -531,7 +543,7 @@ export function ReaderCustomThemeDialog({
 		>
 			<button
 				type="button"
-				aria-label="Close dialog"
+				aria-label={m["reader_settings.close_dialog"]()}
 				className="fade-in absolute inset-0 animate-in bg-black/35 backdrop-blur-[2px] duration-200 motion-reduce:animate-none"
 				onClick={onClose}
 			/>
@@ -551,10 +563,12 @@ export function ReaderCustomThemeDialog({
 						className="h-10 w-fit cursor-pointer rounded-lg px-1.5 text-sm outline-none transition-opacity hover:opacity-65 focus-visible:outline-2 focus-visible:outline-offset-2"
 						onClick={onClose}
 					>
-						Cancel
+						{m["common.cancel"]()}
 					</button>
 					<h2 id="custom-theme-title" className="font-semibold text-sm">
-						{selectedTheme ? "Edit theme" : "Create theme"}
+						{selectedTheme
+							? m["reader_settings.edit_theme"]()
+							: m["reader_settings.create_theme"]()}
 					</h2>
 					<div className="justify-self-end">
 						<button
@@ -563,22 +577,23 @@ export function ReaderCustomThemeDialog({
 							style={{ color: theme.fontColor }}
 							onClick={handleSave}
 						>
-							Save
+							{m["common.save"]()}
 						</button>
 					</div>
 				</header>
 				<div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
 					<div className="space-y-2">
 						<div>
-							<h3 className="font-semibold text-sm">Theme details</h3>
+							<h3 className="font-semibold text-sm">
+								{m["reader_settings.theme_details"]()}
+							</h3>
 							<p className="mt-1 text-xs leading-5 opacity-60">
-								Give the theme a name, then choose the colors you want to read
-								with.
+								{m["reader_settings.theme_details_description"]()}
 							</p>
 						</div>
 						<label className="block">
 							<span className="mb-1.5 block font-medium text-[11px] uppercase tracking-wide opacity-55">
-								Theme name
+								{m["reader_settings.theme_name"]()}
 							</span>
 							<input
 								ref={themeNameRef}
@@ -589,7 +604,7 @@ export function ReaderCustomThemeDialog({
 									backgroundColor: surface,
 									boxShadow: `inset 0 0 0 1px ${hairline}`,
 								}}
-								placeholder="Evening paper"
+								placeholder={m["reader_settings.theme_name_example"]()}
 								value={themeName}
 								onChange={(event) => setThemeName(event.target.value)}
 							/>
@@ -601,7 +616,7 @@ export function ReaderCustomThemeDialog({
 								className="font-medium text-[11px] uppercase tracking-wide opacity-55"
 								htmlFor="copy-theme"
 							>
-								Start from
+								{m["reader_settings.start_from"]()}
 							</label>
 							{!selectedTheme && (
 								<button
@@ -609,7 +624,7 @@ export function ReaderCustomThemeDialog({
 									className="cursor-pointer rounded-md px-1 text-xs outline-none transition-opacity hover:opacity-65 focus-visible:outline-2 focus-visible:outline-offset-2"
 									onClick={handleRestore}
 								>
-									Restore Nanahoshi
+									{m["reader_settings.restore_nanahoshi"]()}
 								</button>
 							)}
 						</div>
@@ -621,26 +636,28 @@ export function ReaderCustomThemeDialog({
 						>
 							{existingThemes.map((id) => (
 								<ThemedOption key={id} theme={theme} value={id}>
-									{id}
+									{themeLabels[id] ?? id}
 								</ThemedOption>
 							))}
 						</ThemedSelect>
 					</div>
 					<div className="mt-6">
-						<h3 className="mb-2 font-semibold text-sm">Colors</h3>
+						<h3 className="mb-2 font-semibold text-sm">
+							{m["reader_settings.colors"]()}
+						</h3>
 						<p className="mb-3 text-xs leading-5 opacity-60">
-							Set the two colors that shape your reading page.
+							{m["reader_settings.colors_description"]()}
 						</p>
 						<div className="grid gap-2">
 							<ColorInputRow
-								label="Text"
+								label={m["reader_settings.text_color"]()}
 								attribute="fontColor"
 								values={customTheme.fontColor}
 								surfaceColor={surface}
 								onColorChange={handleColorValueChange}
 							/>
 							<ColorInputRow
-								label="Page"
+								label={m["reader_settings.page_color"]()}
 								attribute="backgroundColor"
 								values={customTheme.backgroundColor}
 								surfaceColor={surface}
@@ -653,25 +670,25 @@ export function ReaderCustomThemeDialog({
 						style={{ backgroundColor: surface }}
 					>
 						<summary className="cursor-pointer font-medium text-sm">
-							Fine-tune other colors
+							{m["reader_settings.fine_tune_colors"]()}
 						</summary>
 						<div className="mt-2 flex flex-col gap-2">
 							<ColorInputRow
-								label="Furigana"
+								label={m["reader_settings.furigana_color"]()}
 								attribute="hintFuriganaFontColor"
 								values={customTheme.hintFuriganaFontColor}
 								surfaceColor={readerMix(theme, 12)}
 								onColorChange={handleColorValueChange}
 							/>
 							<ColorInputRow
-								label="Furigana shadow"
+								label={m["reader_settings.furigana_shadow_color"]()}
 								attribute="hintFuriganaShadowColor"
 								values={customTheme.hintFuriganaShadowColor}
 								surfaceColor={readerMix(theme, 12)}
 								onColorChange={handleColorValueChange}
 							/>
 							<ColorInputRow
-								label="Footer"
+								label={m["reader_settings.footer_color"]()}
 								attribute="tooltipTextFontColor"
 								values={customTheme.tooltipTextFontColor}
 								surfaceColor={readerMix(theme, 12)}

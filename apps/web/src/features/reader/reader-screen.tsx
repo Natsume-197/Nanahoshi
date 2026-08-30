@@ -96,6 +96,7 @@ import {
 } from "@/lib/read-listen/reader-session";
 import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
 import { resetThemeColor, setThemeColor } from "@/lib/theme-color";
+import { m } from "@/paraglide/messages";
 import { client, orpc } from "@/utils/orpc";
 import "@/features/reader/ui/styles/reader.css";
 // Bundled CJK fonts: vertical-rl text renders garbled glyph overlaps when the
@@ -654,9 +655,12 @@ export function ReaderScreen({
 	};
 
 	const handleProfileDuplicate = (id: string) => {
-		setProfilesStore(
-			commitProfilesStore(duplicateProfile(profilesStore, id).store),
+		const duplicate = duplicateProfile(profilesStore, id, (name) =>
+			m["reader_settings.profile_copy_name"]({ name }),
 		);
+		setActiveProfileId(duplicate.id);
+		setActiveProfileIdState(duplicate.id);
+		setProfilesStore(commitProfilesStore(duplicate.store));
 	};
 
 	const handleProfileDelete = (id: string) => {

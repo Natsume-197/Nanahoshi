@@ -10,7 +10,6 @@ import {
 	Microphone,
 	Tag,
 	UserCircle,
-	Waveform,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -19,6 +18,7 @@ import {
 	type RailSection,
 	resolveRailSection,
 } from "@/components/dashboard/rail-nav";
+import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -92,7 +92,7 @@ const railGroups: RailGroup[] = [
 			{
 				href: "/dashboard/read-listen",
 				label: m["nav.read_listen"],
-				icon: Waveform,
+				icon: ReadListenIcon,
 				activeWeight: "bold",
 				section: "read-listen",
 				needsCatalog: true,

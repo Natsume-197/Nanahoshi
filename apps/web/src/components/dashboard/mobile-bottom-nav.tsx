@@ -10,7 +10,6 @@ import {
 	Microphone,
 	Tag,
 	User,
-	Waveform,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -20,6 +19,7 @@ import {
 	getProfileTabPath,
 } from "@/components/dashboard/mobile-tab-navigation";
 import { resolveRailSection } from "@/components/dashboard/rail-nav";
+import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
 	Drawer,
@@ -76,7 +76,7 @@ const catalogEntries = [
 		section: "read-listen",
 		href: "/dashboard/read-listen",
 		label: m["nav.read_listen"],
-		icon: Waveform,
+		icon: ReadListenIcon,
 	},
 ] as const;
 

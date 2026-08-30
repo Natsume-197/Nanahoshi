@@ -10,16 +10,10 @@ import {
 	CaretUp,
 	Check,
 	Copy,
-	CursorClick,
-	DotsSixVertical,
-	Eye,
 	Pen,
 	PencilSimple,
 	Plus,
-	Rows,
-	TextT,
 	Trash,
-	Users,
 	X,
 } from "@phosphor-icons/react";
 import {
@@ -39,6 +33,23 @@ import {
 	DrawerHeader,
 	DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
+import {
+	Popover,
+	PopoverContent,
+	PopoverDescription,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import type { ReaderProfile } from "@/features/reader/presentation/profiles";
 import type {
@@ -49,7 +60,6 @@ import type {
 import { canUsePageColumns } from "@/features/reader/presentation/reader-presentation";
 import {
 	type CustomReaderThemes,
-	FOCUS_TEXT_SPEED_OPTIONS,
 	READER_FONT_SIZE_MAX,
 	READER_FONT_SIZE_MIN,
 	READER_LINE_HEIGHT_MAX,
@@ -75,6 +85,7 @@ import {
 	Toggle,
 } from "@/features/reader/ui/controls/reader-controls";
 import { ReaderCustomThemeDialog } from "@/features/reader/ui/controls/reader-custom-theme";
+import { m } from "@/paraglide/messages";
 
 interface ReaderQuickSettingsProps {
 	open: boolean;
@@ -102,12 +113,7 @@ interface ReaderQuickSettingsProps {
 const clampPct = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
 
-type QuickSettingsCategory =
-	| "profiles"
-	| "visual"
-	| "text"
-	| "layout"
-	| "behaviour";
+type QuickSettingsCategory = "visual" | "text" | "layout" | "behaviour";
 
 const CUSTOM_THEME_PREVIEW_ID = "__nanahoshi-theme-preview__";
 const DESKTOP_DIALOG_INSET = 16;
@@ -236,7 +242,9 @@ export function ReaderQuickSettings({
 	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
 	const isVisual = presentation.resolvedAs === "visual";
-	const resolvedReadAs = isVisual ? "Visual content" : "Text";
+	const resolvedReadAs = isVisual
+		? m["reader_settings.visual_content"]()
+		: m["reader_settings.category_text"]();
 	const canSelectPageColumns = canUsePageColumns(
 		presentation.renderer,
 		verticalMode,
@@ -247,6 +255,10 @@ export function ReaderQuickSettings({
 		id: string;
 		name: string;
 	} | null>(null);
+	const [profilePendingDelete, setProfilePendingDelete] = useState<
+		string | null
+	>(null);
+	const [creatingProfile, setCreatingProfile] = useState(false);
 	const [newProfileName, setNewProfileName] = useState("");
 	const [customThemeDialog, setCustomThemeDialog] =
 		useState<CustomThemeDialogState | null>(null);
@@ -284,6 +296,8 @@ export function ReaderQuickSettings({
 		if (!open) {
 			setSelectedCategory(null);
 			setProfileRename(null);
+			setProfilePendingDelete(null);
+			setCreatingProfile(false);
 			setNewProfileName("");
 			applyDesktopDialogOffset({ x: 0, y: 0 });
 			desktopDialogDragRef.current = null;
@@ -580,15 +594,16 @@ export function ReaderQuickSettings({
 	};
 
 	const commitProfileRename = () => {
-		if (profileRename) {
-			onProfileRename(profileRename.id, profileRename.name);
-		}
+		if (!profileRename?.name.trim()) return;
+		onProfileRename(profileRename.id, profileRename.name.trim());
 		setProfileRename(null);
 	};
 
 	const createProfileFromInput = () => {
-		onProfileCreate(newProfileName);
+		if (!newProfileName.trim()) return;
+		onProfileCreate(newProfileName.trim());
 		setNewProfileName("");
+		setCreatingProfile(false);
 	};
 
 	const themeIds = [
@@ -638,15 +653,19 @@ export function ReaderQuickSettings({
 
 	const activeCategory = selectedCategory;
 	const settingsCategories = [
-		{ id: "profiles" as const, label: "Profiles", icon: Users },
-		{ id: "visual" as const, label: "Visual", icon: Eye },
-		...(!isVisual ? [{ id: "text" as const, label: "Text", icon: TextT }] : []),
-		{ id: "layout" as const, label: "Layout", icon: Rows },
-		{ id: "behaviour" as const, label: "Behaviour", icon: CursorClick },
+		{ id: "visual" as const, label: m["reader_settings.category_visual"]() },
+		...(!isVisual
+			? [{ id: "text" as const, label: m["reader_settings.category_text"]() }]
+			: []),
+		{ id: "layout" as const, label: m["reader_settings.category_layout"]() },
+		{
+			id: "behaviour" as const,
+			label: m["reader_settings.category_behaviour"](),
+		},
 	];
 	const settingsCategoryTitle =
 		settingsCategories.find((category) => category.id === selectedCategory)
-			?.label ?? "Reader settings";
+			?.label ?? m["reader_settings.title"]();
 
 	// Same %-of-screen mapping as the settings overlay (engine stores px).
 	// viewport.ts helpers, not window.inner*: the engine measures in CSS px and
@@ -721,163 +740,290 @@ export function ReaderQuickSettings({
 	];
 	const themeLabels: Record<string, string> = {
 		"nanahoshi-theme": "Nanahoshi",
-		"light-theme": "Light",
-		"ecru-theme": "Sepia",
-		"dark-theme": "Dark",
-		"attribute-theme": "Contrast",
-		"black-theme": "Black",
+		"light-theme": m["reader_settings.theme_light"](),
+		"ecru-theme": m["reader_settings.theme_sepia"](),
+		"dark-theme": m["reader_settings.theme_dark"](),
+		"attribute-theme": m["reader_settings.theme_contrast"](),
+		"black-theme": m["reader_settings.theme_black"](),
 	};
 	const readerThemeStyle = {
 		"--primary": theme.fontColor,
 		"--primary-foreground": theme.backgroundColor,
 		"--ring": theme.fontColor,
+		"--dropdown": theme.backgroundColor,
+		"--popover-foreground": theme.fontColor,
+		"--accent": mix(10),
+		"--accent-foreground": theme.fontColor,
+		"--dropdown-destructive": theme.fontColor,
 	} as CSSProperties;
+	const activeProfile =
+		profiles.find((profile) => profile.id === activeProfileId) ?? profiles[0];
+	const pendingDeleteProfile = profiles.find(
+		(profile) => profile.id === profilePendingDelete,
+	);
+	const compactProfileButtonClass =
+		"flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 font-medium text-sm outline-none transition-[background-color,opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 sm:h-8 sm:text-xs";
 
-	const settingsContent = (
-		<>
-			{(!activeCategory || activeCategory === "profiles") && (
-				<QuickSettingsSection
-					title="Profiles"
-					showTitle={activeCategory === null}
+	const closeProfileEditor = () => {
+		setCreatingProfile(false);
+		setProfileRename(null);
+		setProfilePendingDelete(null);
+		setNewProfileName("");
+	};
+
+	const profileEditorOpen = creatingProfile || profileRename !== null;
+	const profileEditorTitle = profileRename
+		? m["reader_settings.rename_profile_title"]()
+		: m["reader_settings.new_profile_title"]();
+
+	const profileManager = (
+		<section
+			aria-labelledby="reader-profiles-heading"
+			className="flex min-w-0 flex-col gap-2 py-2"
+		>
+			<div className="px-0.5">
+				<h2
+					id="reader-profiles-heading"
+					className="font-semibold text-xs uppercase tracking-wider opacity-60"
 				>
-					<div className="flex flex-col gap-2">
-						{profiles.map((profile) => {
-							const selected = profile.id === activeProfileId;
-							return (
-								<div
-									key={profile.id}
-									className="flex min-w-0 items-center gap-1"
-								>
-									{profileRename?.id === profile.id ? (
-										<>
-											<ThemedTextInput
-												ariaLabel="Profile name"
-												theme={theme}
-												value={profileRename.name}
-												onChange={(name) =>
-													setProfileRename({ id: profile.id, name })
-												}
-												onKeyDown={(key) => {
-													if (key === "Enter") commitProfileRename();
-												}}
-											/>
-											<button
-												type="button"
-												aria-label="Save profile name"
-												title="Save profile name"
-												className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-												onClick={commitProfileRename}
-											>
-												<Check
-													aria-hidden="true"
-													className="size-4"
-													weight="bold"
-												/>
-											</button>
-										</>
-									) : (
-										<>
-											<button
-												type="button"
-												aria-pressed={selected}
-												className="flex min-h-10 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-2 text-left outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-												style={
-													selected ? { backgroundColor: mix(8) } : undefined
-												}
-												onClick={() => onProfileSwitch(profile.id)}
-											>
-												<span
-													aria-hidden="true"
-													className="size-2 shrink-0 rounded-full"
-													style={{
-														backgroundColor: selected
-															? theme.fontColor
-															: mix(25),
-													}}
-												/>
-												<span className="min-w-0 flex-1 truncate font-medium text-sm">
-													{profile.name}
-												</span>
-												{selected && (
-													<span className="shrink-0 text-xs opacity-55">
-														Active
-													</span>
-												)}
-											</button>
-											<button
-												type="button"
-												aria-label={`Rename ${profile.name}`}
-												title="Rename profile"
-												className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-												onClick={() =>
-													setProfileRename({
-														id: profile.id,
-														name: profile.name,
-													})
-												}
-											>
-												<Pen aria-hidden="true" className="size-4" />
-											</button>
-											<button
-												type="button"
-												aria-label={`Duplicate ${profile.name}`}
-												title="Duplicate profile"
-												className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-												onClick={() => onProfileDuplicate(profile.id)}
-											>
-												<Copy aria-hidden="true" className="size-4" />
-											</button>
-											{profiles.length > 1 && (
-												<button
-													type="button"
-													aria-label={`Delete ${profile.name}`}
-													title="Delete profile"
-													className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-													onClick={() => onProfileDelete(profile.id)}
-												>
-													<Trash aria-hidden="true" className="size-4" />
-												</button>
-											)}
-										</>
-									)}
-								</div>
-							);
-						})}
-					</div>
-					<div className="flex items-center gap-2">
-						<ThemedTextInput
-							ariaLabel="New profile name"
-							theme={theme}
-							value={newProfileName}
-							placeholder="New profile name"
-							onChange={setNewProfileName}
-							onKeyDown={(key) => {
-								if (key === "Enter") createProfileFromInput();
-							}}
-						/>
+					{m["reader_settings.profile_heading"]()}
+				</h2>
+			</div>
+			<div className="flex min-w-0 flex-wrap gap-2">
+				<label htmlFor="reader-profile-select" className="sr-only">
+					{m["reader_settings.active_profile_label"]()}
+				</label>
+				<div className="min-w-40 flex-1">
+					<ThemedSelect
+						id="reader-profile-select"
+						theme={theme}
+						value={activeProfileId}
+						onChange={(id) => {
+							onProfileSwitch(id);
+							closeProfileEditor();
+						}}
+					>
+						{profiles.map((profile) => (
+							<ThemedOption key={profile.id} theme={theme} value={profile.id}>
+								{profile.name}
+							</ThemedOption>
+						))}
+					</ThemedSelect>
+				</div>
+				<Popover
+					open={profileEditorOpen}
+					onOpenChange={(open) => {
+						if (!open) {
+							closeProfileEditor();
+							return;
+						}
+						if (!profileRename) {
+							setCreatingProfile(true);
+							setProfilePendingDelete(null);
+						}
+					}}
+				>
+					<PopoverTrigger asChild>
 						<button
 							type="button"
-							aria-label="Create profile from current settings"
-							title="Create profile from current settings"
-							className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-							onClick={createProfileFromInput}
+							className={compactProfileButtonClass}
+							style={{ backgroundColor: mix(8) }}
 						>
-							<Plus aria-hidden="true" className="size-5" />
+							<Plus aria-hidden="true" className="size-4" weight="bold" />
+							{m["reader_settings.add_profile"]()}
 						</button>
-					</div>
-					<p className="text-xs opacity-55">
-						New profiles copy your current reading settings.
-					</p>
-				</QuickSettingsSection>
-			)}
+					</PopoverTrigger>
+					<PopoverContent
+						align="end"
+						sideOffset={6}
+						positionerClassName="z-[70]"
+						className="w-72 gap-3 rounded-2xl p-3"
+						style={{
+							...readerThemeStyle,
+							backgroundColor: theme.backgroundColor,
+							color: theme.fontColor,
+						}}
+					>
+						<PopoverHeader>
+							<PopoverTitle className="text-sm">
+								{profileEditorTitle}
+							</PopoverTitle>
+							{creatingProfile && (
+								<PopoverDescription className="text-xs opacity-55">
+									{m["reader_settings.profile_copy_description"]()}
+								</PopoverDescription>
+							)}
+						</PopoverHeader>
+						<form
+							className="flex flex-col gap-3"
+							onSubmit={(event) => {
+								event.preventDefault();
+								if (profileRename) commitProfileRename();
+								else createProfileFromInput();
+							}}
+						>
+							<label
+								htmlFor="reader-profile-name"
+								className="flex flex-col gap-1.5 font-medium text-xs"
+							>
+								{m["reader_settings.profile_name"]()}
+								<ThemedTextInput
+									id="reader-profile-name"
+									ariaLabel={m["reader_settings.profile_name"]()}
+									theme={theme}
+									value={profileRename?.name ?? newProfileName}
+									placeholder={m["reader_settings.profile_name_example"]()}
+									onChange={(name) => {
+										if (profileRename) {
+											setProfileRename({ id: profileRename.id, name });
+										} else {
+											setNewProfileName(name);
+										}
+									}}
+									onKeyDown={(key) => {
+										if (key === "Escape") closeProfileEditor();
+									}}
+								/>
+							</label>
+							<div className="flex justify-end gap-2">
+								<button
+									type="button"
+									className={compactProfileButtonClass}
+									onClick={closeProfileEditor}
+								>
+									{m["common.cancel"]()}
+								</button>
+								<button
+									type="submit"
+									disabled={
+										profileRename
+											? !profileRename.name.trim()
+											: !newProfileName.trim()
+									}
+									className={compactProfileButtonClass}
+									style={{ backgroundColor: mix(12) }}
+								>
+									{profileRename ? m["common.save"]() : m["common.create"]()}
+								</button>
+							</div>
+						</form>
+					</PopoverContent>
+				</Popover>
+				{activeProfile && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className={compactProfileButtonClass}
+								style={{ backgroundColor: mix(8) }}
+								onClick={() => {
+									setCreatingProfile(false);
+									setProfileRename(null);
+									setProfilePendingDelete(null);
+								}}
+							>
+								<PencilSimple aria-hidden="true" className="size-4" />
+								{m["reader_settings.manage_profile"]()}
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="end"
+							sideOffset={6}
+							positionerClassName="z-[70]"
+							className="w-44"
+							style={readerThemeStyle}
+						>
+							<DropdownMenuGroup>
+								<DropdownMenuLabel className="truncate">
+									{activeProfile.name}
+								</DropdownMenuLabel>
+								<DropdownMenuItem
+									onClick={() => {
+										setCreatingProfile(false);
+										setProfileRename({
+											id: activeProfile.id,
+											name: activeProfile.name,
+										});
+									}}
+								>
+									<Pen aria-hidden="true" />
+									{m["common.rename"]()}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => onProfileDuplicate(activeProfile.id)}
+								>
+									<Copy aria-hidden="true" />
+									{m["reader_settings.duplicate_profile"]()}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									variant="destructive"
+									disabled={profiles.length <= 1}
+									onClick={() => setProfilePendingDelete(activeProfile.id)}
+								>
+									<Trash aria-hidden="true" />
+									{m["common.delete"]()}
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
+			</div>
 
+			<Modal
+				open={profilePendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setProfilePendingDelete(null);
+				}}
+				title={m["reader_settings.delete_profile_title"]({
+					name: pendingDeleteProfile?.name ?? "",
+				})}
+				description={m["reader_settings.delete_profile_description"]()}
+				showCloseButton={false}
+				layerClassName="z-[70]"
+				className="gap-4 sm:max-w-sm"
+				style={{
+					...readerThemeStyle,
+					backgroundColor: theme.backgroundColor,
+					color: theme.fontColor,
+				}}
+				footer={
+					<>
+						<button
+							type="button"
+							className={compactProfileButtonClass}
+							onClick={() => setProfilePendingDelete(null)}
+						>
+							{m["common.cancel"]()}
+						</button>
+						<button
+							type="button"
+							className={compactProfileButtonClass}
+							style={{ backgroundColor: mix(14) }}
+							onClick={() => {
+								if (profilePendingDelete) {
+									onProfileDelete(profilePendingDelete);
+								}
+								closeProfileEditor();
+							}}
+						>
+							{m["reader_settings.delete_profile_action"]()}
+						</button>
+					</>
+				}
+			/>
+		</section>
+	);
+	const settingsContent = (
+		<>
 			{(!activeCategory || activeCategory === "visual") && (
 				<QuickSettingsSection
-					title="Visual"
+					title={m["reader_settings.category_visual"]()}
 					showTitle={activeCategory === null}
 				>
-					<fieldset aria-label="Reading theme">
-						<legend className="mb-3 font-semibold text-sm">Themes</legend>
+					<fieldset aria-label={m["reader_settings.reading_theme"]()}>
+						<legend className="mb-3 font-semibold text-sm">
+							{m["reader_settings.themes"]()}
+						</legend>
 						<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
 							{availableThemes.map((option) => {
 								const selected = option.id === settings.theme;
@@ -943,7 +1089,9 @@ export function ReaderQuickSettings({
 								}
 							>
 								<Plus aria-hidden="true" className="size-5" weight="bold" />
-								<span className="font-medium text-[11px]">Create theme</span>
+								<span className="font-medium text-[11px]">
+									{m["reader_settings.create_theme"]()}
+								</span>
 							</button>
 						</div>
 					</fieldset>
@@ -951,13 +1099,17 @@ export function ReaderQuickSettings({
 						<div className="flex items-center justify-between gap-3 rounded-xl px-1 py-1">
 							<div className="min-w-0 text-sm">
 								<div className="font-medium">{settings.theme}</div>
-								<div className="text-xs opacity-55">Custom theme</div>
+								<div className="text-xs opacity-55">
+									{m["reader_settings.custom_theme"]()}
+								</div>
 							</div>
 							<div className="flex shrink-0 items-center gap-1">
 								<button
 									type="button"
-									aria-label={`Edit ${settings.theme}`}
-									title="Edit custom theme"
+									aria-label={m["reader_settings.edit_custom_theme"]({
+										name: settings.theme,
+									})}
+									title={m["reader_settings.edit_custom_theme_title"]()}
 									className="flex size-10 cursor-pointer items-center justify-center rounded-full outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 									style={{ backgroundColor: mix(7) }}
 									onClick={() =>
@@ -971,8 +1123,10 @@ export function ReaderQuickSettings({
 								</button>
 								<button
 									type="button"
-									aria-label={`Delete ${settings.theme}`}
-									title="Delete custom theme"
+									aria-label={m["reader_settings.delete_custom_theme"]({
+										name: settings.theme,
+									})}
+									title={m["reader_settings.delete_custom_theme_title"]()}
 									className="flex size-10 cursor-pointer items-center justify-center rounded-full outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 									style={{ backgroundColor: mix(7) }}
 									onClick={() => handleCustomThemeDelete(settings.theme)}
@@ -982,7 +1136,7 @@ export function ReaderQuickSettings({
 							</div>
 						</div>
 					)}
-					<QuickSettingsRow label="Character counter">
+					<QuickSettingsRow label={m["reader_settings.character_counter"]()}>
 						<Toggle
 							theme={theme}
 							value={settings.showCharacterCounter}
@@ -991,7 +1145,7 @@ export function ReaderQuickSettings({
 							}
 						/>
 					</QuickSettingsRow>
-					<QuickSettingsRow label="Percentage">
+					<QuickSettingsRow label={m["reader_settings.percentage"]()}>
 						<Toggle
 							theme={theme}
 							value={settings.showPercentage}
@@ -999,15 +1153,18 @@ export function ReaderQuickSettings({
 						/>
 					</QuickSettingsRow>
 					{isVisual && (
-						<QuickSettingsRow label="Progress indicator">
+						<QuickSettingsRow label={m["reader_settings.progress_indicator"]()}>
 							<div className="w-52 max-w-full">
 								<Segmented
 									theme={theme}
-									ariaLabel="Progress indicator"
+									ariaLabel={m["reader_settings.progress_indicator"]()}
 									options={[
-										{ id: "text", text: "Page number" },
-										{ id: "page-lines", text: "Page ticks" },
-										{ id: "bar", text: "Progress bar" },
+										{ id: "text", text: m["reader_settings.page_number"]() },
+										{
+											id: "page-lines",
+											text: m["reader_settings.page_ticks"](),
+										},
+										{ id: "bar", text: m["reader_settings.progress_bar"]() },
 									]}
 									selected={visualSettings.progressStyle}
 									onSelect={(progressStyle) =>
@@ -1026,11 +1183,11 @@ export function ReaderQuickSettings({
 						<Separator style={{ backgroundColor: mix(14) }} />
 					)}
 					<QuickSettingsSection
-						title="Text"
+						title={m["reader_settings.category_text"]()}
 						showTitle={activeCategory === null}
 					>
-						<QuickSettingsRow label="Text size">
-							<fieldset aria-label="Text size">
+						<QuickSettingsRow label={m["reader_settings.text_size"]()}>
+							<fieldset aria-label={m["reader_settings.text_size"]()}>
 								<Stepper
 									theme={theme}
 									compact
@@ -1051,14 +1208,14 @@ export function ReaderQuickSettings({
 								/>
 							</fieldset>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Font">
+						<QuickSettingsRow label={m["reader_settings.font"]()}>
 							<div className="w-40">
 								<Segmented
 									theme={theme}
-									ariaLabel="Font"
+									ariaLabel={m["reader_settings.font"]()}
 									options={[
-										{ id: "Noto Serif JP", text: "Serif" },
-										{ id: "Noto Sans JP", text: "Sans" },
+										{ id: "Noto Serif JP", text: m["reader_settings.serif"]() },
+										{ id: "Noto Sans JP", text: m["reader_settings.sans"]() },
 									]}
 									selected={settings.fontFamilyGroupOne}
 									onSelect={(fontFamilyGroupOne) =>
@@ -1067,9 +1224,9 @@ export function ReaderQuickSettings({
 								/>
 							</div>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Sans font family">
+						<QuickSettingsRow label={m["reader_settings.sans_font_family"]()}>
 							<ThemedTextInput
-								ariaLabel="Sans font family"
+								ariaLabel={m["reader_settings.sans_font_family"]()}
 								theme={theme}
 								value={settings.fontFamilyGroupTwo}
 								list="reader-quick-sans-fonts"
@@ -1084,7 +1241,7 @@ export function ReaderQuickSettings({
 							<option value="Noto Sans JP" />
 							<option value="sans-serif" />
 						</datalist>
-						<QuickSettingsRow label="Font weight">
+						<QuickSettingsRow label={m["reader_settings.font_weight"]()}>
 							<div className="w-40">
 								<ThemedSelect
 									theme={theme}
@@ -1101,7 +1258,7 @@ export function ReaderQuickSettings({
 									}
 								>
 									<ThemedOption theme={theme} value="default">
-										Default
+										{m["reader_settings.default_option"]()}
 									</ThemedOption>
 									{[300, 400, 500, 600, 700].map((weight) => (
 										<ThemedOption
@@ -1115,14 +1272,20 @@ export function ReaderQuickSettings({
 								</ThemedSelect>
 							</div>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Text orientation">
+						<QuickSettingsRow label={m["reader_settings.text_orientation"]()}>
 							<div className="w-40">
 								<Segmented
 									theme={theme}
-									ariaLabel="Text orientation"
+									ariaLabel={m["reader_settings.text_orientation"]()}
 									options={[
-										{ id: "horizontal-tb", text: "Horizontal" },
-										{ id: "vertical-rl", text: "Vertical" },
+										{
+											id: "horizontal-tb",
+											text: m["reader_settings.horizontal"](),
+										},
+										{
+											id: "vertical-rl",
+											text: m["reader_settings.vertical"](),
+										},
 									]}
 									selected={settings.writingMode}
 									onSelect={(writingMode) => onChange({ writingMode })}
@@ -1131,14 +1294,18 @@ export function ReaderQuickSettings({
 						</QuickSettingsRow>
 						{verticalMode && (
 							<>
-								<QuickSettingsRow label="Latin character orientation">
+								<QuickSettingsRow
+									label={m["reader_settings.latin_character_orientation"]()}
+								>
 									<div className="w-40">
 										<Segmented
 											theme={theme}
-											ariaLabel="Latin character orientation"
+											ariaLabel={m[
+												"reader_settings.latin_character_orientation"
+											]()}
 											options={[
-												{ id: "mixed", text: "Mixed" },
-												{ id: "upright", text: "Upright" },
+												{ id: "mixed", text: m["reader_settings.mixed"]() },
+												{ id: "upright", text: m["reader_settings.upright"]() },
 											]}
 											selected={settings.verticalTextOrientation}
 											onSelect={(verticalTextOrientation) =>
@@ -1147,7 +1314,7 @@ export function ReaderQuickSettings({
 										/>
 									</div>
 								</QuickSettingsRow>
-								<QuickSettingsRow label="Font kerning">
+								<QuickSettingsRow label={m["reader_settings.font_kerning"]()}>
 									<Toggle
 										theme={theme}
 										value={settings.enableFontKerning}
@@ -1156,7 +1323,9 @@ export function ReaderQuickSettings({
 										}
 									/>
 								</QuickSettingsRow>
-								<QuickSettingsRow label="Proportional vertical metrics">
+								<QuickSettingsRow
+									label={m["reader_settings.proportional_vertical_metrics"]()}
+								>
 									<Toggle
 										theme={theme}
 										value={settings.enableFontVPAL}
@@ -1165,7 +1334,7 @@ export function ReaderQuickSettings({
 								</QuickSettingsRow>
 							</>
 						)}
-						<QuickSettingsRow label="Justify text">
+						<QuickSettingsRow label={m["reader_settings.justify_text"]()}>
 							<Toggle
 								theme={theme}
 								value={settings.enableTextJustification}
@@ -1174,7 +1343,7 @@ export function ReaderQuickSettings({
 								}
 							/>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Pretty text wrap">
+						<QuickSettingsRow label={m["reader_settings.pretty_text_wrap"]()}>
 							<Toggle
 								theme={theme}
 								value={settings.enableTextWrapPretty}
@@ -1183,7 +1352,9 @@ export function ReaderQuickSettings({
 								}
 							/>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Prioritize reader styles">
+						<QuickSettingsRow
+							label={m["reader_settings.prioritize_reader_styles"]()}
+						>
 							<Toggle
 								theme={theme}
 								value={settings.prioritizeReaderStyles}
@@ -1192,7 +1363,7 @@ export function ReaderQuickSettings({
 								}
 							/>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Hide furigana">
+						<QuickSettingsRow label={m["reader_settings.hide_furigana"]()}>
 							<Toggle
 								theme={theme}
 								value={settings.hideFurigana}
@@ -1200,16 +1371,16 @@ export function ReaderQuickSettings({
 							/>
 						</QuickSettingsRow>
 						{settings.hideFurigana && (
-							<QuickSettingsRow label="Hide style">
+							<QuickSettingsRow label={m["reader_settings.hide_style"]()}>
 								<div className="w-52 max-w-full">
 									<Segmented
 										theme={theme}
-										ariaLabel="Furigana hide style"
+										ariaLabel={m["reader_settings.furigana_hide_style"]()}
 										options={[
-											{ id: "Hide", text: "Hide" },
-											{ id: "Partial", text: "Partial" },
-											{ id: "Toggle", text: "Toggle" },
-											{ id: "Full", text: "Full" },
+											{ id: "Hide", text: m["reader_settings.hide_option"]() },
+											{ id: "Partial", text: m["reader_settings.partial"]() },
+											{ id: "Toggle", text: m["reader_settings.toggle"]() },
+											{ id: "Full", text: m["reader_settings.full"]() },
 										]}
 										selected={settings.furiganaStyle}
 										onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
@@ -1217,10 +1388,12 @@ export function ReaderQuickSettings({
 								</div>
 							</QuickSettingsRow>
 						)}
-						<QuickSettingsRow label="Paragraph indentation">
+						<QuickSettingsRow
+							label={m["reader_settings.paragraph_indentation"]()}
+						>
 							<fieldset
 								className="w-48 max-w-full"
-								aria-label="Paragraph indentation"
+								aria-label={m["reader_settings.paragraph_indentation"]()}
 							>
 								<SliderRow
 									theme={theme}
@@ -1233,14 +1406,14 @@ export function ReaderQuickSettings({
 								/>
 							</fieldset>
 						</QuickSettingsRow>
-						<QuickSettingsRow label="Paragraph spacing">
+						<QuickSettingsRow label={m["reader_settings.paragraph_spacing"]()}>
 							<div className="w-40">
 								<Segmented
 									theme={theme}
-									ariaLabel="Paragraph spacing"
+									ariaLabel={m["reader_settings.paragraph_spacing"]()}
 									options={[
-										{ id: "auto", text: "Auto" },
-										{ id: "manual", text: "Manual" },
+										{ id: "auto", text: m["reader_settings.auto"]() },
+										{ id: "manual", text: m["reader_settings.manual"]() },
 									]}
 									selected={settings.textMarginMode}
 									onSelect={(textMarginMode) => onChange({ textMarginMode })}
@@ -1248,10 +1421,12 @@ export function ReaderQuickSettings({
 							</div>
 						</QuickSettingsRow>
 						{settings.textMarginMode === "manual" && (
-							<QuickSettingsRow label="Paragraph spacing size">
+							<QuickSettingsRow
+								label={m["reader_settings.paragraph_spacing_size"]()}
+							>
 								<fieldset
 									className="w-48 max-w-full"
-									aria-label="Paragraph spacing size"
+									aria-label={m["reader_settings.paragraph_spacing_size"]()}
 								>
 									<SliderRow
 										theme={theme}
@@ -1274,20 +1449,26 @@ export function ReaderQuickSettings({
 			{!activeCategory && <Separator style={{ backgroundColor: mix(14) }} />}
 			{(!activeCategory || activeCategory === "layout") && (
 				<QuickSettingsSection
-					title="Layout"
+					title={m["reader_settings.category_layout"]()}
 					showTitle={activeCategory === null}
 				>
 					{presentation.supportsVisual && (
 						<>
-							<QuickSettingsRow label="Read as">
+							<QuickSettingsRow label={m["reader_settings.read_as"]()}>
 								<div className="w-64 max-w-full">
 									<Segmented
 										theme={theme}
-										ariaLabel="Read as"
+										ariaLabel={m["reader_settings.read_as"]()}
 										options={[
-											{ id: "auto", text: "Automatic" },
-											{ id: "text", text: "Text" },
-											{ id: "visual", text: "Visual content" },
+											{ id: "auto", text: m["reader_settings.automatic"]() },
+											{
+												id: "text",
+												text: m["reader_settings.category_text"](),
+											},
+											{
+												id: "visual",
+												text: m["reader_settings.visual_content"](),
+											},
 										]}
 										selected={presentation.readAs}
 										onSelect={(value: ReadAs) =>
@@ -1298,7 +1479,9 @@ export function ReaderQuickSettings({
 							</QuickSettingsRow>
 							{presentation.readAs === "auto" && (
 								<p className="-mt-2 text-xs opacity-55">
-									Automatic currently uses {resolvedReadAs}.
+									{m["reader_settings.automatic_uses"]({
+										mode: resolvedReadAs,
+									})}
 								</p>
 							)}
 						</>
@@ -1309,7 +1492,9 @@ export function ReaderQuickSettings({
 								htmlFor="reader-quick-page-layout"
 								className="flex flex-col gap-2"
 							>
-								<div className="font-medium text-sm">Page layout</div>
+								<div className="font-medium text-sm">
+									{m["reader_settings.page_layout"]()}
+								</div>
 								<ThemedSelect
 									id="reader-quick-page-layout"
 									theme={theme}
@@ -1321,29 +1506,37 @@ export function ReaderQuickSettings({
 									}
 								>
 									<ThemedOption theme={theme} value="horizontal-strip">
-										Horizontal strip
+										{m["reader_settings.horizontal_strip"]()}
 									</ThemedOption>
 									<ThemedOption theme={theme} value="single-page">
-										Single page
+										{m["reader_settings.single_page"]()}
 									</ThemedOption>
 									<ThemedOption theme={theme} value="two-page-spread">
-										Two-page spread
+										{m["reader_settings.two_page_spread"]()}
 									</ThemedOption>
 									<ThemedOption theme={theme} value="vertical-strip">
-										Vertical strip
+										{m["reader_settings.vertical_strip"]()}
 									</ThemedOption>
 								</ThemedSelect>
 							</label>
 							{presentation.visualLayout !== "vertical-strip" && (
 								<div className="flex flex-col gap-2">
-									<div className="font-medium text-sm">Reading direction</div>
+									<div className="font-medium text-sm">
+										{m["reader_settings.reading_direction"]()}
+									</div>
 									<Segmented
 										theme={theme}
-										ariaLabel="Reading direction"
+										ariaLabel={m["reader_settings.reading_direction"]()}
 										options={[
-											{ id: "auto", text: "Auto" },
-											{ id: "rtl", text: "Visual" },
-											{ id: "ltr", text: "Western" },
+											{ id: "auto", text: m["reader_settings.auto"]() },
+											{
+												id: "rtl",
+												text: m["reader_settings.visual_direction"](),
+											},
+											{
+												id: "ltr",
+												text: m["reader_settings.western_direction"](),
+											},
 										]}
 										selected={visualSettings.readingDirection}
 										onSelect={(readingDirection) =>
@@ -1355,15 +1548,15 @@ export function ReaderQuickSettings({
 						</>
 					) : (
 						<>
-							<QuickSettingsRow label="Flow">
+							<QuickSettingsRow label={m["reader_settings.flow"]()}>
 								<div className="w-52 max-w-full">
 									<Segmented
 										theme={theme}
-										ariaLabel="Reading flow"
+										ariaLabel={m["reader_settings.reading_flow"]()}
 										options={[
-											{ id: "scroll", text: "Continuous" },
-											{ id: "paginated", text: "Pages" },
-											{ id: "focus", text: "Focus" },
+											{ id: "scroll", text: m["reader_settings.continuous"]() },
+											{ id: "paginated", text: m["reader_settings.pages"]() },
+											{ id: "focus", text: m["reader_settings.focus"]() },
 										]}
 										selected={presentation.textLayout}
 										onSelect={(value) =>
@@ -1374,12 +1567,29 @@ export function ReaderQuickSettings({
 							</QuickSettingsRow>
 							{presentation.textLayout === "focus" && (
 								<>
-									<QuickSettingsRow label="Text speed">
+									<QuickSettingsRow label={m["reader_settings.text_speed"]()}>
 										<div className="w-64 max-w-full">
 											<Segmented
 												theme={theme}
-												ariaLabel="Text speed"
-												options={FOCUS_TEXT_SPEED_OPTIONS}
+												ariaLabel={m["reader_settings.text_speed"]()}
+												options={[
+													{
+														id: "instant",
+														text: m["reader_settings.speed_instant"](),
+													},
+													{
+														id: "slow",
+														text: m["reader_settings.speed_slow"](),
+													},
+													{
+														id: "normal",
+														text: m["reader_settings.speed_normal"](),
+													},
+													{
+														id: "fast",
+														text: m["reader_settings.speed_fast"](),
+													},
+												]}
 												selected={settings.focusTextSpeed}
 												onSelect={(focusTextSpeed) =>
 													onChange({ focusTextSpeed })
@@ -1387,7 +1597,9 @@ export function ReaderQuickSettings({
 											/>
 										</div>
 									</QuickSettingsRow>
-									<QuickSettingsRow label="Sentence marker">
+									<QuickSettingsRow
+										label={m["reader_settings.sentence_marker"]()}
+									>
 										<Toggle
 											theme={theme}
 											value={settings.focusSentenceIndicator}
@@ -1397,7 +1609,9 @@ export function ReaderQuickSettings({
 										/>
 									</QuickSettingsRow>
 									{readListenActive && (
-										<QuickSettingsRow label="Line-by-line audio (VN)">
+										<QuickSettingsRow
+											label={m["reader_settings.line_by_line_audio"]()}
+										>
 											<Toggle
 												theme={theme}
 												value={settings.focusPauseAudioAfterLine}
@@ -1410,13 +1624,13 @@ export function ReaderQuickSettings({
 								</>
 							)}
 							{canSelectPageColumns && (
-								<QuickSettingsRow label="Columns">
+								<QuickSettingsRow label={m["reader_settings.columns"]()}>
 									<div className="w-40">
 										<Segmented
 											theme={theme}
-											ariaLabel="Columns"
+											ariaLabel={m["reader_settings.columns"]()}
 											options={[
-												{ id: 0, text: "Auto" },
+												{ id: 0, text: m["reader_settings.auto"]() },
 												{ id: 1, text: "1" },
 												{ id: 2, text: "2" },
 											]}
@@ -1427,7 +1641,9 @@ export function ReaderQuickSettings({
 								</QuickSettingsRow>
 							)}
 							{presentation.renderer === "text-paginated" && (
-								<QuickSettingsRow label="Avoid page break">
+								<QuickSettingsRow
+									label={m["reader_settings.avoid_page_break"]()}
+								>
 									<Toggle
 										theme={theme}
 										value={settings.avoidPageBreak}
@@ -1435,8 +1651,8 @@ export function ReaderQuickSettings({
 									/>
 								</QuickSettingsRow>
 							)}
-							<QuickSettingsRow label="Line height">
-								<fieldset aria-label="Line height">
+							<QuickSettingsRow label={m["reader_settings.line_height"]()}>
+								<fieldset aria-label={m["reader_settings.line_height"]()}>
 									<Stepper
 										theme={theme}
 										compact
@@ -1459,8 +1675,12 @@ export function ReaderQuickSettings({
 									/>
 								</fieldset>
 							</QuickSettingsRow>
-							<QuickSettingsRow label="Horizontal padding">
-								<fieldset aria-label="Horizontal padding">
+							<QuickSettingsRow
+								label={m["reader_settings.horizontal_padding"]()}
+							>
+								<fieldset
+									aria-label={m["reader_settings.horizontal_padding"]()}
+								>
 									<Stepper
 										theme={theme}
 										compact
@@ -1476,8 +1696,8 @@ export function ReaderQuickSettings({
 									/>
 								</fieldset>
 							</QuickSettingsRow>
-							<QuickSettingsRow label="Vertical padding">
-								<fieldset aria-label="Vertical padding">
+							<QuickSettingsRow label={m["reader_settings.vertical_padding"]()}>
+								<fieldset aria-label={m["reader_settings.vertical_padding"]()}>
 									<Stepper
 										theme={theme}
 										compact
@@ -1501,14 +1721,16 @@ export function ReaderQuickSettings({
 			{!activeCategory && <Separator style={{ backgroundColor: mix(14) }} />}
 			{(!activeCategory || activeCategory === "behaviour") && (
 				<QuickSettingsSection
-					title="Behaviour"
+					title={m["reader_settings.category_behaviour"]()}
 					showTitle={activeCategory === null}
 				>
 					{presentation.renderer === "text-scroll" && (
-						<QuickSettingsRow label="Keep position on resize">
+						<QuickSettingsRow
+							label={m["reader_settings.keep_position_on_resize"]()}
+						>
 							<Toggle
 								theme={theme}
-								ariaLabel="Keep position on resize"
+								ariaLabel={m["reader_settings.keep_position_on_resize"]()}
 								value={settings.autoPositionOnResize}
 								onChange={(autoPositionOnResize) =>
 									onChange({ autoPositionOnResize })
@@ -1517,7 +1739,9 @@ export function ReaderQuickSettings({
 						</QuickSettingsRow>
 					)}
 					{!isVisual && (
-						<QuickSettingsRow label="Disable wheel navigation">
+						<QuickSettingsRow
+							label={m["reader_settings.disable_wheel_navigation"]()}
+						>
 							<Toggle
 								theme={theme}
 								value={settings.disableWheelNavigation}
@@ -1545,32 +1769,39 @@ export function ReaderQuickSettings({
 	);
 
 	const categoryList = (
-		<div className="flex min-w-0 flex-col gap-2">
-			{settingsCategories.map((category) => {
-				const Icon = category.icon;
-				return (
-					<button
-						key={category.id}
-						type="button"
-						className="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl px-4 text-start outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
-						style={{ backgroundColor: mix(5) }}
-						onClick={() => setSelectedCategory(category.id)}
-					>
-						<Icon
-							aria-hidden="true"
-							className="size-5 shrink-0"
-							weight="bold"
-						/>
-						<span className="min-w-0 flex-1 font-medium text-sm">
-							{category.label}
-						</span>
-						<CaretRight
-							aria-hidden="true"
-							className="size-4 shrink-0 opacity-55"
-						/>
-					</button>
-				);
-			})}
+		<div className="flex min-w-0 flex-col gap-5">
+			{profileManager}
+			<Separator style={{ backgroundColor: mix(14) }} />
+			<section
+				aria-labelledby="reader-settings-categories"
+				className="flex flex-col gap-2"
+			>
+				<h2
+					id="reader-settings-categories"
+					className="px-1 font-semibold text-xs uppercase tracking-wider opacity-55"
+				>
+					{m["reader_settings.settings_heading"]()}
+				</h2>
+				{settingsCategories.map((category) => {
+					return (
+						<button
+							key={category.id}
+							type="button"
+							className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl px-3 text-start outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96] sm:min-h-10"
+							style={{ backgroundColor: mix(5) }}
+							onClick={() => setSelectedCategory(category.id)}
+						>
+							<span className="min-w-0 flex-1 font-medium text-sm">
+								{category.label}
+							</span>
+							<CaretRight
+								aria-hidden="true"
+								className="size-4 shrink-0 opacity-55"
+							/>
+						</button>
+					);
+				})}
+			</section>
 		</div>
 	);
 
@@ -1600,8 +1831,8 @@ export function ReaderQuickSettings({
 							{selectedCategory ? (
 								<button
 									type="button"
-									aria-label="Back to settings categories"
-									title="Back"
+									aria-label={m["reader_settings.back_to_categories"]()}
+									title={m["reader_settings.back"]()}
 									className="flex size-11 cursor-pointer items-center justify-center rounded-full outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 									style={{ backgroundColor: mix(7) }}
 									onClick={() => setSelectedCategory(null)}
@@ -1621,7 +1852,7 @@ export function ReaderQuickSettings({
 							<span aria-hidden="true" />
 						</div>
 						<DrawerDescription className="sr-only">
-							Adjust reading settings. Changes apply immediately.
+							{m["reader_settings.drawer_description"]()}
 						</DrawerDescription>
 					</DrawerHeader>
 					<div className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto overscroll-contain px-[max(1rem,var(--safe-area-left))] pt-1 pr-[max(1rem,var(--safe-area-right))] pb-[max(1rem,var(--safe-area-bottom))]">
@@ -1668,8 +1899,8 @@ export function ReaderQuickSettings({
 				{selectedCategory ? (
 					<button
 						type="button"
-						aria-label="Back to settings categories"
-						title="Back"
+						aria-label={m["reader_settings.back_to_categories"]()}
+						title={m["reader_settings.back"]()}
 						className="flex size-8 cursor-pointer items-center justify-center rounded-md outline-none transition-[background-color,scale] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 						style={{ backgroundColor: mix(7) }}
 						onClick={() => setSelectedCategory(null)}
@@ -1681,9 +1912,9 @@ export function ReaderQuickSettings({
 				)}
 				<button
 					type="button"
-					aria-label="Move settings window. Use arrow keys to reposition; press Home to center."
-					title="Drag to move"
-					className="flex h-9 min-w-0 touch-none select-none items-center justify-center gap-2 rounded-md px-2 text-center outline-none transition-opacity duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:cursor-grabbing"
+					aria-label={m["reader_settings.move_window"]()}
+					title={m["reader_settings.drag_to_move"]()}
+					className="flex h-9 min-w-0 touch-none select-none items-center justify-center rounded-md px-2 text-center outline-none transition-opacity duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:cursor-grabbing"
 					style={{ cursor: "grab" }}
 					onKeyDown={moveDesktopDialogWithKeyboard}
 					onPointerDown={beginDesktopDialogDrag}
@@ -1691,10 +1922,6 @@ export function ReaderQuickSettings({
 					onPointerUp={endDesktopDialogDrag}
 					onPointerCancel={endDesktopDialogDrag}
 				>
-					<DotsSixVertical
-						aria-hidden="true"
-						className="size-4 shrink-0 opacity-50"
-					/>
 					<span
 						id="reader-quick-settings-window-title"
 						className="truncate font-semibold text-sm tracking-tight"
@@ -1709,10 +1936,14 @@ export function ReaderQuickSettings({
 						aria-controls="reader-quick-settings-window-content"
 						aria-label={
 							desktopDialogCollapsed
-								? "Expand settings window"
-								: "Collapse settings window"
+								? m["reader_settings.expand_window"]()
+								: m["reader_settings.collapse_window"]()
 						}
-						title={desktopDialogCollapsed ? "Expand" : "Collapse"}
+						title={
+							desktopDialogCollapsed
+								? m["reader_settings.expand"]()
+								: m["reader_settings.collapse"]()
+						}
 						className="flex size-8 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 						onClick={toggleDesktopDialogCollapsed}
 					>
@@ -1724,8 +1955,8 @@ export function ReaderQuickSettings({
 					</button>
 					<button
 						type="button"
-						aria-label="Close settings"
-						title="Close"
+						aria-label={m["reader_settings.close_settings"]()}
+						title={m["common.close"]()}
 						className="flex size-8 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,scale] duration-150 hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.96]"
 						onClick={onClose}
 					>
@@ -1743,8 +1974,8 @@ export function ReaderQuickSettings({
 			<button
 				hidden={desktopDialogCollapsed}
 				type="button"
-				aria-label="Resize settings window. Use arrow keys to change its size."
-				title="Drag to resize"
+				aria-label={m["reader_settings.resize_window"]()}
+				title={m["reader_settings.drag_to_resize"]()}
 				className="absolute right-0 bottom-0 z-10 flex size-7 cursor-nwse-resize touch-none select-none items-center justify-center rounded-tl-md outline-none transition-opacity duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-[-3px] active:opacity-50"
 				onKeyDown={resizeDesktopDialogWithKeyboard}
 				onPointerDown={beginDesktopDialogResize}
@@ -1774,8 +2005,7 @@ export function ReaderQuickSettings({
 				</svg>
 			</button>
 			<p id="reader-quick-settings-window-description" className="sr-only">
-				Adjust reading settings. Changes apply immediately while the reader
-				remains interactive.
+				{m["reader_settings.window_description"]()}
 			</p>
 		</aside>
 	);
