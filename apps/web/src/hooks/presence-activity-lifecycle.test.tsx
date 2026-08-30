@@ -30,10 +30,6 @@ mock.module("@/hooks/use-clear-activity-on-unmount", () => ({
 mock.module("@/features/reader/renderers/shared/reading-time-slice", () => ({
 	claimReadingTimeSlice: () => 0,
 }));
-mock.module("@/features/reader/session/pending-progress", () => ({
-	markPendingProgress: () => {},
-}));
-
 const { usePresenceIdle } = await import("./use-presence-idle");
 const { usePlayerSync } = await import(
 	"../components/audio-player/use-player-sync"

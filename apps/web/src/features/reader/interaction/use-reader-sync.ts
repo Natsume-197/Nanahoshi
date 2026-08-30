@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import { claimReadingTimeSlice } from "@/features/reader/renderers/shared/reading-time-slice";
-import { markPendingProgress } from "@/features/reader/session/pending-progress";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
@@ -66,8 +65,6 @@ export function useReaderSync({
 				: 0;
 		const newStatus =
 			progress >= COMPLETION_THRESHOLD ? "completed" : "reading";
-		const syncOperationId = globalThis.crypto.randomUUID();
-
 		try {
 			// keepalive so syncs fired while the page is hiding/freezing (app
 			// switch, tab close) start immediately and survive on mobile. The server
@@ -75,7 +72,6 @@ export function useReaderSync({
 			await client.readingProgress.saveProgress(
 				{
 					bookUuid,
-					syncOperationId,
 					...positionWrite,
 					bookCharCount,
 					readingTimeSeconds: elapsedSinceLastSync,
@@ -86,16 +82,6 @@ export function useReaderSync({
 			invalidateReadingProgress();
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
-			// The slice was already claimed above; queue it so it lives in exactly
-			// one place (the offline queue) until a later flush delivers it.
-			markPendingProgress({
-				bookUuid,
-				syncOperationId,
-				...positionWrite,
-				bookCharCount,
-				readingTimeSeconds: elapsedSinceLastSync,
-				status: newStatus,
-			});
 		}
 	}, [bookUuid, enabled, getCharCounts]);
 

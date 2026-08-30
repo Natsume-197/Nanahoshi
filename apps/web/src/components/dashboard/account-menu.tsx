@@ -31,7 +31,6 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePresenceStatus } from "@/hooks/use-presence-status";
 import { useSession } from "@/hooks/use-session";
 import { useSignOut } from "@/hooks/use-sign-out";
@@ -74,7 +73,6 @@ export function AccountMenuItems({
 }: {
 	onGoToProfile?: () => void;
 }) {
-	const online = useOnlineStatus();
 	const { data: session } = useSession();
 	const { openSettings } = useSettingsModal();
 	const signOut = useSignOut();
@@ -87,7 +85,7 @@ export function AccountMenuItems({
 		<>
 			<DropdownMenuGroup>
 				{onGoToProfile && (
-					<DropdownMenuItem onClick={onGoToProfile} disabled={!online}>
+					<DropdownMenuItem onClick={onGoToProfile}>
 						<User />
 						{m["nav.profile"]()}
 					</DropdownMenuItem>
@@ -108,7 +106,7 @@ export function AccountMenuItems({
 
 			<DropdownMenuSeparator />
 			<DropdownMenuGroup>
-				<DropdownMenuItem asChild disabled={!online}>
+				<DropdownMenuItem asChild>
 					<Link to="/dashboard/invitations">
 						<EnvelopeOpen />
 						{m["nav.invitations"]()}

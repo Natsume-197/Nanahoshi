@@ -23,7 +23,7 @@ export function createQueryClient() {
 		},
 		queryCache: new QueryCache({
 			onError: (error, query) => {
-				if (typeof window === "undefined" || !navigator.onLine) return;
+				if (typeof window === "undefined") return;
 				toast.error(`Error: ${error.message}`, {
 					action: {
 						label: "retry",

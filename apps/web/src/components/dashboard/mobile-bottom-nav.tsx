@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -43,7 +42,6 @@ const tabs = [
 		icon: House,
 		href: "/dashboard" as const,
 		exact: true,
-		needsNetwork: false,
 	},
 	{
 		kind: "link",
@@ -51,7 +49,6 @@ const tabs = [
 		icon: MagnifyingGlass,
 		href: "/dashboard/search" as const,
 		exact: true,
-		needsNetwork: true,
 	},
 	{
 		kind: "link",
@@ -59,7 +56,6 @@ const tabs = [
 		icon: Folder,
 		href: "/dashboard/collections" as const,
 		exact: false,
-		needsNetwork: false,
 	},
 ] as const;
 
@@ -113,14 +109,13 @@ const browseNavItems = [
 // 12px) widens its own tab and squeezes the others, so the icons stop being
 // evenly spaced. Five tabs still leave 64px each at 320px; labels truncate while
 // every destination retains the same full-height touch target.
-const tabClass = (isActive: boolean, disabled: boolean) =>
+const tabClass = (isActive: boolean) =>
 	cn(
 		"flex h-full min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-center gap-1 py-2 short:py-1 text-xs transition-colors",
 		// --nav-inactive, not --muted-foreground: this bar has no chip behind the
 		// active tab, so the luminance step is most of what marks it — and it has
 		// to clear AA at 12px all the same. See index.css.
 		isActive ? "text-foreground" : "text-nav-inactive active:text-foreground",
-		disabled && "pointer-events-none opacity-40",
 	);
 
 export function MobileBottomNav({
@@ -130,7 +125,6 @@ export function MobileBottomNav({
 }) {
 	const location = useLocation();
 	const [libraryOpen, setLibraryOpen] = useState(false);
-	const online = useOnlineStatus();
 	const { data: session } = useSession();
 	// Resolved (per-active-org) avatar; falls back to the global account image.
 	const { data: profile } = useQuery({
@@ -175,13 +169,10 @@ export function MobileBottomNav({
 	const profilePath = getProfileTabPath(username);
 	// Profile tabs are search params, so the pathname alone decides the highlight.
 	const isProfileActive = location.pathname === profilePath;
-	const profileDisabled = !online;
 
 	const profileTabProps = {
 		"data-pressable": "subtle",
-		"aria-disabled": profileDisabled,
 		"aria-current": isProfileActive ? ("page" as const) : undefined,
-		tabIndex: profileDisabled ? -1 : undefined,
 		onClick: (event: { preventDefault: () => void }) => {
 			if (
 				getMobileTabPressAction(location.pathname, profilePath) === "reselect"
@@ -190,7 +181,7 @@ export function MobileBottomNav({
 				onReselectActiveTab();
 			}
 		},
-		className: tabClass(isProfileActive, profileDisabled),
+		className: tabClass(isProfileActive),
 	};
 
 	const profileTabBody = (
@@ -224,7 +215,6 @@ export function MobileBottomNav({
 			>
 				<div className="flex h-[var(--mobile-tabbar-height)] items-center justify-around">
 					{tabs.map((tab) => {
-						const disabled = tab.needsNetwork && !online;
 						const isActive = tab.exact
 							? location.pathname === tab.href
 							: location.pathname.startsWith(tab.href);
@@ -234,9 +224,7 @@ export function MobileBottomNav({
 								key={tab.href}
 								to={tab.href}
 								data-pressable="subtle"
-								aria-disabled={disabled}
 								aria-current={isActive ? "page" : undefined}
-								tabIndex={disabled ? -1 : undefined}
 								onClick={(event) => {
 									if (
 										getMobileTabPressAction(location.pathname, tab.href) ===
@@ -246,7 +234,7 @@ export function MobileBottomNav({
 										onReselectActiveTab();
 									}
 								}}
-								className={tabClass(isActive, disabled)}
+								className={tabClass(isActive)}
 							>
 								<tab.icon
 									aria-hidden="true"
@@ -271,7 +259,7 @@ export function MobileBottomNav({
 						onClick={() => setLibraryOpen(true)}
 						aria-expanded={libraryOpen}
 						aria-controls={LIBRARY_DRAWER_ID}
-						className={tabClass(isLibraryActive, false)}
+						className={tabClass(isLibraryActive)}
 					>
 						<Books
 							aria-hidden="true"

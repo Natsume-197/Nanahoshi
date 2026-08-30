@@ -4,9 +4,8 @@ import {
 	bookMetadata,
 	library,
 	readingProgress,
-	readingProgressSyncOperation,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
@@ -16,9 +15,6 @@ import {
 import type { ReadingProgress } from "./reading-progress.model";
 
 const MAX_CLIENT_CLOCK_SKEW_MS = 5_000;
-const SYNC_OPERATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
-const SYNC_OPERATION_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000;
-let nextSyncOperationCleanupAt = 0;
 
 export class ReadingProgressRepository {
 	async upsert(
@@ -28,7 +24,6 @@ export class ReadingProgressRepository {
 			exploredCharCount?: number;
 			bookCharCount?: number;
 			positionIntentAt?: number;
-			syncOperationId?: string;
 			readingTimeSeconds?: number;
 			status?: string;
 		},
@@ -54,99 +49,56 @@ export class ReadingProgressRepository {
 				: sql<boolean>`${readingProgress.positionIntentAt} IS NULL`
 			: undefined;
 
-		return db.transaction(async (tx) => {
-			if (data.syncOperationId) {
-				const insertedOperation = await tx
-					.insert(readingProgressSyncOperation)
-					.values({ id: data.syncOperationId, userId, bookId })
-					.onConflictDoNothing()
-					.returning({ id: readingProgressSyncOperation.id });
-				if (insertedOperation.length === 0) {
-					const [progress] = await tx
-						.select()
-						.from(readingProgress)
-						.where(
-							and(
-								eq(readingProgress.userId, userId),
-								eq(readingProgress.bookId, bookId),
-							),
-						);
-					if (!progress)
-						throw new Error("Progress operation has no progress row");
-					return { progress, positionAccepted: false };
-				}
-				if (serverNowMs >= nextSyncOperationCleanupAt) {
-					nextSyncOperationCleanupAt =
-						serverNowMs + SYNC_OPERATION_CLEANUP_INTERVAL_MS;
-					await tx
-						.delete(readingProgressSyncOperation)
-						.where(
-							lt(
-								readingProgressSyncOperation.createdAt,
-								new Date(
-									serverNowMs - SYNC_OPERATION_RETENTION_MS,
-								).toISOString(),
-							),
-						);
-				}
-			}
-
-			const [progress] = await tx
-				.insert(readingProgress)
-				.values({
-					userId,
-					bookId,
-					exploredCharCount: data.exploredCharCount ?? 0,
-					bookCharCount: data.bookCharCount ?? 0,
-					positionIntentAt: normalizedPositionIntentAt,
-					positionOperationId: hasPosition ? data.syncOperationId : undefined,
-					positionUpdatedAt: hasPosition ? now : undefined,
-					readingTimeSeconds: data.readingTimeSeconds ?? 0,
-					status: data.status ?? READING_STATUSES.READING,
-					startedAt: now,
+		const [progress] = await db
+			.insert(readingProgress)
+			.values({
+				userId,
+				bookId,
+				exploredCharCount: data.exploredCharCount ?? 0,
+				bookCharCount: data.bookCharCount ?? 0,
+				positionIntentAt: normalizedPositionIntentAt,
+				positionUpdatedAt: hasPosition ? now : undefined,
+				readingTimeSeconds: data.readingTimeSeconds ?? 0,
+				status: data.status ?? READING_STATUSES.READING,
+				startedAt: now,
+				lastReadAt: now,
+			})
+			.onConflictDoUpdate({
+				target: [readingProgress.userId, readingProgress.bookId],
+				set: {
+					...(data.exploredCharCount !== undefined && {
+						exploredCharCount: sql`CASE WHEN ${acceptsPosition} THEN ${data.exploredCharCount} ELSE ${readingProgress.exploredCharCount} END`,
+						positionUpdatedAt: sql`CASE WHEN ${acceptsPosition} THEN ${now} ELSE ${readingProgress.positionUpdatedAt} END`,
+					}),
+					...(data.bookCharCount !== undefined && {
+						bookCharCount: hasPosition
+							? sql`CASE WHEN ${acceptsPosition} THEN ${data.bookCharCount} ELSE ${readingProgress.bookCharCount} END`
+							: data.bookCharCount,
+					}),
+					...(normalizedPositionIntentAt !== undefined && {
+						positionIntentAt: sql`CASE WHEN ${acceptsPosition} THEN ${normalizedPositionIntentAt} ELSE ${readingProgress.positionIntentAt} END`,
+					}),
+					...(data.readingTimeSeconds !== undefined && {
+						readingTimeSeconds: sql`${readingProgress.readingTimeSeconds} + ${data.readingTimeSeconds}`,
+					}),
+					...(data.status !== undefined && {
+						status: hasPosition
+							? sql`CASE WHEN ${acceptsPosition} THEN ${data.status} ELSE ${readingProgress.status} END`
+							: data.status,
+						completedAt: hasPosition
+							? sql`CASE WHEN ${acceptsPosition} THEN ${data.status === READING_STATUSES.COMPLETED ? now : null} ELSE ${readingProgress.completedAt} END`
+							: data.status === READING_STATUSES.COMPLETED
+								? now
+								: null,
+					}),
 					lastReadAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [readingProgress.userId, readingProgress.bookId],
-					set: {
-						...(data.exploredCharCount !== undefined && {
-							exploredCharCount: sql`CASE WHEN ${acceptsPosition} THEN ${data.exploredCharCount} ELSE ${readingProgress.exploredCharCount} END`,
-							positionUpdatedAt: sql`CASE WHEN ${acceptsPosition} THEN ${now} ELSE ${readingProgress.positionUpdatedAt} END`,
-						}),
-						...(data.bookCharCount !== undefined && {
-							bookCharCount: hasPosition
-								? sql`CASE WHEN ${acceptsPosition} THEN ${data.bookCharCount} ELSE ${readingProgress.bookCharCount} END`
-								: data.bookCharCount,
-						}),
-						...(normalizedPositionIntentAt !== undefined && {
-							positionIntentAt: sql`CASE WHEN ${acceptsPosition} THEN ${normalizedPositionIntentAt} ELSE ${readingProgress.positionIntentAt} END`,
-							positionOperationId: sql`CASE WHEN ${acceptsPosition} THEN ${data.syncOperationId} ELSE ${readingProgress.positionOperationId} END`,
-						}),
-						...(data.readingTimeSeconds !== undefined && {
-							readingTimeSeconds: sql`${readingProgress.readingTimeSeconds} + ${data.readingTimeSeconds}`,
-						}),
-						...(data.status !== undefined && {
-							status: hasPosition
-								? sql`CASE WHEN ${acceptsPosition} THEN ${data.status} ELSE ${readingProgress.status} END`
-								: data.status,
-							completedAt: hasPosition
-								? sql`CASE WHEN ${acceptsPosition} THEN ${data.status === READING_STATUSES.COMPLETED ? now : null} ELSE ${readingProgress.completedAt} END`
-								: data.status === READING_STATUSES.COMPLETED
-									? now
-									: null,
-						}),
-						lastReadAt: now,
-					},
-				})
-				.returning();
-			if (!progress) throw new Error("Reading progress upsert returned no row");
-			const positionAccepted =
-				!hasPosition ||
-				(data.syncOperationId !== undefined
-					? progress.positionOperationId === data.syncOperationId
-					: progress.positionIntentAt === normalizedPositionIntentAt);
-			return { progress, positionAccepted };
-		});
+				},
+			})
+			.returning();
+		if (!progress) throw new Error("Reading progress upsert returned no row");
+		const positionAccepted =
+			!hasPosition || progress.positionIntentAt === normalizedPositionIntentAt;
+		return { progress, positionAccepted };
 	}
 
 	async getByUserAndBook(

@@ -26,7 +26,6 @@ import {
 	NotificationBell,
 	NotificationRail,
 } from "@/components/notifications/notification-bell";
-import { OfflineBanner } from "@/components/shared/offline-banner";
 import { Button } from "@/components/ui/button";
 import {
 	useAudioPlayerBook,
@@ -51,7 +50,6 @@ import {
 	getScrollRestoreEpoch,
 	pageScroll,
 } from "@/lib/scroll-restoration";
-import { reconcilePersistedServer } from "@/lib/switch-server";
 import { useIsSwitchingServer } from "@/lib/switching-server-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -233,11 +231,6 @@ export function DashboardLayout() {
 	// getScrollRestoreEpoch for the timing details.
 	const scrollRestoreEpoch = useRouterState({
 		select: getScrollRestoreEpoch,
-	});
-	// Drop any persisted cache that belongs to a different server (e.g. switched
-	// on another device, then this tab reloaded). Same-server reloads keep theirs.
-	useMountEffect(() => {
-		reconcilePersistedServer(session?.session.activeOrganizationId ?? null);
 	});
 	// On home, the mobile top bar gets out of the way while scrolling and comes
 	// back immediately on upward movement. This drives the element directly.
@@ -430,11 +423,6 @@ export function DashboardLayout() {
 											"max-md:pt-[var(--mobile-header-reserve)] max-md:[scroll-padding-top:var(--mobile-header-reserve)]",
 									)}
 								>
-									{/* Inside the scroll area: the bar overlays the top of this
-									    panel on mobile, so a banner above it would be hidden
-									    under the bar. Home shows its own full offline notice. */}
-									{location.pathname !== "/dashboard" && <OfflineBanner />}
-
 									<Outlet />
 									<ScrollRestorer
 										key={scrollRestoreEpoch}

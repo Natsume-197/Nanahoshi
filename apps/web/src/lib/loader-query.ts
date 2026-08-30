@@ -8,8 +8,8 @@ import type { QueryClient } from "@tanstack/react-query";
  * loader with cause "stay", which bypasses the cache so edits render fresh.
  *
  * SSR always calls through because the browser-only preload/click deduplication
- * has no value there. Keys are prefixed "loader" and excluded from persistent
- * browser storage.
+ * has no value there. Keys are prefixed "loader" to keep them distinct from
+ * regular procedure queries.
  */
 export function fetchLoaderQuery<T>(
 	queryClient: QueryClient,

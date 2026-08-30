@@ -1,10 +1,6 @@
 import { authClient } from "@/lib/auth-client";
-import { QUERY_PERSIST_KEY } from "@/lib/query-cache-keys";
 import { setSwitchingServer } from "@/lib/switching-server-store";
 import { client, queryClient } from "@/utils/orpc";
-
-/** Tracks which server the persisted query cache belongs to (see dashboard-layout). */
-export const ACTIVE_SERVER_KEY = "nanahoshi-active-server";
 
 // Sections whose pages show a single server's catalog. A specific entity under
 // them (a book, a series, …) won't exist after switching servers.
@@ -44,8 +40,8 @@ export function isServerScopedDetailPath(pathname: string): boolean {
  * refetch what's on screen under the new server.
  *
  * Query keys are not server-scoped (the active server is server-side session
- * state), so a plain invalidate would leave inactive/persisted entries holding
- * the old server's data. `resetQueries()` clears every query back to its initial
+ * state), so a plain invalidate would leave inactive entries holding the old
+ * server's data. `resetQueries()` clears every query back to its initial
  * state (no cross-server bleed) AND refetches the active (mounted) ones — unlike
  * `clear()`, which is a teardown that drops the cache without re-fetching, so
  * mounted observers keep showing the previous server's data.
@@ -53,41 +49,8 @@ export function isServerScopedDetailPath(pathname: string): boolean {
  * Returns the `resetQueries` promise so callers can keep a loading state up
  * until the active queries have refetched under the new server.
  */
-export function resetClientCacheForServer(serverId: string | null) {
-	// Drop the persisted snapshot too so a reload can't restore the old server.
-	try {
-		window.localStorage.removeItem(QUERY_PERSIST_KEY);
-		window.localStorage.setItem(ACTIVE_SERVER_KEY, serverId ?? "");
-	} catch {
-		// no-op (private mode / storage disabled)
-	}
+export function resetClientCacheForServer() {
 	return queryClient.resetQueries();
-}
-
-/**
- * One-time mount reconciliation: if the persisted cache belongs to a different
- * server than the session's active one (e.g. it was switched on another device,
- * then this tab reloaded), hard-reset so we never show the wrong server's data.
- * The first run just records the server without discarding the freshly-loaded
- * cache (the loaders already fetched it under the correct server).
- */
-export function reconcilePersistedServer(serverId: string | null) {
-	const current = serverId ?? "";
-	let stored: string | null;
-	try {
-		stored = window.localStorage.getItem(ACTIVE_SERVER_KEY);
-	} catch {
-		return;
-	}
-	if (stored === null) {
-		try {
-			window.localStorage.setItem(ACTIVE_SERVER_KEY, current);
-		} catch {
-			// no-op
-		}
-		return;
-	}
-	if (stored !== current) resetClientCacheForServer(serverId);
 }
 
 /**
@@ -120,7 +83,7 @@ export async function switchActiveServer(
 		if (navigateToDashboard) await navigateToDashboard();
 		// Await the refetch so the loader stays up until the new server's data is
 		// ready, instead of revealing empty/loading state.
-		await resetClientCacheForServer(serverId);
+		await resetClientCacheForServer();
 	} finally {
 		setSwitchingServer(false);
 	}

@@ -25,7 +25,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { toggleRail, useRailState } from "@/lib/rail-store";
 import { cn } from "@/lib/utils";
@@ -50,8 +49,7 @@ interface RailItem {
 	icon: NavIcon;
 	activeWeight?: "bold" | "fill";
 	section: Exclude<RailSection, null | "more">;
-	/** Catalog destinations need the network and an active server; home doesn't
-	 *  — it has its own offline view. */
+	/** Catalog destinations require an active server. */
 	needsCatalog?: boolean;
 }
 
@@ -217,15 +215,14 @@ export function DashboardAppRail({
 	locationPathname: string;
 	activeOrganizationId: string | null;
 }) {
-	const online = useOnlineStatus();
-	const catalogDisabled = !online || !activeOrganizationId;
+	const catalogDisabled = !activeOrganizationId;
 	const section = resolveRailSection(locationPathname);
 	const moreActive = section === "more";
 	const expanded = useRailState() === "expanded";
 	const { data: libraries } = useQuery({
 		...orpc.libraries.getLibraries.queryOptions(),
 		staleTime: 30_000,
-		enabled: online && Boolean(activeOrganizationId),
+		enabled: Boolean(activeOrganizationId),
 	});
 
 	useWindowEvent("keydown", (event) => {

@@ -12,7 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocaleContext } from "@/context/locale-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { removeLegacyBookStorage } from "@/lib/offline";
+import { removeLegacyOfflineStorage } from "@/lib/offline";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
 	applyPaletteVars,
@@ -165,7 +165,7 @@ function RootDocument() {
 		applyPaletteVars(palette?.vars ?? null);
 		storePalette(palette);
 		refreshThemeColor();
-		removeLegacyBookStorage();
+		removeLegacyOfflineStorage();
 	});
 
 	return (
@@ -189,7 +189,7 @@ function RootDocument() {
 					<TooltipProvider>
 						{session ? (
 							<Suspense fallback={null}>
-								<AuthenticatedAppProviders userId={session.user.id}>
+								<AuthenticatedAppProviders>
 									{/* key={locale} remounts the routed tree on a language
 									    switch so memo'd components re-run their m.*() calls. */}
 									<Outlet key={locale} />
