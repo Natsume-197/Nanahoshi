@@ -18,6 +18,7 @@ import {
 import type { DiscordProfile } from "better-auth/social-providers";
 import { and, eq, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { authIpAddress, authRateLimit } from "./auth-security-options";
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
@@ -302,24 +303,7 @@ const authConfig = {
 	// Brute-force / credential-stuffing protection. Default in-memory storage is
 	// fine for a single instance; multi-instance deploys should point this at the
 	// existing Redis via `secondaryStorage`.
-	rateLimit: {
-		enabled: true,
-		window: 60,
-		max: 100,
-		customRules: {
-			"/sign-in/email": { window: 60, max: 5 },
-			"/sign-up/email": { window: 60, max: 5 },
-			"/forget-password": { window: 60, max: 3 },
-			"/reset-password": { window: 60, max: 5 },
-			// Authenticated read GETs the client polls on every navigation (also on
-			// the SW allowlist). Brute-force protection is irrelevant here, so they
-			// get their own generous budget instead of sharing the global 100/60
-			// with each other and triggering spurious 429s during normal browsing.
-			"/get-session": { window: 60, max: 1000 },
-			"/organization/list": { window: 60, max: 1000 },
-			"/organization/get-full-organization": { window: 60, max: 1000 },
-		},
-	},
+	rateLimit: authRateLimit,
 	account: {
 		accountLinking: {
 			enabled: true,
@@ -351,6 +335,7 @@ const authConfig = {
 	advanced: {
 		defaultCookieAttributes: cookieConfig,
 		crossSubDomainCookies: crossSubDomainCookies,
+		ipAddress: authIpAddress,
 	},
 	databaseHooks: {
 		// Social/OAuth callbacks create users without passing through the

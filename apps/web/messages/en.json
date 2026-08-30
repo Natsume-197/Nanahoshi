@@ -774,6 +774,11 @@
 		"invite_only_note": "This server is invite-only: you need an invite link or an email invitation from an administrator.",
 		"signup_closed_note": "This instance isn't accepting new accounts right now. Contact an administrator if you think this is a mistake.",
 		"email_signup_disabled_note": "Email sign-up is disabled on this server. Use one of the options below instead.",
+		"session_rate_limited_title": "Too many requests",
+		"session_rate_limited_description": "Nanahoshi couldn't verify your session because too many requests were received. Wait a moment, then try again.",
+		"session_unavailable_title": "Unable to verify session",
+		"session_unavailable_description": "Check the server connection and try again. You haven't been signed out.",
+		"session_retry": "Try again",
 		"oauth_err": {
 			"invite_required": "Creating an account with Discord requires an invitation. Open your invite link and start again from there.",
 			"signup_closed": "This instance isn't accepting new accounts right now.",

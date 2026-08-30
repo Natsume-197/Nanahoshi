@@ -9,6 +9,10 @@ interface ErrorPageProps {
 	detail?: string;
 	/** When true, shows a "Try again" button that re-invalidates the router. */
 	showRetry?: boolean;
+	showHome?: boolean;
+	retryLabel?: string;
+	homeLabel?: string;
+	onRetry?: () => void;
 }
 
 export function ErrorPage({
@@ -16,6 +20,10 @@ export function ErrorPage({
 	description = "An unexpected error occurred while loading this page. You can try again or head back home.",
 	detail,
 	showRetry = true,
+	showHome = true,
+	retryLabel = "Try again",
+	homeLabel = "Go home",
+	onRetry,
 }: ErrorPageProps) {
 	const router = useRouter();
 
@@ -41,18 +49,23 @@ export function ErrorPage({
 						<Button
 							type="button"
 							className="h-11 flex-1 bg-foreground font-semibold text-background hover:bg-foreground/90"
-							onClick={() => router.invalidate()}
+							onClick={() => {
+								onRetry?.();
+								void router.invalidate();
+							}}
 						>
 							<ArrowClockwise className="mr-2 size-4" />
-							Try again
+							{retryLabel}
 						</Button>
 					) : null}
-					<Button asChild variant="outline" className="h-11 flex-1">
-						<Link to="/">
-							<House className="mr-2 size-4" />
-							Go home
-						</Link>
-					</Button>
+					{showHome ? (
+						<Button asChild variant="outline" className="h-11 flex-1">
+							<Link to="/">
+								<House className="mr-2 size-4" />
+								{homeLabel}
+							</Link>
+						</Button>
+					) : null}
 				</div>
 			</div>
 		</main>

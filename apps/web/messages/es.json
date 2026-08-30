@@ -774,6 +774,11 @@
 		"invite_only_note": "Este servidor requiere invitación: necesitas un enlace de invitación o una invitación por correo de un administrador.",
 		"signup_closed_note": "Esta instancia no acepta cuentas nuevas ahora mismo. Contacta con un administrador si crees que es un error.",
 		"email_signup_disabled_note": "El registro por correo está desactivado en este servidor. Usa una de las opciones de abajo.",
+		"session_rate_limited_title": "Demasiadas solicitudes",
+		"session_rate_limited_description": "Nanahoshi no pudo verificar tu sesión porque se recibieron demasiadas solicitudes. Espera un momento y vuelve a intentarlo.",
+		"session_unavailable_title": "No se pudo verificar la sesión",
+		"session_unavailable_description": "Comprueba la conexión con el servidor y vuelve a intentarlo. Tu sesión no se ha cerrado.",
+		"session_retry": "Volver a intentar",
 		"oauth_err": {
 			"invite_required": "Crear una cuenta con Discord requiere una invitación. Abre tu enlace de invitación y empieza desde ahí.",
 			"signup_closed": "Esta instancia no acepta cuentas nuevas ahora mismo.",

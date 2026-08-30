@@ -774,6 +774,11 @@
 		"invite_only_note": "このサーバーは招待制です。管理者からの招待リンクまたはメール招待が必要です。",
 		"signup_closed_note": "現在、このインスタンスでは新規アカウントを受け付けていません。誤りと思われる場合は管理者にお問い合わせください。",
 		"email_signup_disabled_note": "このサーバーではメールでの登録が無効です。代わりに以下の方法を使用してください。",
+		"session_rate_limited_title": "リクエストが多すぎます",
+		"session_rate_limited_description": "リクエストが多すぎるため、Nanahoshiでセッションを確認できませんでした。しばらく待ってから、もう一度お試しください。",
+		"session_unavailable_title": "セッションを確認できません",
+		"session_unavailable_description": "サーバーへの接続を確認して、もう一度お試しください。ログアウトはしていません。",
+		"session_retry": "再試行",
 		"oauth_err": {
 			"invite_required": "Discordでアカウントを作成するには招待が必要です。招待リンクを開き、そこからやり直してください。",
 			"signup_closed": "現在、このインスタンスでは新規アカウントを受け付けていません。",
