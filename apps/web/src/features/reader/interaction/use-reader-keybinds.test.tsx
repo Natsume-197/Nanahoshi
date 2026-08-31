@@ -26,14 +26,12 @@ function useKeybindHarness(api: BookReaderApi) {
 		apiRef,
 		presentation: paginatedPresentation,
 		verticalMode: true,
-		autoScrollMultiplier: 1,
 		galleryOpen: false,
 		tocOpen: false,
 		settingsOpen: true,
 		onCloseToc: () => {},
 		onCloseSettings: () => {},
 		onChangeChapter: () => {},
-		onAutoScrollMultiplierChange: () => {},
 	});
 }
 

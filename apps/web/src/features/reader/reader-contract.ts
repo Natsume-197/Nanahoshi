@@ -29,12 +29,6 @@ export interface ReaderTextAnchorCapability {
 	resolveTextAnchor(anchor: ReaderTextAnchor): number | undefined;
 }
 
-/** Continuous-engine capability; absent from page-turning engines. */
-export interface ReaderAutoScrollCapability {
-	toggleAutoScroll(): void;
-	setAutoScrollMultiplier(multiplier: number): void;
-}
-
 /** PDF-engine capability; opens its native, progressively populated search. */
 export interface ReaderSearchCapability {
 	openSearch(): void;
@@ -57,7 +51,6 @@ export interface ReaderScrollbarCapability {
 export type BookReaderApi = ReaderNavigationCapability &
 	Partial<
 		ReaderTextAnchorCapability &
-			ReaderAutoScrollCapability &
 			ReaderSearchCapability &
 			ReaderScrollbarCapability
 	>;
@@ -68,15 +61,6 @@ export function supportsReaderTextAnchors(
 	return (
 		typeof api?.navigateToTextAnchor === "function" &&
 		typeof api.resolveTextAnchor === "function"
-	);
-}
-
-export function supportsReaderAutoScroll(
-	api: BookReaderApi | null | undefined,
-): api is BookReaderApi & ReaderAutoScrollCapability {
-	return (
-		typeof api?.toggleAutoScroll === "function" &&
-		typeof api.setAutoScrollMultiplier === "function"
 	);
 }
 
@@ -94,8 +78,7 @@ export function supportsReaderScrollbar(
 
 /**
  * Props common to both reader modes (continuous + paginated). Each mode extends
- * this with its own extras (auto-scroll for continuous, columns/page-break for
- * paginated).
+ * this with its own extras (columns/page-break for paginated).
  */
 export interface BaseReaderProps {
 	htmlContent: string;

@@ -138,7 +138,6 @@ describe("BookReaderContinuous vertical padding", () => {
 				disableWheelNavigation={false}
 				navigationBlocked={false}
 				autoPositionOnResize={true}
-				autoScrollMultiplier={1}
 				reservePlayerSpace={true}
 				scrollContainerRef={scrollContainerRef}
 				sections={[
@@ -152,7 +151,6 @@ describe("BookReaderContinuous vertical padding", () => {
 				initialPosition={position}
 				onPositionChange={() => {}}
 				onSectionProgressChange={() => {}}
-				onAutoScrollChange={() => {}}
 				apiRef={(api) => {
 					readerApi = api;
 				}}

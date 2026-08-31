@@ -162,7 +162,6 @@ export interface ReaderSettings {
 	showPercentage: boolean;
 	hideFurigana: boolean;
 	furiganaStyle: FuriganaStyle;
-	autoScrollMultiplier: number;
 	avoidPageBreak: boolean;
 	pageColumns: number;
 	focusTextSpeed: FocusTextSpeed;
@@ -207,7 +206,6 @@ export const defaultReaderSettings: ReaderSettings = {
 	showPercentage: true,
 	hideFurigana: false,
 	furiganaStyle: "Partial",
-	autoScrollMultiplier: 20,
 	avoidPageBreak: false,
 	pageColumns: 2,
 	focusTextSpeed: "normal",
@@ -409,12 +407,6 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		30,
 	);
 	next.pageColumns = Math.round(clampNumber(stored.pageColumns, 0, 0, 2));
-	next.autoScrollMultiplier = clampNumber(
-		stored.autoScrollMultiplier,
-		defaultReaderSettings.autoScrollMultiplier,
-		1,
-		100,
-	);
 	return next;
 }
 

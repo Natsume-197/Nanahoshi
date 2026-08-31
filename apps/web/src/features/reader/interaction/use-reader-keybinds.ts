@@ -1,9 +1,6 @@
 import type { RefObject } from "react";
 import type { ReaderPresentation } from "@/features/reader/presentation/reader-presentation";
-import {
-	type BookReaderApi,
-	supportsReaderAutoScroll,
-} from "@/features/reader/reader-contract";
+import type { BookReaderApi } from "@/features/reader/reader-contract";
 import { useWindowEvent } from "@/hooks/use-window-event";
 
 interface UseReaderKeybindsArgs {
@@ -12,7 +9,6 @@ interface UseReaderKeybindsArgs {
 	verticalMode: boolean;
 	/** Physical page direction for visual books; independent of writing mode. */
 	visualDirection?: "ltr" | "rtl";
-	autoScrollMultiplier: number;
 	/** Reader overlays that may own keyboard navigation. */
 	galleryOpen: boolean;
 	tocOpen: boolean;
@@ -22,7 +18,6 @@ interface UseReaderKeybindsArgs {
 	onCloseToc: () => void;
 	onCloseSettings: () => void;
 	onChangeChapter: (offset: number) => void;
-	onAutoScrollMultiplierChange: (next: number) => void;
 }
 
 /** Keys that keep firing while held (OS key repeat) instead of once per press. */
@@ -39,15 +34,13 @@ const pageFlipCodes = new Set([
 
 /**
  * The Nanahoshi default keybind map (book-reader-keybind.ts + store.ts). In paginated
- * mode Nanahoshi additionally binds the arrows and A/D to page flips; in continuous
- * mode A/D adjust the auto-scroll speed.
+ * mode Nanahoshi additionally binds the arrows and A/D to page flips.
  */
 export function useReaderKeybinds({
 	apiRef,
 	presentation,
 	verticalMode,
 	visualDirection,
-	autoScrollMultiplier,
 	galleryOpen,
 	tocOpen,
 	settingsOpen,
@@ -55,7 +48,6 @@ export function useReaderKeybinds({
 	onCloseToc,
 	onCloseSettings,
 	onChangeChapter,
-	onAutoScrollMultiplierChange,
 }: UseReaderKeybindsArgs) {
 	useWindowEvent("keydown", (event) => {
 		const isPaginated =
@@ -74,7 +66,7 @@ export function useReaderKeybinds({
 			return;
 		}
 		// Holding a page-flip key keeps turning pages; everything else
-		// auto-scroll toggle, chapter jumps, continuous-mode A/D speed steps)
+		// (chapter jumps)
 		// fires once per press.
 		if (
 			event.repeat &&
@@ -119,10 +111,6 @@ export function useReaderKeybinds({
 			case "PageUp":
 				api.prevPage();
 				break;
-			case "Space":
-				if (supportsReaderAutoScroll(api)) api.toggleAutoScroll();
-				else handled = false;
-				break;
 			case "ArrowLeft":
 				if (isPaginated) {
 					if (advancesFromLeft) api.nextPage();
@@ -151,8 +139,6 @@ export function useReaderKeybinds({
 				if (isPaginated) {
 					if (advancesFromLeft) api.nextPage();
 					else api.prevPage();
-				} else if (supportsReaderAutoScroll(api)) {
-					onAutoScrollMultiplierChange(autoScrollMultiplier + 1);
 				} else {
 					handled = false;
 				}
@@ -161,8 +147,6 @@ export function useReaderKeybinds({
 				if (isPaginated) {
 					if (advancesFromLeft) api.prevPage();
 					else api.nextPage();
-				} else if (supportsReaderAutoScroll(api)) {
-					onAutoScrollMultiplierChange(Math.max(1, autoScrollMultiplier - 1));
 				} else {
 					handled = false;
 				}

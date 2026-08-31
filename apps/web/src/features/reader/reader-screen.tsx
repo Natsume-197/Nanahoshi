@@ -64,7 +64,6 @@ import {
 import type { VisualReaderSettings } from "@/features/reader/presentation/visual-settings";
 import {
 	type BookReaderApi,
-	supportsReaderAutoScroll,
 	supportsReaderScrollbar,
 } from "@/features/reader/reader-contract";
 import { ReaderEngine } from "@/features/reader/renderers/reader-engine";
@@ -507,8 +506,7 @@ export function ReaderScreen({
 		return capturePosition(() => apiRef.current?.getPosition());
 	};
 
-	// Direct commit path, used by keybinds while the overlay is closed
-	// (autoscroll speed) — these never touch the book layout.
+	// Direct commit path used by settings controls that do not touch the book layout.
 	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
 		const next = { ...settings, ...patch };
 		settingsRef.current = next;
@@ -915,7 +913,6 @@ export function ReaderScreen({
 		presentation,
 		verticalMode,
 		visualDirection: visualDirection,
-		autoScrollMultiplier: settings.autoScrollMultiplier,
 		galleryOpen,
 		tocOpen,
 		settingsOpen: quickSettingsOpen && isMobile,
@@ -923,13 +920,6 @@ export function ReaderScreen({
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: closeQuickSettings,
 		onChangeChapter: changeChapter,
-		onAutoScrollMultiplierChange: (next) => {
-			handleSettingsChange({ autoScrollMultiplier: next });
-			const readerApi = apiRef.current;
-			if (supportsReaderAutoScroll(readerApi)) {
-				readerApi.setAutoScrollMultiplier(next);
-			}
-		},
 	});
 
 	const completeBook = () => {

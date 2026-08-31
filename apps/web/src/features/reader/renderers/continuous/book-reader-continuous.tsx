@@ -12,7 +12,6 @@ import {
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
 import { CharacterStatsCalculator } from "@/features/reader/renderers/continuous/character-stats-calculator";
 import {
-	AutoScrollerContinuous,
 	formatPos,
 	horizontalMouseWheel,
 	PageManagerContinuous,
@@ -40,16 +39,13 @@ export type { BookReaderApi } from "@/features/reader/reader-contract";
 
 interface BookReaderContinuousProps extends BaseReaderProps {
 	autoPositionOnResize: boolean;
-	autoScrollMultiplier: number;
 	reservePlayerSpace: boolean;
 	scrollContainerRef: RefObject<HTMLElement | null>;
-	onAutoScrollChange: (enabled: boolean) => void;
 }
 
 interface ReaderInternals {
 	calculator?: CharacterStatsCalculator;
 	pageManager?: PageManagerContinuous;
-	autoScroller?: AutoScrollerContinuous;
 	scrollAdjustment: number;
 	prevIntendedCharCount: number;
 	isProgrammaticScroll: boolean;
@@ -105,14 +101,12 @@ export function BookReaderContinuous({
 	disableWheelNavigation,
 	navigationBlocked,
 	autoPositionOnResize,
-	autoScrollMultiplier,
 	reservePlayerSpace,
 	scrollContainerRef,
 	sections,
 	initialPosition,
 	onPositionChange,
 	onSectionProgressChange,
-	onAutoScrollChange,
 	apiRef,
 }: BookReaderContinuousProps) {
 	const contentElRef = useRef<HTMLDivElement | null>(null);
@@ -148,8 +142,6 @@ export function BookReaderContinuous({
 	onPositionChangeRef.current = onPositionChange;
 	const onSectionProgressChangeRef = useRef(onSectionProgressChange);
 	onSectionProgressChangeRef.current = onSectionProgressChange;
-	const onAutoScrollChangeRef = useRef(onAutoScrollChange);
-	onAutoScrollChangeRef.current = onAutoScrollChange;
 	const disableWheelNavigationRef = useRef(disableWheelNavigation);
 	disableWheelNavigationRef.current = disableWheelNavigation;
 	const navigationBlockedRef = useRef(navigationBlocked);
@@ -505,18 +497,8 @@ export function BookReaderContinuous({
 			firstDimensionMargin || 0,
 			scrollEl,
 		);
-		const autoScroller = new AutoScrollerContinuous(
-			autoScrollMultiplier,
-			verticalMode,
-			scrollEl,
-		);
-		autoScroller.setToggleListener((enabled) =>
-			onAutoScrollChangeRef.current(enabled),
-		);
-
 		s.calculator = calculator;
 		s.pageManager = pageManager;
-		s.autoScroller = autoScroller;
 
 		const handleContentClick = (event: MouseEvent) =>
 			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
@@ -612,10 +594,6 @@ export function BookReaderContinuous({
 			nextPage: () => s.pageManager?.nextPage(),
 			prevPage: () => s.pageManager?.prevPage(),
 			navigateToSection,
-			toggleAutoScroll: () => autoScroller.toggle(),
-			setAutoScrollMultiplier: (multiplier) => {
-				autoScroller.multiplier = multiplier;
-			},
 			// prevIntendedCharCount is the canonical semantic anchor. Re-sampling a
 			// line after reflow would return that line's new first character and
 			// slowly move the saved position on every viewport or font change.
@@ -652,7 +630,6 @@ export function BookReaderContinuous({
 			clearTimeout(s.preciseScrollTimer);
 			clearTimeout(s.userInputTimer);
 			s.scheduleRecalc = undefined;
-			autoScroller.destroy();
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
 			contentEl.innerHTML = "";
@@ -679,7 +656,7 @@ export function BookReaderContinuous({
 				target === document.body ||
 				target === document.documentElement)
 		) {
-			// Native scrollbar drags and middle-click autoscroll target the scroll
+			// Native scrollbar drags and middle-click scrolling target the scroll
 			// container rather than the publication, but still represent navigation.
 			markUserInputPending();
 		}

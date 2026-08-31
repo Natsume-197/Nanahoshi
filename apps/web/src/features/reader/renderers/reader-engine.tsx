@@ -182,10 +182,8 @@ export function ReaderEngine({
 	const continuousProps = {
 		...sharedProps,
 		autoPositionOnResize: readerSettings.autoPositionOnResize,
-		autoScrollMultiplier: readerSettings.autoScrollMultiplier,
 		reservePlayerSpace,
 		scrollContainerRef,
-		onAutoScrollChange: () => {},
 	};
 	return <BookReaderContinuous {...continuousProps} />;
 }
