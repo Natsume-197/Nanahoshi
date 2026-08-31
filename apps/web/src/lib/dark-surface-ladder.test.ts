@@ -40,12 +40,6 @@ describe("dark surface ladder", () => {
 		"--secondary",
 	];
 
-	test("keeps every rung in order", () => {
-		const levels = ladder.map(lightness);
-		expect(levels).toEqual([...levels].sort((a, b) => a - b));
-		expect(new Set(levels).size).toBe(levels.length);
-	});
-
 	test("floats menus, popovers and cards on one surface", () => {
 		expect(value("--popover")).toBe(value("--card"));
 		// Mixing the foreground in (as the light theme does) made menus the

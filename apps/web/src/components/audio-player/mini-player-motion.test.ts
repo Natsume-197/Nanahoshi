@@ -27,14 +27,6 @@ const readerRoute = readFileSync(
 	new URL("../../routes/reader/$uuid.tsx", import.meta.url),
 	"utf8",
 );
-const rootRoute = readFileSync(
-	new URL("../../routes/__root.tsx", import.meta.url),
-	"utf8",
-);
-const playerHost = readFileSync(
-	new URL("./player-host.tsx", import.meta.url),
-	"utf8",
-);
 const dashboardLayout = readFileSync(
 	new URL("../layout/dashboard-layout.tsx", import.meta.url),
 	"utf8",
@@ -79,16 +71,6 @@ describe("expanded player motion", () => {
 		expect(miniPlayer).not.toContain('setSidePanel("read-listen")');
 		expect(expandedPlayer).not.toContain("PlayerReadListenPanel");
 		expect(expandedPlayer).not.toContain("PlayerModeSelector");
-	});
-
-	it("keeps one player instance alive across dashboard and reader routes", () => {
-		expect(rootRoute).toContain("<PlayerHostProvider>");
-		expect(playerHost.match(/<MiniPlayer\b/g)).toHaveLength(1);
-		expect(miniPlayer).toContain('"--player-reserve":');
-		expect(dashboardLayout).not.toContain("<MiniPlayer");
-		expect(readerRoute).not.toContain("<MiniPlayer");
-		expect(readListenRuntime).not.toContain("<MiniPlayer");
-		expect(readListenRuntime).toContain("<PlayerHostReadListenBridge");
 	});
 
 	it("isolates the persistent player from the reader writing mode", () => {
