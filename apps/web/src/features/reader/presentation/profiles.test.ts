@@ -8,6 +8,7 @@ const {
 	duplicateProfile,
 	normalizeProfilesStore,
 	replaceProfileThemeReferences,
+	shouldAdoptServerProfiles,
 } = await import("./profiles");
 const { defaultReaderSettings } = await import("./settings");
 
@@ -83,5 +84,27 @@ describe("reader profile transforms", () => {
 			expect(profile.settings.visualReadingDirection).toBe("rtl");
 			expect(profile.settings.visualProgressStyle).toBe("bar");
 		}
+	});
+
+	test("restores the account copy after sign-out instead of uploading defaults", () => {
+		const localSeed: ReaderProfilesStore = {
+			updatedAt: 0,
+			dirty: true,
+			profiles: [
+				{
+					id: "local-default",
+					name: "Default",
+					settings: defaultReaderSettings,
+				},
+			],
+		};
+
+		expect(
+			shouldAdoptServerProfiles(
+				localSeed,
+				undefined,
+				"2026-08-31T02:00:00.000Z",
+			),
+		).toBe(true);
 	});
 });

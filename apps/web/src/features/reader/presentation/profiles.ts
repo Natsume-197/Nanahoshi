@@ -532,6 +532,23 @@ export interface ReaderProfilesSyncResult {
 }
 
 /**
+ * A zero timestamp is an uncommitted local seed (fresh browser storage or a
+ * legacy migration). It must never replace an existing account copy after
+ * sign-in, even though the seed is marked dirty so it can initialize a truly
+ * new account.
+ */
+export function shouldAdoptServerProfiles(
+	local: ReaderProfilesStore,
+	knownServerRevision: string | undefined,
+	incomingServerRevision: string,
+): boolean {
+	return (
+		local.updatedAt === 0 ||
+		(!local.dirty && knownServerRevision !== incomingServerRevision)
+	);
+}
+
+/**
  * Whole-blob last-write-wins reconciliation with the server. Offline or
  * logged out this is a silent no-op (dirty state persists and is pushed on a
  * later sync). When local is dirty AND the server is newer, the server wins.
@@ -553,8 +570,8 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 
 		if (
 			serverStore &&
-			!local.dirty &&
-			meta.serverUpdatedAt !== serverRevision
+			serverRevision &&
+			shouldAdoptServerProfiles(local, meta.serverUpdatedAt, serverRevision)
 		) {
 			const adopted: ReaderProfilesStore = { ...serverStore, dirty: false };
 			saveProfilesStore(adopted);
