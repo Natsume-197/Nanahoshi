@@ -15,8 +15,39 @@ export class UserSettingsRepository {
 		return row ?? null;
 	}
 
-	/** Insert or update the JSON value for a user's settings key. */
-	async upsert(userId: string, key: string, value: unknown) {
+	/** Compare-and-swap a setting using the server-authored updatedAt revision. */
+	async upsert(
+		userId: string,
+		key: string,
+		value: unknown,
+		expectedUpdatedAt?: Date | null,
+	): Promise<{ updatedAt: Date } | null> {
+		if (expectedUpdatedAt === null) {
+			const [created] = await db
+				.insert(userSettings)
+				.values({ userId, key, value })
+				.onConflictDoNothing({
+					target: [userSettings.userId, userSettings.key],
+				})
+				.returning({ updatedAt: userSettings.updatedAt });
+			return created ?? null;
+		}
+
+		if (expectedUpdatedAt) {
+			const [updated] = await db
+				.update(userSettings)
+				.set({ value, updatedAt: new Date() })
+				.where(
+					and(
+						eq(userSettings.userId, userId),
+						eq(userSettings.key, key),
+						eq(userSettings.updatedAt, expectedUpdatedAt),
+					),
+				)
+				.returning({ updatedAt: userSettings.updatedAt });
+			return updated ?? null;
+		}
+
 		await db
 			.insert(userSettings)
 			.values({ userId, key, value })
@@ -24,6 +55,7 @@ export class UserSettingsRepository {
 				target: [userSettings.userId, userSettings.key],
 				set: { value, updatedAt: new Date() },
 			});
+		return this.get(userId, key);
 	}
 }
 

@@ -1,4 +1,4 @@
-import { BadRequestError } from "../../errors";
+import { BadRequestError, ConflictError } from "../../errors";
 import { protectedProcedure } from "../../index";
 import {
 	GetUserSettingInput,
@@ -22,10 +22,19 @@ export const userSettingsRouter = {
 			if (JSON.stringify(input.value ?? null).length > MAX_VALUE_BYTES) {
 				throw new BadRequestError("Setting value too large");
 			}
-			await userSettingsRepository.upsert(
+			const result = await userSettingsRepository.upsert(
 				context.session.user.id,
 				input.key,
 				input.value ?? null,
+				input.expectedUpdatedAt === undefined
+					? undefined
+					: input.expectedUpdatedAt === null
+						? null
+						: new Date(input.expectedUpdatedAt),
 			);
+			if (!result) {
+				throw new ConflictError("User setting changed on another device");
+			}
+			return result;
 		}),
 };

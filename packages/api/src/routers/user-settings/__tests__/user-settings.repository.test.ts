@@ -17,11 +17,14 @@ let insertedValues: Record<string, unknown> | null = null;
 let onConflictConfig: Record<string, unknown> | null = null;
 /** What an awaited `select()…` chain resolves to. */
 let selectResult: Array<Record<string, unknown>> = [];
+let writeResult: Array<Record<string, unknown>> = [];
 
 function createInsertChain() {
 	const chain = {} as {
 		values: ReturnType<typeof mock>;
 		onConflictDoUpdate: ReturnType<typeof mock>;
+		onConflictDoNothing: ReturnType<typeof mock>;
+		returning: ReturnType<typeof mock>;
 	};
 
 	chain.values = mock((v: unknown) => {
@@ -37,6 +40,26 @@ function createInsertChain() {
 				: null;
 		return Promise.resolve();
 	});
+	chain.onConflictDoNothing = mock((config: unknown) => {
+		onConflictConfig =
+			config && typeof config === "object"
+				? (config as Record<string, unknown>)
+				: null;
+		return chain;
+	});
+	chain.returning = mock(() => Promise.resolve(writeResult));
+	return chain;
+}
+
+function createUpdateChain() {
+	const chain = {} as {
+		set: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
+		returning: ReturnType<typeof mock>;
+	};
+	chain.set = mock(() => chain);
+	chain.where = mock(() => chain);
+	chain.returning = mock(() => Promise.resolve(writeResult));
 	return chain;
 }
 
@@ -57,11 +80,13 @@ function createSelectChain() {
 
 const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
+const mockUpdate = mock(() => createUpdateChain());
 
 mock.module("@nanahoshi-v2/db", () => ({
 	db: {
 		insert: mockInsert,
 		select: mockSelect,
+		update: mockUpdate,
 	},
 }));
 
@@ -76,8 +101,10 @@ describe("UserSettingsRepository", () => {
 		insertedValues = null;
 		onConflictConfig = null;
 		selectResult = [];
+		writeResult = [];
 		mockInsert.mockClear();
 		mockSelect.mockClear();
+		mockUpdate.mockClear();
 	});
 
 	test("upsert targets the (userId, key) unique constraint and updates value", async () => {
@@ -108,5 +135,35 @@ describe("UserSettingsRepository", () => {
 	test("get returns null when the user has no row for the key", async () => {
 		const row = await repo.get("user-1", "reader-profiles");
 		expect(row).toBeNull();
+	});
+
+	test("creates only when the client expects no existing revision", async () => {
+		const updatedAt = new Date();
+		writeResult = [{ updatedAt }];
+
+		const result = await repo.upsert(
+			"user-1",
+			"reader-profiles",
+			{ profiles: [] },
+			null,
+		);
+
+		expect(result).toEqual({ updatedAt });
+		expect(onConflictConfig?.target).toEqual([
+			userSettings.userId,
+			userSettings.key,
+		]);
+	});
+
+	test("returns null when a compare-and-swap revision is stale", async () => {
+		const result = await repo.upsert(
+			"user-1",
+			"reader-profiles",
+			{ profiles: [] },
+			new Date("2026-01-01T00:00:00.000Z"),
+		);
+
+		expect(result).toBeNull();
+		expect(mockUpdate).toHaveBeenCalledTimes(1);
 	});
 });

@@ -13,4 +13,6 @@ export const GetUserSettingInput = z.object({
 export const SetUserSettingInput = z.object({
 	key: UserSettingsKey,
 	value: z.unknown(),
+	/** Server-issued revision from get/set. Null means the row must not exist. */
+	expectedUpdatedAt: z.iso.datetime().nullable().optional(),
 });
