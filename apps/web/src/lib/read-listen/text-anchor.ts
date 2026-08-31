@@ -429,12 +429,6 @@ function installCssHighlight(
 	};
 }
 
-export function installReadListenHoverHighlight(
-	resolved: ResolvedReadListenAnchor,
-): (() => void) | null {
-	return installCssHighlight("read-listen-hover", resolved);
-}
-
 export function installReadListenActiveHighlight(
 	resolved: ResolvedReadListenAnchor,
 ): (() => void) | null {

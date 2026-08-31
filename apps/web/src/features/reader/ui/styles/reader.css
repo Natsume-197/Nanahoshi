@@ -723,15 +723,6 @@
 	text-underline-offset: 0.16em;
 }
 
-[data-read-listen-sentence-hit] {
-	cursor: pointer;
-}
-
-::highlight(read-listen-hover) {
-	background-color: color-mix(in oklab, currentColor 12%, transparent);
-	color: inherit;
-}
-
 @media (prefers-contrast: more) {
 	::highlight(read-listen-active) {
 		background-color: color-mix(
@@ -740,10 +731,6 @@
 			transparent
 		);
 		text-decoration-color: currentColor;
-	}
-
-	::highlight(read-listen-hover) {
-		background-color: color-mix(in oklab, currentColor 24%, transparent);
 	}
 }
 

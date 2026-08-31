@@ -5,7 +5,6 @@ import {
 	findReadListenTargetAtPosition,
 	getReadListenPositionIndex,
 	installReadListenActiveHighlight,
-	installReadListenHoverHighlight,
 	resolveReadListenAnchor,
 } from "./text-anchor";
 
@@ -457,39 +456,5 @@ describe("Read & Listen text anchors", () => {
 			Array.from({ length: count }, (_, occurrence) => occurrence * 3),
 		);
 		expect(new Set(offsets).size).toBe(count);
-	});
-
-	test("paints and clears a multi-range hover without changing the DOM", () => {
-		const dom = new JSDOM(
-			"<section><p>Segmento <em>dividido</em>.</p></section>",
-		);
-		const section = dom.window.document.querySelector("section");
-		if (!section) throw new Error("fixture section missing");
-		const resolved = resolveReadListenAnchor(section, {
-			kind: "text-quote",
-			sectionRef: "chapter.xhtml",
-			exact: "Segmento dividido.",
-		});
-		if (!resolved) throw new Error("fixture quote missing");
-		const highlights = new Map<string, unknown>();
-		Object.defineProperty(dom.window, "CSS", {
-			value: {
-				highlights: {
-					set: (name: string, value: unknown) => highlights.set(name, value),
-					get: (name: string) => highlights.get(name),
-					delete: (name: string) => highlights.delete(name),
-				},
-			},
-		});
-		Object.defineProperty(dom.window, "Highlight", {
-			value: class {},
-		});
-
-		const cleanup = installReadListenHoverHighlight(resolved);
-
-		expect(highlights.has("read-listen-hover")).toBe(true);
-		expect(section.innerHTML).toBe("<p>Segmento <em>dividido</em>.</p>");
-		cleanup?.();
-		expect(highlights.has("read-listen-hover")).toBe(false);
 	});
 });

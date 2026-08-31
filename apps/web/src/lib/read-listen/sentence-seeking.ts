@@ -1,8 +1,6 @@
 import {
 	getReadListenPositionIndex,
-	installReadListenHoverHighlight,
 	type ReadListenAnchorTarget,
-	type ReadListenPositionMatch,
 } from "./text-anchor";
 
 const INTERACTIVE_SELECTOR =
@@ -67,7 +65,7 @@ function caretAtPoint(
 }
 
 /**
- * Adds one delegated pointer interaction to the rendered book. Section indexes
+ * Adds one delegated click interaction to the rendered book. Section indexes
  * are created lazily and retained until their DOM element is replaced.
  */
 export function bindReadListenSentenceSeeking<T>({
@@ -80,48 +78,10 @@ export function bindReadListenSentenceSeeking<T>({
 	onActivate: (value: T) => void;
 }): () => void {
 	surface.dataset.readListenSentenceSeek = "";
-	let hoveredValue: T | undefined;
-	let hoveredRects: Array<{
-		left: number;
-		right: number;
-		top: number;
-		bottom: number;
-	}> = [];
-	let cleanupHover: (() => void) | null = null;
-	let pointerFrame = 0;
-	let pendingPointer:
-		| { target: Element; clientX: number; clientY: number }
-		| undefined;
-
-	const clearHoverHighlight = () => {
-		cleanupHover?.();
-		cleanupHover = null;
-		hoveredValue = undefined;
-		hoveredRects = [];
-	};
-
-	const clearHover = () => {
-		pendingPointer = undefined;
-		cancelAnimationFrame(pointerFrame);
-		pointerFrame = 0;
-		clearHoverHighlight();
-		delete surface.dataset.readListenSentenceHit;
-	};
-	const clearHoverGeometry = () => {
-		hoveredRects = [];
-	};
 	const indexForSection = (
 		section: Element,
 		targets: ReadListenAnchorTarget<T>[],
 	) => getReadListenPositionIndex(section, targets);
-
-	const measureMatchRects = (match: ReadListenPositionMatch<T>) =>
-		match.resolved.segments.flatMap((segment) => {
-			const range = surface.ownerDocument.createRange();
-			range.setStart(segment.node, segment.startOffset);
-			range.setEnd(segment.node, segment.endOffset);
-			return [...range.getClientRects()];
-		});
 
 	const resolvePointer = (
 		target: Element,
@@ -142,123 +102,6 @@ export function bindReadListenSentenceSeeking<T>({
 		);
 		return index.find(position);
 	};
-	const view = surface.ownerDocument.defaultView;
-	const sectionsToWarm = [...targetsBySection];
-	const centerTarget = surface.ownerDocument.elementFromPoint?.(
-		(surface.ownerDocument.documentElement.clientWidth ||
-			view?.innerWidth ||
-			0) / 2,
-		(surface.ownerDocument.documentElement.clientHeight ||
-			view?.innerHeight ||
-			0) / 2,
-	);
-	let centeredSection: Element | null = centerTarget ?? null;
-	while (centeredSection && !targetsBySection.has(centeredSection.id)) {
-		centeredSection = centeredSection.parentElement;
-	}
-	if (centeredSection) {
-		const centeredIndex = sectionsToWarm.findIndex(
-			([sectionId]) => sectionId === centeredSection?.id,
-		);
-		const centeredEntry = sectionsToWarm[centeredIndex];
-		if (centeredIndex > 0 && centeredEntry) {
-			sectionsToWarm.splice(centeredIndex, 1);
-			sectionsToWarm.unshift(centeredEntry);
-		}
-	}
-	let nextWarmupIndex = 0;
-	let idleWarmupId: number | undefined;
-	let timeoutWarmupId: number | undefined;
-	const scheduleNextWarmup = () => {
-		if (!view || nextWarmupIndex >= sectionsToWarm.length) return;
-		if (typeof view.requestIdleCallback === "function") {
-			idleWarmupId = view.requestIdleCallback(warmNextRenderedIndex, {
-				timeout: 200,
-			});
-		} else {
-			timeoutWarmupId = view.setTimeout(warmNextRenderedIndex, 0);
-		}
-	};
-	const warmNextRenderedIndex = () => {
-		idleWarmupId = undefined;
-		timeoutWarmupId = undefined;
-		while (nextWarmupIndex < sectionsToWarm.length) {
-			const entry = sectionsToWarm[nextWarmupIndex];
-			nextWarmupIndex += 1;
-			if (!entry) continue;
-			const [sectionId, targets] = entry;
-			const section = surface.ownerDocument.getElementById(sectionId);
-			if (!section) continue;
-			indexForSection(section, targets);
-			break;
-		}
-		scheduleNextWarmup();
-	};
-	scheduleNextWarmup();
-
-	const showHoverAt = (pointer: {
-		target: Element;
-		clientX: number;
-		clientY: number;
-	}) => {
-		if (
-			!pointer.target.closest(INTERACTIVE_SELECTOR) &&
-			hoveredValue !== undefined &&
-			hoveredRects.some(
-				(rect) =>
-					pointer.clientX >= rect.left &&
-					pointer.clientX <= rect.right &&
-					pointer.clientY >= rect.top &&
-					pointer.clientY <= rect.bottom,
-			)
-		) {
-			return;
-		}
-		const match = resolvePointer(
-			pointer.target,
-			pointer.clientX,
-			pointer.clientY,
-		);
-		if (match?.value === hoveredValue) {
-			if (match && !hoveredRects.length) {
-				hoveredRects = measureMatchRects(match);
-			}
-			return;
-		}
-		clearHoverHighlight();
-		surface.toggleAttribute("data-read-listen-sentence-hit", Boolean(match));
-		if (!match) return;
-		cleanupHover = installReadListenHoverHighlight(match.resolved);
-		hoveredValue = match.value;
-		hoveredRects = measureMatchRects(match);
-	};
-
-	const showPendingHover = () => {
-		pointerFrame = 0;
-		const pointer = pendingPointer;
-		pendingPointer = undefined;
-		if (pointer) showHoverAt(pointer);
-	};
-
-	const handlePointerMove = (event: PointerEvent) => {
-		const ElementConstructor = surface.ownerDocument.defaultView?.Element;
-		if (!ElementConstructor || !(event.target instanceof ElementConstructor)) {
-			clearHover();
-			return;
-		}
-		const pointer = {
-			target: event.target as Element,
-			clientX: event.clientX,
-			clientY: event.clientY,
-		};
-		if (!pointerFrame) {
-			showHoverAt(pointer);
-			pointerFrame = requestAnimationFrame(showPendingHover);
-		} else {
-			pendingPointer = pointer;
-		}
-	};
-
 	const handleSentenceClick = (event: MouseEvent) => {
 		const ElementConstructor = surface.ownerDocument.defaultView?.Element;
 		if (!ElementConstructor || !(event.target instanceof ElementConstructor)) {
@@ -270,20 +113,9 @@ export function bindReadListenSentenceSeeking<T>({
 		if (match) onActivate(match.value);
 	};
 
-	surface.addEventListener("pointermove", handlePointerMove);
-	surface.addEventListener("pointerleave", clearHover);
 	surface.addEventListener("click", handleSentenceClick);
-	surface.addEventListener("scroll", clearHoverGeometry, true);
-	view?.addEventListener("resize", clearHoverGeometry);
 	return () => {
-		if (idleWarmupId !== undefined) view?.cancelIdleCallback(idleWarmupId);
-		if (timeoutWarmupId !== undefined) view?.clearTimeout(timeoutWarmupId);
-		clearHover();
 		delete surface.dataset.readListenSentenceSeek;
-		surface.removeEventListener("pointermove", handlePointerMove);
-		surface.removeEventListener("pointerleave", clearHover);
 		surface.removeEventListener("click", handleSentenceClick);
-		surface.removeEventListener("scroll", clearHoverGeometry, true);
-		view?.removeEventListener("resize", clearHoverGeometry);
 	};
 }
