@@ -27,7 +27,6 @@ import {
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
-import { m } from "@/paraglide/messages";
 import type { client } from "@/utils/orpc";
 
 const MAX_ANCHOR_FRAMES = 30;
@@ -117,6 +116,25 @@ function shouldMoveActiveCue(
 		viewport: { start: 0, end: view.innerWidth },
 	});
 	return vertical.scroll || horizontal.scroll;
+}
+
+function isHorizontalMultiColumnPagination(
+	resolved: Parameters<typeof installReadListenActiveHighlight>[0],
+) {
+	const content = resolved.segments[0]?.node.parentElement?.closest(
+		".book-content--paginated:not(.book-content--writing-vertical-rl)",
+	);
+	const container = content?.querySelector<HTMLElement>(
+		".book-content-container",
+	);
+	if (!container) return false;
+	return (
+		Number.parseInt(
+			container.ownerDocument.defaultView?.getComputedStyle(container)
+				.columnCount ?? "1",
+			10,
+		) > 1
+	);
 }
 
 function semanticReaderAnchor(
@@ -259,16 +277,21 @@ export function ActiveReadListenCue({
 			}
 			cleanupHighlight =
 				installReadListenActiveHighlight(resolved) ?? undefined;
+			const horizontalMultiColumn = isHorizontalMultiColumnPagination(resolved);
 			if (
 				followText &&
-				!readerOwnsFollowNavigation &&
+				(!readerOwnsFollowNavigation || horizontalMultiColumn) &&
 				shouldMoveActiveCue(resolved, forceFollow)
 			) {
+				// In a horizontal multi-column spread, range geometry is only stable
+				// after the paginated API has mounted its target. Let the browser make
+				// that final visual page change from the resolved sentence.
 				resolved.segments[0]?.node.parentElement?.scrollIntoView({
-					behavior: followScrollBehavior(),
+					behavior: horizontalMultiColumn ? "auto" : followScrollBehavior(),
 					block: "center",
 					inline: "center",
 				});
+				if (horizontalMultiColumn) readerApiRef.current?.snapToPage?.();
 			}
 			if (followText) onFollowSettled?.();
 		}
@@ -320,7 +343,6 @@ export function ReadListenSentenceSeeking({
 			surface,
 			targetsBySection,
 			onActivate: (cue) => seekTo(cue.globalStartMs / 1000),
-			keyboardLabel: m["read_listen.sentence_seek_instructions"](),
 		});
 	});
 	return null;

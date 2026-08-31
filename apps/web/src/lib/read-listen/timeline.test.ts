@@ -40,6 +40,16 @@ describe("Read & Listen timeline", () => {
 		expect(findReadListenCue(timeline, 10_300)?.id).toBe("second");
 	});
 
+	test("sorts the timeline before binary-searching seeks", () => {
+		const timeline = createReadListenTimeline([...cues].reverse(), [
+			{ index: 0, duration: 10 },
+			{ index: 1, duration: 20 },
+		]);
+
+		expect(timeline.map((cue) => cue.id)).toEqual(["first", "second"]);
+		expect(findReadListenCue(timeline, 10_300)?.id).toBe("second");
+	});
+
 	test("does not carry a cue across silence", () => {
 		const timeline = createReadListenTimeline(cues, [
 			{ index: 0, duration: 10 },

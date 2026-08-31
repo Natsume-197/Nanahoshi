@@ -139,6 +139,7 @@ describe("Read & Listen text anchors", () => {
 			value: {
 				highlights: {
 					set: (name: string, value: unknown) => highlights.set(name, value),
+					get: (name: string) => highlights.get(name),
 					delete: (name: string) => highlights.delete(name),
 				},
 			},
@@ -150,6 +151,45 @@ describe("Read & Listen text anchors", () => {
 		expect(highlights.has("read-listen-active")).toBe(true);
 		expect(section.innerHTML).toBe("<p>First <em>sentence</em>.</p>");
 		cleanup?.();
+		expect(highlights.has("read-listen-active")).toBe(false);
+	});
+
+	test("does not let an older cue clear a newer active highlight", () => {
+		const dom = new JSDOM(
+			"<section><p>First sentence. Second sentence.</p></section>",
+		);
+		const section = dom.window.document.querySelector("section");
+		if (!section) throw new Error("fixture section missing");
+		const first = resolveReadListenAnchor(section, {
+			kind: "text-quote",
+			sectionRef: "chapter.xhtml",
+			exact: "First sentence.",
+		});
+		const second = resolveReadListenAnchor(section, {
+			kind: "text-quote",
+			sectionRef: "chapter.xhtml",
+			exact: "Second sentence.",
+		});
+		if (!first || !second) throw new Error("fixture quotes missing");
+		const highlights = new Map<string, unknown>();
+		Object.defineProperty(dom.window, "CSS", {
+			value: {
+				highlights: {
+					set: (name: string, value: unknown) => highlights.set(name, value),
+					get: (name: string) => highlights.get(name),
+					delete: (name: string) => highlights.delete(name),
+				},
+			},
+		});
+		Object.defineProperty(dom.window, "Highlight", { value: class {} });
+
+		const clearFirst = installReadListenActiveHighlight(first);
+		const clearSecond = installReadListenActiveHighlight(second);
+		const activeSecond = highlights.get("read-listen-active");
+		clearFirst?.();
+
+		expect(highlights.get("read-listen-active")).toBe(activeSecond);
+		clearSecond?.();
 		expect(highlights.has("read-listen-active")).toBe(false);
 	});
 
@@ -256,6 +296,33 @@ describe("Read & Listen text anchors", () => {
 
 		expect(secondRead).toBe(firstRead);
 		expect(createTreeWalker).toHaveBeenCalledTimes(1);
+	});
+
+	test("rebuilds the index when a paginated section replaces its children", () => {
+		const dom = new JSDOM("<section><p>同じ文。</p></section>");
+		const section = dom.window.document.querySelector("section");
+		if (!section) throw new Error("fixture section missing");
+		const targets = [
+			{
+				anchor: {
+					kind: "text-quote" as const,
+					sectionRef: "chapter.xhtml",
+					exact: "同じ文。",
+				},
+				value: "cue",
+			},
+		];
+
+		const first = getReadListenPositionIndex(section, targets);
+		const replacement = dom.window.document.createElement("p");
+		replacement.textContent = "同じ文。";
+		section.replaceChildren(replacement);
+		const second = getReadListenPositionIndex(section, targets);
+
+		expect(second).not.toBe(first);
+		expect(second.get("cue")?.resolved.segments[0]?.node).toBe(
+			replacement.firstChild,
+		);
 	});
 
 	test("replaces the cached index when the alignment target list changes", () => {
@@ -409,6 +476,7 @@ describe("Read & Listen text anchors", () => {
 			value: {
 				highlights: {
 					set: (name: string, value: unknown) => highlights.set(name, value),
+					get: (name: string) => highlights.get(name),
 					delete: (name: string) => highlights.delete(name),
 				},
 			},

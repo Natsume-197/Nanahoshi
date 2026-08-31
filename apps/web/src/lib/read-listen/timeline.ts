@@ -32,17 +32,23 @@ export function createReadListenTimeline(
 		offsetMs += Math.max(0, audio.duration * 1000);
 	}
 
-	return cues.map((cue) => {
-		const offset = offsets.get(cue.audioFileIndex);
-		if (offset === undefined) {
-			throw new Error(`Missing audiobook file ${cue.audioFileIndex}`);
-		}
-		return {
-			...cue,
-			globalStartMs: offset + cue.startMs,
-			globalEndMs: offset + cue.endMs,
-		};
-	});
+	return cues
+		.map((cue) => {
+			const offset = offsets.get(cue.audioFileIndex);
+			if (offset === undefined) {
+				throw new Error(`Missing audiobook file ${cue.audioFileIndex}`);
+			}
+			return {
+				...cue,
+				globalStartMs: offset + cue.startMs,
+				globalEndMs: offset + cue.endMs,
+			};
+		})
+		.sort(
+			(left, right) =>
+				left.globalStartMs - right.globalStartMs ||
+				left.globalEndMs - right.globalEndMs,
+		);
 }
 
 /** Finds the cue index under the playhead in O(log n), leaving gaps empty. */

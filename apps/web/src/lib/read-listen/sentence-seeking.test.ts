@@ -86,6 +86,7 @@ function createHarness({
 		configurable: true,
 		value: {
 			highlights: {
+				get: () => undefined,
 				set: setHighlight,
 				delete: () => true,
 			},
@@ -112,8 +113,6 @@ function createHarness({
 			],
 		]),
 		onActivate: activate,
-		keyboardLabel:
-			"Book text. Use the arrow keys to choose a sentence, then press Enter.",
 	});
 	createTreeWalker.mockClear();
 	const click = (clientX: number, clientY: number) => {
@@ -168,9 +167,13 @@ function createHarness({
 		cursor: () => dom.window.getComputedStyle(paragraph).cursor,
 		keyboardSurface: section as HTMLElement,
 		pressKey: (key: string) => {
-			section.dispatchEvent(
-				new dom.window.KeyboardEvent("keydown", { bubbles: true, key }),
-			);
+			const event = new dom.window.KeyboardEvent("keydown", {
+				bubbles: true,
+				cancelable: true,
+				key,
+			});
+			section.dispatchEvent(event);
+			return event;
 		},
 	};
 }
@@ -233,7 +236,6 @@ function createMultiSectionHarness() {
 			],
 		]),
 		onActivate: () => {},
-		keyboardLabel: "Book text",
 	});
 	createTreeWalker.mockClear();
 	return {
@@ -410,20 +412,15 @@ describe("Read & Listen sentence seeking", () => {
 		harness.cleanup();
 	});
 
-	test("lets keyboard users select and activate an aligned sentence", () => {
+	test("does not capture arrows that the paginated reader uses for page turns", () => {
 		const harness = createHarness({
 			caretOffset: 5,
 			characterRect: () => ({ left: 0, right: 100, top: 0, bottom: 20 }),
 		});
 
-		expect(harness.keyboardSurface.getAttribute("role")).toBe("region");
-		expect(harness.keyboardSurface.tabIndex).toBe(0);
-		harness.keyboardSurface.focus();
-		harness.pressKey("Enter");
+		const event = harness.pressKey("ArrowRight");
 
-		expect(harness.activate).toHaveBeenCalledWith("cue-1");
+		expect(event.defaultPrevented).toBe(false);
 		harness.cleanup();
-		expect(harness.keyboardSurface.hasAttribute("role")).toBe(false);
-		expect(harness.keyboardSurface.hasAttribute("tabindex")).toBe(false);
 	});
 });

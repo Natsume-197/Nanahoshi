@@ -74,14 +74,23 @@ describe("Read & Listen player bindings", () => {
 		document.body.innerHTML =
 			'<section id="nanahoshi-epub-chapter-xhtml"><p>はい。はい。</p></section>';
 		let activeRanges: Range[] = [];
+		let activeHighlight: { ranges: Range[] } | undefined;
 		Object.defineProperty(window, "CSS", {
 			configurable: true,
 			value: {
 				highlights: {
 					set: (name: string, highlight: { ranges: Range[] }) => {
-						if (name === "read-listen-active") activeRanges = highlight.ranges;
+						if (name === "read-listen-active") {
+							activeHighlight = highlight;
+							activeRanges = highlight.ranges;
+						}
 					},
-					delete: () => true,
+					get: (name: string) =>
+						name === "read-listen-active" ? activeHighlight : undefined,
+					delete: (name: string) => {
+						if (name === "read-listen-active") activeHighlight = undefined;
+						return true;
+					},
 				},
 			},
 		});
@@ -186,6 +195,56 @@ describe("Read & Listen player bindings", () => {
 			// Paginated/focus readers own their navigation geometry. A second generic
 			// scrollIntoView would center a tategaki sentence between page boundaries.
 			expect(scrollIntoView).not.toHaveBeenCalled();
+		} finally {
+			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+		}
+	});
+
+	test("finishes following into the next horizontal multi-column spread", () => {
+		document.body.innerHTML =
+			'<main class="book-content book-content--paginated"><div class="book-content-container" style="column-count: 2"><section id="nanahoshi-epub-chapter-xhtml"><p>次の文です。</p></section></div></main>';
+		const navigateToTextAnchor = mock(() => {});
+		const snapToPage = mock(() => {});
+		const pendingFrames: FrameRequestCallback[] = [];
+		const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = (callback) => {
+			pendingFrames.push(callback);
+			return pendingFrames.length;
+		};
+		const cue = {
+			id: "next-spread",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter.xhtml",
+				exact: "次の文",
+			},
+			audioFileIndex: 0,
+			startMs: 0,
+			endMs: 1_000,
+			globalStartMs: 0,
+			globalEndMs: 1_000,
+		};
+		try {
+			render(
+				<ActiveReadListenCue
+					cue={cue}
+					sectionTargets={[{ anchor: cue.text, value: cue }]}
+					followText
+					forceFollow
+					sourceFormat="epub"
+					readerApiRef={{
+						current: {
+							navigateToTextAnchor,
+							snapToPage,
+						} as unknown as BookReaderApi,
+					}}
+				/>,
+			);
+
+			pendingFrames.shift()?.(0);
+			expect(navigateToTextAnchor).toHaveBeenCalledTimes(1);
+			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+			expect(snapToPage).toHaveBeenCalledTimes(1);
 		} finally {
 			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
 		}

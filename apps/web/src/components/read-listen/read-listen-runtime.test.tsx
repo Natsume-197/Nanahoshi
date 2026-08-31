@@ -420,6 +420,57 @@ describe("ReadListenRuntime", () => {
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
 
+	test("returns to narration after repeated paginated page keys", () => {
+		document.body.innerHTML =
+			'<main id="reader-fixture"><div class="book-content"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p></section></div></main>';
+		const readerSurface = document.getElementById("reader-fixture");
+		const paragraph = document.querySelector("p");
+		Object.defineProperty(paragraph, "getBoundingClientRect", {
+			configurable: true,
+			value: () => ({
+				top: 300,
+				bottom: 340,
+				left: 120,
+				right: 360,
+				width: 240,
+				height: 40,
+				x: 120,
+				y: 300,
+				toJSON: () => ({}),
+			}),
+		});
+
+		render(
+			<ReadListenRuntime
+				pairUuid="pair-1"
+				ebookUuid="ebook-1"
+				sourceFormat="epub"
+				readerApiRef={{ current: null }}
+				readerSurfaceRef={{ current: readerSurface }}
+				sections={[]}
+				readerDomRevision="pages-horizontal"
+				onExitReadListen={() => {}}
+			/>,
+		);
+
+		const bookContent = document.querySelector(".book-content");
+		if (!bookContent) throw new Error("Missing reader content fixture");
+		for (const key of [
+			"ArrowRight",
+			"ArrowRight",
+			"ArrowRight",
+			"ArrowLeft",
+			"ArrowLeft",
+		]) {
+			fireEvent.keyDown(bookContent, { key, code: key });
+		}
+		expect(capturedReadListen?.followText).toBe(false);
+
+		act(() => capturedReadListen?.onToggleFollowText());
+		expect(capturedReadListen?.followText).toBe(true);
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+	});
+
 	test("rebinds the active cue after the reader replaces its document", () => {
 		document.body.innerHTML =
 			'<main id="reader-fixture"><section id="nanahoshi-epub-chapter-xhtml"><p>一。</p></section></main>';

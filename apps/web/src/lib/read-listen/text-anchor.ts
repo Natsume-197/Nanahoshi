@@ -20,7 +20,17 @@ export type ReadListenPositionMatch<T> = {
 	resolved: ResolvedReadListenAnchor;
 };
 
-const positionIndexCache = new WeakMap<Element, WeakMap<object, unknown>>();
+type CachedPositionIndex = {
+	index: unknown;
+	firstChild: ChildNode | null;
+	lastChild: ChildNode | null;
+	childCount: number;
+};
+
+const positionIndexCache = new WeakMap<
+	Element,
+	WeakMap<object, CachedPositionIndex>
+>();
 
 const IGNORED_SELECTOR =
 	'script,style,noscript,svg,nav,rt,rp,[hidden],[aria-hidden="true"]';
@@ -334,22 +344,32 @@ export function createReadListenPositionIndex<T>(
 	};
 }
 
-/** Reuses one immutable text index until the section or alignment is replaced. */
+/** Reuses one immutable text index until the section content or alignment changes. */
 export function getReadListenPositionIndex<T>(
 	section: Element,
 	targets: readonly ReadListenAnchorTarget<T>[],
 ): ReturnType<typeof createReadListenPositionIndex<T>> {
 	let indexesByAlignment = positionIndexCache.get(section);
 	if (!indexesByAlignment) {
-		indexesByAlignment = new WeakMap<object, unknown>();
+		indexesByAlignment = new WeakMap<object, CachedPositionIndex>();
 		positionIndexCache.set(section, indexesByAlignment);
 	}
 	const cached = indexesByAlignment.get(targets);
-	if (cached) {
-		return cached as ReturnType<typeof createReadListenPositionIndex<T>>;
+	if (
+		cached &&
+		cached.firstChild === section.firstChild &&
+		cached.lastChild === section.lastChild &&
+		cached.childCount === section.childNodes.length
+	) {
+		return cached.index as ReturnType<typeof createReadListenPositionIndex<T>>;
 	}
 	const index = createReadListenPositionIndex(section, targets);
-	indexesByAlignment.set(targets, index);
+	indexesByAlignment.set(targets, {
+		index,
+		firstChild: section.firstChild,
+		lastChild: section.lastChild,
+		childCount: section.childNodes.length,
+	});
 	return index;
 }
 
@@ -382,6 +402,7 @@ function installCssHighlight(
 		view.CSS as typeof CSS & {
 			highlights?: {
 				set(name: string, highlight: unknown): void;
+				get(name: string): unknown;
 				delete(name: string): boolean;
 			};
 		}
@@ -401,9 +422,10 @@ function installCssHighlight(
 		return [range];
 	});
 	if (!ranges.length) return null;
-	registry.set(name, new HighlightConstructor(...ranges));
+	const highlight = new HighlightConstructor(...ranges);
+	registry.set(name, highlight);
 	return () => {
-		registry.delete(name);
+		if (registry.get(name) === highlight) registry.delete(name);
 	};
 }
 

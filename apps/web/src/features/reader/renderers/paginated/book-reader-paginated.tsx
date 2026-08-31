@@ -790,6 +790,19 @@ export function BookReaderPaginated({
 		apiRef({
 			nextPage: () => pageManager.flipPage(1),
 			prevPage: () => pageManager.flipPage(-1),
+			snapToPage: () => {
+				const stride =
+					(verticalMode
+						? viewportRef.current.height
+						: viewportRef.current.width) + PAGE_GAP;
+				const browserPosition = verticalMode
+					? scrollEl.scrollTop
+					: scrollEl.scrollLeft;
+				pageManager.scrollTo(
+					stride * Math.round(Math.max(0, browserPosition) / stride),
+					false,
+				);
+			},
 			navigateToSection,
 			navigateToTextAnchor,
 			resolveTextAnchor,

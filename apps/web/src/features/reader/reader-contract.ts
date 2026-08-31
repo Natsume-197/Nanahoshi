@@ -44,6 +44,11 @@ export interface ReaderScrollbarCapability {
 	setScrollbarHidden(hidden: boolean): void;
 }
 
+/** Paginated readers can align a browser-initiated scroll to a complete spread. */
+export interface ReaderPageSnapCapability {
+	snapToPage(): void;
+}
+
 /**
  * Imperative handle for the currently mounted engine. Navigation and semantic
  * position are universal; the rest is additive and callers opt into it.
@@ -52,7 +57,8 @@ export type BookReaderApi = ReaderNavigationCapability &
 	Partial<
 		ReaderTextAnchorCapability &
 			ReaderSearchCapability &
-			ReaderScrollbarCapability
+			ReaderScrollbarCapability &
+			ReaderPageSnapCapability
 	>;
 
 export function supportsReaderTextAnchors(

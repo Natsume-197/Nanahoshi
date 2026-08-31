@@ -74,31 +74,12 @@ export function bindReadListenSentenceSeeking<T>({
 	surface,
 	targetsBySection,
 	onActivate,
-	keyboardLabel,
 }: {
 	surface: HTMLElement;
 	targetsBySection: Map<string, ReadListenAnchorTarget<T>[]>;
 	onActivate: (value: T) => void;
-	keyboardLabel: string;
 }): () => void {
 	surface.dataset.readListenSentenceSeek = "";
-	const keyboardSurface =
-		surface.querySelector<HTMLElement>(
-			".book-content, .book-content-container",
-		) ?? surface;
-	const previousKeyboardAttributes = {
-		role: keyboardSurface.getAttribute("role"),
-		tabindex: keyboardSurface.getAttribute("tabindex"),
-		label: keyboardSurface.getAttribute("aria-label"),
-		keyshortcuts: keyboardSurface.getAttribute("aria-keyshortcuts"),
-	};
-	keyboardSurface.setAttribute("role", "region");
-	keyboardSurface.tabIndex = 0;
-	keyboardSurface.setAttribute("aria-label", keyboardLabel);
-	keyboardSurface.setAttribute(
-		"aria-keyshortcuts",
-		"ArrowUp ArrowDown ArrowLeft ArrowRight Enter Escape",
-	);
 	let hoveredValue: T | undefined;
 	let hoveredRects: Array<{
 		left: number;
@@ -108,7 +89,6 @@ export function bindReadListenSentenceSeeking<T>({
 	}> = [];
 	let cleanupHover: (() => void) | null = null;
 	let pointerFrame = 0;
-	let keyboardMatch: ReadListenPositionMatch<T> | undefined;
 	let pendingPointer:
 		| { target: Element; clientX: number; clientY: number }
 		| undefined;
@@ -135,15 +115,6 @@ export function bindReadListenSentenceSeeking<T>({
 		targets: ReadListenAnchorTarget<T>[],
 	) => getReadListenPositionIndex(section, targets);
 
-	const renderedMatches = (): ReadListenPositionMatch<T>[] => {
-		const matches: ReadListenPositionMatch<T>[] = [];
-		for (const [sectionId, targets] of targetsBySection) {
-			const section = surface.ownerDocument.getElementById(sectionId);
-			if (!section) continue;
-			matches.push(...indexForSection(section, targets).matches);
-		}
-		return matches;
-	};
 	const measureMatchRects = (match: ReadListenPositionMatch<T>) =>
 		match.resolved.segments.flatMap((segment) => {
 			const range = surface.ownerDocument.createRange();
@@ -151,37 +122,6 @@ export function bindReadListenSentenceSeeking<T>({
 			range.setEnd(segment.node, segment.endOffset);
 			return [...range.getClientRects()];
 		});
-
-	const showKeyboardMatch = (match: ReadListenPositionMatch<T>) => {
-		clearHover();
-		keyboardMatch = match;
-		cleanupHover = installReadListenHoverHighlight(match.resolved);
-	};
-
-	const focusNearestMatch = () => {
-		if (keyboardMatch) return;
-		const matches = renderedMatches();
-		if (!matches.length) return;
-		const viewportCenter =
-			(surface.ownerDocument.defaultView?.innerHeight ?? 0) / 2;
-		let nearest = matches[0];
-		let nearestDistance = Number.POSITIVE_INFINITY;
-		for (const match of matches) {
-			const first = match.resolved.segments[0];
-			if (!first) continue;
-			const range = surface.ownerDocument.createRange();
-			range.setStart(first.node, first.startOffset);
-			range.setEnd(first.node, first.endOffset);
-			const rect = range.getClientRects()[0];
-			if (!rect) continue;
-			const distance = Math.abs((rect.top + rect.bottom) / 2 - viewportCenter);
-			if (distance < nearestDistance) {
-				nearest = match;
-				nearestDistance = distance;
-			}
-		}
-		if (nearest) showKeyboardMatch(nearest);
-	};
 
 	const resolvePointer = (
 		target: Element,
@@ -330,68 +270,12 @@ export function bindReadListenSentenceSeeking<T>({
 		if (match) onActivate(match.value);
 	};
 
-	const handleKeyboardFocus = () => focusNearestMatch();
-	const handleKeyboardBlur = () => {
-		keyboardMatch = undefined;
-		clearHover();
-	};
-	const handleKeyboard = (event: KeyboardEvent) => {
-		if (event.target !== keyboardSurface) return;
-		const matches = renderedMatches();
-		if (!matches.length) return;
-		if (event.key === "Enter" && keyboardMatch) {
-			event.preventDefault();
-			event.stopPropagation();
-			onActivate(keyboardMatch.value);
-			return;
-		}
-		if (event.key === "Escape") {
-			event.preventDefault();
-			event.stopPropagation();
-			keyboardMatch = undefined;
-			clearHover();
-			return;
-		}
-		const direction =
-			event.key === "ArrowDown" || event.key === "ArrowRight"
-				? 1
-				: event.key === "ArrowUp" || event.key === "ArrowLeft"
-					? -1
-					: 0;
-		if (!direction) return;
-		event.preventDefault();
-		event.stopPropagation();
-		const currentIndex = keyboardMatch
-			? matches.findIndex((match) => match.value === keyboardMatch?.value)
-			: -1;
-		const nextIndex =
-			currentIndex < 0
-				? direction > 0
-					? 0
-					: matches.length - 1
-				: (currentIndex + direction + matches.length) % matches.length;
-		const next = matches[nextIndex];
-		if (!next) return;
-		showKeyboardMatch(next);
-		next.resolved.segments[0]?.node.parentElement?.scrollIntoView({
-			block: "center",
-			inline: "center",
-		});
-	};
-
 	surface.addEventListener("pointermove", handlePointerMove);
 	surface.addEventListener("pointerleave", clearHover);
 	surface.addEventListener("click", handleSentenceClick);
 	surface.addEventListener("scroll", clearHoverGeometry, true);
 	view?.addEventListener("resize", clearHoverGeometry);
-	keyboardSurface.addEventListener("focus", handleKeyboardFocus);
-	keyboardSurface.addEventListener("blur", handleKeyboardBlur);
-	keyboardSurface.addEventListener("keydown", handleKeyboard);
 	return () => {
-		const restoreAttribute = (name: string, value: string | null) => {
-			if (value === null) keyboardSurface.removeAttribute(name);
-			else keyboardSurface.setAttribute(name, value);
-		};
 		if (idleWarmupId !== undefined) view?.cancelIdleCallback(idleWarmupId);
 		if (timeoutWarmupId !== undefined) view?.clearTimeout(timeoutWarmupId);
 		clearHover();
@@ -401,15 +285,5 @@ export function bindReadListenSentenceSeeking<T>({
 		surface.removeEventListener("click", handleSentenceClick);
 		surface.removeEventListener("scroll", clearHoverGeometry, true);
 		view?.removeEventListener("resize", clearHoverGeometry);
-		keyboardSurface.removeEventListener("focus", handleKeyboardFocus);
-		keyboardSurface.removeEventListener("blur", handleKeyboardBlur);
-		keyboardSurface.removeEventListener("keydown", handleKeyboard);
-		restoreAttribute("role", previousKeyboardAttributes.role);
-		restoreAttribute("tabindex", previousKeyboardAttributes.tabindex);
-		restoreAttribute("aria-label", previousKeyboardAttributes.label);
-		restoreAttribute(
-			"aria-keyshortcuts",
-			previousKeyboardAttributes.keyshortcuts,
-		);
 	};
 }
