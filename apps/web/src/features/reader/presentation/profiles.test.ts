@@ -4,7 +4,11 @@ import type { ReaderProfilesStore } from "./profiles";
 process.env.VITE_SERVER_URL = "http://localhost:3000";
 process.env.VITE_WEB_URL = "http://localhost:3001";
 
-const { duplicateProfile } = await import("./profiles");
+const {
+	duplicateProfile,
+	normalizeProfilesStore,
+	replaceProfileThemeReferences,
+} = await import("./profiles");
 const { defaultReaderSettings } = await import("./settings");
 
 describe("reader profile transforms", () => {
@@ -31,5 +35,53 @@ describe("reader profile transforms", () => {
 			{ id: duplicate.id, name: "Copia de Día" },
 			{ id: "night", name: "Noche" },
 		]);
+	});
+
+	test("repoints every profile when a shared custom theme is renamed", () => {
+		const themed = { ...defaultReaderSettings, theme: "Evening" };
+		const store: ReaderProfilesStore = {
+			updatedAt: 0,
+			profiles: [
+				{ id: "one", name: "One", settings: themed },
+				{ id: "two", name: "Two", settings: themed },
+				{ id: "three", name: "Three", settings: defaultReaderSettings },
+			],
+		};
+
+		const next = replaceProfileThemeReferences(store, "Evening", "Night");
+		expect(next.profiles.map(({ settings }) => settings.theme)).toEqual([
+			"Night",
+			"Night",
+			defaultReaderSettings.theme,
+		]);
+	});
+
+	test("migrates the legacy global visual settings into every profile", () => {
+		const {
+			visualLayout: _visualLayout,
+			visualReadingDirection: _visualReadingDirection,
+			visualProgressStyle: _visualProgressStyle,
+			...legacySettings
+		} = defaultReaderSettings;
+		const store = normalizeProfilesStore(
+			{
+				updatedAt: 1,
+				profiles: [
+					{ id: "one", name: "One", settings: legacySettings },
+					{ id: "two", name: "Two", settings: legacySettings },
+				],
+			},
+			{
+				layout: "vertical-strip",
+				readingDirection: "rtl",
+				progressStyle: "bar",
+			},
+		);
+
+		for (const profile of store.profiles) {
+			expect(profile.settings.visualLayout).toBe("vertical-strip");
+			expect(profile.settings.visualReadingDirection).toBe("rtl");
+			expect(profile.settings.visualProgressStyle).toBe("bar");
+		}
 	});
 });

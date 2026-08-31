@@ -73,6 +73,46 @@ describe("resolveReaderPresentation", () => {
 		}
 	});
 
+	test("drops legacy per-book layouts and uses the profile layout", () => {
+		const values = new Map<string, string>();
+		const originalWindow = globalThis.window;
+		Object.defineProperty(globalThis, "window", {
+			configurable: true,
+			writable: true,
+			value: {
+				localStorage: {
+					getItem: (key: string) => values.get(key) ?? null,
+					setItem: (key: string, value: string) => values.set(key, value),
+					removeItem: (key: string) => values.delete(key),
+				},
+			},
+		});
+
+		try {
+			values.set(
+				"nanahoshi-reader-mode-preferences",
+				JSON.stringify({ book: { readAs: "text", textLayout: "focus" } }),
+			);
+
+			const preference = loadReaderPresentationPreference("book");
+			expect(preference).toEqual({ readAs: "text" });
+			const result = resolveReaderPresentation({
+				book: epub,
+				preference,
+				defaultTextLayout: "paginated",
+				visualLayout: "single-page",
+			});
+			expect(result.textLayout).toBe("paginated");
+			expect(result.renderer).toBe("text-paginated");
+		} finally {
+			Object.defineProperty(globalThis, "window", {
+				configurable: true,
+				writable: true,
+				value: originalWindow,
+			});
+		}
+	});
+
 	test("only enables the columns control for horizontal paginated text", () => {
 		expect(canUsePageColumns("text-paginated", false)).toBe(true);
 		expect(canUsePageColumns("text-paginated", true)).toBe(false);
@@ -83,7 +123,7 @@ describe("resolveReaderPresentation", () => {
 	test("keeps PDFs as fixed-page content in their dedicated renderer", () => {
 		const result = resolveReaderPresentation({
 			book: pdf,
-			preference: { readAs: "text", textLayout: "scroll" },
+			preference: { readAs: "text" },
 			defaultTextLayout: "paginated",
 			visualLayout: "single-page",
 		});
@@ -96,8 +136,8 @@ describe("resolveReaderPresentation", () => {
 	test("selects the sentence-focused renderer for text content", () => {
 		const result = resolveReaderPresentation({
 			book: epub,
-			preference: { readAs: "text", textLayout: "focus" },
-			defaultTextLayout: "scroll",
+			preference: { readAs: "text" },
+			defaultTextLayout: "focus",
 			visualLayout: "single-page",
 		});
 

@@ -67,7 +67,10 @@ function renderPanel(
 			onProfileRename={overrides.onProfileRename ?? (() => {})}
 			onProfileDuplicate={overrides.onProfileDuplicate ?? (() => {})}
 			onProfileDelete={overrides.onProfileDelete ?? (() => {})}
-			onCustomThemesChange={() => {}}
+			onCustomThemeSave={() => {}}
+			onCustomThemeDelete={() => {}}
+			onCustomThemePreview={() => {}}
+			onCustomThemePreviewCancel={() => {}}
 			onChange={overrides.onChange ?? (() => {})}
 			onVisualSettingsChange={() => {}}
 			onPresentationChange={() => {}}
@@ -388,6 +391,25 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		fireEvent.click(panel.getByRole("button", { name: "Layout" }));
 
 		expect(panel.queryByText("Read as")).toBeNull();
+	});
+
+	test("offers only settings consumed by the PDF renderer", () => {
+		const panel = renderPanel(() => {}, false, {
+			presentation: {
+				...presentation,
+				contentKind: "pdf",
+				renderer: "pdf",
+			},
+		});
+
+		expect(panel.getByRole("button", { name: "Visual" })).toBeTruthy();
+		expect(panel.queryByRole("button", { name: "Text" })).toBeNull();
+		expect(panel.queryByRole("button", { name: "Layout" })).toBeNull();
+		expect(panel.queryByRole("button", { name: "Behaviour" })).toBeNull();
+		fireEvent.click(panel.getByRole("button", { name: "Visual" }));
+		expect(panel.getByRole("group", { name: "Reading theme" })).toBeTruthy();
+		expect(panel.queryByText("Character counter")).toBeNull();
+		expect(panel.queryByText("Percentage")).toBeNull();
 	});
 
 	test("moves paginated reader controls into Layout", () => {

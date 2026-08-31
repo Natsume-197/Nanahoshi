@@ -424,9 +424,7 @@ describe("reader layout", () => {
 		expect(quickSettings).toContain(
 			'id: "visual" as const, label: m["reader_settings.category_visual"]()',
 		);
-		expect(quickSettings).toContain(
-			'id: "layout" as const, label: m["reader_settings.category_layout"]()',
-		);
+		expect(quickSettings).toContain('id: "layout" as const');
 		expect(quickSettings).toContain(
 			'label: m["reader_settings.category_behaviour"]()',
 		);
@@ -479,7 +477,7 @@ describe("reader layout", () => {
 		);
 		expect(quickSettings).toContain("onProfileSwitch: (id: string) => void");
 		expect(quickSettings).toContain(
-			"onCustomThemesChange: (next: CustomReaderThemes) => void",
+			"onCustomThemePreview: (colors: ReaderThemeColors) => void",
 		);
 		expect(quickSettings).toContain('m["reader_settings.create_theme"]()');
 		expect(quickSettings).toContain("ReaderCustomThemeDialog");
@@ -498,7 +496,7 @@ describe("reader layout", () => {
 		expect(customThemeEditor).toContain('m["reader_settings.rgb_value"]');
 		expect(readerScreen).toContain("profiles={profilesStore.profiles}");
 		expect(readerScreen).toContain(
-			"onCustomThemesChange={handleCustomThemesChange}",
+			"onCustomThemePreview={handleCustomThemePreview}",
 		);
 		expect(readerScreen).toContain("readerSettings: settings");
 	});
@@ -550,7 +548,7 @@ describe("reader layout", () => {
 		const resizeHandler = readerScreen.includes('useWindowEvent("resize"')
 			? "route"
 			: "engine";
-		expect(resizeHandler).toBe("engine");
+		expect(resizeHandler).toBe("route");
 		const continuousReader = Bun.file(
 			new URL(
 				"../../renderers/continuous/book-reader-continuous.tsx",

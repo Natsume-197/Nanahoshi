@@ -1,3 +1,5 @@
+import { READER_STORAGE_KEYS } from "./reader-storage";
+
 /** Settings shared by every image-first publication: comics, webtoons, art
  * books, and any other ordered sequence of visual pages. */
 export type VisualReadingDirection = "auto" | "ltr" | "rtl";
@@ -20,13 +22,11 @@ export const defaultVisualReaderSettings: VisualReaderSettings = {
 	progressStyle: "text",
 };
 
-const VISUAL_SETTINGS_KEY = "nanahoshi-visual-reader-settings";
-
 export function loadVisualReaderSettings(): VisualReaderSettings {
 	if (typeof window === "undefined") return defaultVisualReaderSettings;
 	try {
 		const stored = JSON.parse(
-			window.localStorage.getItem(VISUAL_SETTINGS_KEY) ?? "null",
+			window.localStorage.getItem(READER_STORAGE_KEYS.visualSettings) ?? "null",
 		) as Partial<VisualReaderSettings> | null;
 		return {
 			layout: isVisualLayout(stored?.layout)
@@ -49,7 +49,10 @@ export function loadVisualReaderSettings(): VisualReaderSettings {
 
 export function saveVisualReaderSettings(settings: VisualReaderSettings): void {
 	try {
-		window.localStorage.setItem(VISUAL_SETTINGS_KEY, JSON.stringify(settings));
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.visualSettings,
+			JSON.stringify(settings),
+		);
 	} catch {
 		// Offline/private storage may reject writes; the live setting still works.
 	}

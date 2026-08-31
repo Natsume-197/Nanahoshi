@@ -41,16 +41,32 @@ describe("reader settings normalization", () => {
 		const normalized = normalizeReaderSettings({
 			fontSize: Number.POSITIVE_INFINITY,
 			lineHeight: 99,
-			firstDimensionMargin: -500,
-			secondDimensionMaxValue: 99_999,
+			horizontalPaddingPct: -500,
+			verticalPaddingPct: 99_999,
 			pageColumns: 50,
 		});
 
 		expect(normalized.fontSize).toBe(defaultReaderSettings.fontSize);
 		expect(normalized.lineHeight).toBe(READER_LINE_HEIGHT_MAX);
-		expect(normalized.firstDimensionMargin).toBe(0);
-		expect(normalized.secondDimensionMaxValue).toBe(10_000);
+		expect(normalized.horizontalPaddingPct).toBe(0);
+		expect(normalized.verticalPaddingPct).toBe(30);
 		expect(normalized.pageColumns).toBe(2);
+	});
+
+	test("keeps visual and viewport-relative settings inside the profile", () => {
+		const normalized = normalizeReaderSettings({
+			visualLayout: "vertical-strip",
+			visualReadingDirection: "rtl",
+			visualProgressStyle: "bar",
+			horizontalPaddingPct: 12,
+			verticalPaddingPct: 8,
+		});
+
+		expect(normalized.visualLayout).toBe("vertical-strip");
+		expect(normalized.visualReadingDirection).toBe("rtl");
+		expect(normalized.visualProgressStyle).toBe("bar");
+		expect(normalized.horizontalPaddingPct).toBe(12);
+		expect(normalized.verticalPaddingPct).toBe(8);
 	});
 
 	test("keeps the public text limits stable", () => {

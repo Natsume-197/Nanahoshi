@@ -1,3 +1,10 @@
+import { READER_STORAGE_KEYS } from "./reader-storage";
+import type {
+	VisualLayout,
+	VisualProgressStyle,
+	VisualReadingDirection,
+} from "./visual-settings";
+
 export type WritingMode = "horizontal-tb" | "vertical-rl";
 export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
@@ -20,6 +27,7 @@ export interface ReaderTheme extends ReaderThemeColors {
 
 /** User-created themes keyed by name (nanahoshi: `customThemes` store). */
 export type CustomReaderThemes = Record<string, ReaderThemeColors>;
+export const READER_THEME_PREVIEW_ID = "__nanahoshi-theme-preview__";
 
 const lightBase = {
 	fontColor: "rgba(0, 0, 0, 0.87)",
@@ -100,12 +108,10 @@ export function getReaderScrollbarTrackColor(theme: ReaderThemeColors): string {
 	return theme.backgroundColor;
 }
 
-const CUSTOM_THEMES_KEY = "nanahoshi-reader-custom-themes";
-
 export function loadCustomThemes(): CustomReaderThemes {
 	if (typeof window === "undefined") return {};
 	try {
-		const raw = window.localStorage.getItem(CUSTOM_THEMES_KEY);
+		const raw = window.localStorage.getItem(READER_STORAGE_KEYS.customThemes);
 		return raw ? JSON.parse(raw) : {};
 	} catch {
 		return {};
@@ -114,7 +120,10 @@ export function loadCustomThemes(): CustomReaderThemes {
 
 export function saveCustomThemes(themes: CustomReaderThemes) {
 	try {
-		window.localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes));
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.customThemes,
+			JSON.stringify(themes),
+		);
 	} catch {
 		// no-op (private mode, quota...)
 	}
@@ -160,9 +169,15 @@ export interface ReaderSettings {
 	focusSentenceIndicator: boolean;
 	/** Read & Listen focus mode: stop at each aligned line until navigation. */
 	focusPauseAudioAfterLine: boolean;
+	visualLayout: VisualLayout;
+	visualReadingDirection: VisualReadingDirection;
+	visualProgressStyle: VisualProgressStyle;
+	/** Viewport-relative padding, stored semantically so profiles travel safely. */
+	horizontalPaddingPct: number;
+	verticalPaddingPct: number;
 }
 
-export const READER_SETTINGS_VERSION = 2;
+export const READER_SETTINGS_VERSION = 3;
 
 /** Default reader experience for new local settings. */
 export const defaultReaderSettings: ReaderSettings = {
@@ -198,26 +213,17 @@ export const defaultReaderSettings: ReaderSettings = {
 	focusTextSpeed: "normal",
 	focusSentenceIndicator: true,
 	focusPauseAudioAfterLine: false,
+	visualLayout: "single-page",
+	visualReadingDirection: "auto",
+	visualProgressStyle: "text",
+	horizontalPaddingPct: 5,
+	verticalPaddingPct: 5,
 };
 
-/**
- * Defaults that are expressed as a percentage in the UI but stored as CSS px
- * for the reader engines. Keep the exported static defaults SSR-safe, then
- * resolve the physical values when a new local profile is created.
- */
+/** Kept as a named loader for the legacy single-profile migration. */
 export function getViewportReaderDefaults(): ReaderSettings {
-	if (typeof window === "undefined") return defaultReaderSettings;
-	const width = document.documentElement.clientWidth || window.innerWidth || 0;
-	const height =
-		document.documentElement.clientHeight || window.innerHeight || 0;
-	return {
-		...defaultReaderSettings,
-		firstDimensionMargin: Math.round(height * 0.05),
-		secondDimensionMaxValue: Math.round(width * 0.9),
-	};
+	return defaultReaderSettings;
 }
-
-const SETTINGS_KEY = "nanahoshi-reader-settings";
 
 export const READER_FONT_SIZE_MIN = 12;
 export const READER_FONT_SIZE_MAX = 60;
@@ -286,6 +292,28 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		next.focusTextSpeed = stored.focusTextSpeed as FocusTextSpeed;
 	}
 	if (
+		stored.visualLayout === "horizontal-strip" ||
+		stored.visualLayout === "single-page" ||
+		stored.visualLayout === "two-page-spread" ||
+		stored.visualLayout === "vertical-strip"
+	) {
+		next.visualLayout = stored.visualLayout;
+	}
+	if (
+		stored.visualReadingDirection === "auto" ||
+		stored.visualReadingDirection === "ltr" ||
+		stored.visualReadingDirection === "rtl"
+	) {
+		next.visualReadingDirection = stored.visualReadingDirection;
+	}
+	if (
+		stored.visualProgressStyle === "text" ||
+		stored.visualProgressStyle === "page-lines" ||
+		stored.visualProgressStyle === "bar"
+	) {
+		next.visualProgressStyle = stored.visualProgressStyle;
+	}
+	if (
 		stored.furiganaStyle === "Hide" ||
 		stored.furiganaStyle === "Partial" ||
 		stored.furiganaStyle === "Toggle" ||
@@ -314,7 +342,7 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 	// an explicit opt-out remains respected.
 	if (
 		typeof stored.settingsVersion === "number" &&
-		stored.settingsVersion >= READER_SETTINGS_VERSION &&
+		stored.settingsVersion >= 2 &&
 		typeof stored.enableTextJustification === "boolean"
 	) {
 		next.enableTextJustification = stored.enableTextJustification;
@@ -342,17 +370,43 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 	);
 	next.textIndentation = clampNumber(stored.textIndentation, 0, 0, 10);
 	next.textMarginValue = clampNumber(stored.textMarginValue, 0, 0, 10);
-	next.firstDimensionMargin = clampNumber(
-		stored.firstDimensionMargin,
+	const legacy = stored as Partial<ReaderSettings> & {
+		firstDimensionMargin?: number;
+		secondDimensionMaxValue?: number;
+	};
+	const width =
+		typeof window === "undefined"
+			? 0
+			: document.documentElement.clientWidth || window.innerWidth || 0;
+	const height =
+		typeof window === "undefined"
+			? 0
+			: document.documentElement.clientHeight || window.innerHeight || 0;
+	const legacyFirstPct =
+		typeof legacy.firstDimensionMargin === "number"
+			? (legacy.firstDimensionMargin /
+					((stored.writingMode === "vertical-rl" ? width : height) || 1)) *
+				100
+			: 5;
+	const legacySecondAxis =
+		stored.writingMode === "vertical-rl" ? height : width;
+	const legacySecondPct =
+		typeof legacy.secondDimensionMaxValue === "number"
+			? legacy.secondDimensionMaxValue === 0 || !legacySecondAxis
+				? 0
+				: ((1 - legacy.secondDimensionMaxValue / legacySecondAxis) / 2) * 100
+			: 5;
+	next.horizontalPaddingPct = clampNumber(
+		stored.horizontalPaddingPct,
+		stored.writingMode === "vertical-rl" ? legacyFirstPct : legacySecondPct,
 		0,
-		0,
-		10_000,
+		30,
 	);
-	next.secondDimensionMaxValue = clampNumber(
-		stored.secondDimensionMaxValue,
+	next.verticalPaddingPct = clampNumber(
+		stored.verticalPaddingPct,
+		stored.writingMode === "vertical-rl" ? legacySecondPct : legacyFirstPct,
 		0,
-		0,
-		10_000,
+		30,
 	);
 	next.pageColumns = Math.round(clampNumber(stored.pageColumns, 0, 0, 2));
 	next.autoScrollMultiplier = clampNumber(
@@ -367,7 +421,7 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 export function loadReaderSettings(): ReaderSettings {
 	if (typeof window === "undefined") return defaultReaderSettings;
 	try {
-		const raw = window.localStorage.getItem(SETTINGS_KEY);
+		const raw = window.localStorage.getItem(READER_STORAGE_KEYS.settings);
 		if (!raw) return getViewportReaderDefaults();
 		return normalizeReaderSettings(JSON.parse(raw));
 	} catch {
@@ -377,7 +431,10 @@ export function loadReaderSettings(): ReaderSettings {
 
 export function saveReaderSettings(settings: ReaderSettings) {
 	try {
-		window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.settings,
+			JSON.stringify(settings),
+		);
 	} catch {
 		// no-op (private mode, quota...)
 	}

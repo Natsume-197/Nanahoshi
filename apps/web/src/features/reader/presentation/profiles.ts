@@ -7,7 +7,9 @@
  * The active-profile pointer is per device and never synced.
  */
 
+import { ORPCError } from "@orpc/client";
 import { client } from "@/utils/orpc";
+import { getReaderStorageOwner, READER_STORAGE_KEYS } from "./reader-storage";
 import {
 	type CustomReaderThemes,
 	loadCustomThemes,
@@ -17,6 +19,11 @@ import {
 	saveCustomThemes,
 	saveReaderSettings,
 } from "./settings";
+import {
+	defaultVisualReaderSettings,
+	loadVisualReaderSettings,
+	type VisualReaderSettings,
+} from "./visual-settings";
 
 export interface ReaderProfile {
 	id: string;
@@ -34,11 +41,11 @@ export interface ReaderProfilesStore {
 interface SyncMeta {
 	updatedAt: number;
 	dirty?: boolean;
+	serverUpdatedAt?: string;
 }
 
-const PROFILES_KEY = "nanahoshi-reader-profiles";
-const ACTIVE_PROFILE_KEY = "nanahoshi-reader-active-profile";
-const THEMES_META_KEY = "nanahoshi-reader-custom-themes-meta";
+export const READER_PROFILES_RECONCILED_EVENT =
+	"nanahoshi:reader-profiles-reconciled";
 
 function newProfileId(): string {
 	return typeof crypto !== "undefined" && crypto.randomUUID
@@ -49,17 +56,31 @@ function newProfileId(): string {
 /** Legacy migration: wrap the pre-profiles settings blob as "Default".
  * `updatedAt: 0` makes any existing server copy win over this seed. */
 function migrateLegacySettings(): ReaderProfilesStore {
+	const settings = loadReaderSettings();
+	const visual = loadVisualReaderSettings();
 	return {
 		updatedAt: 0,
 		dirty: true,
 		profiles: [
-			{ id: newProfileId(), name: "Default", settings: loadReaderSettings() },
+			{
+				id: newProfileId(),
+				name: "Default",
+				settings: {
+					...settings,
+					visualLayout: visual.layout,
+					visualReadingDirection: visual.readingDirection,
+					visualProgressStyle: visual.progressStyle,
+				},
+			},
 		],
 	};
 }
 
 /** Repairs arbitrary (server or stored) data into a valid store. */
-export function normalizeProfilesStore(raw: unknown): ReaderProfilesStore {
+export function normalizeProfilesStore(
+	raw: unknown,
+	legacyVisual: VisualReaderSettings = defaultVisualReaderSettings,
+): ReaderProfilesStore {
 	if (!raw || typeof raw !== "object") return migrateLegacySettings();
 	const stored = raw as Partial<ReaderProfilesStore>;
 	if (!Array.isArray(stored.profiles) || stored.profiles.length === 0) {
@@ -68,22 +89,55 @@ export function normalizeProfilesStore(raw: unknown): ReaderProfilesStore {
 	return {
 		updatedAt: typeof stored.updatedAt === "number" ? stored.updatedAt : 0,
 		...(stored.dirty && { dirty: true }),
-		profiles: stored.profiles.map((profile, index) => ({
-			id: typeof profile?.id === "string" ? profile.id : newProfileId(),
-			name:
-				typeof profile?.name === "string" && profile.name
-					? profile.name
-					: `Profile ${index + 1}`,
-			settings: normalizeReaderSettings(profile?.settings),
-		})),
+		profiles: stored.profiles.map((profile, index) => {
+			const rawSettings = profile?.settings as
+				| (Partial<ReaderSettings> & Record<string, unknown>)
+				| undefined;
+			const settings = normalizeReaderSettings(profile?.settings);
+			if (rawSettings?.visualLayout === undefined) {
+				settings.visualLayout = legacyVisual.layout;
+				settings.visualReadingDirection = legacyVisual.readingDirection;
+				settings.visualProgressStyle = legacyVisual.progressStyle;
+			}
+			return {
+				id: typeof profile?.id === "string" ? profile.id : newProfileId(),
+				name:
+					typeof profile?.name === "string" && profile.name
+						? profile.name
+						: `Profile ${index + 1}`,
+				settings,
+			};
+		}),
 	};
 }
 
 export function loadProfilesStore(): ReaderProfilesStore {
 	if (typeof window === "undefined") return migrateLegacySettings();
 	try {
-		const raw = window.localStorage.getItem(PROFILES_KEY);
-		if (raw) return normalizeProfilesStore(JSON.parse(raw));
+		const raw = window.localStorage.getItem(READER_STORAGE_KEYS.profiles);
+		if (raw) {
+			const parsed = JSON.parse(raw) as ReaderProfilesStore;
+			const needsSettingsMigration = parsed.profiles?.some(
+				(profile) =>
+					profile?.settings?.visualLayout === undefined ||
+					profile?.settings?.horizontalPaddingPct === undefined ||
+					profile?.settings?.verticalPaddingPct === undefined,
+			);
+			const normalized = normalizeProfilesStore(
+				parsed,
+				loadVisualReaderSettings(),
+			);
+			if (needsSettingsMigration) {
+				const migrated = {
+					...normalized,
+					updatedAt: Date.now(),
+					dirty: true,
+				};
+				saveProfilesStore(migrated);
+				return migrated;
+			}
+			return normalized;
+		}
 	} catch {
 		// fall through to migration
 	}
@@ -94,7 +148,10 @@ export function loadProfilesStore(): ReaderProfilesStore {
 
 export function saveProfilesStore(store: ReaderProfilesStore) {
 	try {
-		window.localStorage.setItem(PROFILES_KEY, JSON.stringify(store));
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.profiles,
+			JSON.stringify(store),
+		);
 	} catch {
 		// no-op (private mode, quota...)
 	}
@@ -104,7 +161,7 @@ export function saveProfilesStore(store: ReaderProfilesStore) {
 export function getActiveProfileId(store: ReaderProfilesStore): string {
 	let pointer: string | null = null;
 	try {
-		pointer = window.localStorage.getItem(ACTIVE_PROFILE_KEY);
+		pointer = window.localStorage.getItem(READER_STORAGE_KEYS.activeProfile);
 	} catch {
 		// treat as unset
 	}
@@ -118,7 +175,7 @@ export function getActiveProfileId(store: ReaderProfilesStore): string {
 
 export function setActiveProfileId(id: string) {
 	try {
-		window.localStorage.setItem(ACTIVE_PROFILE_KEY, id);
+		window.localStorage.setItem(READER_STORAGE_KEYS.activeProfile, id);
 	} catch {
 		// no-op
 	}
@@ -144,6 +201,26 @@ export function setProfileSettings(
 		...store,
 		profiles: store.profiles.map((profile) =>
 			profile.id === id ? { ...profile, settings } : profile,
+		),
+	};
+}
+
+/** Repoints every profile before a shared custom-theme key is removed. */
+export function replaceProfileThemeReferences(
+	store: ReaderProfilesStore,
+	fromTheme: string,
+	toTheme: string,
+): ReaderProfilesStore {
+	if (!fromTheme || fromTheme === toTheme) return store;
+	return {
+		...store,
+		profiles: store.profiles.map((profile) =>
+			profile.settings.theme === fromTheme
+				? {
+						...profile,
+						settings: { ...profile.settings, theme: toTheme },
+					}
+				: profile,
 		),
 	};
 }
@@ -222,19 +299,45 @@ export function commitProfilesStore(
 		dirty: true,
 	};
 	saveProfilesStore(next);
+	const meta = loadProfilesMeta();
+	saveProfilesMeta({ ...meta, updatedAt: next.updatedAt, dirty: true });
 	saveReaderSettings(getProfileSettings(next, getActiveProfileId(next)));
 	scheduleProfilesPush();
 	return next;
 }
 
+function loadProfilesMeta(): SyncMeta {
+	try {
+		const raw = window.localStorage.getItem(READER_STORAGE_KEYS.profilesMeta);
+		if (raw) return JSON.parse(raw) as SyncMeta;
+	} catch {
+		// treat as a legacy store without a known server revision
+	}
+	return { updatedAt: 0 };
+}
+
+function saveProfilesMeta(meta: SyncMeta) {
+	try {
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.profilesMeta,
+			JSON.stringify(meta),
+		);
+	} catch {
+		// no-op
+	}
+}
+
 function loadThemesMeta(): SyncMeta {
 	try {
-		const raw = window.localStorage.getItem(THEMES_META_KEY);
+		const raw = window.localStorage.getItem(READER_STORAGE_KEYS.themesMeta);
 		if (raw) {
 			const parsed = JSON.parse(raw) as Partial<SyncMeta>;
 			return {
 				updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0,
 				...(parsed.dirty && { dirty: true }),
+				...(typeof parsed.serverUpdatedAt === "string" && {
+					serverUpdatedAt: parsed.serverUpdatedAt,
+				}),
 			};
 		}
 	} catch {
@@ -250,7 +353,10 @@ function loadThemesMeta(): SyncMeta {
 
 function saveThemesMeta(meta: SyncMeta) {
 	try {
-		window.localStorage.setItem(THEMES_META_KEY, JSON.stringify(meta));
+		window.localStorage.setItem(
+			READER_STORAGE_KEYS.themesMeta,
+			JSON.stringify(meta),
+		);
 	} catch {
 		// no-op
 	}
@@ -259,58 +365,163 @@ function saveThemesMeta(meta: SyncMeta) {
 /** Saves custom themes, stamps their sync meta and schedules a push. */
 export function commitCustomThemes(themes: CustomReaderThemes) {
 	saveCustomThemes(themes);
-	saveThemesMeta({ updatedAt: Date.now(), dirty: true });
+	const current = loadThemesMeta();
+	saveThemesMeta({
+		...current,
+		updatedAt: Date.now(),
+		dirty: true,
+	});
 	scheduleThemesPush();
 }
 
 const PUSH_DEBOUNCE_MS = 1000;
 let profilesPushTimer: ReturnType<typeof setTimeout> | undefined;
 let themesPushTimer: ReturnType<typeof setTimeout> | undefined;
+let profilesPushInFlight: Promise<boolean> | undefined;
+let themesPushInFlight: Promise<boolean> | undefined;
 
-async function pushProfiles() {
+async function pushProfiles(): Promise<boolean> {
 	const store = loadProfilesStore();
+	const meta = loadProfilesMeta();
 	try {
-		await client.userSettings.set({
+		const result = await client.userSettings.set({
 			key: "reader-profiles",
 			value: { updatedAt: store.updatedAt, profiles: store.profiles },
+			expectedUpdatedAt: meta.serverUpdatedAt ?? null,
 		});
 		const latest = loadProfilesStore();
 		// Only clear dirty if nothing changed while the request was in flight.
 		if (latest.updatedAt === store.updatedAt && latest.dirty) {
 			saveProfilesStore({ ...latest, dirty: false });
 		}
-	} catch {
-		// stays dirty; next sync/commit retries
+		const latestMeta = loadProfilesMeta();
+		saveProfilesMeta({
+			...latestMeta,
+			...(latestMeta.updatedAt === store.updatedAt && { dirty: false }),
+			serverUpdatedAt: new Date(result.updatedAt).toISOString(),
+		});
+		return true;
+	} catch (error) {
+		if (!(error instanceof ORPCError) || error.status !== 409) return false;
+		// A successful read after a failed CAS means another device won. Adopt its
+		// authoritative value; offline failures leave the local store dirty.
+		try {
+			const server = await client.userSettings.get({ key: "reader-profiles" });
+			if (!server) return false;
+			const adopted = {
+				...normalizeProfilesStore(server.value, loadVisualReaderSettings()),
+				dirty: false,
+			};
+			saveProfilesStore(adopted);
+			saveProfilesMeta({
+				updatedAt: adopted.updatedAt,
+				serverUpdatedAt: new Date(server.updatedAt).toISOString(),
+			});
+			window.dispatchEvent(
+				new CustomEvent(READER_PROFILES_RECONCILED_EVENT, {
+					detail: { profiles: adopted },
+				}),
+			);
+			return true;
+		} catch {
+			// stays dirty; next sync/commit retries
+			return false;
+		}
 	}
 }
 
-async function pushThemes() {
+async function pushThemes(): Promise<boolean> {
 	const meta = loadThemesMeta();
 	try {
-		await client.userSettings.set({
+		const result = await client.userSettings.set({
 			key: "reader-custom-themes",
 			value: { updatedAt: meta.updatedAt, themes: loadCustomThemes() },
+			expectedUpdatedAt: meta.serverUpdatedAt ?? null,
 		});
 		const latest = loadThemesMeta();
-		if (latest.updatedAt === meta.updatedAt && latest.dirty) {
-			saveThemesMeta({ ...latest, dirty: false });
+		saveThemesMeta({
+			...latest,
+			...(latest.updatedAt === meta.updatedAt && { dirty: false }),
+			serverUpdatedAt: new Date(result.updatedAt).toISOString(),
+		});
+		return true;
+	} catch (error) {
+		if (!(error instanceof ORPCError) || error.status !== 409) return false;
+		try {
+			const server = await client.userSettings.get({
+				key: "reader-custom-themes",
+			});
+			const value = server?.value as
+				| { updatedAt?: number; themes?: CustomReaderThemes }
+				| undefined;
+			if (!server || !value?.themes) return false;
+			saveCustomThemes(value.themes);
+			saveThemesMeta({
+				updatedAt: value.updatedAt ?? 0,
+				serverUpdatedAt: new Date(server.updatedAt).toISOString(),
+			});
+			window.dispatchEvent(
+				new CustomEvent(READER_PROFILES_RECONCILED_EVENT, {
+					detail: { themes: value.themes },
+				}),
+			);
+			return true;
+		} catch {
+			// stays dirty; next sync/commit retries
+			return false;
 		}
-	} catch {
-		// stays dirty; next sync/commit retries
 	}
+}
+
+async function flushProfilesPush(): Promise<void> {
+	if (profilesPushInFlight) {
+		const completed = await profilesPushInFlight;
+		if (completed && loadProfilesStore().dirty) return flushProfilesPush();
+		return;
+	}
+	profilesPushInFlight = pushProfiles();
+	let completed = false;
+	try {
+		completed = await profilesPushInFlight;
+	} finally {
+		profilesPushInFlight = undefined;
+	}
+	if (completed && loadProfilesStore().dirty) await flushProfilesPush();
+}
+
+async function flushThemesPush(): Promise<void> {
+	if (themesPushInFlight) {
+		const completed = await themesPushInFlight;
+		if (completed && loadThemesMeta().dirty) return flushThemesPush();
+		return;
+	}
+	themesPushInFlight = pushThemes();
+	let completed = false;
+	try {
+		completed = await themesPushInFlight;
+	} finally {
+		themesPushInFlight = undefined;
+	}
+	if (completed && loadThemesMeta().dirty) await flushThemesPush();
 }
 
 /** Debounced: quick-settings taps commit rapidly. */
 export function scheduleProfilesPush() {
 	if (typeof window === "undefined") return;
 	clearTimeout(profilesPushTimer);
-	profilesPushTimer = setTimeout(() => void pushProfiles(), PUSH_DEBOUNCE_MS);
+	const owner = getReaderStorageOwner();
+	profilesPushTimer = setTimeout(() => {
+		if (owner && getReaderStorageOwner() === owner) void flushProfilesPush();
+	}, PUSH_DEBOUNCE_MS);
 }
 
 export function scheduleThemesPush() {
 	if (typeof window === "undefined") return;
 	clearTimeout(themesPushTimer);
-	themesPushTimer = setTimeout(() => void pushThemes(), PUSH_DEBOUNCE_MS);
+	const owner = getReaderStorageOwner();
+	themesPushTimer = setTimeout(() => {
+		if (owner && getReaderStorageOwner() === owner) void flushThemesPush();
+	}, PUSH_DEBOUNCE_MS);
 }
 
 export interface ReaderProfilesSyncResult {
@@ -332,27 +543,48 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 	try {
 		const server = await client.userSettings.get({ key: "reader-profiles" });
 		const local = loadProfilesStore();
+		const meta = loadProfilesMeta();
 		const serverStore = server
-			? normalizeProfilesStore(server.value)
+			? normalizeProfilesStore(server.value, loadVisualReaderSettings())
+			: undefined;
+		const serverRevision = server
+			? new Date(server.updatedAt).toISOString()
 			: undefined;
 
-		if (serverStore && serverStore.updatedAt > local.updatedAt) {
+		if (
+			serverStore &&
+			!local.dirty &&
+			meta.serverUpdatedAt !== serverRevision
+		) {
 			const adopted: ReaderProfilesStore = { ...serverStore, dirty: false };
 			saveProfilesStore(adopted);
+			saveProfilesMeta({
+				updatedAt: adopted.updatedAt,
+				serverUpdatedAt: serverRevision,
+			});
 			saveReaderSettings(
 				getProfileSettings(adopted, getActiveProfileId(adopted)),
 			);
 			result.profiles = adopted;
-		} else if (
-			!serverStore ||
-			local.updatedAt > serverStore.updatedAt ||
-			local.dirty
-		) {
-			if (local.updatedAt === 0) {
-				// Fresh legacy migration: stamp it so later devices see a real time.
-				saveProfilesStore({ ...local, updatedAt: Date.now() });
+		} else if (!serverStore || local.dirty) {
+			if (serverRevision && !meta.serverUpdatedAt) {
+				saveProfilesMeta({ ...meta, serverUpdatedAt: serverRevision });
 			}
-			await pushProfiles();
+			if (local.updatedAt === 0) {
+				const stamped = { ...local, updatedAt: Date.now(), dirty: true };
+				saveProfilesStore(stamped);
+				saveProfilesMeta({
+					...meta,
+					updatedAt: stamped.updatedAt,
+					dirty: true,
+				});
+			}
+			await flushProfilesPush();
+		} else if (serverRevision && !meta.serverUpdatedAt) {
+			saveProfilesMeta({
+				updatedAt: local.updatedAt,
+				serverUpdatedAt: serverRevision,
+			});
 		}
 	} catch {
 		// offline / logged out
@@ -369,16 +601,32 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 			| undefined;
 		const serverUpdatedAt =
 			typeof serverValue?.updatedAt === "number" ? serverValue.updatedAt : 0;
+		const serverRevision = server
+			? new Date(server.updatedAt).toISOString()
+			: undefined;
 
-		if (serverValue?.themes && serverUpdatedAt > meta.updatedAt) {
+		if (
+			serverValue?.themes &&
+			!meta.dirty &&
+			meta.serverUpdatedAt !== serverRevision
+		) {
 			saveCustomThemes(serverValue.themes);
-			saveThemesMeta({ updatedAt: serverUpdatedAt, dirty: false });
+			saveThemesMeta({
+				updatedAt: serverUpdatedAt,
+				dirty: false,
+				serverUpdatedAt: serverRevision,
+			});
 			result.themes = serverValue.themes;
-		} else if (!server || meta.updatedAt > serverUpdatedAt || meta.dirty) {
+		} else if (!server || meta.dirty) {
+			if (serverRevision && !meta.serverUpdatedAt) {
+				saveThemesMeta({ ...meta, serverUpdatedAt: serverRevision });
+			}
 			if (meta.updatedAt === 0) {
 				saveThemesMeta({ ...meta, updatedAt: Date.now() });
 			}
-			await pushThemes();
+			await flushThemesPush();
+		} else if (serverRevision && !meta.serverUpdatedAt) {
+			saveThemesMeta({ ...meta, serverUpdatedAt: serverRevision });
 		}
 	} catch {
 		// offline / logged out

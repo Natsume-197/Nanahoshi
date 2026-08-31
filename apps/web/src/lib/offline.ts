@@ -21,7 +21,11 @@ export async function clearOfflineCaches(): Promise<void> {
 	const readerCache = await import(
 		"@/features/reader/document/reader-book-cache"
 	);
+	const readerStorage = await import(
+		"@/features/reader/presentation/reader-storage"
+	);
 	await readerCache.clearReaderBookCache();
+	readerStorage.clearReaderStorage();
 	try {
 		window.localStorage.removeItem("nanahoshi:recent-searches");
 		window.localStorage.removeItem("kindle-email");

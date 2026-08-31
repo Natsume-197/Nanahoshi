@@ -64,6 +64,7 @@ import {
 	READER_FONT_SIZE_MIN,
 	READER_LINE_HEIGHT_MAX,
 	READER_LINE_HEIGHT_MIN,
+	READER_THEME_PREVIEW_ID,
 	type ReaderSettings,
 	type ReaderTheme,
 	type ReaderThemeColors,
@@ -103,7 +104,14 @@ interface ReaderQuickSettingsProps {
 	onProfileRename: (id: string, name: string) => void;
 	onProfileDuplicate: (id: string) => void;
 	onProfileDelete: (id: string) => void;
-	onCustomThemesChange: (next: CustomReaderThemes) => void;
+	onCustomThemeSave: (
+		name: string,
+		colors: ReaderThemeColors,
+		previousName: string,
+	) => void;
+	onCustomThemeDelete: (name: string) => void;
+	onCustomThemePreview: (colors: ReaderThemeColors) => void;
+	onCustomThemePreviewCancel: (previousTheme: string) => void;
 	onChange: (patch: Partial<ReaderSettings>) => void;
 	onVisualSettingsChange: (patch: Partial<VisualReaderSettings>) => void;
 	onPresentationChange: (change: ReaderPresentationChange) => void;
@@ -115,7 +123,6 @@ const clampPct = (value: number, min: number, max: number) =>
 
 type QuickSettingsCategory = "visual" | "text" | "layout" | "behaviour";
 
-const CUSTOM_THEME_PREVIEW_ID = "__nanahoshi-theme-preview__";
 const DESKTOP_DIALOG_INSET = 16;
 const DESKTOP_DIALOG_KEYBOARD_STEP = 8;
 const DESKTOP_DIALOG_HEADER_HEIGHT = 44;
@@ -233,7 +240,10 @@ export function ReaderQuickSettings({
 	onProfileRename,
 	onProfileDuplicate,
 	onProfileDelete,
-	onCustomThemesChange,
+	onCustomThemeSave,
+	onCustomThemeDelete,
+	onCustomThemePreview,
+	onCustomThemePreviewCancel,
 	onChange,
 	onVisualSettingsChange,
 	onPresentationChange,
@@ -242,6 +252,7 @@ export function ReaderQuickSettings({
 	const mix = (pct: number) => readerMix(theme, pct);
 	const verticalMode = settings.writingMode === "vertical-rl";
 	const isVisual = presentation.resolvedAs === "visual";
+	const isPdf = presentation.renderer === "pdf";
 	const resolvedReadAs = isVisual
 		? m["reader_settings.visual_content"]()
 		: m["reader_settings.category_text"]();
@@ -306,19 +317,14 @@ export function ReaderQuickSettings({
 			desktopDialogExpandedSizeRef.current = null;
 			setDesktopDialogCollapsed(false);
 			if (customThemeDialog) {
-				const next = { ...customThemes };
-				delete next[CUSTOM_THEME_PREVIEW_ID];
-				onCustomThemesChange(next);
-				onChange({ theme: customThemeDialog.previousTheme });
+				onCustomThemePreviewCancel(customThemeDialog.previousTheme);
 				setCustomThemeDialog(null);
 			}
 		}
 	}, [
 		applyDesktopDialogOffset,
 		customThemeDialog,
-		customThemes,
-		onChange,
-		onCustomThemesChange,
+		onCustomThemePreviewCancel,
 		open,
 	]);
 
@@ -608,7 +614,7 @@ export function ReaderQuickSettings({
 
 	const themeIds = [
 		...readerThemes.map((readerTheme) => readerTheme.id),
-		...Object.keys(customThemes).filter((id) => id !== CUSTOM_THEME_PREVIEW_ID),
+		...Object.keys(customThemes).filter((id) => id !== READER_THEME_PREVIEW_ID),
 	];
 
 	const handleCustomThemeSave = (
@@ -616,115 +622,59 @@ export function ReaderQuickSettings({
 		colors: ReaderThemeColors,
 		previousName: string,
 	) => {
-		const next = { ...customThemes };
-		delete next[CUSTOM_THEME_PREVIEW_ID];
-		if (previousName && previousName !== name) delete next[previousName];
-		next[name] = colors;
-		onCustomThemesChange(next);
-		onChange({ theme: name });
+		onCustomThemeSave(name, colors, previousName);
 		setCustomThemeDialog(null);
 	};
 
 	const handleCustomThemePreview = (colors: ReaderThemeColors) => {
-		onCustomThemesChange({
-			...customThemes,
-			[CUSTOM_THEME_PREVIEW_ID]: colors,
-		});
-		onChange({ theme: CUSTOM_THEME_PREVIEW_ID });
+		onCustomThemePreview(colors);
 	};
 
 	const handleCustomThemeDialogClose = () => {
 		if (!customThemeDialog) return;
-		const next = { ...customThemes };
-		delete next[CUSTOM_THEME_PREVIEW_ID];
-		onCustomThemesChange(next);
-		onChange({ theme: customThemeDialog.previousTheme });
+		onCustomThemePreviewCancel(customThemeDialog.previousTheme);
 		setCustomThemeDialog(null);
 	};
 
 	const handleCustomThemeDelete = (name: string) => {
-		const next = { ...customThemes };
-		delete next[name];
-		onCustomThemesChange(next);
-		if (settings.theme === name) {
-			onChange({ theme: readerThemes[0]?.id ?? "light-theme" });
-		}
+		onCustomThemeDelete(name);
 	};
 
 	const activeCategory = selectedCategory;
 	const settingsCategories = [
 		{ id: "visual" as const, label: m["reader_settings.category_visual"]() },
-		...(!isVisual
+		...(!isVisual && !isPdf
 			? [{ id: "text" as const, label: m["reader_settings.category_text"]() }]
 			: []),
-		{ id: "layout" as const, label: m["reader_settings.category_layout"]() },
-		{
-			id: "behaviour" as const,
-			label: m["reader_settings.category_behaviour"](),
-		},
+		...(!isPdf
+			? [
+					{
+						id: "layout" as const,
+						label: m["reader_settings.category_layout"](),
+					},
+					{
+						id: "behaviour" as const,
+						label: m["reader_settings.category_behaviour"](),
+					},
+				]
+			: []),
 	];
 	const settingsCategoryTitle =
 		settingsCategories.find((category) => category.id === selectedCategory)
 			?.label ?? m["reader_settings.title"]();
 
-	// Same %-of-screen mapping as the settings overlay (engine stores px).
-	// viewport.ts helpers, not window.inner*: the engine measures in CSS px and
-	// window.inner* can report physical px on HiDPI Linux.
-	const marginAxisPx = () =>
-		verticalMode ? viewportWidth() : viewportHeight();
-	const areaAxisPx = () => (verticalMode ? viewportHeight() : viewportWidth());
-
-	const marginPct = clampPct(
-		Math.round((settings.firstDimensionMargin / marginAxisPx()) * 100),
-		0,
-		30,
-	);
-	const areaPct =
-		settings.secondDimensionMaxValue === 0
-			? 100
-			: clampPct(
-					Math.round((settings.secondDimensionMaxValue / areaAxisPx()) * 100),
-					30,
-					100,
-				);
-	const firstDimensionPaddingPct = marginPct;
-	const secondDimensionPaddingPct = clampPct(
-		Math.round((100 - areaPct) / 2),
-		0,
-		30,
-	);
-	const horizontalPaddingPct = verticalMode
-		? firstDimensionPaddingPct
-		: secondDimensionPaddingPct;
-	const verticalPaddingPct = verticalMode
-		? secondDimensionPaddingPct
-		: firstDimensionPaddingPct;
-
-	const updatePhysicalPadding = (
+	const horizontalPaddingPct = settings.horizontalPaddingPct;
+	const verticalPaddingPct = settings.verticalPaddingPct;
+	const updatePadding = (
 		axis: "horizontal" | "vertical",
 		nextValue: number,
 	) => {
 		const paddingPct = clampPct(nextValue, 0, 30);
-		const currentValue =
-			axis === "horizontal" ? horizontalPaddingPct : verticalPaddingPct;
-		if (paddingPct === currentValue) return;
-		const changesFirstDimension =
-			(axis === "horizontal" && verticalMode) ||
-			(axis === "vertical" && !verticalMode);
-
-		if (changesFirstDimension) {
-			onChange({
-				firstDimensionMargin: Math.round((paddingPct / 100) * marginAxisPx()),
-			});
-			return;
-		}
-
-		onChange({
-			secondDimensionMaxValue:
-				paddingPct === 0
-					? 0
-					: Math.round((1 - (paddingPct * 2) / 100) * areaAxisPx()),
-		});
+		onChange(
+			axis === "horizontal"
+				? { horizontalPaddingPct: paddingPct }
+				: { verticalPaddingPct: paddingPct },
+		);
 	};
 	const availableThemes = [
 		...readerThemes.map(({ id, backgroundColor, fontColor }) => ({
@@ -1136,22 +1086,28 @@ export function ReaderQuickSettings({
 							</div>
 						</div>
 					)}
-					<QuickSettingsRow label={m["reader_settings.character_counter"]()}>
-						<Toggle
-							theme={theme}
-							value={settings.showCharacterCounter}
-							onChange={(showCharacterCounter) =>
-								onChange({ showCharacterCounter })
-							}
-						/>
-					</QuickSettingsRow>
-					<QuickSettingsRow label={m["reader_settings.percentage"]()}>
-						<Toggle
-							theme={theme}
-							value={settings.showPercentage}
-							onChange={(showPercentage) => onChange({ showPercentage })}
-						/>
-					</QuickSettingsRow>
+					{!isPdf && (
+						<>
+							<QuickSettingsRow
+								label={m["reader_settings.character_counter"]()}
+							>
+								<Toggle
+									theme={theme}
+									value={settings.showCharacterCounter}
+									onChange={(showCharacterCounter) =>
+										onChange({ showCharacterCounter })
+									}
+								/>
+							</QuickSettingsRow>
+							<QuickSettingsRow label={m["reader_settings.percentage"]()}>
+								<Toggle
+									theme={theme}
+									value={settings.showPercentage}
+									onChange={(showPercentage) => onChange({ showPercentage })}
+								/>
+							</QuickSettingsRow>
+						</>
+					)}
 					{isVisual && (
 						<QuickSettingsRow label={m["reader_settings.progress_indicator"]()}>
 							<div className="w-52 max-w-full">
@@ -1177,277 +1133,296 @@ export function ReaderQuickSettings({
 				</QuickSettingsSection>
 			)}
 
-			{!isVisual && (!activeCategory || activeCategory === "text") && (
-				<>
-					{!activeCategory && (
-						<Separator style={{ backgroundColor: mix(14) }} />
-					)}
-					<QuickSettingsSection
-						title={m["reader_settings.category_text"]()}
-						showTitle={activeCategory === null}
-					>
-						<QuickSettingsRow label={m["reader_settings.text_size"]()}>
-							<fieldset aria-label={m["reader_settings.text_size"]()}>
-								<Stepper
-									theme={theme}
-									compact
-									display={`${settings.fontSize}`}
-									canDecrease={settings.fontSize > READER_FONT_SIZE_MIN}
-									canIncrease={settings.fontSize < READER_FONT_SIZE_MAX}
-									onStep={(direction) =>
-										onChange({
-											fontSize: Math.min(
-												READER_FONT_SIZE_MAX,
-												Math.max(
-													READER_FONT_SIZE_MIN,
-													settings.fontSize + direction,
-												),
-											),
-										})
-									}
-								/>
-							</fieldset>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.font"]()}>
-							<div className="w-40">
-								<Segmented
-									theme={theme}
-									ariaLabel={m["reader_settings.font"]()}
-									options={[
-										{ id: "Noto Serif JP", text: m["reader_settings.serif"]() },
-										{ id: "Noto Sans JP", text: m["reader_settings.sans"]() },
-									]}
-									selected={settings.fontFamilyGroupOne}
-									onSelect={(fontFamilyGroupOne) =>
-										onChange({ fontFamilyGroupOne })
-									}
-								/>
-							</div>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.sans_font_family"]()}>
-							<ThemedTextInput
-								ariaLabel={m["reader_settings.sans_font_family"]()}
-								theme={theme}
-								value={settings.fontFamilyGroupTwo}
-								list="reader-quick-sans-fonts"
-								onChange={(value) =>
-									onChange({
-										fontFamilyGroupTwo: value || "Noto Sans JP",
-									})
-								}
-							/>
-						</QuickSettingsRow>
-						<datalist id="reader-quick-sans-fonts">
-							<option value="Noto Sans JP" />
-							<option value="sans-serif" />
-						</datalist>
-						<QuickSettingsRow label={m["reader_settings.font_weight"]()}>
-							<div className="w-40">
-								<ThemedSelect
-									theme={theme}
-									value={
-										settings.fontWeight === null
-											? "default"
-											: String(settings.fontWeight)
-									}
-									onChange={(value) =>
-										onChange({
-											fontWeight:
-												value === "default" ? null : Number.parseInt(value, 10),
-										})
-									}
-								>
-									<ThemedOption theme={theme} value="default">
-										{m["reader_settings.default_option"]()}
-									</ThemedOption>
-									{[300, 400, 500, 600, 700].map((weight) => (
-										<ThemedOption
-											key={weight}
-											theme={theme}
-											value={String(weight)}
-										>
-											{weight}
-										</ThemedOption>
-									))}
-								</ThemedSelect>
-							</div>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.text_orientation"]()}>
-							<div className="w-40">
-								<Segmented
-									theme={theme}
-									ariaLabel={m["reader_settings.text_orientation"]()}
-									options={[
-										{
-											id: "horizontal-tb",
-											text: m["reader_settings.horizontal"](),
-										},
-										{
-											id: "vertical-rl",
-											text: m["reader_settings.vertical"](),
-										},
-									]}
-									selected={settings.writingMode}
-									onSelect={(writingMode) => onChange({ writingMode })}
-								/>
-							</div>
-						</QuickSettingsRow>
-						{verticalMode && (
-							<>
-								<QuickSettingsRow
-									label={m["reader_settings.latin_character_orientation"]()}
-								>
-									<div className="w-40">
-										<Segmented
-											theme={theme}
-											ariaLabel={m[
-												"reader_settings.latin_character_orientation"
-											]()}
-											options={[
-												{ id: "mixed", text: m["reader_settings.mixed"]() },
-												{ id: "upright", text: m["reader_settings.upright"]() },
-											]}
-											selected={settings.verticalTextOrientation}
-											onSelect={(verticalTextOrientation) =>
-												onChange({ verticalTextOrientation })
-											}
-										/>
-									</div>
-								</QuickSettingsRow>
-								<QuickSettingsRow label={m["reader_settings.font_kerning"]()}>
-									<Toggle
+			{!isVisual &&
+				!isPdf &&
+				(!activeCategory || activeCategory === "text") && (
+					<>
+						{!activeCategory && (
+							<Separator style={{ backgroundColor: mix(14) }} />
+						)}
+						<QuickSettingsSection
+							title={m["reader_settings.category_text"]()}
+							showTitle={activeCategory === null}
+						>
+							<QuickSettingsRow label={m["reader_settings.text_size"]()}>
+								<fieldset aria-label={m["reader_settings.text_size"]()}>
+									<Stepper
 										theme={theme}
-										value={settings.enableFontKerning}
-										onChange={(enableFontKerning) =>
-											onChange({ enableFontKerning })
+										compact
+										display={`${settings.fontSize}`}
+										canDecrease={settings.fontSize > READER_FONT_SIZE_MIN}
+										canIncrease={settings.fontSize < READER_FONT_SIZE_MAX}
+										onStep={(direction) =>
+											onChange({
+												fontSize: Math.min(
+													READER_FONT_SIZE_MAX,
+													Math.max(
+														READER_FONT_SIZE_MIN,
+														settings.fontSize + direction,
+													),
+												),
+											})
 										}
 									/>
-								</QuickSettingsRow>
-								<QuickSettingsRow
-									label={m["reader_settings.proportional_vertical_metrics"]()}
-								>
-									<Toggle
-										theme={theme}
-										value={settings.enableFontVPAL}
-										onChange={(enableFontVPAL) => onChange({ enableFontVPAL })}
-									/>
-								</QuickSettingsRow>
-							</>
-						)}
-						<QuickSettingsRow label={m["reader_settings.justify_text"]()}>
-							<Toggle
-								theme={theme}
-								value={settings.enableTextJustification}
-								onChange={(enableTextJustification) =>
-									onChange({ enableTextJustification })
-								}
-							/>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.pretty_text_wrap"]()}>
-							<Toggle
-								theme={theme}
-								value={settings.enableTextWrapPretty}
-								onChange={(enableTextWrapPretty) =>
-									onChange({ enableTextWrapPretty })
-								}
-							/>
-						</QuickSettingsRow>
-						<QuickSettingsRow
-							label={m["reader_settings.prioritize_reader_styles"]()}
-						>
-							<Toggle
-								theme={theme}
-								value={settings.prioritizeReaderStyles}
-								onChange={(prioritizeReaderStyles) =>
-									onChange({ prioritizeReaderStyles })
-								}
-							/>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.hide_furigana"]()}>
-							<Toggle
-								theme={theme}
-								value={settings.hideFurigana}
-								onChange={(hideFurigana) => onChange({ hideFurigana })}
-							/>
-						</QuickSettingsRow>
-						{settings.hideFurigana && (
-							<QuickSettingsRow label={m["reader_settings.hide_style"]()}>
-								<div className="w-52 max-w-full">
+								</fieldset>
+							</QuickSettingsRow>
+							<QuickSettingsRow label={m["reader_settings.font"]()}>
+								<div className="w-40">
 									<Segmented
 										theme={theme}
-										ariaLabel={m["reader_settings.furigana_hide_style"]()}
+										ariaLabel={m["reader_settings.font"]()}
 										options={[
-											{ id: "Hide", text: m["reader_settings.hide_option"]() },
-											{ id: "Partial", text: m["reader_settings.partial"]() },
-											{ id: "Toggle", text: m["reader_settings.toggle"]() },
-											{ id: "Full", text: m["reader_settings.full"]() },
+											{
+												id: "Noto Serif JP",
+												text: m["reader_settings.serif"](),
+											},
+											{ id: "Noto Sans JP", text: m["reader_settings.sans"]() },
 										]}
-										selected={settings.furiganaStyle}
-										onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
+										selected={settings.fontFamilyGroupOne}
+										onSelect={(fontFamilyGroupOne) =>
+											onChange({ fontFamilyGroupOne })
+										}
 									/>
 								</div>
 							</QuickSettingsRow>
-						)}
-						<QuickSettingsRow
-							label={m["reader_settings.paragraph_indentation"]()}
-						>
-							<fieldset
-								className="w-48 max-w-full"
-								aria-label={m["reader_settings.paragraph_indentation"]()}
-							>
-								<SliderRow
+							<QuickSettingsRow label={m["reader_settings.sans_font_family"]()}>
+								<ThemedTextInput
+									ariaLabel={m["reader_settings.sans_font_family"]()}
 									theme={theme}
-									min={0}
-									max={10}
-									step={0.5}
-									value={settings.textIndentation}
-									format={(textIndentation) => `${textIndentation}em`}
-									onChange={(textIndentation) => onChange({ textIndentation })}
+									value={settings.fontFamilyGroupTwo}
+									list="reader-quick-sans-fonts"
+									onChange={(value) =>
+										onChange({
+											fontFamilyGroupTwo: value || "Noto Sans JP",
+										})
+									}
 								/>
-							</fieldset>
-						</QuickSettingsRow>
-						<QuickSettingsRow label={m["reader_settings.paragraph_spacing"]()}>
-							<div className="w-40">
-								<Segmented
+							</QuickSettingsRow>
+							<datalist id="reader-quick-sans-fonts">
+								<option value="Noto Sans JP" />
+								<option value="sans-serif" />
+							</datalist>
+							<QuickSettingsRow label={m["reader_settings.font_weight"]()}>
+								<div className="w-40">
+									<ThemedSelect
+										theme={theme}
+										value={
+											settings.fontWeight === null
+												? "default"
+												: String(settings.fontWeight)
+										}
+										onChange={(value) =>
+											onChange({
+												fontWeight:
+													value === "default"
+														? null
+														: Number.parseInt(value, 10),
+											})
+										}
+									>
+										<ThemedOption theme={theme} value="default">
+											{m["reader_settings.default_option"]()}
+										</ThemedOption>
+										{[300, 400, 500, 600, 700].map((weight) => (
+											<ThemedOption
+												key={weight}
+												theme={theme}
+												value={String(weight)}
+											>
+												{weight}
+											</ThemedOption>
+										))}
+									</ThemedSelect>
+								</div>
+							</QuickSettingsRow>
+							<QuickSettingsRow label={m["reader_settings.text_orientation"]()}>
+								<div className="w-40">
+									<Segmented
+										theme={theme}
+										ariaLabel={m["reader_settings.text_orientation"]()}
+										options={[
+											{
+												id: "horizontal-tb",
+												text: m["reader_settings.horizontal"](),
+											},
+											{
+												id: "vertical-rl",
+												text: m["reader_settings.vertical"](),
+											},
+										]}
+										selected={settings.writingMode}
+										onSelect={(writingMode) => onChange({ writingMode })}
+									/>
+								</div>
+							</QuickSettingsRow>
+							{verticalMode && (
+								<>
+									<QuickSettingsRow
+										label={m["reader_settings.latin_character_orientation"]()}
+									>
+										<div className="w-40">
+											<Segmented
+												theme={theme}
+												ariaLabel={m[
+													"reader_settings.latin_character_orientation"
+												]()}
+												options={[
+													{ id: "mixed", text: m["reader_settings.mixed"]() },
+													{
+														id: "upright",
+														text: m["reader_settings.upright"](),
+													},
+												]}
+												selected={settings.verticalTextOrientation}
+												onSelect={(verticalTextOrientation) =>
+													onChange({ verticalTextOrientation })
+												}
+											/>
+										</div>
+									</QuickSettingsRow>
+									<QuickSettingsRow label={m["reader_settings.font_kerning"]()}>
+										<Toggle
+											theme={theme}
+											value={settings.enableFontKerning}
+											onChange={(enableFontKerning) =>
+												onChange({ enableFontKerning })
+											}
+										/>
+									</QuickSettingsRow>
+									<QuickSettingsRow
+										label={m["reader_settings.proportional_vertical_metrics"]()}
+									>
+										<Toggle
+											theme={theme}
+											value={settings.enableFontVPAL}
+											onChange={(enableFontVPAL) =>
+												onChange({ enableFontVPAL })
+											}
+										/>
+									</QuickSettingsRow>
+								</>
+							)}
+							<QuickSettingsRow label={m["reader_settings.justify_text"]()}>
+								<Toggle
 									theme={theme}
-									ariaLabel={m["reader_settings.paragraph_spacing"]()}
-									options={[
-										{ id: "auto", text: m["reader_settings.auto"]() },
-										{ id: "manual", text: m["reader_settings.manual"]() },
-									]}
-									selected={settings.textMarginMode}
-									onSelect={(textMarginMode) => onChange({ textMarginMode })}
+									value={settings.enableTextJustification}
+									onChange={(enableTextJustification) =>
+										onChange({ enableTextJustification })
+									}
 								/>
-							</div>
-						</QuickSettingsRow>
-						{settings.textMarginMode === "manual" && (
+							</QuickSettingsRow>
+							<QuickSettingsRow label={m["reader_settings.pretty_text_wrap"]()}>
+								<Toggle
+									theme={theme}
+									value={settings.enableTextWrapPretty}
+									onChange={(enableTextWrapPretty) =>
+										onChange({ enableTextWrapPretty })
+									}
+								/>
+							</QuickSettingsRow>
 							<QuickSettingsRow
-								label={m["reader_settings.paragraph_spacing_size"]()}
+								label={m["reader_settings.prioritize_reader_styles"]()}
+							>
+								<Toggle
+									theme={theme}
+									value={settings.prioritizeReaderStyles}
+									onChange={(prioritizeReaderStyles) =>
+										onChange({ prioritizeReaderStyles })
+									}
+								/>
+							</QuickSettingsRow>
+							<QuickSettingsRow label={m["reader_settings.hide_furigana"]()}>
+								<Toggle
+									theme={theme}
+									value={settings.hideFurigana}
+									onChange={(hideFurigana) => onChange({ hideFurigana })}
+								/>
+							</QuickSettingsRow>
+							{settings.hideFurigana && (
+								<QuickSettingsRow label={m["reader_settings.hide_style"]()}>
+									<div className="w-52 max-w-full">
+										<Segmented
+											theme={theme}
+											ariaLabel={m["reader_settings.furigana_hide_style"]()}
+											options={[
+												{
+													id: "Hide",
+													text: m["reader_settings.hide_option"](),
+												},
+												{ id: "Partial", text: m["reader_settings.partial"]() },
+												{ id: "Toggle", text: m["reader_settings.toggle"]() },
+												{ id: "Full", text: m["reader_settings.full"]() },
+											]}
+											selected={settings.furiganaStyle}
+											onSelect={(furiganaStyle) => onChange({ furiganaStyle })}
+										/>
+									</div>
+								</QuickSettingsRow>
+							)}
+							<QuickSettingsRow
+								label={m["reader_settings.paragraph_indentation"]()}
 							>
 								<fieldset
 									className="w-48 max-w-full"
-									aria-label={m["reader_settings.paragraph_spacing_size"]()}
+									aria-label={m["reader_settings.paragraph_indentation"]()}
 								>
 									<SliderRow
 										theme={theme}
 										min={0}
 										max={10}
 										step={0.5}
-										value={settings.textMarginValue}
-										format={(textMarginValue) => `${textMarginValue}em`}
-										onChange={(textMarginValue) =>
-											onChange({ textMarginValue })
+										value={settings.textIndentation}
+										format={(textIndentation) => `${textIndentation}em`}
+										onChange={(textIndentation) =>
+											onChange({ textIndentation })
 										}
 									/>
 								</fieldset>
 							</QuickSettingsRow>
-						)}
-					</QuickSettingsSection>
-				</>
-			)}
+							<QuickSettingsRow
+								label={m["reader_settings.paragraph_spacing"]()}
+							>
+								<div className="w-40">
+									<Segmented
+										theme={theme}
+										ariaLabel={m["reader_settings.paragraph_spacing"]()}
+										options={[
+											{ id: "auto", text: m["reader_settings.auto"]() },
+											{ id: "manual", text: m["reader_settings.manual"]() },
+										]}
+										selected={settings.textMarginMode}
+										onSelect={(textMarginMode) => onChange({ textMarginMode })}
+									/>
+								</div>
+							</QuickSettingsRow>
+							{settings.textMarginMode === "manual" && (
+								<QuickSettingsRow
+									label={m["reader_settings.paragraph_spacing_size"]()}
+								>
+									<fieldset
+										className="w-48 max-w-full"
+										aria-label={m["reader_settings.paragraph_spacing_size"]()}
+									>
+										<SliderRow
+											theme={theme}
+											min={0}
+											max={10}
+											step={0.5}
+											value={settings.textMarginValue}
+											format={(textMarginValue) => `${textMarginValue}em`}
+											onChange={(textMarginValue) =>
+												onChange({ textMarginValue })
+											}
+										/>
+									</fieldset>
+								</QuickSettingsRow>
+							)}
+						</QuickSettingsSection>
+					</>
+				)}
 
 			{!activeCategory && <Separator style={{ backgroundColor: mix(14) }} />}
-			{(!activeCategory || activeCategory === "layout") && (
+			{!isPdf && (!activeCategory || activeCategory === "layout") && (
 				<QuickSettingsSection
 					title={m["reader_settings.category_layout"]()}
 					showTitle={activeCategory === null}
@@ -1688,7 +1663,7 @@ export function ReaderQuickSettings({
 										canDecrease={horizontalPaddingPct > 0}
 										canIncrease={horizontalPaddingPct < 30}
 										onStep={(direction) =>
-											updatePhysicalPadding(
+											updatePadding(
 												"horizontal",
 												horizontalPaddingPct + direction,
 											)
@@ -1705,10 +1680,7 @@ export function ReaderQuickSettings({
 										canDecrease={verticalPaddingPct > 0}
 										canIncrease={verticalPaddingPct < 30}
 										onStep={(direction) =>
-											updatePhysicalPadding(
-												"vertical",
-												verticalPaddingPct + direction,
-											)
+											updatePadding("vertical", verticalPaddingPct + direction)
 										}
 									/>
 								</fieldset>
@@ -1719,7 +1691,7 @@ export function ReaderQuickSettings({
 			)}
 
 			{!activeCategory && <Separator style={{ backgroundColor: mix(14) }} />}
-			{(!activeCategory || activeCategory === "behaviour") && (
+			{!isPdf && (!activeCategory || activeCategory === "behaviour") && (
 				<QuickSettingsSection
 					title={m["reader_settings.category_behaviour"]()}
 					showTitle={activeCategory === null}

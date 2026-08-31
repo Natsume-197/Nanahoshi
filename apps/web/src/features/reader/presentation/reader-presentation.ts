@@ -1,4 +1,5 @@
 import type { ReaderBookData } from "@/features/reader/document/types";
+import { READER_STORAGE_KEYS } from "./reader-storage";
 import type { TextLayout } from "./settings";
 import type { VisualLayout } from "./visual-settings";
 
@@ -22,7 +23,7 @@ export type ReaderRendererKind =
 
 export type ReaderPresentationPreference =
 	| { readAs: "auto" }
-	| { readAs: "text"; textLayout: TextLayout }
+	| { readAs: "text" }
 	| { readAs: "visual" };
 
 export type ReaderPresentationChange =
@@ -50,8 +51,6 @@ export function canUsePageColumns(
 ) {
 	return renderer === "text-paginated" && !verticalMode;
 }
-
-const PRESENTATION_PREFERENCES_KEY = "nanahoshi-reader-mode-preferences";
 
 function isLegacyComicArchive(book: ReaderBookData) {
 	return (
@@ -84,8 +83,7 @@ export function resolveReaderPresentation({
 		readAs === "visual" || (readAs === "auto" && supportsVisual)
 			? "visual"
 			: "text";
-	const textLayout =
-		preference.readAs === "text" ? preference.textLayout : defaultTextLayout;
+	const textLayout = defaultTextLayout;
 
 	const contentKind: ReaderContentKind =
 		book?.sourceFormat === "pdf"
@@ -116,21 +114,19 @@ export function resolveReaderPresentation({
 }
 
 export function updateReaderPresentationPreference(
-	current: ReaderPresentation,
-	change: ReaderPresentationChange,
+	change: Extract<ReaderPresentationChange, { type: "read-as" }>,
 ): ReaderPresentationPreference {
-	if (change.type === "text-layout") {
-		return { readAs: "text", textLayout: change.value };
-	}
 	if (change.value === "auto") return { readAs: "auto" };
 	if (change.value === "visual") return { readAs: "visual" };
-	return { readAs: "text", textLayout: current.textLayout };
+	return { readAs: "text" };
 }
 
 function normalizePreference(value: unknown): ReaderPresentationPreference {
-	if (value === "continuous") return { readAs: "text", textLayout: "scroll" };
-	if (value === "paginated") return { readAs: "text", textLayout: "paginated" };
-	if (value === "focus") return { readAs: "text", textLayout: "focus" };
+	// Legacy mode values selected a layout per book. Layout now belongs to the
+	// active reader profile, so retain only the explicit request to read as text.
+	if (value === "continuous" || value === "paginated" || value === "focus") {
+		return { readAs: "text" };
+	}
 	if (value === "visual") return { readAs: "visual" };
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return { readAs: "auto" };
@@ -142,13 +138,7 @@ function normalizePreference(value: unknown): ReaderPresentationPreference {
 		return { readAs: "visual" };
 	}
 	if (stored.readAs === "text") {
-		return {
-			readAs: "text",
-			textLayout:
-				stored.textLayout === "paginated" || stored.textLayout === "focus"
-					? stored.textLayout
-					: "scroll",
-		};
+		return { readAs: "text" };
 	}
 	return { readAs: "auto" };
 }
@@ -157,7 +147,9 @@ function loadStoredPreferences(): Record<string, ReaderPresentationPreference> {
 	if (typeof window === "undefined") return {};
 	try {
 		const parsed = JSON.parse(
-			window.localStorage.getItem(PRESENTATION_PREFERENCES_KEY) ?? "{}",
+			window.localStorage.getItem(
+				READER_STORAGE_KEYS.presentationPreferences,
+			) ?? "{}",
 		) as unknown;
 		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 			return {};
@@ -189,10 +181,12 @@ export function saveReaderPresentationPreference(
 		if (preference.readAs === "auto") delete stored[bookUuid];
 		else stored[bookUuid] = preference;
 		if (Object.keys(stored).length === 0) {
-			window.localStorage.removeItem(PRESENTATION_PREFERENCES_KEY);
+			window.localStorage.removeItem(
+				READER_STORAGE_KEYS.presentationPreferences,
+			);
 		} else {
 			window.localStorage.setItem(
-				PRESENTATION_PREFERENCES_KEY,
+				READER_STORAGE_KEYS.presentationPreferences,
 				JSON.stringify(stored),
 			);
 		}

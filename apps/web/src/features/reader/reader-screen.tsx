@@ -32,8 +32,10 @@ import {
 	getActiveProfileId,
 	getProfileSettings,
 	loadProfilesStore,
+	READER_PROFILES_RECONCILED_EVENT,
 	type ReaderProfilesStore,
 	renameProfile,
+	replaceProfileThemeReferences,
 	setActiveProfileId,
 	setProfileSettings,
 	syncReaderProfiles,
@@ -47,19 +49,19 @@ import {
 	saveReaderPresentationPreference,
 	updateReaderPresentationPreference,
 } from "@/features/reader/presentation/reader-presentation";
+import { prepareReaderStorage } from "@/features/reader/presentation/reader-storage";
 import {
 	type CustomReaderThemes,
 	getReaderScrollbarColor,
 	getReaderScrollbarTrackColor,
 	getReaderTheme,
 	loadCustomThemes,
+	READER_THEME_PREVIEW_ID,
 	type ReaderSettings,
+	type ReaderThemeColors,
+	readerThemes,
 } from "@/features/reader/presentation/settings";
-import {
-	loadVisualReaderSettings,
-	saveVisualReaderSettings,
-	type VisualReaderSettings,
-} from "@/features/reader/presentation/visual-settings";
+import type { VisualReaderSettings } from "@/features/reader/presentation/visual-settings";
 import {
 	type BookReaderApi,
 	supportsReaderAutoScroll,
@@ -67,6 +69,10 @@ import {
 } from "@/features/reader/reader-contract";
 import { ReaderEngine } from "@/features/reader/renderers/reader-engine";
 import { getReaderScrollbarWidth } from "@/features/reader/renderers/shared/reader-document-chrome";
+import {
+	viewportHeight,
+	viewportWidth,
+} from "@/features/reader/renderers/shared/viewport";
 import { resolveVisualReadingDirection } from "@/features/reader/renderers/visual/book-reader-visual";
 import { useReaderSession } from "@/features/reader/session/reader-session";
 import { ReaderFooter } from "@/features/reader/ui/chrome/reader-footer";
@@ -80,6 +86,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
 import { usePresenceIdle } from "@/hooks/use-presence-idle";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { authClient } from "@/lib/auth-client";
 import {
 	invalidateReadingProgress,
@@ -121,6 +128,7 @@ interface ReaderScreenProps {
 	book: ReaderScreenBook | null | undefined;
 	switchedOrgId: string | null | undefined;
 	uuid: string;
+	userId: string;
 	readListenPairUuid?: string;
 }
 
@@ -151,8 +159,8 @@ const LAYOUT_SETTING_KEYS = new Set<string>([
 	"prioritizeReaderStyles",
 	"enableTextJustification",
 	"enableTextWrapPretty",
-	"secondDimensionMaxValue",
-	"firstDimensionMargin",
+	"horizontalPaddingPct",
+	"verticalPaddingPct",
 	"hideFurigana",
 	"furiganaStyle",
 	"avoidPageBreak",
@@ -211,6 +219,7 @@ export function ReaderScreen({
 	book,
 	switchedOrgId,
 	uuid,
+	userId,
 	readListenPairUuid,
 }: ReaderScreenProps) {
 	const bookSourceFormat = book?.filename
@@ -243,16 +252,17 @@ export function ReaderScreen({
 	usePresenceEvents();
 	usePresenceIdle();
 
-	const [profilesStore, setProfilesStore] =
-		useState<ReaderProfilesStore>(loadProfilesStore);
+	const [profilesStore, setProfilesStore] = useState<ReaderProfilesStore>(
+		() => {
+			prepareReaderStorage(userId);
+			return loadProfilesStore();
+		},
+	);
 	const [activeProfileId, setActiveProfileIdState] = useState<string>(() =>
 		getActiveProfileId(profilesStore),
 	);
 	const [settings, setSettings] = useState<ReaderSettings>(() =>
 		getProfileSettings(profilesStore, activeProfileId),
-	);
-	const [visualSettings, setVisualSettings] = useState<VisualReaderSettings>(
-		loadVisualReaderSettings,
 	);
 	const [presentationPreference, setPresentationPreference] =
 		useState<ReaderPresentationPreference>(() =>
@@ -260,6 +270,13 @@ export function ReaderScreen({
 		);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
+	const [readerViewport, setReaderViewport] = useState(() => ({
+		width: viewportWidth(),
+		height: viewportHeight(),
+	}));
+	useWindowEvent("resize", () => {
+		setReaderViewport({ width: viewportWidth(), height: viewportHeight() });
+	});
 	// Ref so the custom-theme preview resolves themes saved in the same tick
 	// (the dialog commits the theme colors and selects the theme back to back).
 	const customThemesRef = useRef(customThemes);
@@ -503,10 +520,74 @@ export function ReaderScreen({
 		);
 	};
 
-	const handleCustomThemesChange = (next: CustomReaderThemes) => {
+	const setLiveTheme = (themeId: string, themes = customThemesRef.current) => {
+		const nextSettings = { ...settingsRef.current, theme: themeId };
+		settingsRef.current = nextSettings;
+		setSettings(nextSettings);
+		applyReaderBackground(getReaderTheme(themeId, themes).backgroundColor);
+	};
+
+	const handleCustomThemePreview = (colors: ReaderThemeColors) => {
+		const next = {
+			...customThemesRef.current,
+			[READER_THEME_PREVIEW_ID]: colors,
+		};
 		customThemesRef.current = next;
 		setCustomThemes(next);
-		commitCustomThemes(next);
+		setLiveTheme(READER_THEME_PREVIEW_ID, next);
+	};
+
+	const handleCustomThemePreviewCancel = (previousTheme: string) => {
+		const next = { ...customThemesRef.current };
+		delete next[READER_THEME_PREVIEW_ID];
+		customThemesRef.current = next;
+		setCustomThemes(next);
+		setLiveTheme(previousTheme, next);
+	};
+
+	const handleCustomThemeSave = (
+		name: string,
+		colors: ReaderThemeColors,
+		previousName: string,
+	) => {
+		const nextThemes = { ...customThemesRef.current };
+		delete nextThemes[READER_THEME_PREVIEW_ID];
+		if (previousName && previousName !== name) delete nextThemes[previousName];
+		nextThemes[name] = colors;
+		customThemesRef.current = nextThemes;
+		setCustomThemes(nextThemes);
+		commitCustomThemes(nextThemes);
+
+		const referenced = replaceProfileThemeReferences(
+			profilesStore,
+			previousName,
+			name,
+		);
+		const nextProfiles = setProfileSettings(referenced, activeProfileId, {
+			...settingsRef.current,
+			theme: name,
+		});
+		setProfilesStore(commitProfilesStore(nextProfiles));
+		setLiveTheme(name, nextThemes);
+	};
+
+	const handleCustomThemeDelete = (name: string) => {
+		const fallbackTheme = readerThemes[0]?.id ?? "light-theme";
+		const nextThemes = { ...customThemesRef.current };
+		delete nextThemes[name];
+		customThemesRef.current = nextThemes;
+		setCustomThemes(nextThemes);
+		commitCustomThemes(nextThemes);
+
+		const nextProfiles = replaceProfileThemeReferences(
+			profilesStore,
+			name,
+			fallbackTheme,
+		);
+		setProfilesStore(commitProfilesStore(nextProfiles));
+		if (settingsRef.current.theme === name) {
+			setLiveTheme(fallbackTheme, nextThemes);
+		}
 	};
 
 	// Quick settings commit immediately (the book is visible behind the popover
@@ -532,10 +613,14 @@ export function ReaderScreen({
 	};
 
 	const handleVisualSettingsChange = (patch: Partial<VisualReaderSettings>) => {
-		setVisualSettings((current) => {
-			const next = { ...current, ...patch };
-			saveVisualReaderSettings(next);
-			return next;
+		handleQuickSettingsChange({
+			...(patch.layout !== undefined && { visualLayout: patch.layout }),
+			...(patch.readingDirection !== undefined && {
+				visualReadingDirection: patch.readingDirection,
+			}),
+			...(patch.progressStyle !== undefined && {
+				visualProgressStyle: patch.progressStyle,
+			}),
 		});
 	};
 
@@ -548,7 +633,12 @@ export function ReaderScreen({
 			exploredRef.current = currentPosition.exploredCharCount;
 			setExploredCharCount(currentPosition.exploredCharCount);
 		}
-		const preference = updateReaderPresentationPreference(presentation, change);
+		if (change.type === "text-layout") {
+			// Reading flow is a reader-profile preference, shared by every book.
+			handleSettingsChange({ textLayout: change.value });
+			return;
+		}
+		const preference = updateReaderPresentationPreference(change);
 		setPresentationPreference(preference);
 		saveReaderPresentationPreference(uuid, preference);
 	};
@@ -696,6 +786,33 @@ export function ReaderScreen({
 	// fetching): adopt newer server profiles/themes and restyle if the active
 	// profile's settings changed under us.
 	useMountEffect(() => {
+		const handleReconciled = (event: Event) => {
+			const detail = (
+				event as CustomEvent<{
+					profiles?: ReaderProfilesStore;
+					themes?: CustomReaderThemes;
+				}>
+			).detail;
+			if (detail.themes) {
+				customThemesRef.current = detail.themes;
+				setCustomThemes(detail.themes);
+			}
+			if (detail.profiles) {
+				setProfilesStore(detail.profiles);
+				const id = getActiveProfileId(detail.profiles);
+				setActiveProfileIdState(id);
+				applyProfileSettings(getProfileSettings(detail.profiles, id));
+			}
+		};
+		window.addEventListener(READER_PROFILES_RECONCILED_EVENT, handleReconciled);
+		return () =>
+			window.removeEventListener(
+				READER_PROFILES_RECONCILED_EVENT,
+				handleReconciled,
+			);
+	});
+
+	useMountEffect(() => {
 		void syncReaderProfiles().then(({ profiles, themes }) => {
 			if (themes) {
 				customThemesRef.current = themes;
@@ -729,12 +846,41 @@ export function ReaderScreen({
 	);
 
 	const verticalMode = settings.writingMode === "vertical-rl";
+	const visualSettings: VisualReaderSettings = {
+		layout: settings.visualLayout,
+		readingDirection: settings.visualReadingDirection,
+		progressStyle: settings.visualProgressStyle,
+	};
+	const firstDimensionMargin = Math.round(
+		((verticalMode
+			? settings.horizontalPaddingPct
+			: settings.verticalPaddingPct) /
+			100) *
+			(verticalMode ? readerViewport.width : readerViewport.height),
+	);
+	const secondDimensionPadding = verticalMode
+		? settings.verticalPaddingPct
+		: settings.horizontalPaddingPct;
+	const secondDimensionAxis = verticalMode
+		? readerViewport.height
+		: readerViewport.width;
+	const secondDimensionMaxValue =
+		secondDimensionPadding === 0
+			? 0
+			: Math.round(
+					(1 - (secondDimensionPadding * 2) / 100) * secondDimensionAxis,
+				);
+	const effectiveReaderSettings: ReaderSettings = {
+		...settings,
+		firstDimensionMargin,
+		secondDimensionMaxValue,
+	};
 	const theme = getReaderTheme(settings.theme, customThemes);
 	const presentation: ReaderPresentation = resolveReaderPresentation({
 		book: loadState.phase === "ready" ? loadState.data : null,
 		preference: presentationPreference,
 		defaultTextLayout: settings.textLayout,
-		visualLayout: visualSettings.layout,
+		visualLayout: settings.visualLayout,
 	});
 	const isVisual = presentation.renderer === "visual";
 	const isPdf = presentation.renderer === "pdf";
@@ -951,7 +1097,7 @@ export function ReaderScreen({
 					book={data}
 					htmlContent={html}
 					theme={theme}
-					readerSettings={settings}
+					readerSettings={effectiveReaderSettings}
 					visualSettings={visualSettings}
 					initialPosition={initialPosition}
 					onPositionChange={handlePositionChange}
@@ -1124,7 +1270,10 @@ export function ReaderScreen({
 				onProfileRename={handleProfileRename}
 				onProfileDuplicate={handleProfileDuplicate}
 				onProfileDelete={handleProfileDelete}
-				onCustomThemesChange={handleCustomThemesChange}
+				onCustomThemeSave={handleCustomThemeSave}
+				onCustomThemeDelete={handleCustomThemeDelete}
+				onCustomThemePreview={handleCustomThemePreview}
+				onCustomThemePreviewCancel={handleCustomThemePreviewCancel}
 				onChange={handleQuickSettingsChange}
 				onVisualSettingsChange={handleVisualSettingsChange}
 				onPresentationChange={handlePresentationChange}

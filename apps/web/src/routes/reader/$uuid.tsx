@@ -32,6 +32,7 @@ export const Route = createFileRoute("/reader/$uuid")({
 
 function ReaderRoute() {
 	const { book, switchedOrgId } = Route.useLoaderData();
+	const { session } = Route.useRouteContext();
 	const { uuid } = Route.useParams();
 	const { pair } = Route.useSearch();
 	return (
@@ -39,6 +40,7 @@ function ReaderRoute() {
 			book={book}
 			switchedOrgId={switchedOrgId}
 			uuid={uuid}
+			userId={session.user.id}
 			readListenPairUuid={pair}
 		/>
 	);
