@@ -50,6 +50,7 @@
 		"check": "biome check --write .",
 		"test": "bun run generate && bash scripts/test.sh",
 		"test:integration": "bash scripts/test-integration.sh",
+		"test:containers": "bash scripts/ci-container-smoke.sh",
 		"validate": "bun run generate && turbo check-types && bunx biome check . && bash scripts/test.sh"
 	},
 	"devDependencies": {

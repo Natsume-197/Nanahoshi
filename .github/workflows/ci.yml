@@ -39,9 +39,6 @@ jobs:
         run: bun run validate
       - run: bun run --cwd apps/web build
       - run: bun run --cwd apps/web test:production-ssr
-      - run: docker build --target api -f docker/server/Dockerfile .
-      - run: docker build --target worker -f docker/server/Dockerfile .
-      - run: docker build --target runner --build-arg VITE_SERVER_URL=http://localhost:3000 -f docker/web/Dockerfile .
 
   migrations:
     runs-on: ubuntu-latest
@@ -133,10 +130,37 @@ jobs:
       - name: Run database and queue integration suites
         run: bun run test:integration
 
+  artifacts-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CONTAINER_SMOKE_DIAGNOSTICS_DIR: ${{ runner.temp }}/container-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build --target api -t nanahoshi-api:ci -f docker/server/Dockerfile .
+      - name: Build worker image
+        run: docker build --target worker -t nanahoshi-worker:ci -f docker/server/Dockerfile .
+      - name: Build web image
+        run: docker build --target runner -t nanahoshi-web:ci --build-arg VITE_SERVER_URL=http://localhost:3000 -f docker/web/Dockerfile .
+      - name: Smoke-test packaged application stack
+        run: bash scripts/ci-container-smoke.sh
+      - name: Upload sanitized container diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke-diagnostics
+          path: ${{ runner.temp }}/container-smoke/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Ensure container stack is removed
+        if: always()
+        run: bash scripts/ci-container-smoke.sh cleanup
+
   ci-required:
     name: CI Required
     if: always()
-    needs: [validate, migrations, integration]
+    needs: [validate, migrations, integration, artifacts-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -145,3 +169,4 @@ jobs:
           test "${{ needs.validate.result }}" = "success"
           test "${{ needs.migrations.result }}" = "success"
           test "${{ needs.integration.result }}" = "success"
+          test "${{ needs.artifacts-smoke.result }}" = "success"
