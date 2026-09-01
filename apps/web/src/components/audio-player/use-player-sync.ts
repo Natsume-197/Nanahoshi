@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import {
 	invalidateListeningProgress,
 	invalidateRecommendations,
@@ -10,7 +11,10 @@ import { client } from "@/utils/orpc";
 
 interface UsePlayerSyncOptions {
 	bookUuid: string;
+	/** The loaded book has a trustworthy position that may be persisted. */
 	enabled: boolean;
+	/** Playback is currently active. Defaults to `enabled` for older callers. */
+	active?: boolean;
 	getPlaybackState: () => {
 		currentTime: number;
 		duration: number;
@@ -24,12 +28,15 @@ const COMPLETION_THRESHOLD = 0.95;
 export function usePlayerSync({
 	bookUuid,
 	enabled,
+	active = enabled,
 	getPlaybackState,
 }: UsePlayerSyncOptions) {
 	const lastSyncRef = useRef(Date.now());
 	const syncRef = useRef<(() => Promise<void>) | undefined>(undefined);
 	const enabledRef = useRef(enabled);
 	enabledRef.current = enabled;
+	const activeRef = useRef(active);
+	activeRef.current = active;
 	const bookUuidRef = useRef(bookUuid);
 	const completedRef = useRef(false);
 	if (bookUuidRef.current !== bookUuid) completedRef.current = false;
@@ -50,14 +57,18 @@ export function usePlayerSync({
 			const newStatus =
 				progress >= COMPLETION_THRESHOLD ? "completed" : "listening";
 
-			await client.listeningProgress.saveProgress({
-				bookUuid: bookUuidRef.current,
-				currentTimeSeconds: currentTime,
-				durationSeconds: duration,
-				playbackRate,
-				listeningTimeSeconds: elapsedSinceLastSync,
-				status: newStatus,
-			});
+			await client.listeningProgress.saveProgress(
+				{
+					bookUuid: bookUuidRef.current,
+					currentTimeSeconds: currentTime,
+					durationSeconds: duration,
+					playbackRate,
+					listeningTimeSeconds: elapsedSinceLastSync,
+					status: newStatus,
+				},
+				// Let a final save survive tab close/mobile app suspension.
+				{ context: { keepalive: true } },
+			);
 
 			lastSyncRef.current = Date.now();
 			invalidateListeningProgress();
@@ -90,30 +101,39 @@ export function usePlayerSync({
 			syncRef.current?.();
 		}
 	});
+	useWindowEvent("beforeunload", () => {
+		if (enabledRef.current) syncRef.current?.();
+	});
+	useWindowEvent("pagehide", () => {
+		if (enabledRef.current) syncRef.current?.();
+	});
 
 	useInterval(() => {
-		if (enabledRef.current) {
+		if (activeRef.current) {
 			syncRef.current?.();
 		}
 	}, SYNC_INTERVAL_MS);
 
-	const previousSessionRef = useRef({ enabled: false, bookUuid: "" });
+	const previousSessionRef = useRef({ active: false, bookUuid: "" });
 	useEffect(() => {
 		const previous = previousSessionRef.current;
 		const started =
-			enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
-		const stopped = previous.enabled && !enabled;
-		previousSessionRef.current = { enabled, bookUuid };
+			active && (!previous.active || previous.bookUuid !== bookUuid);
+		const stopped = previous.active && !active;
+		previousSessionRef.current = { active, bookUuid };
 
 		if (started) syncRef.current?.();
 		if (stopped) {
 			enqueue(async () => {
+				// Persist while the media element still holds the final paused
+				// playhead, before removing the live listening activity.
+				await performSync();
 				await client.presence
 					.clearActivity({ context: { keepalive: true } })
 					.catch(() => {});
 			});
 		}
-	}, [bookUuid, enabled, enqueue]);
+	}, [active, bookUuid, enqueue, performSync]);
 
 	// Sync on unmount, then clear "listening" presence (see the hook for the
 	// sync-before-clear ordering).

@@ -79,6 +79,31 @@ export function shouldFlushPendingSeek(
 }
 
 /**
+ * A currentTime assignment is only a request. Some browsers expose the value
+ * briefly after metadata loads, then reset the playhead while the stream becomes
+ * seekable. Keep the request pending until a media progress event acknowledges
+ * a position close to the target.
+ */
+export function shouldConfirmPendingSeek(
+	pending: number,
+	actualTime: number,
+	toleranceSeconds = 0.75,
+): boolean {
+	return (
+		Number.isFinite(actualTime) &&
+		Math.abs(actualTime - pending) <= toleranceSeconds
+	);
+}
+
+/** Use the requested playhead for persistence while the media catches up. */
+export function effectiveMediaTime(
+	actualTime: number,
+	pendingTime: number | null,
+): number {
+	return pendingTime ?? actualTime;
+}
+
+/**
  * Whether a saved position that just arrived may still be applied. A seek made
  * while the fetch was in flight wins — restoring progress must never yank the
  * user back from where they went.

@@ -82,6 +82,7 @@ describe("live activity lifecycle", () => {
 
 		expect(saveListening).toHaveBeenCalledWith(
 			expect.objectContaining({ bookUuid: "audio-1", status: "listening" }),
+			{ context: { keepalive: true } },
 		);
 	});
 
@@ -108,6 +109,45 @@ describe("live activity lifecycle", () => {
 		});
 	});
 
+	test("saves the latest listening position before pause clears activity", async () => {
+		const transitions: string[] = [];
+		saveListening.mockImplementation(async () => {
+			transitions.push("save");
+		});
+		clearActivity.mockImplementation(async () => {
+			transitions.push("clear");
+		});
+
+		const { rerender } = renderHook(
+			({ active, currentTime }) =>
+				usePlayerSync({
+					enabled: true,
+					active,
+					bookUuid: "audio-1",
+					getPlaybackState: () => ({
+						currentTime,
+						duration: 600,
+						playbackRate: 1,
+					}),
+				}),
+			{ initialProps: { active: true, currentTime: 12 } },
+		);
+
+		await act(async () => {
+			await Promise.resolve();
+			transitions.length = 0;
+			rerender({ active: false, currentTime: 137 });
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(saveListening).toHaveBeenLastCalledWith(
+			expect.objectContaining({ currentTimeSeconds: 137 }),
+			{ context: { keepalive: true } },
+		);
+		expect(transitions).toEqual(["save", "clear"]);
+	});
+
 	test("serializes a fast pause and resume after an in-flight sync", async () => {
 		const transitions: string[] = [];
 		let releaseFirstSync: (() => void) | undefined;
@@ -119,6 +159,10 @@ describe("live activity lifecycle", () => {
 						releaseFirstSync = resolve;
 					}),
 			)
+			.mockImplementationOnce(() => {
+				transitions.push("save:pause");
+				return Promise.resolve();
+			})
 			.mockImplementationOnce(() => {
 				transitions.push("save:resume");
 				return Promise.resolve();
@@ -152,7 +196,12 @@ describe("live activity lifecycle", () => {
 			await Promise.resolve();
 		});
 
-		expect(transitions).toEqual(["save:start", "clear", "save:resume"]);
+		expect(transitions).toEqual([
+			"save:start",
+			"save:pause",
+			"clear",
+			"save:resume",
+		]);
 	});
 
 	test("announces reading when the document becomes ready after mount", async () => {

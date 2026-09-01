@@ -36,8 +36,10 @@ import {
 	readStoredVolume,
 } from "@/components/audio-player/player-preferences";
 import {
+	effectiveMediaTime,
 	planSeek,
 	shouldApplyRestoredPosition,
+	shouldConfirmPendingSeek,
 	shouldFlushPendingSeek,
 } from "@/components/audio-player/seek-plan";
 import {
@@ -282,7 +284,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const getPlaybackState = useCallback(() => {
 		const ab = audiobookRef.current;
 		const single = !ab || ab.audioFiles.length <= 1;
-		const ct = audioRef.current?.currentTime ?? 0;
+		const ct = effectiveMediaTime(
+			audioRef.current?.currentTime ?? 0,
+			pendingSeekRef.current,
+		);
 		return {
 			currentTime: single
 				? ct
@@ -300,7 +305,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 	usePlayerSync({
 		bookUuid: audiobook?.uuid ?? "",
-		enabled: !!audiobook && isPlaying && !isLoading,
+		enabled: !!audiobook && !isLoading,
+		active: isPlaying && !isLoading,
 		getPlaybackState,
 	});
 
@@ -347,9 +353,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const flushPendingSeek = () => {
 				const target = pendingSeekRef.current;
 				if (!shouldFlushPendingSeek(target, audio.readyState)) return;
-				pendingSeekRef.current = null;
 				audio.currentTime = target;
-				setCurrentTime(audio.currentTime);
+				// Keep the requested value visible until a media event confirms it;
+				// an early currentTime assignment can otherwise flash correctly and
+				// then rebound to zero while the stream becomes seekable.
+				setCurrentTime(target);
+			};
+			const acknowledgePendingSeek = () => {
+				const target = pendingSeekRef.current;
+				if (target == null) return false;
+				if (!shouldConfirmPendingSeek(target, audio.currentTime)) return false;
+				pendingSeekRef.current = null;
+				return true;
 			};
 
 			const handleCanPlay = () => {
@@ -384,6 +399,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				setPlaybackError(true);
 			};
 			const handleTimeUpdate = () => {
+				if (pendingSeekRef.current != null) {
+					if (!acknowledgePendingSeek()) {
+						flushPendingSeek();
+						return;
+					}
+				}
+				setCurrentTime(audio.currentTime);
+				pushMediaSessionState();
+			};
+			const handleSeeked = () => {
+				if (!acknowledgePendingSeek()) return;
 				setCurrentTime(audio.currentTime);
 				pushMediaSessionState();
 			};
@@ -422,6 +448,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			audio.addEventListener("canplay", handleCanPlay);
 			audio.addEventListener("error", handleError);
 			audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+			audio.addEventListener("seeked", handleSeeked);
 			audio.addEventListener("timeupdate", handleTimeUpdate);
 			audio.addEventListener("play", handlePlay);
 			audio.addEventListener("playing", handlePlaying);
@@ -434,6 +461,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				audio.removeEventListener("canplay", handleCanPlay);
 				audio.removeEventListener("error", handleError);
 				audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+				audio.removeEventListener("seeked", handleSeeked);
 				audio.removeEventListener("timeupdate", handleTimeUpdate);
 				audio.removeEventListener("play", handlePlay);
 				audio.removeEventListener("playing", handlePlaying);
@@ -495,6 +523,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setIsPlaying(false);
 			setCurrentTime(0);
 			setCurrentFileIndex(0);
+			pendingSeekRef.current = null;
 			// The rate carries over between books; a fade may have left the
 			// element quiet.
 			audio.playbackRate = speedRef.current;
@@ -546,9 +575,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				pendingSeekRef.current = target;
 				// Seek now only if the current media is already seekable and we didn't
 				// just swap src; otherwise handleLoadedMetadata flushes it once
-				// (re)loaded.
+				// (re)loaded. The request remains pending until seeked/timeupdate
+				// acknowledges it, because assignment alone is not reliable during load.
 				if (!srcSwapped && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-					pendingSeekRef.current = null;
 					audio.currentTime = target;
 				}
 				setCurrentTime(target);
@@ -646,11 +675,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				audio.src = getStreamUrl(ab.uuid, plan.fileIndex);
 			}
 
-			if (plan.deferred) {
-				// Media can't accept the seek yet — handleLoadedMetadata flushes it.
-				pendingSeekRef.current = plan.fileTime;
-			} else {
-				pendingSeekRef.current = null;
+			// Retain every request until a media progress event acknowledges it.
+			// Even with metadata loaded, a fresh stream may briefly accept the
+			// assignment and then reset to zero before its ranges are seekable.
+			pendingSeekRef.current = plan.fileTime;
+			if (!plan.deferred) {
 				audio.currentTime = plan.fileTime;
 			}
 
@@ -791,6 +820,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		setSleepTimer(null);
 		clearMediaSession();
 		mediaChapterRef.current = -1;
+		pendingSeekRef.current = null;
 		setAudiobook(null);
 		setIsPlaying(false);
 		setCurrentTime(0);

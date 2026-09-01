@@ -12,9 +12,8 @@ const readerScreen = readFileSync(
 
 describe("activity lifecycle wiring", () => {
 	test("renews listening presence only during real playback", () => {
-		expect(playerContext).toContain(
-			"enabled: !!audiobook && isPlaying && !isLoading",
-		);
+		expect(playerContext).toContain("enabled: !!audiobook && !isLoading");
+		expect(playerContext).toContain("active: isPlaying && !isLoading");
 		expect(playerContext).not.toContain("hasMarkedListeningRef");
 	});
 
