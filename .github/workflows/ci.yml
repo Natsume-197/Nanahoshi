@@ -84,10 +84,59 @@ jobs:
       - name: Verify migration restart idempotency
         run: bun run db:migrate
 
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: groonga/pgroonga:4.0.8-alpine-18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: integration-only-password
+          POSTGRES_DB: nanahoshi_integration
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nanahoshi_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:8.10.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CORS_ORIGIN: http://localhost:3001
+      SERVER_URL: http://localhost:3000
+      NAMESPACE_UUID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+      DOWNLOAD_SECRET: 9b2c1f80-5d3e-4a7b-8c1d-2e3f4a5b6c7d
+      BETTER_AUTH_SECRET: ci-integration-secret-000000000000000000
+      BETTER_AUTH_URL: http://localhost:3000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: integration-only-password
+      DB_NAME: nanahoshi_integration
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Run database and queue integration suites
+        run: bun run test:integration
+
   ci-required:
     name: CI Required
     if: always()
-    needs: [validate, migrations]
+    needs: [validate, migrations, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -95,3 +144,4 @@ jobs:
         run: |
           test "${{ needs.validate.result }}" = "success"
           test "${{ needs.migrations.result }}" = "success"
+          test "${{ needs.integration.result }}" = "success"
