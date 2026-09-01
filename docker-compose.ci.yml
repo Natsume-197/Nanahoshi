@@ -69,6 +69,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # The API mounts app-data first. Docker populates a new named volume from
+      # the image at container creation, so this prevents both images from
+      # concurrently copying data/converted into the shared volume.
+      server:
+        condition: service_started
 
   web:
     image: nanahoshi-web:ci
