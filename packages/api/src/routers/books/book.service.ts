@@ -10,6 +10,7 @@ import type {
 } from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
 import { membersRepository } from "../members/members.repository";
+import { getBookLinkPreviewConfig } from "../settings/settings.service";
 import { bookRepository, type LibraryScope } from "./book.repository";
 import { deleteBookPermanently as deleteBookPermanentlyFromSource } from "./book-deletion.service";
 
@@ -75,6 +76,16 @@ export const getBookWithMetadata = async (
 	const book = await bookRepository.getWithMetadata(uuid, serverId, scope);
 	if (!book) throw new NotFoundError("Book not found");
 	return book;
+};
+
+export const getBookSharePreview = async (uuid: string) => {
+	const serverId = await bookRepository.getOrganizationId(uuid);
+	if (!serverId) return null;
+
+	const config = await getBookLinkPreviewConfig(serverId);
+	if (!config.enabled) return null;
+
+	return bookRepository.getSharePreview(uuid, serverId);
 };
 
 /**

@@ -1,10 +1,14 @@
 import { CircleNotch } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { DangerZone } from "@/components/settings/sections/danger-zone";
 import { ServerBranding } from "@/components/settings/sections/server-branding";
-import { SettingRow, SettingRows } from "@/components/settings/setting-rows";
+import {
+	SettingControlRow,
+	SettingRow,
+	SettingRows,
+} from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import {
 	Field,
@@ -15,9 +19,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
+import { client, orpc, queryClient } from "@/utils/orpc";
 
 export function ServerGeneral() {
 	const { can } = useAbilities();
@@ -52,8 +58,60 @@ export function ServerGeneral() {
 
 			<ServerBranding />
 
+			<BookLinkPreviewSettings />
+
 			<DangerZone />
 		</div>
+	);
+}
+
+function BookLinkPreviewSettings() {
+	const configQuery = useQuery(orpc.settings.getBookLinkPreview.queryOptions());
+	const updateMutation = useMutation({
+		mutationFn: (enabled: boolean) =>
+			client.settings.updateBookLinkPreview({ enabled }),
+		onSuccess: (config) => {
+			queryClient.setQueryData(
+				orpc.settings.getBookLinkPreview.queryOptions().queryKey,
+				config,
+			);
+			toast.success(m["settings.org.link_preview_updated"]());
+		},
+		onError: () => toast.error(m["settings.org.link_preview_update_failed"]()),
+	});
+
+	return (
+		<section className="flex flex-col gap-6">
+			<div className="flex flex-col gap-1">
+				<h2 className="font-semibold text-foreground text-xl">
+					{m["settings.org.shared_links"]()}
+				</h2>
+				<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
+					{m["settings.org.shared_links_desc"]()}
+				</p>
+			</div>
+			<SettingRows>
+				<SettingControlRow
+					label={
+						<h3 className="font-medium text-base text-foreground">
+							{m["settings.org.book_link_preview"]()}
+						</h3>
+					}
+					description={m["settings.org.book_link_preview_desc"]()}
+				>
+					{configQuery.isPending ? (
+						<Skeleton className="h-[18px] w-8 shrink-0 rounded-full" />
+					) : (
+						<Switch
+							aria-label={m["settings.org.book_link_preview"]()}
+							checked={configQuery.data?.enabled ?? false}
+							onCheckedChange={(enabled) => updateMutation.mutate(enabled)}
+							disabled={updateMutation.isPending || configQuery.isError}
+						/>
+					)}
+				</SettingControlRow>
+			</SettingRows>
+		</section>
 	);
 }
 

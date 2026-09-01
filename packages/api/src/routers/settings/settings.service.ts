@@ -346,3 +346,41 @@ export async function setRecommendationsConfig(
 	}
 	return merged;
 }
+
+// ─── Book link previews (per-organization) ────────────────
+
+const BOOK_LINK_PREVIEW_KEY = "book-link-preview";
+
+export type BookLinkPreviewConfig = {
+	enabled: boolean;
+};
+
+const DEFAULT_BOOK_LINK_PREVIEW_CONFIG: BookLinkPreviewConfig = {
+	// Catalog metadata stays private until a server administrator explicitly
+	// opts in. The preview never grants access to the book or its files.
+	enabled: false,
+};
+
+export async function getBookLinkPreviewConfig(
+	serverId: string,
+): Promise<BookLinkPreviewConfig> {
+	const value = await settingsRepository.getOrgValue<
+		Partial<BookLinkPreviewConfig>
+	>(serverId, BOOK_LINK_PREVIEW_KEY);
+	return value
+		? { ...DEFAULT_BOOK_LINK_PREVIEW_CONFIG, ...value }
+		: { ...DEFAULT_BOOK_LINK_PREVIEW_CONFIG };
+}
+
+export async function setBookLinkPreviewConfig(
+	serverId: string,
+	patch: Partial<BookLinkPreviewConfig>,
+): Promise<BookLinkPreviewConfig> {
+	const merged = { ...(await getBookLinkPreviewConfig(serverId)), ...patch };
+	await settingsRepository.upsertOrgValue(
+		serverId,
+		BOOK_LINK_PREVIEW_KEY,
+		merged,
+	);
+	return merged;
+}

@@ -20,6 +20,7 @@ import { diagnoseHonomiya } from "./honomiya-diagnostics";
 import { modalCredentialStore } from "./modal-credentials";
 import {
 	UpdateAmazonInput,
+	UpdateBookLinkPreviewInput,
 	UpdateComicvineInput,
 	UpdateGoodreadsInput,
 	UpdateGoogleBooksInput,
@@ -35,6 +36,7 @@ import { settingsRepository } from "./settings.repository";
 import {
 	type AmazonConfig,
 	getAmazonConfig,
+	getBookLinkPreviewConfig,
 	getComicvineConfig,
 	getGoodreadsConfig,
 	getGoogleBooksConfig,
@@ -45,6 +47,7 @@ import {
 	getRanobedbDumpConfig,
 	getRecommendationsConfig,
 	setAmazonConfig,
+	setBookLinkPreviewConfig,
 	setComicvineConfig,
 	setGoodreadsConfig,
 	setGoogleBooksConfig,
@@ -64,6 +67,17 @@ const normalizeSecret = (value?: string) => {
 
 export const settingsRouter = {
 	listLogs: adminProcedure.handler(listSharedLogs),
+
+	// ── Book link previews (per-organization) ─────────────
+	getBookLinkPreview: requirePermission("settings", "read").handler(
+		async ({ context }) => getBookLinkPreviewConfig(context.serverId),
+	),
+
+	updateBookLinkPreview: requirePermission("settings", "update")
+		.input(UpdateBookLinkPreviewInput)
+		.handler(async ({ context, input }) =>
+			setBookLinkPreviewConfig(context.serverId, input),
+		),
 
 	// ── Honomiya (instance-global, app-owner) ──────────────
 	getHonomiya: adminProcedure.handler(async () => getHonomiyaConfig()),

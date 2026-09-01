@@ -27,6 +27,8 @@ export const BookSchema = BasicInfoSchema.extend(MediaInfoSchema.shape).extend(
 // ─── Procedure Input Schemas ─────────────────────────────
 export const BookUuidInput = z.object({ uuid: z.string() });
 
+export const BookSharePreviewInput = z.object({ uuid: z.string().uuid() });
+
 export const ListRecentBooksInput = z
 	.object({ limit: z.number().int().min(1).max(50).default(20) })
 	.optional();

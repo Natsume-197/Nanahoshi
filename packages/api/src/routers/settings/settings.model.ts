@@ -30,6 +30,10 @@ export const UpdateRecommendationsInput = z
 		{ message: "Provide at least one recommendation setting" },
 	);
 
+export const UpdateBookLinkPreviewInput = z.object({
+	enabled: z.boolean(),
+});
+
 export const HonomiyaConfigSchema = z.object({
 	enabled: z.boolean(),
 	cliPath: z.string().trim().max(4096).nullable(),

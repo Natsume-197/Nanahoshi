@@ -3,13 +3,14 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
-import { orgProcedure, protectedProcedure } from "../../index";
+import { orgProcedure, protectedProcedure, publicProcedure } from "../../index";
 import {
 	groupAsEditions,
 	ungroupEdition,
 } from "../../modules/duplicateGrouping";
 import { libraryRepository } from "../libraries/library.repository";
 import {
+	BookSharePreviewInput,
 	BookUuidInput,
 	CountAllBooksInput,
 	CountBooksByLibraryInput,
@@ -42,6 +43,11 @@ function stripBookId<T extends { id: unknown }>(book: T) {
 }
 
 export const bookRouter = {
+	/** Public only when the owning server opted in; never exposes files or IDs. */
+	getSharePreview: publicProcedure
+		.input(BookSharePreviewInput)
+		.handler(async ({ input }) => bookService.getBookSharePreview(input.uuid)),
+
 	getBookWithMetadata: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {

@@ -386,6 +386,31 @@ describe("BookRepository", () => {
 		expect(result).toBe(false);
 	});
 
+	test("getSharePreview() returns only the public metadata projection", async () => {
+		executeResult = [
+			{
+				title: "A Book",
+				description: "Synopsis",
+				cover: "data/covers/a-book.jpg",
+				authors: ["Author One"],
+			},
+		];
+
+		const result = await repo.getSharePreview("book-uuid", "org-1");
+		expect(result).toEqual(executeResult[0]);
+		expect(Object.keys(result ?? {}).sort()).toEqual([
+			"authors",
+			"cover",
+			"description",
+			"title",
+		]);
+		const query = new PgDialect().sqlToQuery(executedQuery as SQL);
+		expect(query.params).toContain("book-uuid");
+		expect(query.params).toContain("org-1");
+		expect(query.sql).not.toContain("relative_path");
+		expect(query.sql).not.toContain("filehash");
+	});
+
 	// getWithMetadata resolves everything (siblings included) in one round trip;
 	// these tests pin the single-query contract and the sibling-group mapping.
 	const baseDetailRow = {

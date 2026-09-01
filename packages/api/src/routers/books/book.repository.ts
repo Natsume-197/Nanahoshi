@@ -111,6 +111,13 @@ type SiblingRow = {
 	isCanonical: boolean;
 };
 
+type BookSharePreviewRow = {
+	title: string;
+	description: string | null;
+	cover: string | null;
+	authors: string[];
+};
+
 type EntityBookRow = {
 	id: number;
 	uuid: string;
@@ -242,6 +249,33 @@ export class BookRepository {
 			.where(eq(book.uuid, uuid))
 			.limit(1);
 		return result?.serverId ?? null;
+	}
+
+	/** The deliberately narrow catalog projection exposed to link-preview bots. */
+	async getSharePreview(
+		uuid: string,
+		serverId: string,
+	): Promise<BookSharePreviewRow | null> {
+		const result = await db.execute(sql`
+			SELECT
+				COALESCE(bm.title, canonical_bm.title, b.filename) AS title,
+				COALESCE(bm.description, canonical_bm.description) AS description,
+				COALESCE(bm.cover, canonical_bm.cover) AS cover,
+				(
+					SELECT COALESCE(jsonb_agg(a.name ORDER BY a.name), '[]')
+					FROM book_author ba
+					INNER JOIN author a ON a.id = ba.author_id
+					WHERE ba.book_id = COALESCE(b.duplicate_of_book_id, b.id)
+				) AS authors
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN book_metadata canonical_bm
+				ON canonical_bm.book_id = COALESCE(b.duplicate_of_book_id, b.id)
+			WHERE b.uuid = ${uuid} AND l.server_id = ${serverId}
+			LIMIT 1
+		`);
+		return (result.rows[0] as BookSharePreviewRow | undefined) ?? null;
 	}
 
 	async getByUuid(
