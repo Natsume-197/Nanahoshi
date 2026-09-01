@@ -6,7 +6,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 
 ## Local setup
 
-Requirements: Bun 1.3.14, Docker and Docker Compose.
+Requirements: Bun 1.4.0, Docker and Docker Compose.
 
 ```bash
 cp .env.example apps/server/.env

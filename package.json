@@ -26,7 +26,8 @@
 		"prepare": "if [ -f scripts/setup-hooks.sh ]; then sh scripts/setup-hooks.sh; fi",
 		"dev": "turbo dev dev:worker",
 		"build": "turbo build",
-		"check-types": "turbo check-types",
+		"generate": "bun run --cwd apps/web generate",
+		"check-types": "bun run generate && turbo check-types",
 		"dev:web": "turbo -F web dev",
 		"dev:server": "turbo -F server dev dev:worker",
 		"db:push": "turbo -F @nanahoshi-v2/db db:push",
@@ -47,8 +48,8 @@
 		"backup": "bash scripts/backup.sh",
 		"restore": "bash scripts/restore.sh",
 		"check": "biome check --write .",
-		"test": "bash scripts/test.sh",
-		"validate": "bun run check-types && bunx biome check . && bun run test"
+		"test": "bun run generate && bash scripts/test.sh",
+		"validate": "bun run generate && turbo check-types && bunx biome check . && bash scripts/test.sh"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",

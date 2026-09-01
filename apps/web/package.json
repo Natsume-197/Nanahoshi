@@ -3,6 +3,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"generate:i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy cookie preferredLanguage baseLocale --output-structure message-modules --silent",
+		"generate:routes": "tsr generate",
+		"generate": "bun run generate:i18n && bun run generate:routes",
 		"check-types": "tsc --noEmit",
 		"build": "vite build && bun run scripts/precompress-assets.ts",
 		"start": "bun run server.ts",
@@ -77,6 +80,7 @@
 	},
 	"devDependencies": {
 		"@inlang/paraglide-js": "^2.24.1",
+		"@tanstack/router-cli": "1.167.33",
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/jsdom": "^30.0.0",
