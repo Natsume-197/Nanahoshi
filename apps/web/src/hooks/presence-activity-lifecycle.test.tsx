@@ -6,6 +6,8 @@ const saveListening = mock(() => Promise.resolve());
 const saveReading = mock(() => Promise.resolve());
 const clearActivity = mock(() => Promise.resolve());
 const setIdle = mock(() => Promise.resolve());
+const documentHandlers = new Map<string, () => void>();
+const windowHandlers = new Map<string, () => void>();
 
 mock.module("@/utils/orpc", () => ({
 	client: {
@@ -20,9 +22,15 @@ mock.module("@/lib/invalidate-progress", () => ({
 	invalidateRecommendations: () => {},
 }));
 mock.module("@/hooks/use-document-event", () => ({
-	useDocumentEvent: () => {},
+	useDocumentEvent: (type: string, handler: () => void) => {
+		documentHandlers.set(type, handler);
+	},
 }));
-mock.module("@/hooks/use-window-event", () => ({ useWindowEvent: () => {} }));
+mock.module("@/hooks/use-window-event", () => ({
+	useWindowEvent: (type: string, handler: () => void) => {
+		windowHandlers.set(type, handler);
+	},
+}));
 mock.module("@/hooks/use-interval", () => ({ useInterval: () => {} }));
 mock.module("@/hooks/use-clear-activity-on-unmount", () => ({
 	useClearActivityOnUnmount: () => {},
@@ -55,6 +63,8 @@ afterEach(() => {
 	saveReading.mockClear();
 	clearActivity.mockClear();
 	setIdle.mockClear();
+	documentHandlers.clear();
+	windowHandlers.clear();
 });
 
 describe("live activity lifecycle", () => {
@@ -108,6 +118,66 @@ describe("live activity lifecycle", () => {
 		});
 	});
 
+	test("saves the latest listening position when playback pauses", async () => {
+		let currentTime = 0;
+		const { rerender } = renderHook(
+			({ enabled }) =>
+				usePlayerSync({
+					enabled,
+					bookUuid: "audio-1",
+					getPlaybackState: () => ({
+						currentTime,
+						duration: 120,
+						playbackRate: 1,
+					}),
+				}),
+			{ initialProps: { enabled: true } },
+		);
+
+		await act(async () => {
+			await Promise.resolve();
+		});
+		currentTime = 36;
+		await act(async () => {
+			rerender({ enabled: false });
+			await Promise.resolve();
+		});
+
+		expect(saveListening).toHaveBeenLastCalledWith(
+			expect.objectContaining({ currentTimeSeconds: 36 }),
+			{ context: { keepalive: true } },
+		);
+	});
+
+	test("uses keepalive to save progress when the page closes", async () => {
+		const { result } = renderHook(() =>
+			usePlayerSync({
+				enabled: true,
+				bookUuid: "audio-1",
+				getPlaybackState: () => ({
+					currentTime: 36,
+					duration: 120,
+					playbackRate: 1,
+				}),
+			}),
+		);
+		expect(result.current).toBeDefined();
+		await act(async () => {
+			await Promise.resolve();
+		});
+		saveListening.mockClear();
+
+		await act(async () => {
+			windowHandlers.get("pagehide")?.();
+			await Promise.resolve();
+		});
+
+		expect(saveListening).toHaveBeenCalledWith(
+			expect.objectContaining({ currentTimeSeconds: 36 }),
+			{ context: { keepalive: true } },
+		);
+	});
+
 	test("serializes a fast pause and resume after an in-flight sync", async () => {
 		const transitions: string[] = [];
 		let releaseFirstSync: (() => void) | undefined;
@@ -152,7 +222,7 @@ describe("live activity lifecycle", () => {
 			await Promise.resolve();
 		});
 
-		expect(transitions).toEqual(["save:start", "clear", "save:resume"]);
+		expect(transitions).toEqual(["save:start", "save:resume", "clear"]);
 	});
 
 	test("announces reading when the document becomes ready after mount", async () => {
