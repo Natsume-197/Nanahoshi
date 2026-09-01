@@ -36,9 +36,15 @@ async function catalogLinkPreviewResponse(request: Request) {
 		})();
 		if (!preview) return null;
 
+		const previewCovers: string[] =
+			"covers" in preview && Array.isArray(preview.covers)
+				? preview.covers.filter(
+						(cover): cover is string => typeof cover === "string",
+					)
+				: [];
 		const coverFilenames = Array.from(
 			new Set(
-				(preview.covers ?? [])
+				previewCovers
 					.map((cover) => cover.split("/").pop())
 					.filter((cover): cover is string => Boolean(cover)),
 			),
