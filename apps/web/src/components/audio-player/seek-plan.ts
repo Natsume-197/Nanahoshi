@@ -1,5 +1,5 @@
-/** HTMLMediaElement.HAVE_METADATA — inlined so this stays testable without a DOM. */
-const HAVE_METADATA = 1;
+/** HTMLMediaElement.HAVE_FUTURE_DATA — inlined so this stays testable without a DOM. */
+const HAVE_FUTURE_DATA = 3;
 
 export interface SeekPlanInput {
 	/** Target position in global (whole-book) seconds. */
@@ -25,10 +25,9 @@ export interface SeekPlan {
 	/** The target lives in a different file — the element needs a new src. */
 	srcSwap: boolean;
 	/**
-	 * The media can't accept the seek yet (fresh src, or metadata not loaded).
-	 * Setting `currentTime` now would only record a "default start position"
-	 * that a paused player never applies — the caller must stash the position
-	 * and flush it on loadedmetadata instead.
+	 * The media can't reliably accept the seek yet (fresh src, or not playable).
+	 * Mobile browsers can reset a seek made at HAVE_METADATA back to zero, so the
+	 * caller must stash the position and flush it on canplay instead.
 	 */
 	deferred: boolean;
 }
@@ -61,21 +60,21 @@ export function planSeek(input: SeekPlanInput): SeekPlan {
 		fileIndex,
 		fileTime,
 		srcSwap,
-		deferred: srcSwap || input.readyState < HAVE_METADATA,
+		deferred: srcSwap || input.readyState < HAVE_FUTURE_DATA,
 	};
 }
 
 /**
  * Whether a seek the media couldn't accept yet may be applied now. Checked on
- * every readiness event, not just `loadedmetadata`: a deferred seek that missed
- * that single event would otherwise strand playback at the old position while
- * the UI shows the new one.
+ * every readiness event, not just `canplay`: a deferred seek that missed that
+ * single event would otherwise strand playback at the old position while the
+ * UI shows the new one.
  */
 export function shouldFlushPendingSeek(
 	pending: number | null,
 	readyState: number,
 ): pending is number {
-	return pending != null && readyState >= HAVE_METADATA;
+	return pending != null && readyState >= HAVE_FUTURE_DATA;
 }
 
 /**
