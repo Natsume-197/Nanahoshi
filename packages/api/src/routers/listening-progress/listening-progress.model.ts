@@ -9,7 +9,6 @@ export const SaveListeningProgressInput = z.object({
 	bookUuid: z.string(),
 	currentTimeSeconds: z.number().min(0).optional(),
 	durationSeconds: z.number().min(0).optional(),
-	positionIntentAt: z.number().int().min(0).optional(),
 	playbackRate: z.number().min(0.1).max(4).optional(),
 	listeningTimeSeconds: z.number().int().min(0).optional(),
 	status: z

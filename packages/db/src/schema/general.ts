@@ -1983,12 +1983,6 @@ export const listeningProgress = pgTable(
 		bookId: bigint("book_id", { mode: "number" }).notNull(),
 		currentTimeSeconds: doublePrecision("current_time_seconds").default(0),
 		durationSeconds: doublePrecision("duration_seconds").default(0),
-		/** Client intent time used to reject delayed, out-of-order playhead writes. */
-		positionIntentAt: bigint("position_intent_at", { mode: "number" }),
-		positionUpdatedAt: timestamp("position_updated_at", {
-			withTimezone: true,
-			mode: "string",
-		}),
 		listeningTimeSeconds: integer("listening_time_seconds").default(0),
 		status: varchar({ length: 20 }).default("unstarted"),
 		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),

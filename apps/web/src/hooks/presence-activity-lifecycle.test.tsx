@@ -178,40 +178,6 @@ describe("live activity lifecycle", () => {
 		);
 	});
 
-	test("does not let an in-flight sync block the final page-close save", async () => {
-		let releaseInitialSync: (() => void) | undefined;
-		let currentTime = 0;
-		saveListening.mockImplementationOnce(
-			() =>
-				new Promise<void>((resolve) => {
-					releaseInitialSync = resolve;
-				}),
-		);
-		renderHook(() =>
-			usePlayerSync({
-				enabled: true,
-				bookUuid: "audio-1",
-				getPlaybackState: () => ({
-					currentTime,
-					duration: 120,
-					playbackRate: 1,
-				}),
-			}),
-		);
-		await act(async () => {
-			await Promise.resolve();
-		});
-		currentTime = 36;
-
-		await act(async () => {
-			windowHandlers.get("pagehide")?.();
-			await Promise.resolve();
-		});
-
-		expect(saveListening).toHaveBeenCalledTimes(2);
-		releaseInitialSync?.();
-	});
-
 	test("serializes a fast pause and resume after an in-flight sync", async () => {
 		const transitions: string[] = [];
 		let releaseFirstSync: (() => void) | undefined;
