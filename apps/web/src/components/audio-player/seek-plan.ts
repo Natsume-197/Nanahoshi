@@ -87,9 +87,13 @@ export function shouldFlushPendingSeek(
 export function shouldConfirmPendingSeek(
 	pending: number,
 	actualTime: number,
+	readyState: number,
 	toleranceSeconds = 0.75,
 ): boolean {
 	return (
+		// HAVE_CURRENT_DATA: metadata alone can echo the assigned currentTime
+		// before the stream is actually able to serve that position.
+		readyState >= 2 &&
 		Number.isFinite(actualTime) &&
 		Math.abs(actualTime - pending) <= toleranceSeconds
 	);

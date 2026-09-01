@@ -362,7 +362,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			const acknowledgePendingSeek = () => {
 				const target = pendingSeekRef.current;
 				if (target == null) return false;
-				if (!shouldConfirmPendingSeek(target, audio.currentTime)) return false;
+				if (
+					!shouldConfirmPendingSeek(target, audio.currentTime, audio.readyState)
+				)
+					return false;
 				pendingSeekRef.current = null;
 				return true;
 			};
@@ -376,6 +379,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 					setDuration(audio.duration);
 				}
 				flushPendingSeek();
+				acknowledgePendingSeek();
 			};
 
 			// `waiting`/`stalled` while the element still intends to play: the

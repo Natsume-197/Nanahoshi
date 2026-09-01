@@ -22,8 +22,11 @@ describe("deferred audiobook seeks", () => {
 		expect(plan).toMatchObject({ fileTime: 137, deferred: true });
 		// loadedmetadata may briefly accept currentTime before the stream snaps
 		// back to zero. That assignment is not an acknowledgement of the seek.
-		expect(shouldConfirmPendingSeek(137, 0)).toBe(false);
-		expect(shouldConfirmPendingSeek(137, 137)).toBe(true);
+		expect(shouldConfirmPendingSeek(137, 0, 1)).toBe(false);
+		// HAVE_METADATA is not enough: the browser may expose the assigned
+		// currentTime and still roll it back before data exists at that position.
+		expect(shouldConfirmPendingSeek(137, 137, 1)).toBe(false);
+		expect(shouldConfirmPendingSeek(137, 137, 2)).toBe(true);
 		expect(effectiveMediaTime(0, 137)).toBe(137);
 	});
 
