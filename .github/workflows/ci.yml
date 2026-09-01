@@ -5,9 +5,17 @@ on:
     branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Dummy values so @nanahoshi-v2/env/server validates at import time. Tests
     # mock all real infra (DB, Redis, SMTP); these only satisfy the schema so
     # module-eval doesn't throw. Not secrets — do not use in production.
@@ -37,9 +45,10 @@ jobs:
 
   migrations:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
-        image: groonga/pgroonga:4.0.8-alpine-16
+        image: groonga/pgroonga:4.0.8-alpine-18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -74,3 +83,15 @@ jobs:
         run: bun run packages/db/scripts/verify-0093-upgrade.ts
       - name: Verify migration restart idempotency
         run: bun run db:migrate
+
+  ci-required:
+    name: CI Required
+    if: always()
+    needs: [validate, migrations]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require all CI jobs to succeed
+        run: |
+          test "${{ needs.validate.result }}" = "success"
+          test "${{ needs.migrations.result }}" = "success"
