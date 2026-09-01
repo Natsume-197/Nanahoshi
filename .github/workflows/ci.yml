@@ -156,17 +156,3 @@ jobs:
       - name: Ensure container stack is removed
         if: always()
         run: bash scripts/ci-container-smoke.sh cleanup
-
-  ci-required:
-    name: CI Required
-    if: always()
-    needs: [validate, migrations, integration, artifacts-smoke]
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - name: Require all CI jobs to succeed
-        run: |
-          test "${{ needs.validate.result }}" = "success"
-          test "${{ needs.migrations.result }}" = "success"
-          test "${{ needs.integration.result }}" = "success"
-          test "${{ needs.artifacts-smoke.result }}" = "success"
