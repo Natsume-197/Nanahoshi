@@ -36,7 +36,9 @@ mock.module("../../../infrastructure/queue/pubsub", () => ({
 	lazySubscriber: () => () => {},
 }));
 
-const { heartbeatOnline, markActivity } = await import("../presenceManager");
+const { heartbeatOnline, keepsReadListenActivity, markActivity } = await import(
+	"../presenceManager"
+);
 
 beforeEach(() => {
 	pipelineResponses.length = 0;
@@ -45,6 +47,18 @@ beforeEach(() => {
 });
 
 describe("presence heartbeat reconciliation", () => {
+	test("keeps Read & Listen ahead of ordinary reader and player heartbeats", () => {
+		const active = {
+			sessionId: "session-1",
+			kind: "read_listen" as const,
+			book: { uuid: "ebook-1", title: "Dune" },
+		};
+
+		expect(keepsReadListenActivity(active, "reading")).toBe(true);
+		expect(keepsReadListenActivity(active, "listening")).toBe(true);
+		expect(keepsReadListenActivity(active, "read_listen")).toBe(false);
+	});
+
 	test("publishes online after the activity lease expires", async () => {
 		pipelineResponses.push(
 			[

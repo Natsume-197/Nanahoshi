@@ -139,6 +139,13 @@ function parseActivity(raw: string | null): ActivityValue | null {
 	}
 }
 
+export function keepsReadListenActivity(
+	current: ActivityValue | null,
+	nextKind: ActivityValue["kind"],
+): boolean {
+	return current?.kind === "read_listen" && nextKind !== "read_listen";
+}
+
 function toEvent(
 	userId: string,
 	online: boolean,
@@ -318,6 +325,13 @@ export async function markActivity(
 	book: PresenceBook,
 ): Promise<void> {
 	if (await isInvisible(userId)) return;
+	if (
+		keepsReadListenActivity(
+			parseActivity(await redis.get(ACTIVITY_KEY(userId))),
+			kind,
+		)
+	)
+		return;
 	const value: ActivityValue = { sessionId, kind, book };
 	const serialized = JSON.stringify(value);
 	await redis
