@@ -12,6 +12,7 @@ import { mountDownloads } from "./routes/downloads";
 import { mountMediaStatic, mountMediaUploads } from "./routes/media";
 import { mountOrpc } from "./routes/orpc";
 import { mountReadListenInputs } from "./routes/read-listen-inputs";
+import { mountSeriesShareImages } from "./routes/series-share-images";
 import { mountStream } from "./routes/stream";
 import { mountUploads } from "./routes/uploads";
 
@@ -63,6 +64,7 @@ export function buildApp(): Hono {
 	mountGateway(app);
 	mountOrpc(app);
 
+	mountSeriesShareImages(app);
 	mountCovers(app);
 	mountDownloads(app);
 	mountStream(app);

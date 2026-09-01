@@ -63,7 +63,43 @@ type SeriesWithCountRow = {
 
 type CountRow = { count: number };
 
+type AudiobookSharePreviewRow = {
+	title: string;
+	description: string | null;
+	cover: string | null;
+	authors: string[];
+};
+
 export class AudiobookRepository {
+	/** The deliberately narrow catalog projection exposed to link-preview bots. */
+	async getSharePreview(
+		uuid: string,
+		serverId: string,
+	): Promise<AudiobookSharePreviewRow | null> {
+		const result = await db.execute(sql`
+			SELECT
+				COALESCE(am.title, canonical_am.title, b.filename) AS title,
+				COALESCE(am.description, canonical_am.description) AS description,
+				COALESCE(am.cover, canonical_am.cover) AS cover,
+				(
+					SELECT COALESCE(jsonb_agg(a.name ORDER BY a.name), '[]')
+					FROM audiobook_author aba
+					INNER JOIN author a ON a.id = aba.author_id
+					WHERE aba.book_id = COALESCE(b.duplicate_of_book_id, b.id)
+				) AS authors
+			FROM book b
+			INNER JOIN library l ON l.id = b.library_id
+			LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+			LEFT JOIN audiobook_metadata canonical_am
+				ON canonical_am.book_id = COALESCE(b.duplicate_of_book_id, b.id)
+			WHERE b.uuid = ${uuid}
+				AND l.server_id = ${serverId}
+				AND l.media_type = 'audiobook'
+			LIMIT 1
+		`);
+		return (result.rows[0] as AudiobookSharePreviewRow | undefined) ?? null;
+	}
+
 	async getDetails(
 		uuid: string,
 		serverId?: string,

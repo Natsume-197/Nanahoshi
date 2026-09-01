@@ -30,7 +30,94 @@ type SeriesWithCountRow = {
 
 type CountRow = { count: number };
 
+type SeriesSharePreviewRow = {
+	title: string;
+	description: string | null;
+	covers: string[];
+	authors: string[];
+};
+
+type SeriesSharePreview = SeriesSharePreviewRow & { cover: string | null };
+
 export class SeriesRepository {
+	async getServerId(uuid: string): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: series.serverId })
+			.from(series)
+			.where(eq(series.uuid, uuid))
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
+	/** Series metadata scoped to the media type encoded by the shared URL. */
+	async getSharePreview(
+		uuid: string,
+		serverId: string,
+		mediaType: "ebook" | "audiobook",
+	): Promise<SeriesSharePreview | null> {
+		const relation =
+			mediaType === "audiobook" ? "audiobook_series" : "book_series";
+		const metadata =
+			mediaType === "audiobook" ? "audiobook_metadata" : "book_metadata";
+		const authorRelation =
+			mediaType === "audiobook" ? "audiobook_author" : "book_author";
+		const result = await db.execute(sql`
+			SELECT
+				s.name AS title,
+				s.description,
+				ARRAY(
+					SELECT md.cover
+					FROM ${sql.raw(relation)} sr_cover
+					INNER JOIN book b_cover ON b_cover.id = sr_cover.book_id
+					INNER JOIN library l_cover ON l_cover.id = b_cover.library_id
+					INNER JOIN ${sql.raw(metadata)} md ON md.book_id = b_cover.id
+					WHERE sr_cover.series_id = s.id
+						AND l_cover.server_id = ${serverId}
+						AND l_cover.media_type = ${mediaType}
+						AND ${visibleBookSql("b_cover")}
+						AND md.cover IS NOT NULL
+					ORDER BY sr_cover.position ASC NULLS LAST, b_cover.id ASC
+					LIMIT 3
+				) AS covers,
+				(
+					SELECT COALESCE(jsonb_agg(author_name ORDER BY author_name), '[]')
+					FROM (
+						SELECT DISTINCT a.name AS author_name
+						FROM ${sql.raw(relation)} sr_author
+						INNER JOIN book b_author ON b_author.id = sr_author.book_id
+						INNER JOIN library l_author ON l_author.id = b_author.library_id
+						INNER JOIN ${sql.raw(authorRelation)} ar ON ar.book_id = b_author.id
+						INNER JOIN author a ON a.id = ar.author_id
+						WHERE sr_author.series_id = s.id
+							AND l_author.server_id = ${serverId}
+							AND l_author.media_type = ${mediaType}
+							AND ${visibleBookSql("b_author")}
+					) series_authors
+				) AS authors
+			FROM series s
+			WHERE s.uuid = ${uuid}
+				AND s.server_id = ${serverId}
+				AND EXISTS (
+					SELECT 1
+					FROM ${sql.raw(relation)} sr_exists
+					INNER JOIN book b_exists ON b_exists.id = sr_exists.book_id
+					INNER JOIN library l_exists ON l_exists.id = b_exists.library_id
+					WHERE sr_exists.series_id = s.id
+						AND l_exists.server_id = ${serverId}
+						AND l_exists.media_type = ${mediaType}
+						AND ${visibleBookSql("b_exists")}
+				)
+			LIMIT 1
+		`);
+		const row = result.rows[0] as SeriesSharePreviewRow | undefined;
+		if (!row) return null;
+		return {
+			...row,
+			covers: row.covers ?? [],
+			cover: row.covers?.[0] ?? null,
+		};
+	}
+
 	// Upsert a series by name. select → insert onConflictDoNothing → re-select
 	// handles the race where another worker inserts the same name concurrently.
 	async upsertByName(name: string, serverId: string): Promise<number> {

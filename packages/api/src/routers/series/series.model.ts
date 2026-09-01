@@ -13,6 +13,11 @@ export const RenameSeriesInput = z.object({
 	description: z.string().nullable().optional(),
 });
 
+export const SeriesSharePreviewInput = z.object({
+	uuid: z.string().uuid(),
+	mediaType: z.enum(["ebook", "audiobook"]),
+});
+
 export const ListSeriesInput = z
 	.object({
 		limit: z.number().int().min(1).max(50).default(SERIES_PAGE_SIZE).optional(),

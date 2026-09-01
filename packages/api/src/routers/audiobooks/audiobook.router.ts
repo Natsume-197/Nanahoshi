@@ -3,9 +3,10 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError } from "../../errors";
-import { protectedProcedure } from "../../index";
+import { protectedProcedure, publicProcedure } from "../../index";
 import {
 	ApplyAudiobookMetadataInput,
+	AudiobookSharePreviewInput,
 	EnrichFromAudibleInput,
 	GetAudiobookInput,
 	GetAudioFileInput,
@@ -28,6 +29,13 @@ function stripAudiobookId<T extends { id: unknown }>(audiobook: T) {
 }
 
 export const audiobooksRouter = {
+	/** Public only when the owning server opted in; never exposes audio files. */
+	getSharePreview: publicProcedure
+		.input(AudiobookSharePreviewInput)
+		.handler(async ({ input }) =>
+			audiobookService.getAudiobookSharePreview(input.uuid),
+		),
+
 	search: protectedProcedure
 		.input(SearchAudiobooksInput)
 		.handler(async ({ input, context }) => {

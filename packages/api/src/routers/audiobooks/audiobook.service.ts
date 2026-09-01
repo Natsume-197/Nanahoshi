@@ -6,7 +6,19 @@ import type {
 } from "../../infrastructure/search/search.types";
 import { logger } from "../../lib/logger";
 import type { LibraryScope } from "../_shared/library-scope";
+import { bookRepository } from "../books/book.repository";
+import { getBookLinkPreviewConfig } from "../settings/settings.service";
 import { audiobookRepository } from "./audiobook.repository";
+
+export const getAudiobookSharePreview = async (uuid: string) => {
+	const serverId = await bookRepository.getOrganizationId(uuid);
+	if (!serverId) return null;
+
+	const config = await getBookLinkPreviewConfig(serverId);
+	if (!config.enabled) return null;
+
+	return audiobookRepository.getSharePreview(uuid, serverId);
+};
 
 export const getAudiobookDetails = async (
 	uuid: string,

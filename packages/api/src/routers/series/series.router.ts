@@ -1,18 +1,28 @@
 import { z } from "zod";
 import { resolveServerForCatalogEdit } from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
-import { orgReadProcedure, protectedProcedure } from "../../index";
+import {
+	orgReadProcedure,
+	protectedProcedure,
+	publicProcedure,
+} from "../../index";
 import { search } from "../../infrastructure/search";
 import {
 	ListSeriesInput,
 	RenameSeriesInput,
 	SERIES_PAGE_SIZE,
 	SearchSeriesInput,
+	SeriesSharePreviewInput,
 } from "./series.model";
 import { seriesRepository } from "./series.repository";
 import * as seriesService from "./series.service";
 
 export const seriesRouter = {
+	/** Public only when the owning server opted in; scoped to ebook/audio URLs. */
+	getSharePreview: publicProcedure
+		.input(SeriesSharePreviewInput)
+		.handler(async ({ input }) => seriesService.getSeriesSharePreview(input)),
+
 	search: orgReadProcedure
 		.input(SearchSeriesInput)
 		.handler(async ({ input, context }) => {
