@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	effectiveMediaTime,
 	planSeek,
+	pointerSeekTime,
 	shouldApplyRestoredPosition,
 	shouldConfirmPendingSeek,
 } from "./seek-plan";
@@ -34,5 +35,29 @@ describe("deferred audiobook seeks", () => {
 		expect(
 			shouldApplyRestoredPosition({ userSeeked: true, savedSeconds: 420 }),
 		).toBe(false);
+	});
+});
+
+describe("seek bar pointer gestures", () => {
+	test("resolves the seek on pointer down without waiting for a commit", () => {
+		expect(
+			pointerSeekTime({
+				clientX: 350,
+				rect: { left: 100, width: 500 },
+				start: 0,
+				end: 1_000,
+			}),
+		).toBe(500);
+	});
+
+	test("keeps chapter-scoped seeks in absolute book time", () => {
+		expect(
+			pointerSeekTime({
+				clientX: 75,
+				rect: { left: 50, width: 100 },
+				start: 300,
+				end: 500,
+			}),
+		).toBe(350);
 	});
 });

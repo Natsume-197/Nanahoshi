@@ -4,7 +4,10 @@ import {
 	getProgressReadout,
 	type ProgressScope,
 } from "@/components/audio-player/chapter-progress";
-import { hoverFraction } from "@/components/audio-player/seek-plan";
+import {
+	hoverFraction,
+	pointerSeekTime,
+} from "@/components/audio-player/seek-plan";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
@@ -88,6 +91,15 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 		);
 		if (pct != null) setHoverPct(pct);
 	};
+	const handleSeekStart = (e: React.PointerEvent<HTMLElement>) => {
+		const target = pointerSeekTime({
+			clientX: e.clientX,
+			rect: e.currentTarget.getBoundingClientRect(),
+			start,
+			end,
+		});
+		if (target != null) seekTo(target);
+	};
 
 	const isLarge = size === "lg";
 	const labelClass =
@@ -135,6 +147,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					setIsDragging(false);
 					seekTo(val);
 				}}
+				onPointerDown={handleSeekStart}
 				onPointerMove={handleSeekHover}
 				onPointerEnter={handleSeekHover}
 				onPointerLeave={() => setHoverPct(null)}

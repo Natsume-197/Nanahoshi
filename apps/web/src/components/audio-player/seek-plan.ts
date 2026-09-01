@@ -132,3 +132,24 @@ export function hoverFraction(
 	const pct = (clientX - rect.left) / rect.width;
 	return Math.min(1, Math.max(0, pct));
 }
+
+/**
+ * Resolve a press on a seek bar immediately. This deliberately runs on
+ * pointerdown: a slider inside a moving sheet can receive `onValueChange` and
+ * then lose the pointer before `onValueCommitted`, leaving its visual value
+ * ahead of the audio playhead.
+ */
+export function pointerSeekTime({
+	clientX,
+	rect,
+	start,
+	end,
+}: {
+	clientX: number;
+	rect: { left: number; width: number };
+	start: number;
+	end: number;
+}): number | null {
+	const pct = hoverFraction(clientX, rect);
+	return pct == null ? null : start + pct * Math.max(0, end - start);
+}
