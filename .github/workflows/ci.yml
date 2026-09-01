@@ -133,8 +133,6 @@ jobs:
   artifacts-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      CONTAINER_SMOKE_DIAGNOSTICS_DIR: ${{ runner.temp }}/container-smoke
     steps:
       - uses: actions/checkout@v4
       - name: Build API image
@@ -145,6 +143,8 @@ jobs:
         run: docker build --target runner -t nanahoshi-web:ci --build-arg VITE_SERVER_URL=http://localhost:3000 -f docker/web/Dockerfile .
       - name: Smoke-test packaged application stack
         run: bash scripts/ci-container-smoke.sh
+        env:
+          CONTAINER_SMOKE_DIAGNOSTICS_DIR: ${{ runner.temp }}/container-smoke
       - name: Upload sanitized container diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -156,3 +156,5 @@ jobs:
       - name: Ensure container stack is removed
         if: always()
         run: bash scripts/ci-container-smoke.sh cleanup
+        env:
+          CONTAINER_SMOKE_DIAGNOSTICS_DIR: ${{ runner.temp }}/container-smoke
