@@ -5,7 +5,6 @@ import {
 	member as memberRole,
 	owner as ownerRole,
 } from "@nanahoshi-v2/auth/permissions";
-import { env } from "@nanahoshi-v2/env/web";
 import {
 	adminClient,
 	inferAdditionalFields,
@@ -14,8 +13,10 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+import { getApiOrigin } from "./api-origin";
+
 export const authClient = createAuthClient({
-	baseURL: env.VITE_SERVER_URL,
+	baseURL: getApiOrigin(),
 	// The session query already refetches on the auth signals (sign-out, org
 	// switch, etc.). Focus/poll refetch just re-hit /api/auth/get-session on
 	// every tab focus, sharing better-auth's 100/60s rate-limit budget and

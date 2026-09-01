@@ -1,11 +1,11 @@
 import type { AppRouter } from "@nanahoshi-v2/api/routers/index";
-import { env } from "@nanahoshi-v2/env/web";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getApiOrigin } from "@/lib/api-origin";
 import { notifySessionUnauthorized } from "@/lib/session-events";
 
 export function createQueryClient() {
@@ -48,7 +48,7 @@ interface ORPCClientContext {
 }
 
 const link = new RPCLink<ORPCClientContext>({
-	url: `${env.VITE_SERVER_URL}/rpc`,
+	url: `${getApiOrigin()}/rpc`,
 	async fetch(url, options, { context }) {
 		const response = await fetch(url, {
 			...options,
