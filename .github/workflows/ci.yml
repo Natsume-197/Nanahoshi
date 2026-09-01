@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   validate:
+    name: Code checks & unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Dummy values so @nanahoshi-v2/env/server validates at import time. Tests
@@ -41,6 +42,7 @@ jobs:
       - run: bun run --cwd apps/web test:production-ssr
 
   migrations:
+    name: Database migration tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -82,6 +84,7 @@ jobs:
         run: bun run db:migrate
 
   integration:
+    name: Backend integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -131,6 +134,7 @@ jobs:
         run: bun run test:integration
 
   artifacts-smoke:
+    name: Build & start Docker application
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
