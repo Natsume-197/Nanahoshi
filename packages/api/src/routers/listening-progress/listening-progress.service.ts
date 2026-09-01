@@ -15,6 +15,7 @@ export const saveProgress = async (
 	data: {
 		currentTimeSeconds?: number;
 		durationSeconds?: number;
+		playbackRate?: number;
 		listeningTimeSeconds?: number;
 		status?: string;
 	},
@@ -42,10 +43,26 @@ export const saveProgress = async (
 	);
 	const previousStatus = existing?.status;
 
-	const result = await listeningProgressRepository.upsert(userId, bookId, data);
+	const { playbackRate, ...persistentProgress } = data;
+	const result = await listeningProgressRepository.upsert(
+		userId,
+		bookId,
+		persistentProgress,
+	);
 
 	if (data.status === LISTENING_STATUSES.LISTENING) {
-		await markBookActivity(userId, bookId, bookUuid, "listening");
+		await markBookActivity(
+			userId,
+			session?.sessionId ?? "",
+			bookId,
+			bookUuid,
+			"listening",
+			{
+				currentTimeSeconds: result.currentTimeSeconds ?? undefined,
+				durationSeconds: result.durationSeconds ?? undefined,
+				playbackRate,
+			},
+		);
 		if (session)
 			void bookRepository
 				.getTitleById(bookId)

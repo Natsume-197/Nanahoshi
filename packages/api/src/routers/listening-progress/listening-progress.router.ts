@@ -21,6 +21,7 @@ export const listeningProgressRouter = {
 				{
 					currentTimeSeconds: input.currentTimeSeconds,
 					durationSeconds: input.durationSeconds,
+					playbackRate: input.playbackRate,
 					listeningTimeSeconds: input.listeningTimeSeconds,
 					status: input.status,
 				},

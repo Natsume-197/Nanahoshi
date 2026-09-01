@@ -13,6 +13,7 @@ export class MembersRepository {
 				username: user.username,
 				displayUsername: user.displayUsername,
 				image: user.image,
+				headerImage: user.headerImage,
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))

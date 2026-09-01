@@ -26,14 +26,20 @@ export type {
 const PRESENCE_CHANNEL = "presence:updates";
 const CONNS_KEY = (userId: string) => `presence:conns:${userId}`;
 const ACTIVITY_KEY = (userId: string) => `presence:activity:${userId}`;
+const ACTIVITY_SESSION_KEY = (userId: string, sessionId: string) =>
+	`presence:activity:${userId}:${sessionId}`;
+const ACTIVITY_SESSIONS_KEY = (userId: string) =>
+	`presence:activity-sessions:${userId}`;
+const SESSION_CONNS_KEY = (userId: string, sessionId: string) =>
+	`presence:session-conns:${userId}:${sessionId}`;
 const IDLE_KEY = (userId: string) => `presence:idle:${userId}`;
 // Persistent user-chosen status, mirrored from the DB on SSE connect. Absent ⇒
 // "online" (the default), so we only write the key for away/invisible.
 const STATUS_KEY = (userId: string) => `presence:status:${userId}`;
 
-// online TTL ≈ SSE ping (30s) + margin; activity TTL ≈ reader sync (60s) + margin.
+// online TTL ≈ SSE ping (30s) + margin; activity TTL ≈ client sync (45s) + margin.
 const ONLINE_TTL = 70;
-const ACTIVITY_TTL = 90;
+const ACTIVITY_TTL = 60;
 // Closing the page → offline (like Discord). "Away" is reserved for an idle but
 // still-connected user (client-driven). The grace just absorbs a transient drop
 // (route nav, bfcache freeze, brief network blip) so a quick reconnect doesn't
@@ -41,7 +47,8 @@ const ACTIVITY_TTL = 90;
 const OFFLINE_GRACE_MS = 30_000;
 
 interface ActivityValue {
-	kind: "reading" | "listening";
+	sessionId: string;
+	kind: "reading" | "listening" | "read_listen";
 	book: PresenceBook;
 }
 
@@ -139,7 +146,7 @@ function toEvent(
 	idle: boolean,
 	status: ManualPresenceStatus,
 ): PresenceEvent {
-	// Priority: invisible/offline > reading/listening > away > online. Invisible
+	// Priority: invisible/offline > reading/listening/read & listen > away > online. Invisible
 	// and disconnected both read as offline — authoritative, and it hides a
 	// lingering activity key whose TTL hasn't expired yet. Activity stays visible
 	// even under a manual "away" (Discord-like): the amber dot only wins when
@@ -213,6 +220,7 @@ function cancelPendingOffline(userId: string): void {
 export async function heartbeatOnline(
 	userId: string,
 	connId: string,
+	sessionId: string,
 	knownStatus?: ManualPresenceStatus,
 ): Promise<void> {
 	const status = knownStatus ?? (await getStatus(userId));
@@ -224,15 +232,17 @@ export async function heartbeatOnline(
 		.pipeline()
 		.sadd(CONNS_KEY(userId), connId)
 		.expire(CONNS_KEY(userId), ONLINE_TTL)
+		.sadd(SESSION_CONNS_KEY(userId, sessionId), connId)
+		.expire(SESSION_CONNS_KEY(userId, sessionId), ONLINE_TTL)
 		.expire(IDLE_KEY(userId), ONLINE_TTL)
 		.scard(CONNS_KEY(userId))
 		.get(ACTIVITY_KEY(userId))
 		.exists(IDLE_KEY(userId))
 		.exec();
 	if (!res) return;
-	const size = res[3]?.[1] as number;
-	const activityRaw = res[4]?.[1];
-	const idle = res[5]?.[1] === 1;
+	const size = res[5]?.[1] as number;
+	const activityRaw = res[6]?.[1];
+	const idle = res[7]?.[1] === 1;
 	publish(
 		toEvent(
 			userId,
@@ -247,13 +257,18 @@ export async function heartbeatOnline(
 export async function clearConnection(
 	userId: string,
 	connId: string,
+	sessionId: string,
 ): Promise<void> {
 	const res = await redis
 		.pipeline()
 		.srem(CONNS_KEY(userId), connId)
 		.scard(CONNS_KEY(userId))
+		.srem(SESSION_CONNS_KEY(userId, sessionId), connId)
+		.scard(SESSION_CONNS_KEY(userId, sessionId))
 		.exec();
 	const size = (res?.[1]?.[1] as number) ?? 0;
+	const sessionSize = (res?.[3]?.[1] as number) ?? 0;
+	if (sessionSize === 0) await clearActivity(userId, sessionId);
 	if (size > 0) return;
 	// Last connection dropped — but don't flap offline on a transient reconnect
 	// (route nav, bfcache freeze, brief blip). Wait out the grace, then re-check.
@@ -268,14 +283,18 @@ export async function clearConnection(
 async function finalizeOffline(userId: string): Promise<void> {
 	// A connection came back during the grace window — stay online.
 	if ((await redis.scard(CONNS_KEY(userId))) > 0) return;
-	await redis.del(ACTIVITY_KEY(userId), IDLE_KEY(userId));
+	await redis.del(
+		ACTIVITY_KEY(userId),
+		ACTIVITY_SESSIONS_KEY(userId),
+		IDLE_KEY(userId),
+	);
 	publish({ userId, state: "offline", book: null });
 }
 
 // ── Away / idle ──────────────────────────────────────────────────────────────
 
 // Client-driven: the browser detects no interaction for a while and flips this.
-// Honored only while online; activity (reading/listening) still takes priority.
+// Honored only while online; activity still takes priority.
 export async function setIdle(userId: string, idle: boolean): Promise<void> {
 	const status = await getStatus(userId);
 	if (status === "invisible") return;
@@ -290,25 +309,66 @@ export async function setIdle(userId: string, idle: boolean): Promise<void> {
 	if (event.state !== "offline") publish(event);
 }
 
-// ── Activity (reading / listening), driven by the existing 60s heartbeats ────
+// ── Activity (reading / listening / read & listen), driven by heartbeats ─────
 
 export async function markActivity(
 	userId: string,
-	kind: "reading" | "listening",
+	sessionId: string,
+	kind: "reading" | "listening" | "read_listen",
 	book: PresenceBook,
 ): Promise<void> {
 	if (await isInvisible(userId)) return;
-	const value: ActivityValue = { kind, book };
-	await redis.set(
-		ACTIVITY_KEY(userId),
-		JSON.stringify(value),
-		"EX",
-		ACTIVITY_TTL,
-	);
+	const value: ActivityValue = { sessionId, kind, book };
+	const serialized = JSON.stringify(value);
+	await redis
+		.pipeline()
+		.set(
+			ACTIVITY_SESSION_KEY(userId, sessionId),
+			serialized,
+			"EX",
+			ACTIVITY_TTL,
+		)
+		.sadd(ACTIVITY_SESSIONS_KEY(userId), sessionId)
+		.expire(ACTIVITY_SESSIONS_KEY(userId), ACTIVITY_TTL)
+		.set(ACTIVITY_KEY(userId), serialized, "EX", ACTIVITY_TTL)
+		.exec();
 	publish({ userId, state: kind, book });
 }
 
-export async function clearActivity(userId: string): Promise<void> {
+export async function clearActivity(
+	userId: string,
+	sessionId?: string,
+): Promise<void> {
+	if (!sessionId) {
+		await redis.del(ACTIVITY_KEY(userId), ACTIVITY_SESSIONS_KEY(userId));
+		const event = await currentEvent(userId);
+		if (event.state !== "offline") publish(event);
+		return;
+	}
+	const current = parseActivity(await redis.get(ACTIVITY_KEY(userId)));
+	await redis
+		.pipeline()
+		.del(ACTIVITY_SESSION_KEY(userId, sessionId))
+		.srem(ACTIVITY_SESSIONS_KEY(userId), sessionId)
+		.exec();
+	if (current?.sessionId !== sessionId) return;
+	const sessions = await redis.smembers(ACTIVITY_SESSIONS_KEY(userId));
+	const activities = sessions.length
+		? await redis.mget(sessions.map((id) => ACTIVITY_SESSION_KEY(userId, id)))
+		: [];
+	const fallback = activities
+		.map((activity) => parseActivity(activity))
+		.find((activity): activity is ActivityValue => activity !== null);
+	if (fallback) {
+		await redis.set(
+			ACTIVITY_KEY(userId),
+			JSON.stringify(fallback),
+			"EX",
+			ACTIVITY_TTL,
+		);
+		publish({ userId, state: fallback.kind, book: fallback.book });
+		return;
+	}
 	await redis.del(ACTIVITY_KEY(userId));
 	// Fall back to away/online depending on the idle flag, not a hardcoded
 	// "online" — a user who stopped reading while idle should read as away. An
@@ -345,7 +405,12 @@ export async function setManualStatus(
 	if (status === "invisible") {
 		cancelPendingOffline(userId);
 		await redis.set(STATUS_KEY(userId), "invisible");
-		await redis.del(CONNS_KEY(userId), ACTIVITY_KEY(userId), IDLE_KEY(userId));
+		await redis.del(
+			CONNS_KEY(userId),
+			ACTIVITY_KEY(userId),
+			ACTIVITY_SESSIONS_KEY(userId),
+			IDLE_KEY(userId),
+		);
 		publish({ userId, state: "offline", book: null });
 		return;
 	}

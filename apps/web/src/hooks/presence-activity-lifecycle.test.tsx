@@ -180,4 +180,31 @@ describe("live activity lifecycle", () => {
 			expect.anything(),
 		);
 	});
+
+	test("clears reading activity when the reader stops being ready", async () => {
+		const { rerender } = renderHook(
+			({ enabled }) =>
+				useReaderSync({
+					enabled,
+					bookUuid: "book-1",
+					getCharCounts: () => ({
+						exploredCharCount: 12,
+						bookCharCount: 120,
+						positionIntentAt: 1,
+					}),
+				}),
+			{ initialProps: { enabled: true } },
+		);
+
+		await act(async () => {
+			await Promise.resolve();
+			clearActivity.mockClear();
+			rerender({ enabled: false });
+			await Promise.resolve();
+		});
+
+		expect(clearActivity).toHaveBeenCalledWith({
+			context: { keepalive: true },
+		});
+	});
 });

@@ -14,10 +14,11 @@ interface UsePlayerSyncOptions {
 	getPlaybackState: () => {
 		currentTime: number;
 		duration: number;
+		playbackRate: number;
 	};
 }
 
-const SYNC_INTERVAL_MS = 60_000;
+const SYNC_INTERVAL_MS = 45_000;
 const COMPLETION_THRESHOLD = 0.95;
 
 export function usePlayerSync({
@@ -39,7 +40,8 @@ export function usePlayerSync({
 		if (!enabledRef.current) return;
 
 		try {
-			const { currentTime, duration } = getPlaybackStateRef.current();
+			const { currentTime, duration, playbackRate } =
+				getPlaybackStateRef.current();
 
 			const elapsedSinceLastSync = Math.floor(
 				(Date.now() - lastSyncRef.current) / 1000,
@@ -52,6 +54,7 @@ export function usePlayerSync({
 				bookUuid: bookUuidRef.current,
 				currentTimeSeconds: currentTime,
 				durationSeconds: duration,
+				playbackRate,
 				listeningTimeSeconds: elapsedSinceLastSync,
 				status: newStatus,
 			});

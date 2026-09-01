@@ -12,7 +12,13 @@ type MemberRow = {
 	id: string;
 	name: string;
 	state: PresenceState;
-	book: { uuid: string; title: string } | null;
+	book:
+		| (NonNullable<PresenceEvent["book"]> & {
+				progress?: NonNullable<PresenceEvent["book"]>["progress"] & {
+					receivedAt?: number;
+				};
+		  })
+		| null;
 };
 
 const membersKey = orpc.members.withPresence.key();
@@ -24,7 +30,13 @@ function applyPresence(event: PresenceEvent) {
 		const next = old.map((member) => {
 			if (member.id !== event.userId) return member;
 			changed = true;
-			return { ...member, state: event.state, book: event.book ?? null };
+			const book = event.book?.progress
+				? {
+						...event.book,
+						progress: { ...event.book.progress, receivedAt: Date.now() },
+					}
+				: (event.book ?? null);
+			return { ...member, state: event.state, book };
 		});
 		if (!changed) return old;
 		// Same comparator as the server snapshot so the live re-sort can't drift.

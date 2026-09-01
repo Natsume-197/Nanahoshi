@@ -290,6 +290,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			duration: single
 				? (audioRef.current?.duration ?? 0)
 				: totalDurationRef.current,
+			playbackRate: speedRef.current,
 		};
 	}, []);
 	const getGlobalCurrentTime = useCallback(

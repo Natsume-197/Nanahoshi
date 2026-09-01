@@ -5,6 +5,7 @@ import type { PresenceState } from "@/hooks/use-presence-events";
 export const PRESENCE_DOT: Record<PresenceState, string> = {
 	reading: "bg-sky-500",
 	listening: "bg-violet-500",
+	read_listen: "bg-fuchsia-500",
 	away: "bg-amber-500",
 	online: "bg-emerald-500",
 	offline: "bg-muted-foreground/40",

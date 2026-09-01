@@ -1628,6 +1628,9 @@
 		"offline_group": "オフライン — {count}",
 		"reading": "読書中",
 		"listening": "再生中",
+		"read_listen": "読書・再生中",
+		"open_read_listen": "Read & Listen を開く",
+		"view_profile": "プロフィールを見る",
 		"profile_of": "{name}のプロフィール"
 	},
 	"dir_picker": {

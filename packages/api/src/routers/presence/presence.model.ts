@@ -8,3 +8,8 @@ export const SetStatusInput = z.object({
 export const SetIdleInput = z.object({
 	idle: z.boolean(),
 });
+
+export const MarkReadListenActivityInput = z.object({
+	pairUuid: z.uuid(),
+	ebookUuid: z.uuid(),
+});

@@ -1643,6 +1643,9 @@
 		"offline_group": "Desconectados — {count}",
 		"reading": "Leyendo",
 		"listening": "Escuchando",
+		"read_listen": "Leyendo y escuchando",
+		"open_read_listen": "Abrir Read & Listen",
+		"view_profile": "Ver perfil",
 		"profile_of": "Perfil de {name}"
 	},
 	"dir_picker": {

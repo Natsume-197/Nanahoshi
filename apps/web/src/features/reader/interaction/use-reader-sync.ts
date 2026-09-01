@@ -22,7 +22,7 @@ interface UseReaderSyncOptions {
 	};
 }
 
-const SYNC_INTERVAL_MS = 60_000;
+const SYNC_INTERVAL_MS = 45_000;
 const COMPLETION_THRESHOLD = 0.9;
 
 export function useReaderSync({
@@ -33,8 +33,14 @@ export function useReaderSync({
 	const lastSyncRef = useRef(Date.now());
 	const syncRef = useRef<(() => Promise<void>) | undefined>(undefined);
 	const lastPositionSnapshotRef = useRef<string | undefined>(undefined);
+	const queueRef = useRef<Promise<void>>(Promise.resolve());
+	const enqueue = useCallback((operation: () => Promise<void>) => {
+		const queued = queueRef.current.then(operation, operation);
+		queueRef.current = queued.catch(() => {});
+		return queued;
+	}, []);
 
-	const syncProgress = useCallback(async () => {
+	const performSync = useCallback(async () => {
 		if (!enabled) return;
 
 		const { exploredCharCount, bookCharCount, positionIntentAt } =
@@ -84,6 +90,10 @@ export function useReaderSync({
 			console.error("Failed to sync reading progress:", err);
 		}
 	}, [bookUuid, enabled, getCharCounts]);
+	const syncProgress = useCallback(
+		() => enqueue(performSync),
+		[enqueue, performSync],
+	);
 
 	syncRef.current = syncProgress;
 
@@ -101,12 +111,22 @@ export function useReaderSync({
 		}
 	}, SYNC_INTERVAL_MS);
 
-	const wasEnabledRef = useRef(false);
+	const previousSessionRef = useRef({ enabled: false, bookUuid: "" });
 	useEffect(() => {
-		const started = enabled && !wasEnabledRef.current;
-		wasEnabledRef.current = enabled;
+		const previous = previousSessionRef.current;
+		const started =
+			enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
+		const stopped = previous.enabled && !enabled;
+		previousSessionRef.current = { enabled, bookUuid };
 		if (started) syncRef.current?.();
-	}, [enabled]);
+		if (stopped) {
+			enqueue(async () => {
+				await client.presence
+					.clearActivity({ context: { keepalive: true } })
+					.catch(() => {});
+			});
+		}
+	}, [bookUuid, enabled, enqueue]);
 
 	// Sync on page close. beforeunload rarely fires on mobile, so pagehide
 	// (which also covers bfcache freezes) is the one that matters there.

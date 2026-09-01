@@ -7,6 +7,9 @@ const pipelineResponses: unknown[][][] = [];
 function pipeline() {
 	const chain = {
 		sadd: () => chain,
+		srem: () => chain,
+		set: () => chain,
+		del: () => chain,
 		expire: () => chain,
 		scard: () => chain,
 		get: () => chain,
@@ -47,13 +50,18 @@ describe("presence heartbeat reconciliation", () => {
 			[
 				[null, 1],
 				[null, 1],
+				[null, 1],
+				[null, 1],
 				[null, 0],
 				[null, 1],
 				[null, null],
 				[null, 0],
 			],
+			[],
 			[
 				[null, 0],
+				[null, 1],
+				[null, 1],
 				[null, 1],
 				[null, 0],
 				[null, 1],
@@ -62,12 +70,12 @@ describe("presence heartbeat reconciliation", () => {
 			],
 		);
 
-		await heartbeatOnline("u1", "conn-1", "online");
-		await markActivity("u1", "listening", {
+		await heartbeatOnline("u1", "conn-1", "session-1", "online");
+		await markActivity("u1", "session-1", "listening", {
 			uuid: "audio-1",
 			title: "Dune",
 		});
-		await heartbeatOnline("u1", "conn-1", "online");
+		await heartbeatOnline("u1", "conn-1", "session-1", "online");
 
 		expect(publishMock).toHaveBeenLastCalledWith(
 			"presence:updates",

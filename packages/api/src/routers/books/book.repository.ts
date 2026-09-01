@@ -218,6 +218,20 @@ export class BookRepository {
 		return result.audiobookTitle ?? result.ebookTitle ?? null;
 	}
 
+	async getCoverById(bookId: number): Promise<string | null> {
+		const [result] = await db
+			.select({
+				ebookCover: bookMetadata.cover,
+				audiobookCover: audiobookMetadata.cover,
+			})
+			.from(book)
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return result?.audiobookCover ?? result?.ebookCover ?? null;
+	}
+
 	// Resolves a book's owning org (via its library), unscoped — recovers the
 	// right org when a user opens a book URL outside their active org.
 	async getOrganizationId(uuid: string): Promise<string | null> {

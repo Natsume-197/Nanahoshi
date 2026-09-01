@@ -6,6 +6,7 @@ export type PresenceState =
 	| "away"
 	| "reading"
 	| "listening"
+	| "read_listen"
 	| "offline";
 
 // The user-chosen status (a persistent preference), distinct from the resolved
@@ -22,6 +23,22 @@ export type ManualPresenceStatus = (typeof MANUAL_PRESENCE_STATUSES)[number];
 export interface PresenceBook {
 	uuid: string;
 	title: string;
+	cover?: string | null;
+	/** Playback position, shared only while an audiobook is actively playing. */
+	progress?: {
+		currentTimeSeconds: number;
+		durationSeconds: number;
+		updatedAt: number;
+		playbackRate: number;
+	};
+	/** Present only for the synchronized reader, so clients can reopen it. */
+	pairUuid?: string;
+	/** The matching audiobook, present only for the synchronized reader. */
+	audiobook?: {
+		uuid: string;
+		title: string;
+		cover: string | null;
+	};
 }
 
 export interface PresenceEvent {
@@ -36,6 +53,7 @@ export interface PresenceEvent {
 export const STATE_WEIGHT: Record<PresenceState, number> = {
 	reading: 0,
 	listening: 0,
+	read_listen: 0,
 	online: 1,
 	away: 2,
 	offline: 3,

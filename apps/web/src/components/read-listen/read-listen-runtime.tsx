@@ -36,6 +36,7 @@ import {
 	toReaderSectionReference,
 } from "@/lib/read-listen/timeline";
 import { m } from "@/paraglide/messages";
+import { client } from "@/utils/orpc";
 
 export function readListenLineEndDelay(input: {
 	globalEndMs: number;
@@ -239,6 +240,22 @@ export function ReadListenRuntime({
 	onExitReadListen: () => void;
 	theme?: ReaderTheme;
 }) {
+	useEffect(() => {
+		const markActivity = () => {
+			client.presence
+				.markReadListenActivity({ pairUuid, ebookUuid })
+				.catch(() => {});
+		};
+		markActivity();
+		const interval = window.setInterval(markActivity, 30_000);
+		return () => {
+			window.clearInterval(interval);
+			client.presence
+				.clearActivity({ context: { keepalive: true } })
+				.catch(() => {});
+		};
+	}, [ebookUuid, pairUuid]);
+
 	const storedReaderSession = useMemo(
 		() => loadReadListenReaderSession({ pairUuid }),
 		[pairUuid],

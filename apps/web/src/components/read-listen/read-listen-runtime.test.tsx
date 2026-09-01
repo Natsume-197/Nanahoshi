@@ -94,6 +94,12 @@ mock.module("@tanstack/react-query", () => ({
 }));
 
 mock.module("@/utils/orpc", () => ({
+	client: {
+		presence: {
+			markReadListenActivity: () => Promise.resolve(),
+			clearActivity: () => Promise.resolve(),
+		},
+	},
 	orpc: {
 		readListen: {
 			getSession: {

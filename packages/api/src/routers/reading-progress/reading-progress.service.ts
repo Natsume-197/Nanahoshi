@@ -48,7 +48,13 @@ export const saveProgress = async (
 		await readingProgressRepository.upsert(userId, bookId, data);
 
 	if (positionAccepted && data.status === READING_STATUSES.READING) {
-		await markBookActivity(userId, bookId, bookUuid, "reading");
+		await markBookActivity(
+			userId,
+			session?.sessionId ?? "",
+			bookId,
+			bookUuid,
+			"reading",
+		);
 		if (session)
 			void bookRepository
 				.getTitleById(bookId)

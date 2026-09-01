@@ -15,7 +15,12 @@ export const presenceModule: GatewayModule = {
 		// this connection just plugs its sinks in and unplugs on close.
 		const [, , leaveRoster] = await Promise.all([
 			presence.syncStatus(conn.userId, status),
-			presence.heartbeatOnline(conn.userId, conn.connId, status),
+			presence.heartbeatOnline(
+				conn.userId,
+				conn.connId,
+				conn.sessionId,
+				status,
+			),
 			conn.serverId
 				? rosterHub.join(conn.serverId, {
 						onPresence: (event) => conn.send("presence", event),
@@ -27,10 +32,13 @@ export const presenceModule: GatewayModule = {
 		return {
 			// Keep the online key warm; getStatus is re-read inside so a mid-session
 			// invisible toggle is honored.
-			onTick: () => presence.heartbeatOnline(conn.userId, conn.connId),
+			onTick: () =>
+				presence.heartbeatOnline(conn.userId, conn.connId, conn.sessionId),
 			onClose: () => {
 				leaveRoster?.();
-				presence.clearConnection(conn.userId, conn.connId).catch(() => {});
+				presence
+					.clearConnection(conn.userId, conn.connId, conn.sessionId)
+					.catch(() => {});
 			},
 		};
 	},

@@ -28,13 +28,19 @@ const { bookRepository } = await import(
 const { profileRepository } = await import(
 	"../../../routers/profile/profile.repository"
 );
-const { markBookActivity } = await import("../presence.service");
+const { markBookActivity, markReadListenActivity } = await import(
+	"../presence.service"
+);
 
 // Patch singletons in place — see bun mock-isolation convention.
 let shareActivity = true;
 let title: string | null = "Cosmos";
+let cover: string | null = "cover.webp";
 const titleSpy = spyOn(bookRepository, "getTitleById").mockImplementation(() =>
 	Promise.resolve(title),
+);
+const coverSpy = spyOn(bookRepository, "getCoverById").mockImplementation(() =>
+	Promise.resolve(cover),
 );
 const shareSpy = spyOn(
 	profileRepository,
@@ -44,35 +50,63 @@ const shareSpy = spyOn(
 beforeEach(() => {
 	shareActivity = true;
 	title = "Cosmos";
+	cover = "cover.webp";
 	markActivityMock.mockClear();
 	titleSpy.mockClear();
+	coverSpy.mockClear();
 	shareSpy.mockClear();
 });
 
 describe("markBookActivity", () => {
 	test("marks activity with the resolved title when sharing is enabled", async () => {
-		await markBookActivity("u1", 7, "uuid-7", "reading");
-		expect(markActivityMock).toHaveBeenCalledWith("u1", "reading", {
-			uuid: "uuid-7",
-			title: "Cosmos",
-		});
+		await markBookActivity("u1", "session-1", 7, "uuid-7", "reading");
+		expect(markActivityMock).toHaveBeenCalledWith(
+			"u1",
+			"session-1",
+			"reading",
+			{
+				uuid: "uuid-7",
+				title: "Cosmos",
+				cover: "cover.webp",
+			},
+		);
 	});
 
 	test("never writes activity for users who opted out of sharing", async () => {
 		shareActivity = false;
-		await markBookActivity("u1", 7, "uuid-7", "reading");
+		await markBookActivity("u1", "session-1", 7, "uuid-7", "reading");
 		expect(markActivityMock).not.toHaveBeenCalled();
 	});
 
 	test("never exposes a filename placeholder when metadata has no title", async () => {
 		title = null;
-		await markBookActivity("u1", 7, "uuid-7", "listening");
+		await markBookActivity("u1", "session-1", 7, "uuid-7", "listening");
 		expect(markActivityMock).not.toHaveBeenCalled();
 	});
 
 	test("is best-effort: a lookup failure never throws", async () => {
 		titleSpy.mockImplementationOnce(() => Promise.reject(new Error("db down")));
-		await markBookActivity("u1", 7, "uuid-7", "listening");
+		await markBookActivity("u1", "session-1", 7, "uuid-7", "listening");
 		expect(markActivityMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("markReadListenActivity", () => {
+	test("preserves the pair id needed to reopen the synchronized reader", async () => {
+		await markReadListenActivity("u1", "session-1", {
+			uuid: "ebook-1",
+			title: "Cosmos",
+			pairUuid: "pair-1",
+		});
+		expect(markActivityMock).toHaveBeenCalledWith(
+			"u1",
+			"session-1",
+			"read_listen",
+			{
+				uuid: "ebook-1",
+				title: "Cosmos",
+				pairUuid: "pair-1",
+			},
+		);
 	});
 });

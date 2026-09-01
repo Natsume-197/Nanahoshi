@@ -1643,6 +1643,9 @@
 		"offline_group": "Offline — {count}",
 		"reading": "Reading",
 		"listening": "Listening",
+		"read_listen": "Reading & Listening",
+		"open_read_listen": "Open Read & Listen",
+		"view_profile": "View profile",
 		"profile_of": "{name}'s profile"
 	},
 	"dir_picker": {
