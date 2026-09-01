@@ -544,13 +544,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 					}
 				}
 				pendingSeekRef.current = target;
-				// Mobile browsers can reset a paused seek made with metadata alone back
-				// to zero. Wait for playable media; handleCanPlay flushes the pending
-				// position once it is safe.
-				if (
-					!srcSwapped &&
-					audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
-				) {
+				// Seek now only if the current media is already seekable and we didn't
+				// just swap src; otherwise handleLoadedMetadata flushes it once
+				// (re)loaded.
+				if (!srcSwapped && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
 					pendingSeekRef.current = null;
 					audio.currentTime = target;
 				}
