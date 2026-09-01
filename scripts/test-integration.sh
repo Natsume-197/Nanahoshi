@@ -50,6 +50,9 @@ if [[ "${listed_files[*]}" != "${discovered_files[*]}" ]]; then
 	exit 1
 fi
 
+echo "Preparing integration database..."
+bun run db:migrate
+
 echo "Running ${#files[@]} integration test files in isolation..."
 
 failed=()
