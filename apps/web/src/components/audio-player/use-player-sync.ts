@@ -24,6 +24,8 @@ interface SyncOptions {
 	force?: boolean;
 	/** Let a final sync complete while the document is closing or freezing. */
 	keepalive?: boolean;
+	/** Do not wait behind a request the browser may have frozen. */
+	immediate?: boolean;
 }
 
 const SYNC_INTERVAL_MS = 45_000;
@@ -52,6 +54,7 @@ export function usePlayerSync({
 		try {
 			const { currentTime, duration, playbackRate } =
 				getPlaybackStateRef.current();
+			const positionIntentAt = Date.now();
 
 			const elapsedSinceLastSync = Math.floor(
 				(Date.now() - lastSyncRef.current) / 1000,
@@ -64,6 +67,7 @@ export function usePlayerSync({
 				bookUuid: bookUuidRef.current,
 				currentTimeSeconds: currentTime,
 				durationSeconds: duration,
+				positionIntentAt,
 				playbackRate,
 				listeningTimeSeconds: elapsedSinceLastSync,
 				status: newStatus,
@@ -95,7 +99,10 @@ export function usePlayerSync({
 		return queued;
 	}, []);
 	const syncProgress = useCallback(
-		(options?: SyncOptions) => enqueue(() => performSync(options)),
+		(options?: SyncOptions) =>
+			options?.immediate
+				? performSync(options)
+				: enqueue(() => performSync(options)),
 		[enqueue, performSync],
 	);
 
@@ -104,17 +111,17 @@ export function usePlayerSync({
 	// visibilitychange fires reliably before page unload in modern browsers
 	useDocumentEvent("visibilitychange", () => {
 		if (document.visibilityState === "hidden") {
-			syncRef.current?.({ keepalive: true });
+			syncRef.current?.({ keepalive: true, immediate: true });
 		}
 	});
 
 	// Some browsers skip visibilitychange during a close. pagehide covers mobile
 	// freezes and beforeunload covers the remaining desktop cases.
 	useWindowEvent("beforeunload", () => {
-		syncRef.current?.({ keepalive: true });
+		syncRef.current?.({ keepalive: true, immediate: true });
 	});
 	useWindowEvent("pagehide", () => {
-		syncRef.current?.({ keepalive: true });
+		syncRef.current?.({ keepalive: true, immediate: true });
 	});
 
 	useInterval(() => {
@@ -145,7 +152,8 @@ export function usePlayerSync({
 	// Sync on unmount, then clear "listening" presence (see the hook for the
 	// sync-before-clear ordering).
 	useClearActivityOnUnmount(async () => {
-		if (enabledRef.current) await syncRef.current?.({ keepalive: true });
+		if (enabledRef.current)
+			await syncRef.current?.({ keepalive: true, immediate: true });
 	});
 
 	return { syncNow: syncProgress };

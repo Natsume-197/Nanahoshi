@@ -15,6 +15,7 @@ export const saveProgress = async (
 	data: {
 		currentTimeSeconds?: number;
 		durationSeconds?: number;
+		positionIntentAt?: number;
 		playbackRate?: number;
 		listeningTimeSeconds?: number;
 		status?: string;
