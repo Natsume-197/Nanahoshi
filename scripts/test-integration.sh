@@ -35,7 +35,7 @@ files=(
 )
 
 mapfile -t discovered_files < <(
-	rg --files packages/api/src -g '*.integration.test.ts' | sort
+	find packages/api/src -type f -name '*.integration.test.ts' -print | sort
 )
 mapfile -t listed_files < <(printf '%s\n' "${files[@]}" | sort)
 
