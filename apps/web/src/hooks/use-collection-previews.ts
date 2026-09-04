@@ -3,6 +3,7 @@ import { orpc } from "@/utils/orpc";
 
 type CollectionPreviewSource = {
 	id: string;
+	kind?: "manual" | "dynamic";
 	bookCount?: number | null;
 	ebookCount?: number | null;
 	audiobookCount?: number | null;
@@ -31,13 +32,19 @@ export function resolveCollectionPreview(
 		ebookCount: collection.ebookCount ?? preview?.ebookCount,
 		audiobookCount: collection.audiobookCount ?? preview?.audiobookCount,
 		previewCovers,
-		ebookPreviewCovers:
-			collection.ebookPreviewCovers ??
-			collection.previewCovers ??
-			preview?.previewCovers ??
-			[],
-		audiobookPreviewCovers:
-			collection.audiobookPreviewCovers ?? preview?.previewCovers ?? [],
+		ebookPreviewCovers: collection.ebookPreviewCovers?.length
+			? collection.ebookPreviewCovers
+			: collection.kind === "dynamic"
+				? (preview?.previewCovers ?? [])
+				: (collection.ebookPreviewCovers ??
+					collection.previewCovers ??
+					preview?.previewCovers ??
+					[]),
+		audiobookPreviewCovers: collection.audiobookPreviewCovers?.length
+			? collection.audiobookPreviewCovers
+			: collection.kind === "dynamic"
+				? (preview?.previewCovers ?? [])
+				: (collection.audiobookPreviewCovers ?? preview?.previewCovers ?? []),
 	};
 }
 

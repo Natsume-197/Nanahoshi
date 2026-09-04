@@ -175,19 +175,14 @@ function CollectionDetailPage() {
 								{collection.isOwner &&
 									collection.kind === "dynamic" &&
 									canUpdate && (
-										<Button
-											type="button"
-											size="lg"
-											variant="outline"
-											render={
-												<Link
-													to="/dashboard/collections/$collectionId/edit"
-													params={{ collectionId }}
-												/>
-											}
-										>
-											<PencilSimple data-icon="inline-start" />
-											{m["collection.edit_rules"]()}
+										<Button asChild type="button" size="lg" variant="outline">
+											<Link
+												to="/dashboard/collections/$collectionId/edit"
+												params={{ collectionId }}
+											>
+												<PencilSimple data-icon="inline-start" />
+												{m["collection.edit_rules"]()}
+											</Link>
 										</Button>
 									)}
 								{!collection.isOwner && (
