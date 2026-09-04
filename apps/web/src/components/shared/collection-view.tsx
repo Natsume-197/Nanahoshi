@@ -16,6 +16,8 @@ const SKELETON_KEYS = Array.from({ length: 12 }, (_, i) => `cv-skeleton-${i}`);
 
 interface CollectionViewProps<TItem, TSort extends string> {
 	// Toolbar
+	/** Content placed before the shared toolbar, such as a back navigation link. */
+	beforeToolbar?: ReactNode;
 	title: ReactNode;
 	/** Shown only when not loading and not searching (page passes plain text). */
 	subtitle?: ReactNode;
@@ -51,6 +53,8 @@ interface CollectionViewProps<TItem, TSort extends string> {
 	 * owns all filtering UI in the bar instead. `extraActions` still shows.
 	 */
 	filterBar?: ReactNode;
+	/** Page-specific context placed below the toolbar and filters. */
+	contentBefore?: ReactNode;
 
 	// Data
 	items: TItem[];
@@ -84,6 +88,7 @@ interface CollectionViewProps<TItem, TSort extends string> {
  * `useCollectionView` for the search/sort state.
  */
 export function CollectionView<TItem, TSort extends string>({
+	beforeToolbar,
 	title,
 	subtitle,
 	isLoading,
@@ -103,6 +108,7 @@ export function CollectionView<TItem, TSort extends string>({
 	hideSortWhileSearching = false,
 	extraActions,
 	filterBar,
+	contentBefore,
 	items,
 	getKey,
 	hasNextPage,
@@ -123,6 +129,7 @@ export function CollectionView<TItem, TSort extends string>({
 
 	return (
 		<div className={cn(PAGE_SHELL, "space-y-6")}>
+			{beforeToolbar}
 			<CollectionToolbar
 				title={title}
 				loading={isFetching && !isLoading && !isFetchingNextPage}
@@ -157,6 +164,7 @@ export function CollectionView<TItem, TSort extends string>({
 			/>
 
 			{filterBar}
+			{contentBefore}
 
 			{isError && !hasItems && errorState}
 

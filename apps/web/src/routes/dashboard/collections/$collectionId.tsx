@@ -10,12 +10,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
+import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
-import { CollectionSearch } from "@/components/shared/collection-search";
-import { CollectionToolbar } from "@/components/shared/collection-toolbar";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
+import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -23,12 +24,12 @@ import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useDebounce } from "@/hooks/use-debounce";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
-import { PAGE_SHELL } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { BOOK_GRID_CLASS } from "@/utils/covers";
-import { formatDate } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";
+
+// Collections can mix ebooks and audiobooks. Use the taller ebook estimate so
+// virtual rows always have enough room regardless of the item's media type.
+const COLLECTION_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({
 	component: CollectionDetailPage,
@@ -55,12 +56,14 @@ function CollectionDetailPage() {
 			queryClient.invalidateQueries({
 				queryKey: [["collections", "listBookMemberships"]],
 			});
-			toast.success("Collection deleted");
+			toast.success(m["toast.collection_deleted"]());
 			navigate({ to: "/dashboard/collections" });
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to delete collection",
+				error instanceof Error
+					? error.message
+					: m["toast.collection_delete_failed"](),
 			);
 		},
 	});
@@ -96,58 +99,79 @@ function CollectionDetailPage() {
 
 	if (!abilitiesLoading && !canRead) {
 		return (
-			<div className={PAGE_SHELL}>
-				<EmptyState
-					title="Collections unavailable"
-					description="You don't have permission to view collections."
-				/>
-			</div>
+			<CollectionView
+				title={m["nav.collections"]()}
+				isLoading={false}
+				search=""
+				onSearchChange={() => undefined}
+				searchPlaceholder=""
+				searchAriaLabel=""
+				isSearching={false}
+				query=""
+				sort="none"
+				onSortChange={() => undefined}
+				items={[]}
+				getKey={() => "unavailable"}
+				gridRowEstimate={COLLECTION_CARD_ROW_ESTIMATE}
+				renderGridItem={() => null}
+				emptyState={
+					<EmptyState
+						title={m["collection.unavailable_title"]()}
+						description={m["collection.unavailable_desc"]()}
+					/>
+				}
+			/>
 		);
 	}
 
 	return (
-		<div className={cn(PAGE_SHELL, "space-y-6")}>
-			<Link
-				to="/dashboard/collections"
-				className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
-			>
-				<ArrowLeft className="size-4" />
-				{m["shelves.back"]()}
-			</Link>
-
-			{(detailsQuery.isLoading || itemsQuery.isLoading) && (
-				<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">
-					<CircleNotch className="size-4 animate-spin" />
-					{m["collection.loading"]()}
-				</div>
-			)}
-
-			{(detailsQuery.isError || itemsQuery.isError) && (
-				<p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm">
-					Unable to load this collection.
-				</p>
-			)}
-
-			{collection && (
-				<>
-					<CollectionToolbar
-						title={collection.name}
-						subtitle={[
-							m["collection.subtitle"]({
-								count: totalHits ?? collection.bookCount ?? 0,
-							}),
-							collection.description,
-						]
-							.filter(Boolean)
-							.join(" · ")}
-						actions={
+		<>
+			<BookContextMenuRoot>
+				<CollectionView
+					beforeToolbar={
+						<Link
+							to="/dashboard/collections"
+							className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+						>
+							<ArrowLeft className="size-4" />
+							{m["shelves.back"]()}
+						</Link>
+					}
+					title={collection?.name ?? m["nav.collections"]()}
+					subtitle={
+						collection
+							? [
+									m["collection.subtitle"]({
+										count: totalHits ?? collection.bookCount ?? 0,
+									}),
+									collection.description,
+								]
+									.filter(Boolean)
+									.join(" · ")
+							: undefined
+					}
+					isLoading={detailsQuery.isLoading || itemsQuery.isLoading}
+					isError={detailsQuery.isError || itemsQuery.isError}
+					errorState={
+						<QueryErrorState
+							onRetry={() =>
+								void Promise.all([detailsQuery.refetch(), itemsQuery.refetch()])
+							}
+						/>
+					}
+					isFetching={detailsQuery.isFetching || itemsQuery.isFetching}
+					isFetchingNextPage={itemsQuery.isFetchingNextPage}
+					search={search}
+					onSearchChange={setSearch}
+					searchPlaceholder={m["collection.detail_search_placeholder"]()}
+					searchAriaLabel={m["collection.detail_search_aria"]()}
+					isSearching={Boolean(query)}
+					query={query}
+					sort="none"
+					onSortChange={() => undefined}
+					extraActions={
+						collection ? (
 							<div className="flex items-center gap-2">
-								<CollectionSearch
-									value={search}
-									onChange={setSearch}
-									placeholder="Search this collection"
-									ariaLabel="Search this collection"
-								/>
 								{collection.isOwner &&
 									collection.kind === "dynamic" &&
 									canUpdate && (
@@ -192,13 +216,14 @@ function CollectionDetailPage() {
 									</Button>
 								)}
 							</div>
-						}
-					/>
-					{collection.kind === "dynamic" &&
-						collection.definitionStatus === "valid" && (
+						) : undefined
+					}
+					contentBefore={
+						collection?.kind === "dynamic" &&
+						collection.definitionStatus === "valid" ? (
 							<details className="rounded-xl bg-muted/50 px-4 py-3 text-sm">
 								<summary className="cursor-pointer font-medium">
-									How this collection is built
+									{m["collection.detail_rules_summary"]()}
 								</summary>
 								<p className="mt-2 text-muted-foreground">
 									{summarizeDefinition(
@@ -206,83 +231,60 @@ function CollectionDetailPage() {
 									)}
 								</p>
 							</details>
-						)}
-
-					{invalidDefinition ? (
+						) : undefined
+					}
+					items={books}
+					getKey={(book) => book.uuid}
+					hasNextPage={itemsQuery.hasNextPage}
+					fetchNextPage={() => void itemsQuery.fetchNextPage()}
+					gridRowEstimate={COLLECTION_CARD_ROW_ESTIMATE}
+					renderGridItem={(book) => (
+						<BookContextMenuTrigger
+							bookUuid={book.uuid}
+							mediaType={book.mediaType === "audiobook" ? "audiobook" : "ebook"}
+						>
+							<BookCard
+								uuid={book.uuid}
+								title={book.title ?? null}
+								filename={book.filename}
+								cover={book.cover ?? null}
+								tint={book.mainColor}
+								authors={book.authors}
+								contextMenuEnabled={false}
+								mediaType={
+									book.mediaType === "audiobook" ? "audiobook" : "ebook"
+								}
+							/>
+						</BookContextMenuTrigger>
+					)}
+					emptyState={
 						<EmptyState
 							title={
-								collection.isOwner
-									? "Rules need repair"
-									: "Collection unavailable"
+								invalidDefinition
+									? collection?.isOwner
+										? m["collection.detail_rules_repair_title"]()
+										: m["collection.unavailable_title"]()
+									: m["collection.detail_empty_title"]()
 							}
 							description={
-								collection.isOwner
-									? "Open the rule editor and save a valid definition."
-									: "This collection cannot be displayed right now."
+								invalidDefinition
+									? collection?.isOwner
+										? m["collection.detail_rules_repair_desc"]()
+										: m["collection.detail_unavailable_desc"]()
+									: collection?.kind === "dynamic"
+										? m["collection.detail_empty_dynamic_desc"]()
+										: m["collection.detail_empty_manual_desc"]()
 							}
 						/>
-					) : books.length === 0 ? (
+					}
+					searchEmptyState={
 						<EmptyState
-							title={query ? "No matches" : "No books yet"}
-							description={
-								query
-									? "Try another search."
-									: collection.kind === "dynamic"
-										? "No library items match these rules yet."
-										: "This collection has no books yet. Add books from your library."
-							}
+							title={m["settings.no_matches"]()}
+							description={m["collection.detail_empty_search_desc"]()}
 						/>
-					) : (
-						<BookContextMenuRoot>
-							<div className="space-y-6">
-								<div className={BOOK_GRID_CLASS}>
-									{books.map((book) => (
-										<div key={book.uuid} className="space-y-1">
-											<BookContextMenuTrigger bookUuid={book.uuid}>
-												<BookCard
-													uuid={book.uuid}
-													title={book.title ?? null}
-													filename={book.filename}
-													cover={book.cover ?? null}
-													tint={book.mainColor}
-													authors={book.authors}
-													contextMenuEnabled={false}
-													mediaType={
-														book.mediaType === "audiobook"
-															? "audiobook"
-															: "ebook"
-													}
-												/>
-											</BookContextMenuTrigger>
-											<p className="px-2 text-[11px] text-muted-foreground">
-												Added {formatDate(book.addedAt) ?? "recently"}
-											</p>
-										</div>
-									))}
-								</div>
-								{itemsQuery.hasNextPage && (
-									<div className="flex justify-center">
-										<Button
-											type="button"
-											variant="outline"
-											disabled={itemsQuery.isFetchingNextPage}
-											onClick={() => itemsQuery.fetchNextPage()}
-										>
-											{itemsQuery.isFetchingNextPage && (
-												<CircleNotch
-													className="animate-spin"
-													data-icon="inline-start"
-												/>
-											)}
-											Load more
-										</Button>
-									</div>
-								)}
-							</div>
-						</BookContextMenuRoot>
-					)}
-				</>
-			)}
+					}
+				/>
+			</BookContextMenuRoot>
 			{collection && (
 				<Modal
 					open={deleteOpen}
@@ -317,7 +319,7 @@ function CollectionDetailPage() {
 					}
 				/>
 			)}
-		</div>
+		</>
 	);
 }
 
