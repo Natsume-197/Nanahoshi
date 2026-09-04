@@ -403,11 +403,30 @@ async function pushProfiles(): Promise<boolean> {
 		return true;
 	} catch (error) {
 		if (!(error instanceof ORPCError) || error.status !== 409) return false;
-		// A successful read after a failed CAS means another device won. Adopt its
-		// authoritative value; offline failures leave the local store dirty.
+		// Resolve a failed CAS against the latest server revision. A newer local
+		// edit is retried; otherwise the other device's value is authoritative.
 		try {
 			const server = await client.userSettings.get({ key: "reader-profiles" });
 			if (!server) return false;
+			const latest = loadProfilesStore();
+			const serverRevision = new Date(server.updatedAt).toISOString();
+			// A new local edit made while the failed request was in flight has not
+			// participated in this conflict. Preserve it, advance the CAS revision,
+			// and let flushProfilesPush retry that newer snapshot.
+			if (
+				latest.dirty &&
+				(latest.updatedAt !== store.updatedAt ||
+					JSON.stringify(latest.profiles) !== JSON.stringify(store.profiles))
+			) {
+				const latestMeta = loadProfilesMeta();
+				saveProfilesMeta({
+					...latestMeta,
+					updatedAt: latest.updatedAt,
+					dirty: true,
+					serverUpdatedAt: serverRevision,
+				});
+				return true;
+			}
 			const adopted = {
 				...normalizeProfilesStore(server.value, loadVisualReaderSettings()),
 				dirty: false,
@@ -415,7 +434,7 @@ async function pushProfiles(): Promise<boolean> {
 			saveProfilesStore(adopted);
 			saveProfilesMeta({
 				updatedAt: adopted.updatedAt,
-				serverUpdatedAt: new Date(server.updatedAt).toISOString(),
+				serverUpdatedAt: serverRevision,
 			});
 			window.dispatchEvent(
 				new CustomEvent(READER_PROFILES_RECONCILED_EVENT, {
@@ -647,6 +666,22 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 		}
 	} catch {
 		// offline / logged out
+	}
+
+	// Profile and theme reconciliation use separate requests. A reader edit can
+	// land after the profile request was adopted but before the theme request
+	// finishes. Never hand the caller that stale profile snapshot: the caller
+	// would otherwise replace the live settings with it after the edit.
+	if (result.profiles) {
+		const latest = loadProfilesStore();
+		if (
+			latest.dirty ||
+			latest.updatedAt !== result.profiles.updatedAt ||
+			JSON.stringify(latest.profiles) !==
+				JSON.stringify(result.profiles.profiles)
+		) {
+			result.profiles = null;
+		}
 	}
 
 	return result;

@@ -508,12 +508,17 @@ export function ReaderScreen({
 
 	// Direct commit path used by settings controls that do not touch the book layout.
 	const handleSettingsChange = (patch: Partial<ReaderSettings>) => {
-		const next = { ...settings, ...patch };
+		// Native clicks/key repeats can arrive before React publishes the previous
+		// render. Read both sources of truth directly so a burst always builds on
+		// the latest committed value instead of a stale render closure.
+		const next = { ...settingsRef.current, ...patch };
+		const currentProfiles = loadProfilesStore();
+		const currentProfileId = getActiveProfileId(currentProfiles);
 		settingsRef.current = next;
 		setSettings(next);
 		setProfilesStore(
 			commitProfilesStore(
-				setProfileSettings(profilesStore, activeProfileId, next),
+				setProfileSettings(currentProfiles, currentProfileId, next),
 			),
 		);
 	};
