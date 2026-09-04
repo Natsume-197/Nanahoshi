@@ -9,6 +9,8 @@ import {
 	bookRepository,
 	type LibraryScope,
 } from "../books/book.repository";
+import { collectionsRepository } from "../collections/collections.repository";
+import { listCollectionItems } from "../collections/collections.service";
 import { seriesRepository } from "../series/series.repository";
 import type { OpdsBookEntry } from "./opds.model";
 
@@ -41,6 +43,44 @@ function paginate(rows: CatalogBook[]): {
 }
 
 export class OpdsRepository {
+	listDynamicCollections(userId: string, serverId: string) {
+		return collectionsRepository.listVisibleDynamic(userId, serverId);
+	}
+
+	async listDynamicCollectionItems(
+		collectionId: string,
+		userId: string,
+		serverId: string,
+		cursor: number,
+		scope: LibraryScope = "ALL",
+		query?: string,
+	) {
+		const result = await listCollectionItems(
+			userId,
+			{
+				collectionId,
+				cursor,
+				limit: PAGE_SIZE,
+				query: query?.trim() || undefined,
+				timeZone: "UTC",
+			},
+			serverId,
+			scope,
+		);
+		return {
+			books: result.items.map((item) => ({
+				uuid: item.uuid,
+				title: item.title ?? item.filename,
+				filename: item.filename,
+				cover: item.cover,
+				createdAt: item.addedAt ?? new Date().toISOString(),
+				authors: item.authors.map((person) => ({ name: person.name })),
+			})),
+			hasMore: result.pagination.hasMore,
+			nextCursor: result.pagination.nextCursor,
+		};
+	}
+
 	/** The organization of the user's first membership, or null if they have none. */
 	async getFirstMembershipOrg(userId: string): Promise<string | null> {
 		const [firstMembership] = await db

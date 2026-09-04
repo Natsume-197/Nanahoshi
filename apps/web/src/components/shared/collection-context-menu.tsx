@@ -1,5 +1,6 @@
 import { CircleNotch, Globe, Lock, Pencil, Trash } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,11 +29,13 @@ export function CollectionContextMenu({
 	collectionId,
 	collectionName,
 	isPublic,
+	isDynamic = false,
 	children,
 }: {
 	collectionId: string;
 	collectionName: string;
 	isPublic?: boolean;
+	isDynamic?: boolean;
 	children: ReactNode;
 }) {
 	const { can } = useAbilities();
@@ -41,7 +44,8 @@ export function CollectionContextMenu({
 	// Visibility toggle needs the current state, so it only appears when the
 	// caller provides `isPublic` (own-collection surfaces).
 	const canToggleVisibility =
-		can("collection", "makePublic") && isPublic !== undefined;
+		!isDynamic && can("collection", "makePublic") && isPublic !== undefined;
+	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [renameOpen, setRenameOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState(collectionName);
@@ -117,12 +121,19 @@ export function CollectionContextMenu({
 					{canUpdate && (
 						<ContextMenuItem
 							onClick={() => {
+								if (isDynamic) {
+									navigate({
+										to: "/dashboard/collections/$collectionId/edit",
+										params: { collectionId },
+									});
+									return;
+								}
 								setRenameValue(collectionName);
 								setRenameOpen(true);
 							}}
 						>
 							<Pencil />
-							{m["common.rename"]()}
+							{isDynamic ? m["collection.edit_rules"]() : m["common.rename"]()}
 						</ContextMenuItem>
 					)}
 					{canToggleVisibility && (

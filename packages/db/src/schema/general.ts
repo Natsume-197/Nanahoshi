@@ -1261,6 +1261,11 @@ export const author = pgTable(
 	],
 );
 
+export const collectionKindEnum = pgEnum("collection_kind", [
+	"manual",
+	"dynamic",
+]);
+
 export const collection = pgTable(
 	"collection",
 	{
@@ -1270,6 +1275,10 @@ export const collection = pgTable(
 		name: text().notNull(),
 		description: text(),
 		isPublic: boolean("is_public").default(false).notNull(),
+		kind: collectionKindEnum().default("manual").notNull(),
+		// Parsed at every API boundary. Keeping this unknown here prevents the DB
+		// package from depending on the API package that already depends on it.
+		dynamicDefinition: jsonb("dynamic_definition").$type<unknown>(),
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
 			mode: "string",
@@ -1283,6 +1292,12 @@ export const collection = pgTable(
 		index("idx_collections_user_id").using(
 			"btree",
 			table.userId.asc().nullsLast(),
+		),
+		index("collection_user_server_kind_updated_idx").on(
+			table.userId,
+			table.serverId,
+			table.kind,
+			table.updatedAt.desc(),
 		),
 		foreignKey({
 			columns: [table.userId],
@@ -1298,6 +1313,10 @@ export const collection = pgTable(
 			table.userId,
 			table.serverId,
 			table.name,
+		),
+		check(
+			"collection_kind_definition_check",
+			sql`(${table.kind} = 'manual' AND ${table.dynamicDefinition} IS NULL) OR (${table.kind} = 'dynamic' AND ${table.dynamicDefinition} IS NOT NULL)`,
 		),
 	],
 );

@@ -32,6 +32,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
+import {
+	resolveCollectionPreview,
+	useCollectionPreviews,
+} from "@/hooks/use-collection-previews";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { getHeaderImageSources } from "@/utils/profile-images";
@@ -125,6 +129,10 @@ function UserProfilePage() {
 		}),
 		enabled: isOverviewTab && !abilitiesLoading && canReadCollections,
 	});
+	const publicCollectionPreviews = useCollectionPreviews(
+		publicCollectionsQuery.data?.map((collection) => collection.id) ?? [],
+		isOverviewTab && !abilitiesLoading && canReadCollections,
+	);
 
 	const profile = profileQuery.data;
 
@@ -178,19 +186,26 @@ function UserProfilePage() {
 					</div>
 				) : (
 					<div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(2,minmax(0,140px))]">
-						{publicCollectionsQuery.data?.map((collection) => (
-							<CollectionCard
-								key={collection.id}
-								id={collection.id}
-								name={collection.name}
-								previewCovers={collection.previewCovers}
-								subtitle={m["media.item_count"]({
-									count: collection.bookCount,
-								})}
-								readOnly
-								size="large"
-							/>
-						))}
+						{publicCollectionsQuery.data?.map((collection) => {
+							const preview = resolveCollectionPreview(
+								collection,
+								publicCollectionPreviews.byId.get(collection.id),
+							);
+							return (
+								<CollectionCard
+									key={collection.id}
+									id={collection.id}
+									name={collection.name}
+									previewCovers={preview.previewCovers}
+									subtitle={m["media.item_count"]({
+										count: preview.count ?? 0,
+									})}
+									readOnly
+									isDynamic={collection.kind === "dynamic"}
+									size="large"
+								/>
+							);
+						})}
 					</div>
 				)}
 			</section>

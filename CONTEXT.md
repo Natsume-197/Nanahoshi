@@ -104,6 +104,10 @@ _Avoid_: Global provider cooldown, per-book cooldown, tenant cooldown
 A stored ebook or audiobook with its own media-specific metadata, relationships, files, and consumption state. An ebook and an audiobook remain distinct Catalog Records even when they contain the same volume.
 _Avoid_: Logical Edition, Publication, cross-media book
 
+**Dynamic Collection**:
+A Collection whose membership is evaluated from a versioned rule definition against the viewer's accessible Catalog Records and personal state. It stores no fixed membership; a public definition is shared while personal predicates such as progress and favorites resolve for the person viewing it.
+_Avoid_: Smart Scope, saved search, materialized collection
+
 **Duplicate Copy**:
 A Catalog Record judged substitutable with and represented through a canonical Catalog Record of the same media kind. It uses the canonical record's effective catalog relationships and is never grouped across ebook and audiobook media.
 _Avoid_: Logical Edition, cross-media duplicate, independent edition

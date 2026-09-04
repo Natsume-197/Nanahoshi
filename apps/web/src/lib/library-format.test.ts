@@ -45,6 +45,12 @@ describe("collectionMatchesFormat", () => {
 		expect(collectionMatchesFormat(counts(), "audiobook")).toBe(false);
 	});
 
+	test("keeps lazy-count collections discoverable in both tabs", () => {
+		const lazy = { ebookCount: null, audiobookCount: null };
+		expect(collectionMatchesFormat(lazy, "ebook")).toBe(true);
+		expect(collectionMatchesFormat(lazy, "audiobook")).toBe(true);
+	});
+
 	test("covers every format in the union", () => {
 		const all: LibraryFormat[] = ["all", "ebook", "audiobook"];
 		for (const format of all) {

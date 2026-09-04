@@ -1,8 +1,9 @@
-import { FolderSimple } from "@phosphor-icons/react";
+import { FolderSimple, FunnelSimple } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { m } from "@/paraglide/messages";
 import {
 	coverPresets,
 	getCoverFilename,
@@ -79,6 +80,7 @@ export function CollectionCard({
 	className,
 	readOnly = false,
 	isPublic,
+	isDynamic = false,
 	size = "default",
 }: {
 	id: string;
@@ -88,6 +90,7 @@ export function CollectionCard({
 	className?: string;
 	readOnly?: boolean;
 	isPublic?: boolean;
+	isDynamic?: boolean;
 	size?: "default" | "large";
 }): JSX.Element {
 	const card = (
@@ -121,6 +124,12 @@ export function CollectionCard({
 				>
 					{subtitle}
 				</p>
+				{isDynamic && (
+					<span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
+						<FunnelSimple />
+						{m["collection.dynamic"]()}
+					</span>
+				)}
 			</div>
 		</Link>
 	);
@@ -132,6 +141,7 @@ export function CollectionCard({
 			collectionId={id}
 			collectionName={name}
 			isPublic={isPublic}
+			isDynamic={isDynamic}
 		>
 			{card}
 		</CollectionContextMenu>
@@ -145,12 +155,14 @@ export function CollectionListItem({
 	previewCovers,
 	subtitle,
 	isPublic,
+	isDynamic = false,
 }: {
 	id: string;
 	name: string;
 	previewCovers: string[];
 	subtitle: string;
 	isPublic?: boolean;
+	isDynamic?: boolean;
 }): JSX.Element {
 	const row = (
 		<Link
@@ -172,6 +184,12 @@ export function CollectionListItem({
 				<p className="truncate text-muted-foreground text-sm tabular-nums">
 					{subtitle}
 				</p>
+				{isDynamic && (
+					<span className="mt-1 inline-flex items-center gap-1 text-muted-foreground text-xs">
+						<FunnelSimple />
+						{m["collection.dynamic"]()}
+					</span>
+				)}
 			</div>
 		</Link>
 	);
@@ -181,6 +199,7 @@ export function CollectionListItem({
 			collectionId={id}
 			collectionName={name}
 			isPublic={isPublic}
+			isDynamic={isDynamic}
 		>
 			{row}
 		</CollectionContextMenu>

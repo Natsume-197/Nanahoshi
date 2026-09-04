@@ -11,6 +11,10 @@ import { ShelfListItem } from "@/components/shared/shelf-card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
+import {
+	resolveCollectionPreview,
+	useCollectionPreviews,
+} from "@/hooks/use-collection-previews";
 import { collectionMatchesFormat } from "@/lib/library-format";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
@@ -45,11 +49,31 @@ function CollectionsPage() {
 	});
 
 	const pageLoading = isLoading || shelvesLoading;
+	const collectionIds =
+		collections
+			?.filter(
+				(collection) =>
+					collection.kind === "dynamic" || collection.bookCount == null,
+			)
+			.map((collection) => collection.id) ?? [];
+	const previews = useCollectionPreviews(collectionIds, canRead && !isLoading);
+	const matchesFormat = (
+		item: NonNullable<typeof collections>[number],
+		mediaType: "ebook" | "audiobook",
+	) => {
+		const preview = resolveCollectionPreview(item, previews.byId.get(item.id));
+		return collectionMatchesFormat(
+			{
+				ebookCount: preview.ebookCount ?? null,
+				audiobookCount: preview.audiobookCount ?? null,
+			},
+			mediaType,
+		);
+	};
 	const ebookCollections =
-		collections?.filter((item) => collectionMatchesFormat(item, "ebook")) ?? [];
+		collections?.filter((item) => matchesFormat(item, "ebook")) ?? [];
 	const audiobookCollections =
-		collections?.filter((item) => collectionMatchesFormat(item, "audiobook")) ??
-		[];
+		collections?.filter((item) => matchesFormat(item, "audiobook")) ?? [];
 
 	const renderLists = (mediaType: "ebook" | "audiobook") => {
 		const isAudiobook = mediaType === "audiobook";
@@ -95,12 +119,16 @@ function CollectionsPage() {
 					{visibleCollections.length > 0 ? (
 						<ul className="flex flex-col gap-1">
 							{visibleCollections.map((item) => {
+								const preview = resolveCollectionPreview(
+									item,
+									previews.byId.get(item.id),
+								);
 								const count = isAudiobook
-									? (item.audiobookCount ?? 0)
-									: (item.ebookCount ?? item.bookCount ?? 0);
+									? (preview.audiobookCount ?? 0)
+									: (preview.ebookCount ?? 0);
 								const previewCovers = isAudiobook
-									? (item.audiobookPreviewCovers ?? [])
-									: (item.ebookPreviewCovers ?? item.previewCovers ?? []);
+									? preview.audiobookPreviewCovers
+									: preview.ebookPreviewCovers;
 
 								return (
 									<li key={item.id}>
@@ -110,6 +138,7 @@ function CollectionsPage() {
 											previewCovers={previewCovers}
 											subtitle={m["media.item_count"]({ count })}
 											isPublic={item.isPublic}
+											isDynamic={item.kind === "dynamic"}
 										/>
 									</li>
 								);

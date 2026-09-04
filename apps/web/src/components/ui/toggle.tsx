@@ -8,13 +8,14 @@ const toggleVariants = cva(
 	{
 		variants: {
 			variant: {
-				default: "bg-transparent aria-pressed:bg-muted",
-				outline: "border border-input bg-transparent aria-pressed:bg-muted",
+				default: "bg-transparent data-pressed:bg-muted",
+				outline:
+					"border border-input bg-transparent data-pressed:border-foreground/20 data-pressed:bg-muted data-pressed:text-foreground",
 				category:
-					"rounded-xl bg-muted text-foreground transition-[background-color,color,scale] duration-150 hover:bg-muted/75 active:scale-[0.96] aria-pressed:bg-foreground aria-pressed:text-background motion-reduce:transition-none motion-reduce:active:scale-100",
+					"rounded-xl bg-muted text-foreground transition-[background-color,color,scale] duration-150 hover:bg-muted/75 active:scale-[0.96] data-pressed:bg-foreground data-pressed:text-background motion-reduce:transition-none motion-reduce:active:scale-100",
 				segmented:
-					"rounded-xl bg-transparent text-muted-foreground hover:bg-foreground/5 hover:text-foreground aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-sm",
-				line: "relative rounded-none bg-transparent text-muted-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-foreground after:opacity-0 after:transition-opacity after:duration-200 hover:bg-transparent hover:text-foreground aria-pressed:text-foreground aria-pressed:after:opacity-100",
+					"rounded-xl bg-transparent text-muted-foreground hover:bg-foreground/5 hover:text-foreground data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:shadow-sm",
+				line: "relative rounded-none bg-transparent text-muted-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-foreground after:opacity-0 after:transition-opacity after:duration-200 hover:bg-transparent hover:text-foreground data-pressed:text-foreground data-pressed:after:opacity-100",
 			},
 			size: {
 				default:

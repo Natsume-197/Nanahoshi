@@ -1,9 +1,11 @@
+import type { DynamicCollectionDefinitionV1 } from "@nanahoshi-v2/api/routers/collections/collection-rules";
+import { FunnelSimple } from "@phosphor-icons/react";
 import {
 	keepPreviousData,
 	useInfiniteQuery,
 	useQuery,
 } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
@@ -23,6 +25,7 @@ import {
 	MultiFilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
+import { Button } from "@/components/ui/button";
 import type { MediaType } from "@/hooks/books/use-toggle-like";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
@@ -292,6 +295,118 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		genres.length > 0 ||
 		tags.length > 0 ||
 		year != null;
+	const dynamicDraft = useMemo<DynamicCollectionDefinitionV1>(() => {
+		const children: DynamicCollectionDefinitionV1["root"]["children"] = [
+			{
+				kind: "rule",
+				field: "mediaType",
+				operator: "includesAny",
+				value: [format],
+			},
+		];
+		if (query) {
+			children.push({
+				kind: "group",
+				match: "any",
+				children: [
+					{ kind: "rule", field: "title", operator: "contains", value: query },
+					{
+						kind: "rule",
+						field: "filename",
+						operator: "contains",
+						value: query,
+					},
+				],
+			});
+		}
+		const selectedLibraryUuid = libraryUuid ?? libraryFilter;
+		if (selectedLibraryUuid) {
+			children.push({
+				kind: "rule",
+				field: "library",
+				operator: "includesAny",
+				value: [
+					{
+						id: selectedLibraryUuid,
+						label:
+							library?.name ??
+							allLibraries?.find((item) => item.uuid === selectedLibraryUuid)
+								?.name ??
+							"Library",
+					},
+				],
+			});
+		}
+		if (year != null)
+			children.push({
+				kind: "rule",
+				field: "publishedYear",
+				operator: "equals",
+				value: year,
+			});
+		if (effectiveMinRating != null)
+			children.push({
+				kind: "rule",
+				field: "communityRating",
+				operator: "gte",
+				value: effectiveMinRating,
+			});
+		const field =
+			effectiveSort === "recent"
+				? "addedAt"
+				: effectiveSort === "author"
+					? "primaryAuthor"
+					: effectiveSort === "rating"
+						? "communityRating"
+						: "title";
+		return {
+			version: 1,
+			root: { kind: "group", match: "all", children },
+			sort: [
+				{
+					field,
+					direction:
+						effectiveSort === "recent" || effectiveSort === "rating"
+							? "desc"
+							: "asc",
+				},
+			],
+		};
+	}, [
+		allLibraries,
+		effectiveMinRating,
+		effectiveSort,
+		format,
+		library?.name,
+		libraryFilter,
+		libraryUuid,
+		query,
+		year,
+	]);
+	const cannotSaveFilters = genres.length > 0 || tags.length > 0;
+	const saveDynamicAction = (
+		<Button
+			type="button"
+			variant="outline"
+			disabled={cannotSaveFilters}
+			title={
+				cannotSaveFilters
+					? "Clear genre and tag filters before saving; this catalog currently exposes their names, not stable identities."
+					: undefined
+			}
+			render={
+				cannotSaveFilters ? undefined : (
+					<Link
+						to="/dashboard/collections/new"
+						search={{ draft: JSON.stringify(dynamicDraft) }}
+					/>
+				)
+			}
+		>
+			<FunnelSimple data-icon="inline-start" />
+			{m["collection.save_as_dynamic"]()}
+		</Button>
+	);
 
 	const filterBar = isLibrary ? (
 		<FilterBar>
@@ -411,7 +526,10 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				sortAriaLabel={m["library_page.sort_aria"]()}
 				filterBar={filterBar}
 				extraActions={
-					isLibrary ? undefined : <SurpriseButton format={format} />
+					<>
+						{saveDynamicAction}
+						{!isLibrary && <SurpriseButton format={format} />}
+					</>
 				}
 				items={books}
 				getKey={(book) => book.uuid}

@@ -11,7 +11,19 @@ import {
 	collectionBook,
 	library,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	ilike,
+	inArray,
+	isNull,
+	or,
+	sql,
+} from "drizzle-orm";
+import type { DynamicCollectionDefinitionV1 } from "./collection-rules";
+import { compileDynamicCollectionQuery } from "./collection-rules.compiler";
 
 type CreateCollectionRecordInput = {
 	userId: string;
@@ -19,9 +31,157 @@ type CreateCollectionRecordInput = {
 	name: string;
 	description: string | null;
 	isPublic: boolean;
+	kind: "manual" | "dynamic";
+	dynamicDefinition: unknown | null;
 };
 
 export class CollectionsRepository {
+	async listRuleOptions(
+		field:
+			| "author"
+			| "narrator"
+			| "publisher"
+			| "series"
+			| "genre"
+			| "tag"
+			| "library"
+			| "manualCollection",
+		query: string,
+		limit: number,
+		userId: string,
+		serverId: string,
+		accessibleLibraryIds: number[] | "ALL",
+	): Promise<Array<{ id: string; label: string }>> {
+		if (field === "library") {
+			const scope =
+				accessibleLibraryIds === "ALL"
+					? undefined
+					: accessibleLibraryIds.length === 0
+						? sql`false`
+						: inArray(library.id, accessibleLibraryIds);
+			return db
+				.select({
+					id: library.uuid,
+					label: sql<string>`COALESCE(${library.name}, 'Library')`,
+				})
+				.from(library)
+				.where(
+					and(
+						eq(library.serverId, serverId),
+						scope,
+						query ? ilike(library.name, `%${query}%`) : undefined,
+					),
+				)
+				.orderBy(asc(library.name))
+				.limit(limit);
+		}
+		if (field === "manualCollection") {
+			return db
+				.select({ id: collection.id, label: collection.name })
+				.from(collection)
+				.where(
+					and(
+						eq(collection.serverId, serverId),
+						eq(collection.kind, "manual"),
+						or(eq(collection.userId, userId), eq(collection.isPublic, true)),
+						query ? ilike(collection.name, `%${query}%`) : undefined,
+					),
+				)
+				.orderBy(asc(collection.name))
+				.limit(limit);
+		}
+
+		const sources = {
+			author: {
+				table: "author",
+				relation:
+					"SELECT book_id, author_id AS entity_id FROM book_author UNION ALL SELECT book_id, author_id AS entity_id FROM audiobook_author",
+			},
+			narrator: {
+				table: "narrator",
+				relation: "SELECT book_id, narrator_id AS entity_id FROM book_narrator",
+			},
+			publisher: {
+				table: "publisher",
+				relation:
+					"SELECT book_id, publisher_id AS entity_id FROM book_metadata WHERE publisher_id IS NOT NULL UNION ALL SELECT book_id, publisher_id AS entity_id FROM audiobook_metadata WHERE publisher_id IS NOT NULL",
+			},
+			series: {
+				table: "series",
+				relation:
+					"SELECT book_id, series_id AS entity_id FROM book_series UNION ALL SELECT book_id, series_id AS entity_id FROM audiobook_series",
+			},
+			genre: {
+				table: "genre",
+				relation:
+					"SELECT book_id, genre_id AS entity_id FROM book_genre UNION ALL SELECT book_id, genre_id AS entity_id FROM audiobook_genre",
+			},
+			tag: {
+				table: "tag",
+				relation:
+					"SELECT book_id, tag_id AS entity_id FROM book_tag UNION ALL SELECT book_id, tag_id AS entity_id FROM audiobook_tag",
+			},
+		} as const;
+		const source = sources[field];
+		const scope =
+			accessibleLibraryIds === "ALL"
+				? sql`true`
+				: accessibleLibraryIds.length === 0
+					? sql`false`
+					: sql`b.library_id IN (${sql.join(
+							accessibleLibraryIds.map((id) => sql`${id}`),
+							sql`, `,
+						)})`;
+		const result = await db.execute(sql`
+			SELECT e.uuid::text AS id, e.name AS label
+			FROM ${sql.raw(source.table)} e
+			WHERE e.server_id = ${serverId}
+				AND (${query} = '' OR e.name ILIKE ${`%${query}%`})
+				AND EXISTS (
+					SELECT 1 FROM (${sql.raw(source.relation)}) rel
+					INNER JOIN book b ON b.id = rel.book_id
+					INNER JOIN library l ON l.id = b.library_id
+					WHERE rel.entity_id = e.id AND l.server_id = ${serverId}
+						AND b.duplicate_of_book_id IS NULL AND ${scope}
+				)
+			ORDER BY e.name ASC
+			LIMIT ${limit}
+		`);
+		return result.rows as Array<{ id: string; label: string }>;
+	}
+
+	async listManualReferences(ids: string[], serverId: string) {
+		if (ids.length === 0) return [];
+		return db
+			.select({
+				id: collection.id,
+				userId: collection.userId,
+				isPublic: collection.isPublic,
+			})
+			.from(collection)
+			.where(
+				and(
+					eq(collection.serverId, serverId),
+					eq(collection.kind, "manual"),
+					inArray(collection.id, ids),
+				),
+			);
+	}
+
+	async listVisibleDynamic(userId: string, serverId: string) {
+		return db
+			.select({ id: collection.id, name: collection.name })
+			.from(collection)
+			.where(
+				and(
+					eq(collection.serverId, serverId),
+					eq(collection.kind, "dynamic"),
+					or(eq(collection.userId, userId), eq(collection.isPublic, true)),
+				),
+			)
+			.orderBy(asc(collection.name));
+	}
+
 	async create(input: CreateCollectionRecordInput) {
 		const [created] = await db.insert(collection).values(input).returning();
 		return created;
@@ -73,35 +233,6 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	async getSummaryByIdForUser(
-		collectionId: string,
-		userId: string,
-		serverId: string,
-	) {
-		const [row] = await db
-			.select({
-				id: collection.id,
-				name: collection.name,
-				description: collection.description,
-				isPublic: collection.isPublic,
-				createdAt: collection.createdAt,
-				updatedAt: collection.updatedAt,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
-			})
-			.from(collection)
-			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
-			.where(
-				and(
-					eq(collection.id, collectionId),
-					eq(collection.userId, userId),
-					eq(collection.serverId, serverId),
-				),
-			)
-			.groupBy(collection.id)
-			.limit(1);
-		return row ?? null;
-	}
-
 	async listBookMembershipsByBookId(
 		userId: string,
 		serverId: string,
@@ -113,6 +244,7 @@ export class CollectionsRepository {
 				name: collection.name,
 				description: collection.description,
 				isPublic: collection.isPublic,
+				kind: collection.kind,
 				inCollection: sql<boolean>`CASE WHEN ${collectionBook.bookId} IS NULL THEN false ELSE true END`,
 				bookCount: sql<number>`(SELECT COUNT(*)::int FROM collection_book cb WHERE cb.collection_id = ${collection.id})`,
 				updatedAt: collection.updatedAt,
@@ -126,54 +258,13 @@ export class CollectionsRepository {
 				),
 			)
 			.where(
-				and(eq(collection.userId, userId), eq(collection.serverId, serverId)),
-			)
-			.orderBy(desc(collection.updatedAt), asc(collection.name));
-	}
-
-	async listBooksByCollectionForUser(
-		collectionId: string,
-		userId: string,
-		serverId: string,
-		accessibleLibraryIds: number[] | "ALL" = "ALL",
-	) {
-		const scopeCondition =
-			accessibleLibraryIds === "ALL"
-				? undefined
-				: inArray(book.libraryId, accessibleLibraryIds);
-		return db
-			.select({
-				id: book.id,
-				uuid: book.uuid,
-				filename: book.filename,
-				title: sql<
-					string | null
-				>`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title})`,
-				cover: sql<
-					string | null
-				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
-				mainColor: sql<
-					string | null
-				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
-				addedAt: collectionBook.addedAt,
-				mediaType: library.mediaType,
-			})
-			.from(collectionBook)
-			.innerJoin(collection, eq(collection.id, collectionBook.collectionId))
-			.innerJoin(book, eq(book.id, collectionBook.bookId))
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
-			.where(
 				and(
-					eq(collectionBook.collectionId, collectionId),
 					eq(collection.userId, userId),
 					eq(collection.serverId, serverId),
-					eq(library.serverId, serverId),
-					scopeCondition,
+					eq(collection.kind, "manual"),
 				),
 			)
-			.orderBy(desc(collectionBook.addedAt), asc(book.filename));
+			.orderBy(desc(collection.updatedAt), asc(collection.name));
 	}
 
 	async listAuthorsByBookIds(bookIds: number[]) {
@@ -210,11 +301,19 @@ export class CollectionsRepository {
 				name: collection.name,
 				description: collection.description,
 				isPublic: collection.isPublic,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
-				ebookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'ebook') AS int)`,
-				audiobookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'audiobook') AS int)`,
+				bookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) AS int) END`,
+				ebookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'ebook') AS int) END`,
+				audiobookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) FILTER (WHERE ${library.mediaType} = 'audiobook') AS int) END`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -273,9 +372,13 @@ export class CollectionsRepository {
 				name: collection.name,
 				description: collection.description,
 				isPublic: collection.isPublic,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				bookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) AS int) END`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -318,11 +421,15 @@ export class CollectionsRepository {
 				name: collection.name,
 				description: collection.description,
 				isPublic: collection.isPublic,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
 				updatedAt: collection.updatedAt,
 				isOwner: sql<boolean>`(${collection.userId} = ${viewerId})`,
 				ownerUsername: user.username,
 				ownerName: user.name,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				bookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) AS int) END`,
 				previewCovers: sql<string[]>`COALESCE(
 					(SELECT json_agg(sub.cover) FROM (
 						SELECT COALESCE(bm.cover, am.cover) AS cover
@@ -367,13 +474,17 @@ export class CollectionsRepository {
 				name: collection.name,
 				description: collection.description,
 				isPublic: collection.isPublic,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
 				createdAt: collection.createdAt,
 				updatedAt: collection.updatedAt,
 				isOwner: sql<boolean>`(${collection.userId} = ${viewerId})`,
 				ownerUsername: user.username,
 				ownerName: user.name,
 				ownerImage: user.image,
-				bookCount: sql<number>`CAST(COUNT(${collectionBook.bookId}) AS int)`,
+				bookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) AS int) END`,
 			})
 			.from(collection)
 			.innerJoin(user, eq(user.id, collection.userId))
@@ -390,16 +501,19 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
-	/** Books in a collection, scoped only by server + accessible libraries (no owner filter). */
-	async listBooksByCollection(
-		collectionId: string,
-		serverId: string,
-		accessibleLibraryIds: number[] | "ALL" = "ALL",
+	async listDynamicItems(
+		definition: DynamicCollectionDefinitionV1,
+		context: {
+			viewerId: string;
+			serverId: string;
+			accessibleLibraryIds: number[] | "ALL";
+			timeZone: string;
+			query?: string;
+			randomSeed?: string;
+		},
+		options: { limit: number; offset: number },
 	) {
-		const scopeCondition =
-			accessibleLibraryIds === "ALL"
-				? undefined
-				: inArray(book.libraryId, accessibleLibraryIds);
+		const compiled = compileDynamicCollectionQuery(definition, context);
 		return db
 			.select({
 				id: book.id,
@@ -407,15 +521,61 @@ export class CollectionsRepository {
 				filename: book.filename,
 				title: sql<
 					string | null
-				>`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title})`,
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.title} ELSE ${bookMetadata.title} END`,
 				cover: sql<
 					string | null
-				>`COALESCE(${bookMetadata.cover}, ${audiobookMetadata.cover})`,
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
 				mainColor: sql<
 					string | null
-				>`COALESCE(${bookMetadata.mainColor}, ${audiobookMetadata.mainColor})`,
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.mainColor} ELSE ${bookMetadata.mainColor} END`,
+				addedAt: book.createdAt,
+				mediaType: library.mediaType,
+				totalHits: sql<number>`COUNT(*) OVER()::int`,
+				ebookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'ebook') OVER()::int`,
+				audiobookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'audiobook') OVER()::int`,
+			})
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.where(compiled.where)
+			.orderBy(...compiled.orderBy)
+			.limit(options.limit)
+			.offset(options.offset);
+	}
+
+	async listManualItems(
+		collectionId: string,
+		serverId: string,
+		accessibleLibraryIds: number[] | "ALL",
+		options: { limit: number; offset: number; query?: string },
+	) {
+		const scopeCondition =
+			accessibleLibraryIds === "ALL"
+				? undefined
+				: accessibleLibraryIds.length === 0
+					? sql`false`
+					: inArray(book.libraryId, accessibleLibraryIds);
+		const query = options.query?.trim();
+		return db
+			.select({
+				id: book.id,
+				uuid: book.uuid,
+				filename: book.filename,
+				title: sql<
+					string | null
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.title} ELSE ${bookMetadata.title} END`,
+				cover: sql<
+					string | null
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
+				mainColor: sql<
+					string | null
+				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.mainColor} ELSE ${bookMetadata.mainColor} END`,
 				addedAt: collectionBook.addedAt,
 				mediaType: library.mediaType,
+				totalHits: sql<number>`COUNT(*) OVER()::int`,
+				ebookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'ebook') OVER()::int`,
+				audiobookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'audiobook') OVER()::int`,
 			})
 			.from(collectionBook)
 			.innerJoin(collection, eq(collection.id, collectionBook.collectionId))
@@ -425,13 +585,53 @@ export class CollectionsRepository {
 			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 			.where(
 				and(
-					eq(collectionBook.collectionId, collectionId),
+					eq(collection.id, collectionId),
 					eq(collection.serverId, serverId),
+					eq(collection.kind, "manual"),
 					eq(library.serverId, serverId),
+					isNull(book.duplicateOfBookId),
 					scopeCondition,
+					query
+						? or(
+								ilike(book.filename, `%${query}%`),
+								ilike(bookMetadata.title, `%${query}%`),
+								ilike(audiobookMetadata.title, `%${query}%`),
+							)
+						: undefined,
 				),
 			)
-			.orderBy(desc(collectionBook.addedAt), asc(book.filename));
+			.orderBy(desc(collectionBook.addedAt), asc(book.id))
+			.limit(options.limit)
+			.offset(options.offset);
+	}
+
+	async updateDynamicDefinition(
+		collectionId: string,
+		userId: string,
+		serverId: string,
+		input: {
+			name: string;
+			description: string | null;
+			isPublic: boolean;
+			dynamicDefinition: DynamicCollectionDefinitionV1;
+		},
+	) {
+		const [updated] = await db
+			.update(collection)
+			.set({
+				...input,
+				updatedAt: sql`NOW()`,
+			})
+			.where(
+				and(
+					eq(collection.id, collectionId),
+					eq(collection.userId, userId),
+					eq(collection.serverId, serverId),
+					eq(collection.kind, "dynamic"),
+				),
+			)
+			.returning();
+		return updated ?? null;
 	}
 
 	async rename(collectionId: string, name: string) {

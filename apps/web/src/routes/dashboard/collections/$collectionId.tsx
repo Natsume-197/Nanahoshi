@@ -1,5 +1,11 @@
-import { ArrowLeft, CircleNotch, Trash } from "@phosphor-icons/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import type { DynamicCollectionDefinitionV1 } from "@nanahoshi-v2/api/routers/collections/collection-rules";
+import {
+	ArrowLeft,
+	CircleNotch,
+	PencilSimple,
+	Trash,
+} from "@phosphor-icons/react";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,12 +14,14 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useDebounce } from "@/hooks/use-debounce";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { PAGE_SHELL } from "@/lib/page-layout";
 import { cn } from "@/lib/utils";
@@ -32,7 +40,10 @@ function CollectionDetailPage() {
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const canRead = can("collection", "read");
 	const canDelete = can("collection", "delete");
+	const canUpdate = can("collection", "update");
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [search, setSearch] = useState("");
+	const query = useDebounce(search.trim(), 300);
 
 	const deleteCollectionMutation = useMutation({
 		mutationFn: () => client.collections.delete({ collectionId }),
@@ -61,9 +72,27 @@ function CollectionDetailPage() {
 		staleTime: 30_000,
 		enabled: canRead,
 	});
+	const itemsQuery = useInfiniteQuery({
+		...orpc.collections.listItems.infiniteOptions({
+			input: (pageParam: number) => ({
+				collectionId,
+				cursor: pageParam,
+				limit: 30,
+				query: query || undefined,
+				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			}),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage) => lastPage.pagination.nextCursor,
+			staleTime: 30_000,
+		}),
+		enabled: canRead,
+	});
 
 	const collection = detailsQuery.data?.collection;
-	const books = detailsQuery.data?.books ?? [];
+	const books = itemsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+	const totalHits = itemsQuery.data?.pages[0]?.pagination.totalHits;
+	const invalidDefinition =
+		itemsQuery.data?.pages[0]?.definitionStatus === "invalid";
 
 	if (!abilitiesLoading && !canRead) {
 		return (
@@ -86,14 +115,14 @@ function CollectionDetailPage() {
 				{m["shelves.back"]()}
 			</Link>
 
-			{detailsQuery.isLoading && (
+			{(detailsQuery.isLoading || itemsQuery.isLoading) && (
 				<div className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-muted-foreground text-sm">
 					<CircleNotch className="size-4 animate-spin" />
 					{m["collection.loading"]()}
 				</div>
 			)}
 
-			{detailsQuery.isError && (
+			{(detailsQuery.isError || itemsQuery.isError) && (
 				<p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm">
 					Unable to load this collection.
 				</p>
@@ -104,73 +133,151 @@ function CollectionDetailPage() {
 					<CollectionToolbar
 						title={collection.name}
 						subtitle={[
-							m["collection.subtitle"]({ count: collection.bookCount }),
+							m["collection.subtitle"]({
+								count: totalHits ?? collection.bookCount ?? 0,
+							}),
 							collection.description,
 						]
 							.filter(Boolean)
 							.join(" · ")}
 						actions={
-							!collection.isOwner || canDelete ? (
-								<div className="flex items-center gap-2">
-									{!collection.isOwner && (
-										<Link
-											to="/dashboard/user/$username"
-											params={{ username: collection.ownerUsername }}
-											className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-sm transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-										>
-											<UserAvatar
-												name={collection.ownerName}
-												image={collection.ownerImage}
-												className="size-5 shrink-0"
-											/>
-											@{collection.ownerUsername}
-										</Link>
-									)}
-									{collection.isOwner && canDelete && (
+							<div className="flex items-center gap-2">
+								<CollectionSearch
+									value={search}
+									onChange={setSearch}
+									placeholder="Search this collection"
+									ariaLabel="Search this collection"
+								/>
+								{collection.isOwner &&
+									collection.kind === "dynamic" &&
+									canUpdate && (
 										<Button
 											type="button"
 											size="lg"
-											variant="destructive"
-											onClick={() => setDeleteOpen(true)}
+											variant="outline"
+											render={
+												<Link
+													to="/dashboard/collections/$collectionId/edit"
+													params={{ collectionId }}
+												/>
+											}
 										>
-											<Trash className="size-4" data-icon="inline-start" />
-											{m["common.delete"]()}
+											<PencilSimple data-icon="inline-start" />
+											{m["collection.edit_rules"]()}
 										</Button>
 									)}
-								</div>
-							) : undefined
+								{!collection.isOwner && (
+									<Link
+										to="/dashboard/user/$username"
+										params={{ username: collection.ownerUsername }}
+										className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-sm transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+									>
+										<UserAvatar
+											name={collection.ownerName}
+											image={collection.ownerImage}
+											className="size-5 shrink-0"
+										/>
+										@{collection.ownerUsername}
+									</Link>
+								)}
+								{collection.isOwner && canDelete && (
+									<Button
+										type="button"
+										size="lg"
+										variant="destructive"
+										onClick={() => setDeleteOpen(true)}
+									>
+										<Trash className="size-4" data-icon="inline-start" />
+										{m["common.delete"]()}
+									</Button>
+								)}
+							</div>
 						}
 					/>
+					{collection.kind === "dynamic" &&
+						collection.definitionStatus === "valid" && (
+							<details className="rounded-xl bg-muted/50 px-4 py-3 text-sm">
+								<summary className="cursor-pointer font-medium">
+									How this collection is built
+								</summary>
+								<p className="mt-2 text-muted-foreground">
+									{summarizeDefinition(
+										collection.dynamicDefinition as DynamicCollectionDefinitionV1,
+									)}
+								</p>
+							</details>
+						)}
 
-					{books.length === 0 ? (
+					{invalidDefinition ? (
 						<EmptyState
-							title="No books yet"
-							description="This collection has no books yet. Add books from your library."
+							title={
+								collection.isOwner
+									? "Rules need repair"
+									: "Collection unavailable"
+							}
+							description={
+								collection.isOwner
+									? "Open the rule editor and save a valid definition."
+									: "This collection cannot be displayed right now."
+							}
+						/>
+					) : books.length === 0 ? (
+						<EmptyState
+							title={query ? "No matches" : "No books yet"}
+							description={
+								query
+									? "Try another search."
+									: collection.kind === "dynamic"
+										? "No library items match these rules yet."
+										: "This collection has no books yet. Add books from your library."
+							}
 						/>
 					) : (
 						<BookContextMenuRoot>
-							<div className={BOOK_GRID_CLASS}>
-								{books.map((book) => (
-									<div key={book.uuid} className="space-y-1">
-										<BookContextMenuTrigger bookUuid={book.uuid}>
-											<BookCard
-												uuid={book.uuid}
-												title={book.title ?? null}
-												filename={book.filename}
-												cover={book.cover ?? null}
-												tint={book.mainColor}
-												authors={book.authors}
-												contextMenuEnabled={false}
-												mediaType={
-													book.mediaType === "audiobook" ? "audiobook" : "ebook"
-												}
-											/>
-										</BookContextMenuTrigger>
-										<p className="px-2 text-[11px] text-muted-foreground">
-											Added {formatDate(book.addedAt) ?? "recently"}
-										</p>
+							<div className="space-y-6">
+								<div className={BOOK_GRID_CLASS}>
+									{books.map((book) => (
+										<div key={book.uuid} className="space-y-1">
+											<BookContextMenuTrigger bookUuid={book.uuid}>
+												<BookCard
+													uuid={book.uuid}
+													title={book.title ?? null}
+													filename={book.filename}
+													cover={book.cover ?? null}
+													tint={book.mainColor}
+													authors={book.authors}
+													contextMenuEnabled={false}
+													mediaType={
+														book.mediaType === "audiobook"
+															? "audiobook"
+															: "ebook"
+													}
+												/>
+											</BookContextMenuTrigger>
+											<p className="px-2 text-[11px] text-muted-foreground">
+												Added {formatDate(book.addedAt) ?? "recently"}
+											</p>
+										</div>
+									))}
+								</div>
+								{itemsQuery.hasNextPage && (
+									<div className="flex justify-center">
+										<Button
+											type="button"
+											variant="outline"
+											disabled={itemsQuery.isFetchingNextPage}
+											onClick={() => itemsQuery.fetchNextPage()}
+										>
+											{itemsQuery.isFetchingNextPage && (
+												<CircleNotch
+													className="animate-spin"
+													data-icon="inline-start"
+												/>
+											)}
+											Load more
+										</Button>
 									</div>
-								))}
+								)}
 							</div>
 						</BookContextMenuRoot>
 					)}
@@ -212,4 +319,30 @@ function CollectionDetailPage() {
 			)}
 		</div>
 	);
+}
+
+function summarizeDefinition(definition: DynamicCollectionDefinitionV1) {
+	const summarizeGroup = (
+		group: DynamicCollectionDefinitionV1["root"],
+	): string =>
+		group.children
+			.map((child) => {
+				if (child.kind === "group") return `(${summarizeGroup(child)})`;
+				const value =
+					child.value == null
+						? ""
+						: Array.isArray(child.value)
+							? child.value
+									.map((item) => (typeof item === "object" ? item.label : item))
+									.join(", ")
+							: typeof child.value === "object"
+								? JSON.stringify(child.value)
+								: String(child.value);
+				return `${child.field} ${child.operator}${value ? ` ${value}` : ""}`;
+			})
+			.join(group.match === "all" ? " AND " : " OR ");
+	const sort = definition.sort
+		.map((item) => `${item.field} ${item.direction}`)
+		.join(", ");
+	return `${summarizeGroup(definition.root)}${sort ? `. Sorted by ${sort}.` : ""}`;
 }

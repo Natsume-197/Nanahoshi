@@ -1,7 +1,14 @@
-import { CircleNotch, FolderPlus, Plus } from "@phosphor-icons/react";
+import {
+	CircleNotch,
+	FolderPlus,
+	FunnelSimple,
+	Plus,
+} from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
+import { DynamicCollectionEditor } from "@/components/collections/dynamic-collection-editor";
+import { emptyDynamicCollectionDefinition } from "@/components/collections/dynamic-collection-templates";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -57,6 +64,7 @@ export function CreateCollectionDialog({
 	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 	const [isPublic, setIsPublic] = useState(false);
+	const [mode, setMode] = useState<"choice" | "manual" | "dynamic">("choice");
 	const nameFieldId = useId();
 	const publicFieldId = useId();
 
@@ -69,6 +77,7 @@ export function CreateCollectionDialog({
 			onOpenChange(false);
 			setName("");
 			setIsPublic(false);
+			setMode("choice");
 			toast.success(m["toast.collection_created"]());
 		},
 		onError: (err) => toast.error(err.message),
@@ -80,27 +89,80 @@ export function CreateCollectionDialog({
 		if (!trimmed) return;
 		createMutation.mutate({ name: trimmed, isPublic });
 	};
+	const close = () => {
+		onOpenChange(false);
+		setName("");
+		setIsPublic(false);
+		setMode("choice");
+	};
+
+	if (mode === "choice") {
+		return (
+			<Modal
+				open={open}
+				onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+				title={m["collection.create_title"]()}
+				description={m["collection.create_desc"]()}
+			>
+				<div className="flex flex-col gap-3">
+					<Button
+						type="button"
+						variant="outline"
+						size="lg"
+						className="h-14 w-full justify-start"
+						onClick={() => setMode("manual")}
+					>
+						<FolderPlus data-icon="inline-start" aria-hidden="true" />
+						{m["collection.create_manual_title"]()}
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="lg"
+						className="h-14 w-full justify-start"
+						onClick={() => setMode("dynamic")}
+					>
+						<FunnelSimple data-icon="inline-start" aria-hidden="true" />
+						{m["collection.create_dynamic_title"]()}
+					</Button>
+				</div>
+			</Modal>
+		);
+	}
+
+	if (mode === "dynamic") {
+		return (
+			<DynamicCollectionEditor
+				open={open}
+				onOpenChange={(next) => {
+					if (!next) close();
+				}}
+				title={m["collection.dynamic_editor_create_title"]()}
+				description={m["collection.dynamic_editor_create_desc"]()}
+				initial={emptyDynamicCollectionDefinition()}
+				submitLabel={m["common.create"]()}
+				isSubmitting={createMutation.isPending}
+				onSubmit={(value) =>
+					createMutation.mutateAsync({ ...value, kind: "dynamic" })
+				}
+			/>
+		);
+	}
 
 	return (
 		<Modal
 			open={open}
-			onOpenChange={(next) => {
-				onOpenChange(next);
-				if (!next) {
-					setName("");
-					setIsPublic(false);
-				}
-			}}
+			onOpenChange={(next) => (next ? onOpenChange(true) : close())}
 			onSubmit={handleCreate}
-			title={m["collection.create_title"]()}
-			description={m["collection.create_desc"]()}
+			title={m["collection.create_manual_title"]()}
+			description={m["collection.create_manual_desc"]()}
 			footer={
 				<>
 					<Button
 						type="button"
 						variant="outline"
 						disabled={createMutation.isPending}
-						onClick={() => onOpenChange(false)}
+						onClick={close}
 					>
 						{m["common.cancel"]()}
 					</Button>

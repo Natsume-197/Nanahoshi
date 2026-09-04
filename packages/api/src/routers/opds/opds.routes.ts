@@ -28,13 +28,33 @@ function parsePage(c: {
 	return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
 }
 
+export function parseCollectionCursor(value?: string): number {
+	if (!value) return 0;
+	try {
+		const cursor = Number(Buffer.from(value, "base64url").toString("utf8"));
+		return Number.isInteger(cursor) && cursor >= 0 && cursor <= 1_000_000
+			? cursor
+			: 0;
+	} catch {
+		return 0;
+	}
+}
+
+export const encodeCollectionCursor = (cursor: number) =>
+	Buffer.from(String(cursor)).toString("base64url");
+
 export function createOpdsApp(auth: typeof authInstance) {
 	const app = new Hono<Env>();
 
 	app.use("*", opdsAuthMiddleware(auth));
 
 	// Root catalog
-	app.get("/", (c) => {
+	app.get("/", async (c) => {
+		const { userId, serverId } = c.get("opdsUser");
+		const dynamicCollections = await opdsRepository.listDynamicCollections(
+			userId,
+			serverId,
+		);
 		const feed = buildNavigationFeed(
 			[
 				{
@@ -61,6 +81,16 @@ export function createOpdsApp(auth: typeof authInstance) {
 					id: "urn:nanahoshi:series",
 					content: "Browse by series",
 				},
+				...(dynamicCollections.length > 0
+					? [
+							{
+								title: "Dynamic Collections",
+								href: "/opds/collections/dynamic",
+								id: "urn:nanahoshi:dynamic-collections",
+								content: "Collections that update automatically",
+							},
+						]
+					: []),
 			],
 			{
 				id: "urn:nanahoshi:root",
@@ -70,6 +100,71 @@ export function createOpdsApp(auth: typeof authInstance) {
 			},
 		);
 		return xmlResponse(c, feed);
+	});
+
+	app.get("/collections/dynamic", async (c) => {
+		const { userId, serverId } = c.get("opdsUser");
+		const collections = await opdsRepository.listDynamicCollections(
+			userId,
+			serverId,
+		);
+		return xmlResponse(
+			c,
+			buildNavigationFeed(
+				collections.map((collection) => ({
+					title: collection.name,
+					href: `/opds/collections/dynamic/${collection.id}`,
+					id: `urn:nanahoshi:dynamic-collection:${collection.id}`,
+				})),
+				{
+					id: "urn:nanahoshi:dynamic-collections",
+					title: "Dynamic Collections",
+					selfHref: "/opds/collections/dynamic",
+					searchHref: "/opds/opensearch.xml",
+				},
+			),
+		);
+	});
+
+	app.get("/collections/dynamic/:id", async (c) => {
+		const { userId, serverId, accessibleLibraryIds } = c.get("opdsUser");
+		const collectionId = c.req.param("id");
+		const cursor = parseCollectionCursor(c.req.query("cursor"));
+		const query = c.req.query("q")?.slice(0, 200);
+		const visible = await opdsRepository.listDynamicCollections(
+			userId,
+			serverId,
+		);
+		const collection = visible.find((item) => item.id === collectionId);
+		if (!collection) return c.text("Collection not found", 404);
+		const result = await opdsRepository.listDynamicCollectionItems(
+			collectionId,
+			userId,
+			serverId,
+			cursor,
+			accessibleLibraryIds,
+			query,
+		);
+		const querySuffix = query ? `&q=${encodeURIComponent(query)}` : "";
+		const selfSuffix =
+			cursor > 0
+				? `?cursor=${encodeCollectionCursor(cursor)}${querySuffix}`
+				: query
+					? `?q=${encodeURIComponent(query)}`
+					: "";
+		return xmlResponse(
+			c,
+			buildAcquisitionFeed(result.books, {
+				id: `urn:nanahoshi:dynamic-collection:${collectionId}`,
+				title: collection.name,
+				selfHref: `/opds/collections/dynamic/${collectionId}${selfSuffix}`,
+				nextHref:
+					result.hasMore && result.nextCursor != null
+						? `/opds/collections/dynamic/${collectionId}?cursor=${encodeCollectionCursor(result.nextCursor)}${querySuffix}`
+						: undefined,
+				searchHref: "/opds/opensearch.xml",
+			}),
+		);
 	});
 
 	// OpenSearch description

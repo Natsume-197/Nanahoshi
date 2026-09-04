@@ -1,0 +1,694 @@
+import {
+	audiobookMetadata,
+	book,
+	bookMetadata,
+	library,
+} from "@nanahoshi-v2/db/schema/general";
+import { and, eq, inArray, isNull, not, or, type SQL, sql } from "drizzle-orm";
+import {
+	type CollectionEntityRef,
+	type CollectionFieldRule,
+	type CollectionRuleGroup,
+	type DynamicCollectionDefinitionV1,
+	isPersonalizedCollectionDefinition,
+} from "./collection-rules";
+
+export type DynamicCollectionQueryContext = {
+	viewerId: string;
+	serverId: string;
+	accessibleLibraryIds: number[] | "ALL";
+	timeZone: string;
+	query?: string;
+	randomSeed?: string;
+};
+
+export type CompiledDynamicCollectionQuery = {
+	where: SQL;
+	orderBy: SQL[];
+	isPersonalized: boolean;
+};
+
+export function compileDynamicCollectionQuery(
+	definition: DynamicCollectionDefinitionV1,
+	context: DynamicCollectionQueryContext,
+): CompiledDynamicCollectionQuery {
+	const scope =
+		context.accessibleLibraryIds === "ALL"
+			? undefined
+			: context.accessibleLibraryIds.length === 0
+				? sql`false`
+				: inArray(book.libraryId, context.accessibleLibraryIds);
+	const rules = compileGroup(definition.root, context);
+	const query = context.query?.trim();
+	const transientSearch = query
+		? or(
+				textPredicate(
+					sql`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename})`,
+					{ kind: "rule", field: "title", operator: "contains", value: query },
+				),
+				textPredicate(sql`${book.filename}`, {
+					kind: "rule",
+					field: "filename",
+					operator: "contains",
+					value: query,
+				}),
+			)
+		: undefined;
+	return {
+		where: and(
+			eq(library.serverId, context.serverId),
+			isNull(book.duplicateOfBookId),
+			scope,
+			rules,
+			transientSearch,
+		) as SQL,
+		orderBy: compileSort(definition, context),
+		isPersonalized: isPersonalizedCollectionDefinition(definition),
+	};
+}
+
+function compileSort(
+	definition: DynamicCollectionDefinitionV1,
+	context: DynamicCollectionQueryContext,
+): SQL[] {
+	const sorts = definition.sort.length
+		? definition.sort
+		: [{ field: "title" as const, direction: "asc" as const }];
+	const result = sorts.map((sort) => {
+		const expression = sortExpression(sort.field, context);
+		return sort.direction === "asc"
+			? sql`${expression} ASC NULLS LAST`
+			: sql`${expression} DESC NULLS LAST`;
+	});
+	result.push(sql`${book.id} ASC`);
+	return result;
+}
+
+function sortExpression(
+	field: DynamicCollectionDefinitionV1["sort"][number]["field"],
+	context: DynamicCollectionQueryContext,
+): SQL {
+	switch (field) {
+		case "title":
+			return sql`LOWER(COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename}))`;
+		case "primaryAuthor":
+			return sql`(SELECT MIN(LOWER(sort_author.name)) FROM (
+				SELECT a.name FROM book_author ba JOIN author a ON a.id = ba.author_id WHERE ba.book_id = ${book.id}
+				UNION ALL
+				SELECT a.name FROM audiobook_author aa JOIN author a ON a.id = aa.author_id WHERE aa.book_id = ${book.id}
+			) sort_author)`;
+		case "series":
+			return sql`(SELECT LOWER(sort_series.name) FROM (
+				SELECT s.name, bs.position, s.uuid FROM book_series bs JOIN series s ON s.id = bs.series_id WHERE bs.book_id = ${book.id}
+				UNION ALL
+				SELECT s.name, aus.position, s.uuid FROM audiobook_series aus JOIN series s ON s.id = aus.series_id WHERE aus.book_id = ${book.id}
+			) sort_series ORDER BY sort_series.position ASC NULLS LAST, sort_series.name, sort_series.uuid LIMIT 1)`;
+		case "seriesPosition":
+			return sql`(SELECT sort_series.position FROM (
+				SELECT bs.position, s.name, s.uuid FROM book_series bs JOIN series s ON s.id = bs.series_id WHERE bs.book_id = ${book.id}
+				UNION ALL
+				SELECT aus.position, s.name, s.uuid FROM audiobook_series aus JOIN series s ON s.id = aus.series_id WHERE aus.book_id = ${book.id}
+			) sort_series ORDER BY sort_series.position ASC NULLS LAST, sort_series.name, sort_series.uuid LIMIT 1)`;
+		case "addedAt":
+			return sql`${book.createdAt}`;
+		case "lastModifiedAt":
+			return sql`${book.lastModified}`;
+		case "publishedDate":
+			return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.publishedDate} ELSE ${bookMetadata.publishedDate} END`;
+		case "publishedYear":
+			return sql`EXTRACT(YEAR FROM CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.publishedDate} ELSE ${bookMetadata.publishedDate} END)`;
+		case "pageCount":
+			return sql`${bookMetadata.pageCount}`;
+		case "durationMinutes":
+			return sql`${audiobookMetadata.duration} / 60`;
+		case "communityRating":
+			return sql`${bookMetadata.rating}`;
+		case "publisher":
+			return sql`(SELECT LOWER(p.name) FROM publisher p WHERE p.id = CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.publisherId} ELSE ${bookMetadata.publisherId} END)`;
+		case "fileSizeMb":
+			return sql`${book.filesizeKb}`;
+		case "progressPercent":
+			return progressExpression(context.viewerId);
+		case "consumptionStatus":
+			return consumptionStatusExpression(context.viewerId);
+		case "format":
+			return sql`CASE WHEN ${library.mediaType} = 'ebook' THEN ${ebookFormatExpression()} ELSE (
+				SELECT MIN(LOWER(COALESCE(af.format, SUBSTRING(af.filename FROM '\\.([^.]+)$')))) FROM audio_file af WHERE af.book_id = ${book.id}
+			) END`;
+		case "language":
+			return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.languageCode} ELSE ${bookMetadata.languageCode} END`;
+		case "lastActivityAt":
+			return personalDateExpression(context.viewerId, "last_activity_at");
+		case "random":
+			return sql`MD5(${book.uuid}::text || ${context.randomSeed ?? "default"})`;
+	}
+}
+
+function compileGroup(
+	group: CollectionRuleGroup,
+	context: DynamicCollectionQueryContext,
+): SQL {
+	const children = group.children.map((child) =>
+		child.kind === "group"
+			? compileGroup(child, context)
+			: compileRule(child, context),
+	);
+	if (children.length === 0) return sql`true`;
+	return (group.match === "all" ? and(...children) : or(...children)) as SQL;
+}
+
+function compileRule(
+	rule: CollectionFieldRule,
+	context: DynamicCollectionQueryContext,
+): SQL {
+	switch (rule.field) {
+		case "mediaType":
+			return enumPredicate(sql`${library.mediaType}`, rule);
+		case "title":
+			return textPredicate(
+				sql`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename})`,
+				rule,
+			);
+		case "subtitle":
+			return textPredicate(
+				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.subtitle} ELSE ${bookMetadata.subtitle} END`,
+				rule,
+			);
+		case "filename":
+			return textPredicate(sql`${book.filename}`, rule);
+		case "pageCount":
+			return and(
+				eq(library.mediaType, "ebook"),
+				numberPredicate(sql`${bookMetadata.pageCount}`, rule),
+			) as SQL;
+		case "cover":
+			return presencePredicate(
+				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
+				rule.operator,
+			);
+		case "liked": {
+			const exists = sql`EXISTS (
+				SELECT 1 FROM liked_book lb
+				WHERE lb.book_id = ${book.id}
+					AND lb.user_id = ${context.viewerId}
+					AND lb.server_id = ${context.serverId}
+			)`;
+			return rule.operator === "isTrue" ? exists : not(exists);
+		}
+		case "author":
+			return entityRelationPredicate(
+				sql`SELECT ba.book_id, a.uuid
+					FROM book_author ba INNER JOIN author a ON a.id = ba.author_id
+					UNION ALL
+					SELECT aa.book_id, a.uuid
+					FROM audiobook_author aa INNER JOIN author a ON a.id = aa.author_id`,
+				rule,
+			);
+		case "narrator":
+			return withMedia(
+				"audiobook",
+				entityRelationPredicate(
+					sql`SELECT bn.book_id, n.uuid
+						FROM book_narrator bn INNER JOIN narrator n ON n.id = bn.narrator_id`,
+					rule,
+				),
+			);
+		case "publisher":
+			return entityRelationPredicate(
+				sql`SELECT bm.book_id, p.uuid
+					FROM book_metadata bm INNER JOIN publisher p ON p.id = bm.publisher_id
+					UNION ALL
+					SELECT am.book_id, p.uuid
+					FROM audiobook_metadata am INNER JOIN publisher p ON p.id = am.publisher_id`,
+				rule,
+			);
+		case "series":
+			return entityRelationPredicate(
+				sql`SELECT bs.book_id, s.uuid
+					FROM book_series bs INNER JOIN series s ON s.id = bs.series_id
+					UNION ALL
+					SELECT aus.book_id, s.uuid
+					FROM audiobook_series aus INNER JOIN series s ON s.id = aus.series_id`,
+				rule,
+			);
+		case "seriesPosition":
+			return relationNumberPredicate(
+				sql`SELECT bs.book_id, bs.position AS value FROM book_series bs
+					UNION ALL
+					SELECT aus.book_id, aus.position AS value FROM audiobook_series aus`,
+				rule,
+			);
+		case "genre":
+			return entityRelationPredicate(
+				sql`SELECT bg.book_id, g.uuid
+					FROM book_genre bg INNER JOIN genre g ON g.id = bg.genre_id
+					UNION ALL
+					SELECT ag.book_id, g.uuid
+					FROM audiobook_genre ag INNER JOIN genre g ON g.id = ag.genre_id`,
+				rule,
+			);
+		case "tag":
+			return entityRelationPredicate(
+				sql`SELECT bt.book_id, t.uuid
+					FROM book_tag bt INNER JOIN tag t ON t.id = bt.tag_id
+					UNION ALL
+					SELECT atu.book_id, t.uuid
+					FROM audiobook_tag atu INNER JOIN tag t ON t.id = atu.tag_id`,
+				rule,
+			);
+		case "language":
+			return enumPredicate(
+				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.languageCode} ELSE ${bookMetadata.languageCode} END`,
+				rule,
+			);
+		case "contentForm":
+			return withMedia(
+				"ebook",
+				enumPredicate(sql`${bookMetadata.contentForm}`, rule),
+			);
+		case "format":
+			return formatPredicate(rule);
+		case "fileSizeMb":
+			return numberPredicate(
+				sql`${book.filesizeKb}::double precision / 1024`,
+				rule,
+			);
+		case "addedAt":
+			return datePredicate(sql`${book.createdAt}`, rule, context, true);
+		case "lastModifiedAt":
+			return datePredicate(sql`${book.lastModified}`, rule, context, true);
+		case "publishedDate":
+			return datePredicate(
+				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.publishedDate} ELSE ${bookMetadata.publishedDate} END`,
+				rule,
+				context,
+				false,
+			);
+		case "publishedYear":
+			return numberPredicate(
+				sql`EXTRACT(YEAR FROM CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.publishedDate} ELSE ${bookMetadata.publishedDate} END)`,
+				rule,
+			);
+		case "durationMinutes":
+			return withMedia(
+				"audiobook",
+				numberPredicate(sql`${audiobookMetadata.duration} / 60`, rule),
+			);
+		case "communityRating":
+			return withMedia(
+				"ebook",
+				numberPredicate(sql`${bookMetadata.rating}`, rule),
+			);
+		case "communityRatingCount":
+			return withMedia(
+				"ebook",
+				numberPredicate(sql`${bookMetadata.ratingCount}`, rule),
+			);
+		case "description":
+			return presencePredicate(
+				normalizedText(
+					sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.description} ELSE ${bookMetadata.description} END`,
+				),
+				rule.operator,
+			);
+		case "isbn":
+			return textPredicate(
+				sql`UPPER(REGEXP_REPLACE(CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.isbn} ELSE COALESCE(${bookMetadata.isbn13}, ${bookMetadata.isbn10}) END, '[-[:space:]]', '', 'g'))`,
+				{
+					...rule,
+					value:
+						typeof rule.value === "string"
+							? normalizeIdentifier(rule.value)
+							: rule.value,
+				},
+			);
+		case "asin":
+			return textPredicate(
+				sql`UPPER(BTRIM(CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.asin} ELSE ${bookMetadata.asin} END))`,
+				{
+					...rule,
+					value:
+						typeof rule.value === "string"
+							? normalizeIdentifier(rule.value)
+							: rule.value,
+				},
+			);
+		case "explicit":
+			return withMedia(
+				"audiobook",
+				booleanPredicate(sql`${audiobookMetadata.explicit}`, rule.operator),
+			);
+		case "abridged":
+			return withMedia(
+				"audiobook",
+				booleanPredicate(sql`${audiobookMetadata.abridged}`, rule.operator),
+			);
+		case "library":
+			return entityScalarPredicate(sql`${library.uuid}`, rule);
+		case "manualCollection":
+			return entityRelationPredicate(
+				sql`SELECT cb.book_id, c.id AS uuid
+					FROM collection_book cb INNER JOIN collection c ON c.id = cb.collection_id
+					WHERE c.kind = 'manual'
+						AND c.server_id = ${context.serverId}
+						AND (c.is_public = true OR c.user_id = ${context.viewerId})`,
+				rule,
+			);
+		case "enrichmentStatus":
+			return enumPredicate(
+				sql`COALESCE((SELECT es.status FROM enrichment_state es WHERE es.book_id = ${book.id}), 'notRun')`,
+				rule,
+			);
+		case "metadataLocked":
+			return booleanPredicate(
+				sql`CASE WHEN ${library.mediaType} = 'audiobook'
+					THEN CARDINALITY(${audiobookMetadata.lockedFields}) > 0
+					ELSE CARDINALITY(${bookMetadata.lockedFields}) > 0 END`,
+				rule.operator,
+			);
+		case "readListenPaired": {
+			const paired = sql`EXISTS (SELECT 1 FROM read_listen_pair rlp
+				WHERE rlp.server_id = ${context.serverId}
+					AND (rlp.ebook_book_id = ${book.id} OR rlp.audiobook_book_id = ${book.id}))`;
+			return rule.operator === "isTrue" ? paired : not(paired);
+		}
+		case "shelfStatus":
+			return enumPredicate(shelfStatusExpression(context.viewerId), rule);
+		case "consumptionStatus":
+			return enumPredicate(consumptionStatusExpression(context.viewerId), rule);
+		case "progressPercent":
+			return numberPredicate(progressExpression(context.viewerId), rule);
+		case "startedAt":
+			return datePredicate(
+				personalDateExpression(context.viewerId, "started_at"),
+				rule,
+				context,
+				true,
+			);
+		case "completedAt":
+			return datePredicate(
+				personalDateExpression(context.viewerId, "completed_at"),
+				rule,
+				context,
+				true,
+			);
+		case "lastActivityAt":
+			return datePredicate(
+				personalDateExpression(context.viewerId, "last_activity_at"),
+				rule,
+				context,
+				true,
+			);
+		default:
+			throw new Error(`Collection rule field is not compiled: ${rule.field}`);
+	}
+}
+
+function withMedia(mediaType: "ebook" | "audiobook", predicate: SQL): SQL {
+	return and(eq(library.mediaType, mediaType), predicate) as SQL;
+}
+
+function normalizeIdentifier(value: string): string {
+	return value.replaceAll("-", "").replaceAll(" ", "").trim().toUpperCase();
+}
+
+function normalizedText(expression: SQL): SQL {
+	return sql`NULLIF(BTRIM((${expression})::text), '')`;
+}
+
+function escapeLike(value: string): string {
+	return value
+		.replaceAll("\\", "\\\\")
+		.replaceAll("%", "\\%")
+		.replaceAll("_", "\\_");
+}
+
+function textPredicate(expression: SQL, rule: CollectionFieldRule): SQL {
+	const field = normalizedText(expression);
+	if (rule.operator === "isMissing" || rule.operator === "isPresent") {
+		return presencePredicate(field, rule.operator);
+	}
+	const value = String(rule.value);
+	const escaped = escapeLike(value);
+	switch (rule.operator) {
+		case "contains":
+			return sql`${field} ILIKE ${`%${escaped}%`} ESCAPE '\\'`;
+		case "notContains":
+			return sql`${field} IS NOT NULL AND NOT (${field} ILIKE ${`%${escaped}%`} ESCAPE '\\')`;
+		case "startsWith":
+			return sql`${field} ILIKE ${`${escaped}%`} ESCAPE '\\'`;
+		case "endsWith":
+			return sql`${field} ILIKE ${`%${escaped}`} ESCAPE '\\'`;
+		case "equals":
+			return sql`LOWER(${field}) = LOWER(${value})`;
+		case "notEquals":
+			return sql`${field} IS NOT NULL AND LOWER(${field}) <> LOWER(${value})`;
+		default:
+			throw new Error(`Invalid text operator: ${rule.operator}`);
+	}
+}
+
+function numberPredicate(expression: SQL, rule: CollectionFieldRule): SQL {
+	if (rule.operator === "isMissing" || rule.operator === "isPresent") {
+		return presencePredicate(expression, rule.operator);
+	}
+	if (rule.operator === "between") {
+		const range = rule.value as { min: number; max: number };
+		return sql`${expression} BETWEEN ${range.min} AND ${range.max}`;
+	}
+	const value = rule.value as number;
+	switch (rule.operator) {
+		case "equals":
+			return sql`${expression} = ${value}`;
+		case "notEquals":
+			return sql`${expression} IS NOT NULL AND ${expression} <> ${value}`;
+		case "gt":
+			return sql`${expression} > ${value}`;
+		case "gte":
+			return sql`${expression} >= ${value}`;
+		case "lt":
+			return sql`${expression} < ${value}`;
+		case "lte":
+			return sql`${expression} <= ${value}`;
+		default:
+			throw new Error(`Invalid number operator: ${rule.operator}`);
+	}
+}
+
+function presencePredicate(expression: SQL, operator: string): SQL {
+	return operator === "isMissing"
+		? sql`${expression} IS NULL`
+		: sql`${expression} IS NOT NULL`;
+}
+
+function booleanPredicate(expression: SQL, operator: string): SQL {
+	if (operator === "isUnknown") return sql`${expression} IS NULL`;
+	return operator === "isTrue"
+		? sql`${expression} IS TRUE`
+		: sql`${expression} IS FALSE`;
+}
+
+function enumPredicate(expression: SQL, rule: CollectionFieldRule): SQL {
+	if (rule.operator === "isMissing" || rule.operator === "isPresent") {
+		return presencePredicate(normalizedText(expression), rule.operator);
+	}
+	const values = rule.value as string[];
+	const list = sql.join(
+		values.map((value) => sql`${value}`),
+		sql`, `,
+	);
+	return rule.operator === "includesAny"
+		? sql`${expression} IN (${list})`
+		: sql`(${expression} IS NULL OR ${expression} NOT IN (${list}))`;
+}
+
+function entityScalarPredicate(
+	expression: SQL,
+	rule: CollectionFieldRule,
+): SQL {
+	const ids = (rule.value as CollectionEntityRef[]).map((value) => value.id);
+	const list = sql.join(
+		ids.map((id) => sql`${id}::uuid`),
+		sql`, `,
+	);
+	return rule.operator === "includesAny"
+		? sql`${expression} IN (${list})`
+		: sql`${expression} NOT IN (${list})`;
+}
+
+function relationNumberPredicate(
+	relation: SQL,
+	rule: CollectionFieldRule,
+): SQL {
+	const exists = sql`SELECT 1 FROM (${relation}) rel WHERE rel.book_id = ${book.id}`;
+	if (rule.operator === "isMissing")
+		return sql`NOT EXISTS (${exists} AND rel.value IS NOT NULL)`;
+	if (rule.operator === "isPresent")
+		return sql`EXISTS (${exists} AND rel.value IS NOT NULL)`;
+	return sql`EXISTS (${exists} AND ${numberPredicate(sql`rel.value`, rule)})`;
+}
+
+function datePredicate(
+	expression: SQL,
+	rule: CollectionFieldRule,
+	context: DynamicCollectionQueryContext,
+	isTimestamp: boolean,
+): SQL {
+	if (rule.operator === "isMissing" || rule.operator === "isPresent") {
+		return presencePredicate(expression, rule.operator);
+	}
+	const localDate = isTimestamp
+		? sql`(${expression} AT TIME ZONE ${context.timeZone})::date`
+		: sql`(${expression})::date`;
+	if (rule.operator === "between") {
+		const range = rule.value as { from: string; to: string };
+		return sql`${localDate} BETWEEN ${range.from}::date AND ${range.to}::date`;
+	}
+	if (rule.operator === "withinLast") {
+		const relative = rule.value as {
+			amount: number;
+			unit: "day" | "week" | "month";
+		};
+		const interval =
+			relative.unit === "month"
+				? sql`make_interval(months => ${relative.amount})`
+				: relative.unit === "week"
+					? sql`make_interval(days => ${relative.amount * 7 - 1})`
+					: sql`make_interval(days => ${relative.amount - 1})`;
+		return sql`${localDate} >= ((CURRENT_TIMESTAMP AT TIME ZONE ${context.timeZone})::date - ${interval})`;
+	}
+	return rule.operator === "before"
+		? sql`${localDate} < ${rule.value as string}::date`
+		: sql`${localDate} > ${rule.value as string}::date`;
+}
+
+function ebookFormatExpression(): SQL {
+	return sql`CASE
+		WHEN LOWER(${book.filename}) LIKE '%.kepub.epub' THEN 'kepub.epub'
+		WHEN LOWER(${book.filename}) LIKE '%.fb2.zip' THEN 'fb2.zip'
+		ELSE LOWER(SUBSTRING(${book.filename} FROM '\\.([^.]+)$'))
+	END`;
+}
+
+function formatPredicate(rule: CollectionFieldRule): SQL {
+	const values = rule.value as string[];
+	const list = sql.join(
+		values.map((value) => sql`${value.toLowerCase()}`),
+		sql`, `,
+	);
+	const matches = or(
+		and(
+			eq(library.mediaType, "ebook"),
+			sql`${ebookFormatExpression()} IN (${list})`,
+		),
+		and(
+			eq(library.mediaType, "audiobook"),
+			sql`EXISTS (
+				SELECT 1 FROM audio_file af
+				WHERE af.book_id = ${book.id}
+					AND LOWER(COALESCE(af.format, SUBSTRING(af.filename FROM '\\.([^.]+)$'))) IN (${list})
+			)`,
+		),
+	) as SQL;
+	return rule.operator === "includesAny" ? matches : not(matches);
+}
+
+function shelfStatusExpression(viewerId: string): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
+		SELECT CASE uas.status
+			WHEN 'want_to_listen' THEN 'want'
+			WHEN 'listening' THEN 'inProgress'
+			ELSE uas.status::text END
+		FROM user_audiobook_shelf uas
+		WHERE uas.book_id = ${book.id} AND uas.user_id = ${viewerId}
+	), 'none') ELSE COALESCE((
+		SELECT CASE ubs.status
+			WHEN 'want_to_read' THEN 'want'
+			WHEN 'reading' THEN 'inProgress'
+			ELSE ubs.status::text END
+		FROM user_book_shelf ubs
+		WHERE ubs.book_id = ${book.id} AND ubs.user_id = ${viewerId}
+	), 'none') END`;
+}
+
+function consumptionStatusExpression(viewerId: string): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
+		SELECT CASE lp.status
+			WHEN 'listening' THEN 'inProgress'
+			WHEN 'completed' THEN 'completed'
+			ELSE 'unstarted' END
+		FROM listening_progress lp
+		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
+	), 'unstarted') ELSE COALESCE((
+		SELECT CASE rp.status
+			WHEN 'reading' THEN 'inProgress'
+			WHEN 'completed' THEN 'completed'
+			ELSE 'unstarted' END
+		FROM reading_progress rp
+		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
+	), 'unstarted') END`;
+}
+
+function progressExpression(viewerId: string): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
+		SELECT CASE
+			WHEN lp.status = 'completed' THEN 100::double precision
+			WHEN COALESCE(lp.duration_seconds, 0) <= 0 THEN 0::double precision
+			ELSE LEAST(100, GREATEST(0, lp.current_time_seconds / lp.duration_seconds * 100)) END
+		FROM listening_progress lp
+		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
+	), 0) ELSE COALESCE((
+		SELECT CASE
+			WHEN rp.status = 'completed' THEN 100::double precision
+			WHEN COALESCE(rp.book_char_count, 0) <= 0 THEN 0::double precision
+			ELSE LEAST(100, GREATEST(0, rp.explored_char_count::double precision / rp.book_char_count * 100)) END
+		FROM reading_progress rp
+		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
+	), 0) END`;
+}
+
+function personalDateExpression(
+	viewerId: string,
+	field: "started_at" | "completed_at" | "last_activity_at",
+): SQL {
+	const readingColumn =
+		field === "last_activity_at"
+			? sql.raw("rp.last_read_at")
+			: sql.raw(`rp.${field}`);
+	const listeningColumn =
+		field === "last_activity_at"
+			? sql.raw("lp.last_listened_at")
+			: sql.raw(`lp.${field}`);
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN (
+		SELECT ${listeningColumn} FROM listening_progress lp
+		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
+	) ELSE (
+		SELECT ${readingColumn} FROM reading_progress rp
+		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
+	) END`;
+}
+
+function entityRelationPredicate(
+	relation: SQL,
+	rule: CollectionFieldRule,
+): SQL {
+	const base = sql`SELECT 1 FROM (${relation}) rel WHERE rel.book_id = ${book.id}`;
+	if (rule.operator === "isMissing") return sql`NOT EXISTS (${base})`;
+	if (rule.operator === "isPresent") return sql`EXISTS (${base})`;
+	const ids = (rule.value as CollectionEntityRef[]).map((value) => value.id);
+	const matching = sql`${base} AND rel.uuid IN (${sql.join(
+		ids.map((id) => sql`${id}::uuid`),
+		sql`, `,
+	)})`;
+	if (rule.operator === "includesAny") return sql`EXISTS (${matching})`;
+	if (rule.operator === "excludesAll") return sql`NOT EXISTS (${matching})`;
+	return sql`(
+		SELECT COUNT(DISTINCT rel.uuid)::int
+		FROM (${relation}) rel
+		WHERE rel.book_id = ${book.id}
+			AND rel.uuid IN (${sql.join(
+				ids.map((id) => sql`${id}::uuid`),
+				sql`, `,
+			)})
+	) = ${ids.length}`;
+}

@@ -1,11 +1,18 @@
 import {
 	BadRequestError,
 	ConflictError,
+	ForbiddenError,
 	InternalServerError,
 	NotFoundError,
 } from "../../errors";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
+import {
+	type DynamicCollectionDefinitionV1,
+	isPersonalizedCollectionDefinition,
+	normalizeCollectionTimeZone,
+	parseDynamicCollectionDefinition,
+} from "./collection-rules";
 import { collectionsRepository } from "./collections.repository";
 
 type CreateCollectionInput = {
@@ -13,6 +20,8 @@ type CreateCollectionInput = {
 	description?: string;
 	isPublic: boolean;
 	addBookUuid?: string;
+	kind?: "manual" | "dynamic";
+	definition?: unknown;
 };
 
 function normalizeCollectionName(name: string): string {
@@ -25,20 +34,97 @@ function normalizeOptionalDescription(description?: string): string | null {
 	return normalized.length > 0 ? normalized : null;
 }
 
-export const listCollections = async (userId: string, serverId: string) => {
-	return collectionsRepository.listByUser(userId, serverId);
+function collectManualCollectionIds(definition: DynamicCollectionDefinitionV1) {
+	const ids = new Set<string>();
+	const visit = (group: DynamicCollectionDefinitionV1["root"]) => {
+		for (const child of group.children) {
+			if (child.kind === "group") visit(child);
+			else if (
+				child.field === "manualCollection" &&
+				Array.isArray(child.value)
+			) {
+				for (const value of child.value) {
+					if (typeof value === "object" && value && "id" in value)
+						ids.add(value.id);
+				}
+			}
+		}
+	};
+	visit(definition.root);
+	return [...ids];
+}
+
+async function assertCollectionReferences(
+	definition: DynamicCollectionDefinitionV1,
+	userId: string,
+	serverId: string,
+	isPublic: boolean,
+) {
+	const ids = collectManualCollectionIds(definition);
+	const rows = await collectionsRepository.listManualReferences(ids, serverId);
+	if (
+		rows.length !== ids.length ||
+		rows.some((row) => row.userId !== userId && !row.isPublic)
+	) {
+		throw new BadRequestError(
+			"A rule references a collection that is unavailable",
+		);
+	}
+	if (isPublic && rows.some((row) => !row.isPublic)) {
+		throw new BadRequestError(
+			"Public dynamic collections can only reference public collections",
+		);
+	}
+}
+
+export const listCollections = async (
+	userId: string,
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL" = "ALL",
+) => {
+	const rows = await collectionsRepository.listByUser(userId, serverId);
+	return rows.map((row) => scopeCollectionSummary(row, accessibleLibraryIds));
 };
+
+export const listCollectionRuleOptions = (
+	userId: string,
+	input: {
+		field:
+			| "author"
+			| "narrator"
+			| "publisher"
+			| "series"
+			| "genre"
+			| "tag"
+			| "library"
+			| "manualCollection";
+		query: string;
+		limit: number;
+	},
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) =>
+	collectionsRepository.listRuleOptions(
+		input.field,
+		input.query,
+		input.limit,
+		userId,
+		serverId,
+		accessibleLibraryIds,
+	);
 
 export const listPublicCollections = async (
 	username: string,
 	serverId: string,
 	limit?: number,
+	accessibleLibraryIds: number[] | "ALL" = "ALL",
 ) => {
-	return collectionsRepository.listPublicByUsername(
+	const rows = await collectionsRepository.listPublicByUsername(
 		username,
 		serverId,
 		limit ?? 4,
 	);
+	return rows.map((row) => scopeCollectionSummary(row, accessibleLibraryIds));
 };
 
 export const searchCollections = async (
@@ -46,9 +132,45 @@ export const searchCollections = async (
 	serverId: string,
 	query: string,
 	limit?: number,
+	accessibleLibraryIds: number[] | "ALL" = "ALL",
 ) => {
-	return collectionsRepository.search(query, serverId, userId, limit ?? 10);
+	const rows = await collectionsRepository.search(
+		query,
+		serverId,
+		userId,
+		limit ?? 10,
+	);
+	return rows.map((row) => scopeCollectionSummary(row, accessibleLibraryIds));
 };
+
+function redactUnscopedSummary<T extends Record<string, unknown>>(row: T): T {
+	return {
+		...row,
+		...(Object.hasOwn(row, "bookCount") ? { bookCount: null } : {}),
+		...(Object.hasOwn(row, "ebookCount") ? { ebookCount: null } : {}),
+		...(Object.hasOwn(row, "audiobookCount") ? { audiobookCount: null } : {}),
+		...(Object.hasOwn(row, "previewCovers") ? { previewCovers: [] } : {}),
+		...(Object.hasOwn(row, "ebookPreviewCovers")
+			? { ebookPreviewCovers: [] }
+			: {}),
+		...(Object.hasOwn(row, "audiobookPreviewCovers")
+			? { audiobookPreviewCovers: [] }
+			: {}),
+	} as T;
+}
+
+function scopeCollectionSummary<
+	T extends {
+		kind: "manual" | "dynamic";
+		dynamicDefinition?: unknown;
+	} & Record<string, unknown>,
+>(row: T, accessibleLibraryIds: number[] | "ALL") {
+	const canUseStoredSummary =
+		accessibleLibraryIds === "ALL" && row.kind === "manual";
+	return decorateCollectionDefinition(
+		canUseStoredSummary ? row : redactUnscopedSummary(row),
+	);
+}
 
 export const getCollectionDetails = async (
 	userId: string,
@@ -67,11 +189,51 @@ export const getCollectionDetails = async (
 		throw new NotFoundError("Collection not found");
 	}
 
-	const books = await collectionsRepository.listBooksByCollection(
-		collectionId,
-		serverId,
+	const decoratedCollection = scopeCollectionSummary(
+		collection,
 		accessibleLibraryIds,
 	);
+	return {
+		collection: decoratedCollection,
+		// Items live behind the bounded listItems endpoint for both collection kinds.
+		books: [],
+	};
+};
+
+function decorateCollectionDefinition<
+	T extends { kind: "manual" | "dynamic"; dynamicDefinition?: unknown },
+>(collection: T) {
+	if (collection.kind === "manual") {
+		return {
+			...collection,
+			dynamicDefinition: null,
+			definitionStatus: "notApplicable" as const,
+			isPersonalized: false,
+		};
+	}
+	try {
+		const definition = parseDynamicCollectionDefinition(
+			collection.dynamicDefinition,
+		);
+		return {
+			...collection,
+			dynamicDefinition: definition,
+			definitionStatus: "valid" as const,
+			isPersonalized: isPersonalizedCollectionDefinition(definition),
+		};
+	} catch {
+		return {
+			...collection,
+			dynamicDefinition: null,
+			definitionStatus: "invalid" as const,
+			isPersonalized: false,
+		};
+	}
+}
+
+async function attachAuthors<
+	T extends { id: number | bigint; [key: string]: unknown },
+>(books: T[]) {
 	const authorRows = await collectionsRepository.listAuthorsByBookIds(
 		books.map((book) => Number(book.id)),
 	);
@@ -79,20 +241,273 @@ export const getCollectionDetails = async (
 	for (const row of authorRows) {
 		const key = Number(row.bookId);
 		const current = authorsByBookId.get(key) ?? [];
-		current.push({
-			id: row.authorId,
-			name: row.name,
-		});
+		current.push({ id: row.authorId, name: row.name });
 		authorsByBookId.set(key, current);
 	}
+	return stripCollectionItemCounts(books).map((book) => ({
+		...book,
+		authors: authorsByBookId.get(Number(book.id)) ?? [],
+	}));
+}
 
+function stripCollectionItemCounts<
+	T extends { id: number | bigint; [key: string]: unknown },
+>(rows: T[]) {
+	return rows.map(
+		({
+			totalHits: _totalHits,
+			ebookHits: _ebookHits,
+			audiobookHits: _audiobookHits,
+			...row
+		}) => row,
+	);
+}
+
+type CollectionItemRow = Omit<
+	Awaited<ReturnType<typeof collectionsRepository.listDynamicItems>>[number],
+	"addedAt"
+> & { addedAt: string | null };
+
+export const listCollectionItems = async (
+	userId: string,
+	input: {
+		collectionId: string;
+		query?: string;
+		timeZone?: string;
+		cursor: number;
+		limit: number;
+	},
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const collection = await collectionsRepository.getPublicSummaryById(
+		input.collectionId,
+		serverId,
+		userId,
+	);
+	if (!collection) throw new NotFoundError("Collection not found");
+
+	const timeZone = normalizeCollectionTimeZone(input.timeZone);
+	let rows: CollectionItemRow[] = [];
+	let definitionStatus: "valid" | "invalid" | "notApplicable" = "notApplicable";
+	if (collection.kind === "dynamic") {
+		let definition: DynamicCollectionDefinitionV1;
+		try {
+			definition = parseDynamicCollectionDefinition(
+				collection.dynamicDefinition,
+			);
+		} catch {
+			definitionStatus = "invalid";
+			return {
+				items: [],
+				pagination: {
+					nextCursor: undefined,
+					hasMore: false,
+					totalHits: 0,
+					ebookHits: 0,
+					audiobookHits: 0,
+				},
+				timeZone,
+				definitionStatus,
+			};
+		}
+		definitionStatus = "valid";
+		rows = await collectionsRepository.listDynamicItems(
+			definition,
+			{
+				viewerId: userId,
+				serverId,
+				accessibleLibraryIds,
+				timeZone,
+				query: input.query,
+				randomSeed: input.collectionId,
+			},
+			{ limit: input.limit, offset: input.cursor },
+		);
+	} else {
+		rows = await collectionsRepository.listManualItems(
+			input.collectionId,
+			serverId,
+			accessibleLibraryIds,
+			{
+				limit: input.limit,
+				offset: input.cursor,
+				query: input.query,
+			},
+		);
+	}
+	const totalHits = Number(rows[0]?.totalHits ?? 0);
+	const items = await attachAuthors(rows);
+	const nextCursor = input.cursor + rows.length;
 	return {
-		collection,
-		books: books.map((book) => ({
-			...book,
-			authors: authorsByBookId.get(Number(book.id)) ?? [],
-		})),
+		items,
+		pagination: {
+			nextCursor: nextCursor < totalHits ? nextCursor : undefined,
+			hasMore: nextCursor < totalHits,
+			totalHits,
+			ebookHits: Number(rows[0]?.ebookHits ?? 0),
+			audiobookHits: Number(rows[0]?.audiobookHits ?? 0),
+		},
+		timeZone,
+		definitionStatus,
 	};
+};
+
+export const previewDynamicCollection = async (
+	userId: string,
+	input: { definition: unknown; timeZone?: string; limit: number },
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	let definition: DynamicCollectionDefinitionV1;
+	try {
+		definition = parseDynamicCollectionDefinition(input.definition, {
+			allowEmpty: true,
+		});
+	} catch {
+		throw new BadRequestError("Fix the incomplete collection rules");
+	}
+	const timeZone = normalizeCollectionTimeZone(input.timeZone);
+	const rows = await collectionsRepository.listDynamicItems(
+		definition,
+		{
+			viewerId: userId,
+			serverId,
+			accessibleLibraryIds,
+			timeZone,
+			randomSeed: "preview",
+		},
+		{ limit: input.limit, offset: 0 },
+	);
+	return {
+		count: Number(rows[0]?.totalHits ?? 0),
+		sample: stripCollectionItemCounts(rows),
+		isPersonalized: isPersonalizedCollectionDefinition(definition),
+		timeZone,
+	};
+};
+
+export const updateDynamicCollection = async (
+	userId: string,
+	input: {
+		collectionId: string;
+		name: string;
+		description?: string;
+		isPublic: boolean;
+		definition: unknown;
+	},
+	serverId: string,
+	canMakePublic: boolean,
+) => {
+	const target = await collectionsRepository.getByIdForUser(
+		input.collectionId,
+		userId,
+		serverId,
+	);
+	if (target?.kind !== "dynamic") {
+		throw new NotFoundError("Dynamic Collection not found");
+	}
+	if (target.isPublic !== input.isPublic && !canMakePublic) {
+		throw new ForbiddenError("Missing permission: collection:makePublic");
+	}
+	const name = normalizeCollectionName(input.name);
+	if (!name) throw new BadRequestError("Collection name is required");
+	if (name !== target.name) {
+		const duplicate = await collectionsRepository.findByName(
+			userId,
+			serverId,
+			name,
+		);
+		if (duplicate) {
+			throw new ConflictError("A collection with this name already exists");
+		}
+	}
+	let definition: DynamicCollectionDefinitionV1;
+	try {
+		definition = parseDynamicCollectionDefinition(input.definition);
+	} catch {
+		throw new BadRequestError("Fix the incomplete collection rules");
+	}
+	await assertCollectionReferences(
+		definition,
+		userId,
+		serverId,
+		input.isPublic,
+	);
+	const updated = await collectionsRepository.updateDynamicDefinition(
+		input.collectionId,
+		userId,
+		serverId,
+		{
+			name,
+			description: normalizeOptionalDescription(input.description),
+			isPublic: input.isPublic,
+			dynamicDefinition: definition,
+		},
+	);
+	if (!updated) throw new NotFoundError("Dynamic Collection not found");
+	return decorateCollectionDefinition(updated);
+};
+
+export const previewCollectionBatch = async (
+	userId: string,
+	input: { collectionIds: string[]; timeZone?: string },
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const results: Array<{
+		collectionId: string;
+		count: number | null;
+		ebookCount: number | null;
+		audiobookCount: number | null;
+		previewCovers: string[];
+		status: "ready" | "invalid" | "notFound";
+	}> = [];
+	let cursor = 0;
+	const workers = Array.from(
+		{ length: Math.min(3, input.collectionIds.length) },
+		async () => {
+			while (cursor < input.collectionIds.length) {
+				const index = cursor++;
+				const collectionId = input.collectionIds[index];
+				if (!collectionId) continue;
+				try {
+					const page = await listCollectionItems(
+						userId,
+						{
+							collectionId,
+							cursor: 0,
+							limit: 5,
+							timeZone: input.timeZone,
+						},
+						serverId,
+						accessibleLibraryIds,
+					);
+					results[index] = {
+						collectionId,
+						count: page.pagination.totalHits,
+						ebookCount: page.pagination.ebookHits,
+						audiobookCount: page.pagination.audiobookHits,
+						previewCovers: page.items
+							.map((item) => item.cover)
+							.filter((cover): cover is string => typeof cover === "string"),
+						status: page.definitionStatus === "invalid" ? "invalid" : "ready",
+					};
+				} catch (error) {
+					results[index] = {
+						collectionId,
+						count: null,
+						ebookCount: null,
+						audiobookCount: null,
+						previewCovers: [],
+						status: error instanceof NotFoundError ? "notFound" : "invalid",
+					};
+				}
+			}
+		},
+	);
+	await Promise.all(workers);
+	return results;
 };
 
 export const createCollection = async (
@@ -114,6 +529,29 @@ export const createCollection = async (
 	if (existing) {
 		throw new ConflictError("A collection with this name already exists");
 	}
+	const kind = input.kind ?? "manual";
+	if (kind === "manual" && input.definition !== undefined) {
+		throw new BadRequestError("Manual collections cannot have dynamic rules");
+	}
+	if (kind === "dynamic" && input.addBookUuid) {
+		throw new BadRequestError("Dynamic collections cannot add a fixed book");
+	}
+	let dynamicDefinition: DynamicCollectionDefinitionV1 | null = null;
+	if (kind === "dynamic") {
+		try {
+			dynamicDefinition = parseDynamicCollectionDefinition(input.definition);
+		} catch {
+			throw new BadRequestError(
+				"Choose at least one complete rule for this Dynamic Collection",
+			);
+		}
+		await assertCollectionReferences(
+			dynamicDefinition,
+			userId,
+			serverId,
+			input.isPublic,
+		);
+	}
 
 	const created = await collectionsRepository.create({
 		userId,
@@ -121,6 +559,8 @@ export const createCollection = async (
 		name: normalizedName,
 		description: normalizeOptionalDescription(input.description),
 		isPublic: input.isPublic,
+		kind,
+		dynamicDefinition,
 	});
 	if (!created) {
 		throw new InternalServerError("Failed to create collection");
@@ -227,6 +667,11 @@ export const setBookMembership = async (
 	if (!targetCollection) {
 		throw new NotFoundError("Collection not found");
 	}
+	if (targetCollection.kind === "dynamic") {
+		throw new ConflictError(
+			"This Dynamic Collection is managed by rules and cannot be edited manually",
+		);
+	}
 
 	const bookRecord = await bookRepository.getByUuid(
 		input.bookUuid,
@@ -271,6 +716,12 @@ export const updateCollectionVisibility = async (
 	);
 	if (!target) {
 		throw new NotFoundError("Collection not found");
+	}
+	if (target.kind === "dynamic" && input.isPublic) {
+		const definition = parseDynamicCollectionDefinition(
+			target.dynamicDefinition,
+		);
+		await assertCollectionReferences(definition, userId, serverId, true);
 	}
 
 	await collectionsRepository.setVisibility(input.collectionId, input.isPublic);
