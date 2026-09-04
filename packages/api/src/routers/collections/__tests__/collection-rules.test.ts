@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	COLLECTION_RULE_LIMITS,
 	DynamicCollectionDefinitionSchema,
+	isPersonalizedCollectionDefinition,
 	normalizeCollectionTimeZone,
 	parseDynamicCollectionDefinition,
 } from "../collection-rules";
@@ -50,6 +51,16 @@ describe("Dynamic Collection definition", () => {
 
 		expect(result.version).toBe(1);
 		expect(result.root.children).toHaveLength(2);
+	});
+
+	test("treats personal sorting as personalized without a personal filter", () => {
+		expect(
+			isPersonalizedCollectionDefinition({
+				version: 1,
+				root: { kind: "group", match: "all", children: [titleRule] },
+				sort: [{ field: "progressPercent", direction: "desc" }],
+			}),
+		).toBe(true);
 	});
 
 	test("rejects an empty persisted definition but permits an empty preview", () => {

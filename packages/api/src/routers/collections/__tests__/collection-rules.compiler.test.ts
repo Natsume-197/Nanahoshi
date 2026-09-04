@@ -113,7 +113,7 @@ describe("Dynamic Collection SQL compiler", () => {
 		expect(query.sql).toContain('"library"."media_type" = $4');
 		expect(query.params).toContain("ebook");
 		expect(query.sql).toContain(" or ");
-		expect(query.params).toContain("viewer-1");
+		expect(query.sql).toContain('"liked_book"."book_id" is not null');
 	});
 
 	test("keeps entity labels out of SQL and uses UUIDs", () => {
@@ -141,6 +141,38 @@ describe("Dynamic Collection SQL compiler", () => {
 
 		expect(query.sql).not.toContain("Name that can change");
 		expect(query.params).toContain("11111111-1111-4111-8111-111111111111");
+	});
+
+	test("personal progress rules use joined state instead of per-book subqueries", () => {
+		const definition: DynamicCollectionDefinitionV1 = {
+			version: 1,
+			root: {
+				kind: "group",
+				match: "all",
+				children: [
+					{
+						kind: "rule",
+						field: "consumptionStatus",
+						operator: "includesAny",
+						value: ["unstarted"],
+					},
+				],
+			},
+			sort: [{ field: "progressPercent", direction: "desc" }],
+		};
+		const query = render(definition);
+		const compiled = compileDynamicCollectionQuery(definition, {
+			viewerId: "viewer-1",
+			serverId: "server-1",
+			accessibleLibraryIds: [4, 9],
+			timeZone: "America/Bogota",
+		});
+
+		expect(query.sql).toContain('"reading_progress"."status"');
+		expect(query.sql).toContain('"listening_progress"."status"');
+		expect(query.sql).not.toContain("FROM reading_progress rp");
+		expect(query.sql).not.toContain("FROM listening_progress lp");
+		expect(compiled.personalJoins).toEqual(["progress"]);
 	});
 
 	test("compiles every field in the public V1 catalog", () => {

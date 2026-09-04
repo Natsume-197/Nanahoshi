@@ -25,9 +25,16 @@ const original = {
 	removeBook: collectionsRepository.removeBook,
 	touch: collectionsRepository.touch,
 	listManualReferences: collectionsRepository.listManualReferences,
+	getPublicSummaryById: collectionsRepository.getPublicSummaryById,
+	listDynamicItems: collectionsRepository.listDynamicItems,
+	listAuthorsByBookIds: collectionsRepository.listAuthorsByBookIds,
 };
 
-afterEach(() => Object.assign(collectionsRepository, original));
+afterEach(() => {
+	Object.assign(collectionsRepository, original);
+	delete (collectionsRepository as unknown as Record<string, unknown>)
+		.listVisibleSummariesByIds;
+});
 
 const definition = {
 	version: 1 as const,
@@ -166,5 +173,56 @@ describe("Dynamic Collection service", () => {
 				"server-1",
 			),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	test("evaluates eight collection previews concurrently", async () => {
+		const getPublicSummaryById = mock(async (id: string) => ({
+			id,
+			kind: "dynamic",
+			dynamicDefinition: definition,
+		}));
+		collectionsRepository.getPublicSummaryById = getPublicSummaryById as never;
+		const collectionIds = Array.from({ length: 8 }, (_, index) =>
+			String(index),
+		);
+		const listVisibleSummariesByIds = mock(async () =>
+			collectionIds.map((id) => ({
+				id,
+				kind: "dynamic" as const,
+				dynamicDefinition: definition,
+			})),
+		);
+		(
+			collectionsRepository as unknown as Record<string, unknown>
+		).listVisibleSummariesByIds = listVisibleSummariesByIds;
+		let active = 0;
+		let maxActive = 0;
+		collectionsRepository.listDynamicItems = mock(async () => {
+			active += 1;
+			maxActive = Math.max(maxActive, active);
+			await Bun.sleep(10);
+			active -= 1;
+			return [];
+		}) as never;
+		const listAuthorsByBookIds = mock(async () => []);
+		collectionsRepository.listAuthorsByBookIds = listAuthorsByBookIds as never;
+
+		await collectionsService.previewCollectionBatch(
+			"owner-1",
+			{
+				collectionIds,
+			},
+			"server-1",
+			"ALL",
+		);
+
+		expect(maxActive).toBe(8);
+		expect(listVisibleSummariesByIds).toHaveBeenCalledWith(
+			collectionIds,
+			"server-1",
+			"owner-1",
+		);
+		expect(getPublicSummaryById).not.toHaveBeenCalled();
+		expect(listAuthorsByBookIds).not.toHaveBeenCalled();
 	});
 });

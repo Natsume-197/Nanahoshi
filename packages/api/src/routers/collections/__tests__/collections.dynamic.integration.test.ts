@@ -163,6 +163,38 @@ describe.skipIf(!enabled)("Dynamic Collections integration", () => {
 		expect(second[0]?.totalHits).toBe(2);
 	});
 
+	test("evaluates missing personal state through joined fallback values", async () => {
+		const rows = await repository.listDynamicItems(
+			{
+				version: 1,
+				root: {
+					kind: "group",
+					match: "all",
+					children: [
+						{
+							kind: "rule",
+							field: "consumptionStatus",
+							operator: "includesAny",
+							value: ["unstarted"],
+						},
+						{ kind: "rule", field: "liked", operator: "isFalse" },
+					],
+				},
+				sort: [{ field: "progressPercent", direction: "desc" }],
+			},
+			{
+				viewerId: "viewer-without-state",
+				serverId: orgId,
+				accessibleLibraryIds: "ALL",
+				timeZone: "UTC",
+			},
+			{ limit: 10, offset: 0 },
+		);
+
+		expect(rows).toHaveLength(3);
+		expect(rows[0]?.totalHits).toBe(3);
+	});
+
 	test("returns only rule options backed by books in the viewer scope", async () => {
 		const visible = await repository.listRuleOptions(
 			"author",

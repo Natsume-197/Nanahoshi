@@ -53,7 +53,7 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 						: "pointer-events-none translate-x-full",
 				)}
 			>
-				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-b-0 border-sidebar-border border-t bg-background text-foreground">
+				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t border-b-0 bg-background text-foreground">
 					<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
 						<MembersList />
 					</div>

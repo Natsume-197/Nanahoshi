@@ -455,6 +455,7 @@ export const previewCollectionBatch = async (
 	serverId: string,
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
+	const previewConcurrency = 8;
 	const results: Array<{
 		collectionId: string;
 		count: number | null;
@@ -463,35 +464,73 @@ export const previewCollectionBatch = async (
 		previewCovers: string[];
 		status: "ready" | "invalid" | "notFound";
 	}> = [];
+	const visibleCollections =
+		await collectionsRepository.listVisibleSummariesByIds(
+			input.collectionIds,
+			serverId,
+			userId,
+		);
+	const collectionsById = new Map(
+		visibleCollections.map((collection) => [collection.id, collection]),
+	);
+	const timeZone = normalizeCollectionTimeZone(input.timeZone);
 	let cursor = 0;
 	const workers = Array.from(
-		{ length: Math.min(3, input.collectionIds.length) },
+		{ length: Math.min(previewConcurrency, input.collectionIds.length) },
 		async () => {
 			while (cursor < input.collectionIds.length) {
 				const index = cursor++;
 				const collectionId = input.collectionIds[index];
 				if (!collectionId) continue;
 				try {
-					const page = await listCollectionItems(
-						userId,
-						{
+					const collection = collectionsById.get(collectionId);
+					if (!collection) throw new NotFoundError("Collection not found");
+					let rows: CollectionItemRow[];
+					if (collection.kind === "dynamic") {
+						let definition: DynamicCollectionDefinitionV1;
+						try {
+							definition = parseDynamicCollectionDefinition(
+								collection.dynamicDefinition,
+							);
+						} catch {
+							results[index] = {
+								collectionId,
+								count: null,
+								ebookCount: null,
+								audiobookCount: null,
+								previewCovers: [],
+								status: "invalid",
+							};
+							continue;
+						}
+						rows = await collectionsRepository.listDynamicItems(
+							definition,
+							{
+								viewerId: userId,
+								serverId,
+								accessibleLibraryIds,
+								timeZone,
+								randomSeed: collectionId,
+							},
+							{ limit: 5, offset: 0 },
+						);
+					} else {
+						rows = await collectionsRepository.listManualItems(
 							collectionId,
-							cursor: 0,
-							limit: 5,
-							timeZone: input.timeZone,
-						},
-						serverId,
-						accessibleLibraryIds,
-					);
+							serverId,
+							accessibleLibraryIds,
+							{ limit: 5, offset: 0 },
+						);
+					}
 					results[index] = {
 						collectionId,
-						count: page.pagination.totalHits,
-						ebookCount: page.pagination.ebookHits,
-						audiobookCount: page.pagination.audiobookHits,
-						previewCovers: page.items
+						count: Number(rows[0]?.totalHits ?? 0),
+						ebookCount: Number(rows[0]?.ebookHits ?? 0),
+						audiobookCount: Number(rows[0]?.audiobookHits ?? 0),
+						previewCovers: rows
 							.map((item) => item.cover)
 							.filter((cover): cover is string => typeof cover === "string"),
-						status: page.definitionStatus === "invalid" ? "invalid" : "ready",
+						status: "ready",
 					};
 				} catch (error) {
 					results[index] = {

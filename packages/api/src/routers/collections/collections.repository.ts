@@ -10,6 +10,11 @@ import {
 	collection,
 	collectionBook,
 	library,
+	likedBook,
+	listeningProgress,
+	readingProgress,
+	userAudiobookShelf,
+	userBookShelf,
 } from "@nanahoshi-v2/db/schema/general";
 import {
 	and,
@@ -501,6 +506,28 @@ export class CollectionsRepository {
 		return row ?? null;
 	}
 
+	async listVisibleSummariesByIds(
+		collectionIds: string[],
+		serverId: string,
+		viewerId: string,
+	) {
+		if (collectionIds.length === 0) return [];
+		return db
+			.select({
+				id: collection.id,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
+			})
+			.from(collection)
+			.where(
+				and(
+					eq(collection.serverId, serverId),
+					inArray(collection.id, collectionIds),
+					or(eq(collection.isPublic, true), eq(collection.userId, viewerId)),
+				),
+			);
+	}
+
 	async listDynamicItems(
 		definition: DynamicCollectionDefinitionV1,
 		context: {
@@ -514,7 +541,7 @@ export class CollectionsRepository {
 		options: { limit: number; offset: number },
 	) {
 		const compiled = compileDynamicCollectionQuery(definition, context);
-		return db
+		const query = db
 			.select({
 				id: book.id,
 				uuid: book.uuid,
@@ -538,6 +565,53 @@ export class CollectionsRepository {
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+			.$dynamic();
+		let scopedQuery = query;
+		if (compiled.personalJoins.includes("liked")) {
+			scopedQuery = scopedQuery.leftJoin(
+				likedBook,
+				and(
+					eq(likedBook.bookId, book.id),
+					eq(likedBook.userId, context.viewerId),
+					eq(likedBook.serverId, context.serverId),
+				),
+			);
+		}
+		if (compiled.personalJoins.includes("progress")) {
+			scopedQuery = scopedQuery
+				.leftJoin(
+					readingProgress,
+					and(
+						eq(readingProgress.bookId, book.id),
+						eq(readingProgress.userId, context.viewerId),
+					),
+				)
+				.leftJoin(
+					listeningProgress,
+					and(
+						eq(listeningProgress.bookId, book.id),
+						eq(listeningProgress.userId, context.viewerId),
+					),
+				);
+		}
+		if (compiled.personalJoins.includes("shelf")) {
+			scopedQuery = scopedQuery
+				.leftJoin(
+					userBookShelf,
+					and(
+						eq(userBookShelf.bookId, book.id),
+						eq(userBookShelf.userId, context.viewerId),
+					),
+				)
+				.leftJoin(
+					userAudiobookShelf,
+					and(
+						eq(userAudiobookShelf.bookId, book.id),
+						eq(userAudiobookShelf.userId, context.viewerId),
+					),
+				);
+		}
+		return scopedQuery
 			.where(compiled.where)
 			.orderBy(...compiled.orderBy)
 			.limit(options.limit)

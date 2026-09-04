@@ -3,8 +3,23 @@ import {
 	book,
 	bookMetadata,
 	library,
+	likedBook,
+	listeningProgress,
+	readingProgress,
+	userAudiobookShelf,
+	userBookShelf,
 } from "@nanahoshi-v2/db/schema/general";
-import { and, eq, inArray, isNull, not, or, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	not,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import {
 	type CollectionEntityRef,
 	type CollectionFieldRule,
@@ -26,6 +41,7 @@ export type CompiledDynamicCollectionQuery = {
 	where: SQL;
 	orderBy: SQL[];
 	isPersonalized: boolean;
+	personalJoins: Array<"liked" | "shelf" | "progress">;
 };
 
 export function compileDynamicCollectionQuery(
@@ -64,7 +80,46 @@ export function compileDynamicCollectionQuery(
 		) as SQL,
 		orderBy: compileSort(definition, context),
 		isPersonalized: isPersonalizedCollectionDefinition(definition),
+		personalJoins: collectPersonalJoins(definition),
 	};
+}
+
+function collectPersonalJoins(definition: DynamicCollectionDefinitionV1) {
+	const required = new Set<"liked" | "shelf" | "progress">();
+	const pending = [...definition.root.children];
+	while (pending.length > 0) {
+		const node = pending.pop();
+		if (!node) continue;
+		if (node.kind === "group") {
+			pending.push(...node.children);
+		} else if (node.field === "liked") {
+			required.add("liked");
+		} else if (node.field === "shelfStatus") {
+			required.add("shelf");
+		} else if (
+			[
+				"consumptionStatus",
+				"progressPercent",
+				"startedAt",
+				"completedAt",
+				"lastActivityAt",
+			].includes(node.field)
+		) {
+			required.add("progress");
+		}
+	}
+	if (
+		definition.sort.some((sort) =>
+			["progressPercent", "consumptionStatus", "lastActivityAt"].includes(
+				sort.field,
+			),
+		)
+	) {
+		required.add("progress");
+	}
+	return (["liked", "shelf", "progress"] as const).filter((join) =>
+		required.has(join),
+	);
 }
 
 function compileSort(
@@ -128,9 +183,9 @@ function sortExpression(
 		case "fileSizeMb":
 			return sql`${book.filesizeKb}`;
 		case "progressPercent":
-			return progressExpression(context.viewerId);
+			return progressExpression();
 		case "consumptionStatus":
-			return consumptionStatusExpression(context.viewerId);
+			return consumptionStatusExpression();
 		case "format":
 			return sql`CASE WHEN ${library.mediaType} = 'ebook' THEN ${ebookFormatExpression()} ELSE (
 				SELECT MIN(LOWER(COALESCE(af.format, SUBSTRING(af.filename FROM '\\.([^.]+)$')))) FROM audio_file af WHERE af.book_id = ${book.id}
@@ -138,7 +193,7 @@ function sortExpression(
 		case "language":
 			return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.languageCode} ELSE ${bookMetadata.languageCode} END`;
 		case "lastActivityAt":
-			return personalDateExpression(context.viewerId, "last_activity_at");
+			return personalDateExpression("last_activity_at");
 		case "random":
 			return sql`MD5(${book.uuid}::text || ${context.randomSeed ?? "default"})`;
 	}
@@ -187,13 +242,9 @@ function compileRule(
 				rule.operator,
 			);
 		case "liked": {
-			const exists = sql`EXISTS (
-				SELECT 1 FROM liked_book lb
-				WHERE lb.book_id = ${book.id}
-					AND lb.user_id = ${context.viewerId}
-					AND lb.server_id = ${context.serverId}
-			)`;
-			return rule.operator === "isTrue" ? exists : not(exists);
+			return rule.operator === "isTrue"
+				? isNotNull(likedBook.bookId)
+				: isNull(likedBook.bookId);
 		}
 		case "author":
 			return entityRelationPredicate(
@@ -373,28 +424,28 @@ function compileRule(
 			return rule.operator === "isTrue" ? paired : not(paired);
 		}
 		case "shelfStatus":
-			return enumPredicate(shelfStatusExpression(context.viewerId), rule);
+			return enumPredicate(shelfStatusExpression(), rule);
 		case "consumptionStatus":
-			return enumPredicate(consumptionStatusExpression(context.viewerId), rule);
+			return enumPredicate(consumptionStatusExpression(), rule);
 		case "progressPercent":
-			return numberPredicate(progressExpression(context.viewerId), rule);
+			return numberPredicate(progressExpression(), rule);
 		case "startedAt":
 			return datePredicate(
-				personalDateExpression(context.viewerId, "started_at"),
+				personalDateExpression("started_at"),
 				rule,
 				context,
 				true,
 			);
 		case "completedAt":
 			return datePredicate(
-				personalDateExpression(context.viewerId, "completed_at"),
+				personalDateExpression("completed_at"),
 				rule,
 				context,
 				true,
 			);
 		case "lastActivityAt":
 			return datePredicate(
-				personalDateExpression(context.viewerId, "last_activity_at"),
+				personalDateExpression("last_activity_at"),
 				rule,
 				context,
 				true,
@@ -593,79 +644,64 @@ function formatPredicate(rule: CollectionFieldRule): SQL {
 	return rule.operator === "includesAny" ? matches : not(matches);
 }
 
-function shelfStatusExpression(viewerId: string): SQL {
-	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
-		SELECT CASE uas.status
+function shelfStatusExpression(): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE(
+		CASE ${userAudiobookShelf.status}
 			WHEN 'want_to_listen' THEN 'want'
 			WHEN 'listening' THEN 'inProgress'
-			ELSE uas.status::text END
-		FROM user_audiobook_shelf uas
-		WHERE uas.book_id = ${book.id} AND uas.user_id = ${viewerId}
-	), 'none') ELSE COALESCE((
-		SELECT CASE ubs.status
+			ELSE ${userAudiobookShelf.status}::text END,
+		'none') ELSE COALESCE(
+		CASE ${userBookShelf.status}
 			WHEN 'want_to_read' THEN 'want'
 			WHEN 'reading' THEN 'inProgress'
-			ELSE ubs.status::text END
-		FROM user_book_shelf ubs
-		WHERE ubs.book_id = ${book.id} AND ubs.user_id = ${viewerId}
-	), 'none') END`;
+			ELSE ${userBookShelf.status}::text END,
+		'none') END`;
 }
 
-function consumptionStatusExpression(viewerId: string): SQL {
-	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
-		SELECT CASE lp.status
+function consumptionStatusExpression(): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE(
+		CASE ${listeningProgress.status}
 			WHEN 'listening' THEN 'inProgress'
 			WHEN 'completed' THEN 'completed'
-			ELSE 'unstarted' END
-		FROM listening_progress lp
-		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
-	), 'unstarted') ELSE COALESCE((
-		SELECT CASE rp.status
+			ELSE 'unstarted' END,
+		'unstarted') ELSE COALESCE(
+		CASE ${readingProgress.status}
 			WHEN 'reading' THEN 'inProgress'
 			WHEN 'completed' THEN 'completed'
-			ELSE 'unstarted' END
-		FROM reading_progress rp
-		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
-	), 'unstarted') END`;
+			ELSE 'unstarted' END,
+		'unstarted') END`;
 }
 
-function progressExpression(viewerId: string): SQL {
-	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE((
-		SELECT CASE
-			WHEN lp.status = 'completed' THEN 100::double precision
-			WHEN COALESCE(lp.duration_seconds, 0) <= 0 THEN 0::double precision
-			ELSE LEAST(100, GREATEST(0, lp.current_time_seconds / lp.duration_seconds * 100)) END
-		FROM listening_progress lp
-		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
-	), 0) ELSE COALESCE((
-		SELECT CASE
-			WHEN rp.status = 'completed' THEN 100::double precision
-			WHEN COALESCE(rp.book_char_count, 0) <= 0 THEN 0::double precision
-			ELSE LEAST(100, GREATEST(0, rp.explored_char_count::double precision / rp.book_char_count * 100)) END
-		FROM reading_progress rp
-		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
-	), 0) END`;
+function progressExpression(): SQL {
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN COALESCE(
+		CASE
+			WHEN ${listeningProgress.status} = 'completed' THEN 100::double precision
+			WHEN COALESCE(${listeningProgress.durationSeconds}, 0) <= 0 THEN 0::double precision
+			ELSE LEAST(100, GREATEST(0, ${listeningProgress.currentTimeSeconds} / ${listeningProgress.durationSeconds} * 100)) END,
+		0) ELSE COALESCE(
+		CASE
+			WHEN ${readingProgress.status} = 'completed' THEN 100::double precision
+			WHEN COALESCE(${readingProgress.bookCharCount}, 0) <= 0 THEN 0::double precision
+			ELSE LEAST(100, GREATEST(0, ${readingProgress.exploredCharCount}::double precision / ${readingProgress.bookCharCount} * 100)) END,
+		0) END`;
 }
 
 function personalDateExpression(
-	viewerId: string,
 	field: "started_at" | "completed_at" | "last_activity_at",
 ): SQL {
 	const readingColumn =
 		field === "last_activity_at"
-			? sql.raw("rp.last_read_at")
-			: sql.raw(`rp.${field}`);
+			? readingProgress.lastReadAt
+			: field === "started_at"
+				? readingProgress.startedAt
+				: readingProgress.completedAt;
 	const listeningColumn =
 		field === "last_activity_at"
-			? sql.raw("lp.last_listened_at")
-			: sql.raw(`lp.${field}`);
-	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN (
-		SELECT ${listeningColumn} FROM listening_progress lp
-		WHERE lp.book_id = ${book.id} AND lp.user_id = ${viewerId}
-	) ELSE (
-		SELECT ${readingColumn} FROM reading_progress rp
-		WHERE rp.book_id = ${book.id} AND rp.user_id = ${viewerId}
-	) END`;
+			? listeningProgress.lastListenedAt
+			: field === "started_at"
+				? listeningProgress.startedAt
+				: listeningProgress.completedAt;
+	return sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${listeningColumn} ELSE ${readingColumn} END`;
 }
 
 function entityRelationPredicate(

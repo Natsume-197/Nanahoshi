@@ -260,6 +260,12 @@ export const PERSONAL_COLLECTION_FIELDS = new Set<CollectionRuleField>([
 	"lastActivityAt",
 ]);
 
+const PERSONAL_COLLECTION_SORT_FIELDS = new Set<CollectionSortField>([
+	"progressPercent",
+	"consumptionStatus",
+	"lastActivityAt",
+]);
+
 const EntityRefSchema = z.object({
 	id: z.string().uuid(),
 	label: z.string().trim().min(1).max(120),
@@ -563,6 +569,13 @@ export function parseDynamicCollectionDefinition(
 export function isPersonalizedCollectionDefinition(
 	definition: DynamicCollectionDefinitionV1,
 ): boolean {
+	if (
+		definition.sort.some((sort) =>
+			PERSONAL_COLLECTION_SORT_FIELDS.has(sort.field),
+		)
+	) {
+		return true;
+	}
 	const pending = [...definition.root.children];
 	while (pending.length > 0) {
 		const node = pending.pop();
