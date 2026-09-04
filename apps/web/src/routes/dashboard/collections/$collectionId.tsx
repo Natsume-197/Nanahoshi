@@ -6,7 +6,12 @@ import {
 	Trash,
 } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	useNavigate,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BookCard } from "@/components/books/book-card";
@@ -32,8 +37,17 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 const COLLECTION_CARD_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
 export const Route = createFileRoute("/dashboard/collections/$collectionId")({
-	component: CollectionDetailPage,
+	component: CollectionDetailRoute,
 });
+
+function CollectionDetailRoute() {
+	return (
+		<>
+			<CollectionDetailPage />
+			<Outlet />
+		</>
+	);
+}
 
 function CollectionDetailPage() {
 	const { collectionId } = Route.useParams();
