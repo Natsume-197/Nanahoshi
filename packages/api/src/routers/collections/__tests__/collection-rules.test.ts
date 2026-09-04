@@ -63,6 +63,27 @@ describe("Dynamic Collection definition", () => {
 		).toBe(true);
 	});
 
+	test("accepts Read & Listen as a dynamic collection content type", () => {
+		const result = DynamicCollectionDefinitionSchema.safeParse({
+			version: 1,
+			root: {
+				kind: "group",
+				match: "all",
+				children: [
+					{
+						kind: "rule",
+						field: "mediaType",
+						operator: "includesAny",
+						value: ["readListen"],
+					},
+				],
+			},
+			sort: [],
+		});
+
+		expect(result.success).toBe(true);
+	});
+
 	test("rejects an empty persisted definition but permits an empty preview", () => {
 		const draft = {
 			version: 1,

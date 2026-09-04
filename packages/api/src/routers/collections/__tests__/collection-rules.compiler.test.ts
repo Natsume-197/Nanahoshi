@@ -47,6 +47,28 @@ describe("Dynamic Collection SQL compiler", () => {
 		expect(query.params).toContain("%星の王子さま%");
 	});
 
+	test("compiles Read & Listen as a content type backed by a pair", () => {
+		const query = render({
+			version: 1,
+			root: {
+				kind: "group",
+				match: "all",
+				children: [
+					{
+						kind: "rule",
+						field: "mediaType",
+						operator: "includesAny",
+						value: ["readListen"],
+					},
+				],
+			},
+			sort: [],
+		});
+
+		expect(query.sql).toContain("read_listen_pair");
+		expect(query.params).toContain("server-1");
+	});
+
 	test("prefilters positive title searches through the PGroonga-backed id sets", () => {
 		const definition: DynamicCollectionDefinitionV1 = {
 			version: 1,

@@ -232,7 +232,7 @@ function compileRule(
 ): SQL {
 	switch (rule.field) {
 		case "mediaType":
-			return enumPredicate(sql`${library.mediaType}`, rule);
+			return mediaTypePredicate(rule, context);
 		case "title":
 			return titlePredicate(rule);
 		case "subtitle":
@@ -429,9 +429,7 @@ function compileRule(
 				rule.operator,
 			);
 		case "readListenPaired": {
-			const paired = sql`EXISTS (SELECT 1 FROM read_listen_pair rlp
-				WHERE rlp.server_id = ${context.serverId}
-					AND (rlp.ebook_book_id = ${book.id} OR rlp.audiobook_book_id = ${book.id}))`;
+			const paired = readListenPairPredicate(context);
 			return rule.operator === "isTrue" ? paired : not(paired);
 		}
 		case "shelfStatus":
@@ -592,6 +590,45 @@ function enumPredicate(expression: SQL, rule: CollectionFieldRule): SQL {
 	return rule.operator === "includesAny"
 		? sql`${expression} IN (${list})`
 		: sql`(${expression} IS NULL OR ${expression} NOT IN (${list}))`;
+}
+
+function readListenPairPredicate(context: DynamicCollectionQueryContext): SQL {
+	return sql`EXISTS (SELECT 1 FROM read_listen_pair rlp
+		WHERE rlp.server_id = ${context.serverId}
+			AND (rlp.ebook_book_id = ${book.id} OR rlp.audiobook_book_id = ${book.id}))`;
+}
+
+function mediaTypePredicate(
+	rule: CollectionFieldRule,
+	context: DynamicCollectionQueryContext,
+): SQL {
+	const values = rule.value as string[];
+	if (!values.includes("readListen")) {
+		return enumPredicate(sql`${library.mediaType}`, rule);
+	}
+
+	const libraryMediaTypes = values.filter(
+		(value): value is "ebook" | "audiobook" =>
+			value === "ebook" || value === "audiobook",
+	);
+	const paired = readListenPairPredicate(context);
+	const libraryRule = { ...rule, value: libraryMediaTypes };
+
+	if (rule.operator === "includesAny") {
+		return libraryMediaTypes.length > 0
+			? (or(
+					enumPredicate(sql`${library.mediaType}`, libraryRule),
+					paired,
+				) as SQL)
+			: paired;
+	}
+
+	return libraryMediaTypes.length > 0
+		? (and(
+				enumPredicate(sql`${library.mediaType}`, libraryRule),
+				not(paired),
+			) as SQL)
+		: not(paired);
 }
 
 function entityScalarPredicate(

@@ -236,7 +236,7 @@ export const COLLECTION_FIELD_OPERATORS = {
 >;
 
 export const COLLECTION_ENUM_VALUES = {
-	mediaType: ["ebook", "audiobook"],
+	mediaType: ["ebook", "audiobook", "readListen"],
 	contentForm: ["text", "images"],
 	enrichmentStatus: [
 		"pending",
