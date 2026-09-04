@@ -7,8 +7,8 @@ import {
 
 /**
  * Owns the indexed text document for a reflowable reading session. It lives
- * above individual layouts, so entering or leaving Focus cannot create a
- * second document lifecycle.
+ * above individual layouts and prepares on demand for Focus. Other layouts
+ * do not pay for sentence indexing; completed indexes remain cached.
  */
 export function useTextReaderDocument({
 	enabled,

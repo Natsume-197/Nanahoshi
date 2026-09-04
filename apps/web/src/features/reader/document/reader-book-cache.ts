@@ -1,5 +1,3 @@
-import { getCharacterCount } from "@/features/reader/document/processing/character-count";
-import { getParagraphNodes } from "@/features/reader/document/processing/get-paragraph-nodes";
 import type {
 	ReaderBookData,
 	ReaderSourceFormat,
@@ -44,6 +42,12 @@ interface CachedFacts {
 }
 
 let databasePromise: Promise<IDBDatabase | undefined> | undefined;
+let cacheGeneration = 0;
+
+/** Capture before loading so sign-out also invalidates work still parsing. */
+export function getReaderBookCacheGeneration(): number {
+	return cacheGeneration;
+}
 
 export function canCacheReaderBook(
 	key: Omit<ReaderBookCacheKey, "fileHash"> & { fileHash?: string | null },
@@ -61,12 +65,17 @@ export async function getCachedReaderBookFile(
 export async function putCachedReaderBookFile(
 	key: ReaderBookCacheKey,
 	blob: Blob,
+	generation: number,
 ): Promise<void> {
-	await writeRecord(FILES_STORE, {
-		id: recordId(key),
-		fileHash: key.fileHash,
-		blob,
-	} satisfies CachedFile);
+	await writeRecord(
+		FILES_STORE,
+		{
+			id: recordId(key),
+			fileHash: key.fileHash,
+			blob,
+		} satisfies CachedFile,
+		generation,
+	);
 }
 
 export async function getReaderBookFacts(
@@ -81,16 +90,22 @@ export async function getReaderBookFacts(
 export async function putReaderBookFacts(
 	key: ReaderBookCacheKey,
 	facts: ReaderBookFacts,
+	generation: number,
 ): Promise<void> {
-	await writeRecord(FACTS_STORE, {
-		id: recordId(key),
-		fileHash: key.fileHash,
-		facts,
-	} satisfies CachedFacts);
+	await writeRecord(
+		FACTS_STORE,
+		{
+			id: recordId(key),
+			fileHash: key.fileHash,
+			facts,
+		} satisfies CachedFacts,
+		generation,
+	);
 }
 
 /** Deletes private book bytes and facts when the browser identity changes. */
 export async function clearReaderBookCache(): Promise<void> {
+	cacheGeneration += 1;
 	clearReaderBookMemoryCache();
 	if (typeof indexedDB === "undefined") return;
 	const openDatabase = databasePromise ? await databasePromise : undefined;
@@ -110,29 +125,15 @@ export async function clearReaderBookCache(): Promise<void> {
 
 export function readerBookFactsFromData(
 	data: ReaderBookData,
-	document: Document,
-): ReaderBookFacts {
-	const staging = document.implementation.createHTMLDocument("");
-	const container = staging.createElement("div");
-	container.innerHTML = data.elementHtml;
-	const countByReference = new Map(
-		Array.from(container.children).map((section) => [
-			section.id,
-			getParagraphNodes(section).reduce(
-				(total, node) => total + getCharacterCount(node),
-				0,
-			),
-		]),
-	);
+): ReaderBookFacts | undefined {
+	if (!data.sectionCharacterCounts) return undefined;
 	return {
 		schemaVersion: FACTS_SCHEMA_VERSION,
 		sourceFormat: data.sourceFormat,
 		contentForm: data.contentForm,
 		characters: data.characters,
 		sections: data.sections.map((section) => ({ ...section })),
-		sectionCharacterCounts: data.sections.map(
-			(section) => countByReference.get(section.reference) ?? 0,
-		),
+		sectionCharacterCounts: data.sectionCharacterCounts.slice(),
 	};
 }
 
@@ -158,6 +159,7 @@ export function applyReaderBookFacts(
 		...data,
 		contentForm: facts.contentForm,
 		characters: facts.characters,
+		sectionCharacterCounts: facts.sectionCharacterCounts,
 		sections: facts.sections.map((fact, index) => ({
 			...fact,
 			label: data.sections[index]?.label ?? fact.label,
@@ -210,9 +212,11 @@ async function readRecord<T>(
 async function writeRecord(
 	storeName: typeof FILES_STORE | typeof FACTS_STORE,
 	record: CachedFile | CachedFacts,
+	generation: number,
 ): Promise<void> {
+	if (generation !== cacheGeneration) return;
 	const database = await openDatabase();
-	if (!database) return;
+	if (!database || generation !== cacheGeneration) return;
 	try {
 		const transaction = database.transaction(storeName, "readwrite");
 		transaction.objectStore(storeName).put(record);

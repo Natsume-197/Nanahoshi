@@ -13,6 +13,7 @@ import { loadEbook } from "./load-ebook";
 import {
 	canCacheReaderBook,
 	getCachedReaderBookFile,
+	getReaderBookCacheGeneration,
 	getReaderBookFacts,
 	putCachedReaderBookFile,
 	putReaderBookFacts,
@@ -58,14 +59,34 @@ export async function loadBookForReader({
 }): Promise<LoadedReaderBook> {
 	if (!serverId) throw new Error("Reading requires a server connection");
 
+	const cacheGeneration = getReaderBookCacheGeneration();
 	const cacheCandidate = { serverId, uuid, fileHash };
 	const cacheKey = canCacheReaderBook(cacheCandidate)
 		? cacheCandidate
 		: undefined;
-	let blob = cacheKey ? await getCachedReaderBookFile(cacheKey) : undefined;
 	let filename = fileName;
+	const cached =
+		cacheKey && !allowLazySections
+			? getReaderBookMemoryCache(cacheKey)
+			: undefined;
+	// A known filename lets an in-memory hit avoid storage and network entirely.
+	if (filename) {
+		const format = ebookSourceFormatForFilename(filename);
+		if (!format || (sourceFormat && format !== sourceFormat)) {
+			throw new Error(`Unsupported ebook format: ${filename}`);
+		}
+		if (cached) {
+			cached.cover = cover ?? null;
+			return createReaderBookSession({ data: cached });
+		}
+	}
+	let [blob, facts] = cacheKey
+		? await Promise.all([
+				getCachedReaderBookFile(cacheKey),
+				getReaderBookFacts(cacheKey),
+			])
+		: [undefined, undefined];
 	let readerUrl: string | undefined;
-	const facts = cacheKey ? await getReaderBookFacts(cacheKey) : undefined;
 
 	if (!filename || (!blob && facts)) {
 		const readerFile = await client.files.getReaderUrl({ uuid, serverId });
@@ -78,12 +99,9 @@ export async function loadBookForReader({
 	if (!resolvedFormat || (sourceFormat && resolvedFormat !== sourceFormat)) {
 		throw new Error(`Unsupported ebook format: ${filename ?? "unknown"}`);
 	}
-	if (cacheKey && !allowLazySections) {
-		const cached = getReaderBookMemoryCache(cacheKey);
-		if (cached) {
-			cached.cover = cover ?? null;
-			return createReaderBookSession({ data: cached });
-		}
+	if (cached && cacheGeneration === getReaderBookCacheGeneration()) {
+		cached.cover = cover ?? null;
+		return createReaderBookSession({ data: cached });
 	}
 
 	// Facts make the outline and absolute character coordinates available without
@@ -137,7 +155,7 @@ export async function loadBookForReader({
 			(progress) => callbacks.onDownloadProgress?.(progress),
 			fileSizeBytes,
 		);
-		if (cacheKey) await putCachedReaderBookFile(cacheKey, blob);
+		if (cacheKey) void putCachedReaderBookFile(cacheKey, blob, cacheGeneration);
 	}
 
 	callbacks.onParsing?.();
@@ -150,8 +168,13 @@ export async function loadBookForReader({
 		facts,
 	);
 	data.cover = cover ?? null;
-	if (cacheKey) {
-		await putReaderBookFacts(cacheKey, readerBookFactsFromData(data, document));
+	if (cacheKey && cacheGeneration === getReaderBookCacheGeneration()) {
+		// Applying valid facts preserves this array, so there is nothing to rewrite.
+		if (data.sectionCharacterCounts !== facts?.sectionCharacterCounts) {
+			const freshFacts = readerBookFactsFromData(data);
+			if (freshFacts)
+				void putReaderBookFacts(cacheKey, freshFacts, cacheGeneration);
+		}
 		if (!allowLazySections) putReaderBookMemoryCache(cacheKey, data);
 	}
 	return createReaderBookSession({ data });

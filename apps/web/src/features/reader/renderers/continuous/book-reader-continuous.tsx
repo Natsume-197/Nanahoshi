@@ -114,7 +114,7 @@ export function BookReaderContinuous({
 		scrollAdjustment: 0,
 		prevIntendedCharCount: initialPosition?.exploredCharCount ?? 0,
 		isProgrammaticScroll: false,
-		// Dirty until finishInit measures everything for the first time.
+		// Dirty until fonts settle and the initial reading position is restored.
 		layoutDirty: true,
 		layoutRevision: 0,
 		userInputPending: false,
@@ -230,7 +230,9 @@ export function BookReaderContinuous({
 	// Re-measures are committed; lift the dirty window on the next frame so
 	// scroll callbacks already queued against stale positions drain first.
 	const clearLayoutDirtyNextFrame = () => {
+		const revision = internalsRef.current.layoutRevision;
 		requestAnimationFrame(() => {
+			if (revision !== internalsRef.current.layoutRevision) return;
 			internalsRef.current.layoutDirty = false;
 		});
 	};
@@ -422,6 +424,7 @@ export function BookReaderContinuous({
 		s.settledInnerWidth = scrollEl.clientWidth;
 		s.settledInnerHeight = scrollEl.clientHeight;
 		let cancelled = false;
+		let startupFrame = 0;
 		const layoutScheduler = createReaderLayoutScheduler({
 			run: (transaction) => {
 				const revision = s.pendingRelayoutRevision;
@@ -448,7 +451,7 @@ export function BookReaderContinuous({
 							calculator.getReadingEdgeScrollPos(s.prevIntendedCharCount),
 						);
 						const measured = await calculator.updateParagraphPosCooperative(
-							0,
+							undefined,
 							() =>
 								cancelled ||
 								!transaction.isCurrent() ||
@@ -512,7 +515,7 @@ export function BookReaderContinuous({
 			s.recalcTimer = setTimeout(async () => {
 				if (cancelled) return;
 				const measured = await calculator.updateParagraphPosCooperative(
-					0,
+					undefined,
 					() => cancelled || revision !== s.layoutRevision,
 				);
 				if (!measured) return;
@@ -549,16 +552,10 @@ export function BookReaderContinuous({
 		};
 		document.body.addEventListener("wheel", handleWheel, { passive: false });
 
-		const finishInit = async () => {
+		const finishInit = () => {
 			if (cancelled) return;
 			applyVerticalReadingHeight();
 			refitImages();
-			const measured = await calculator.updateParagraphPosCooperative(
-				0,
-				() => cancelled,
-			);
-			if (!measured) return;
-
 			const firstSection = contentEl.firstElementChild;
 			if (firstSection) {
 				s.scrollAdjustment =
@@ -581,9 +578,24 @@ export function BookReaderContinuous({
 				scrollToReadingPos(initialPosition);
 			}
 			reportIntendedPosition();
-			updateSectionProgress();
 			setAllowDisplay(true);
 			clearLayoutDirtyNextFrame();
+
+			// Paint the restored page before scanning the rest of the document.
+			// Live position queries remain usable until this index is complete.
+			// Completion never restores again: the reader may already have moved.
+			const revision = s.layoutRevision;
+			startupFrame = requestAnimationFrame(() => {
+				startupFrame = requestAnimationFrame(async () => {
+					const stale = () => cancelled || revision !== s.layoutRevision;
+					if (stale()) return;
+					const measured = await calculator.updateParagraphPosCooperative(
+						undefined,
+						stale,
+					);
+					if (measured && !stale()) updateSectionProgress();
+				});
+			});
 		};
 
 		document.fonts.ready.then(() => {
@@ -620,6 +632,7 @@ export function BookReaderContinuous({
 
 		return () => {
 			cancelled = true;
+			cancelAnimationFrame(startupFrame);
 			layoutScheduler.cancel();
 			if (s.layoutScheduler === layoutScheduler) {
 				s.layoutScheduler = undefined;

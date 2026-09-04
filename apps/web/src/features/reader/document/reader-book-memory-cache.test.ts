@@ -16,6 +16,7 @@ const data: ReaderBookData = {
 	styleSheet: "",
 	blobs: {},
 	characters: 4,
+	sectionCharacterCounts: [4],
 	sections: [{ reference: "chapter", charactersWeight: 4 }],
 };
 
@@ -36,10 +37,14 @@ describe("reader book memory cache", () => {
 		const cached = getReaderBookMemoryCache(key);
 		if (!cached) throw new Error("expected cached data");
 		cached.cover = "changed.jpg";
-		cached.sections[0]!.label = "Changed";
+		const section = cached.sections[0];
+		if (!section) throw new Error("expected cached section");
+		section.label = "Changed";
+		if (cached.sectionCharacterCounts) cached.sectionCharacterCounts[0] = 99;
 
 		const fresh = getReaderBookMemoryCache(key);
 		expect(fresh?.cover).toBeNull();
 		expect(fresh?.sections[0]?.label).toBeUndefined();
+		expect(fresh?.sectionCharacterCounts).toEqual([4]);
 	});
 });

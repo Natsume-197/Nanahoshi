@@ -1,9 +1,14 @@
 import "@/test-utils/setup-dom";
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
+import {
+	defaultReaderSettings,
+	getReaderTheme,
+} from "@/features/reader/presentation/settings";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
 import { BookReaderContinuous } from "./book-reader-continuous";
+import { CharacterStatsCalculator } from "./character-stats-calculator";
 
 let htmlPrototype: typeof HTMLElement.prototype;
 let rangePrototype: typeof window.Range.prototype;
@@ -93,6 +98,76 @@ afterEach(() => {
 });
 
 describe("BookReaderContinuous vertical padding", () => {
+	test("shows the reading position before the whole-book geometry scan finishes", async () => {
+		const scheduler = Object.getOwnPropertyDescriptor(globalThis, "scheduler");
+		const background = Promise.withResolvers<void>();
+		Object.defineProperty(globalThis, "scheduler", {
+			configurable: true,
+			value: { yield: () => background.promise },
+		});
+		const measure = spyOn(window.Range.prototype, "getBoundingClientRect");
+		const scan = spyOn(
+			CharacterStatsCalculator.prototype,
+			"updateParagraphPosCooperative",
+		);
+		let readerApi: BookReaderApi | null = null;
+		try {
+			const view = render(
+				<BookReaderContinuous
+					{...defaultReaderSettings}
+					htmlContent={`<div id="chapter">${"<p>Book text.</p>".repeat(2000)}</div>`}
+					language="en"
+					verticalMode={false}
+					theme={getReaderTheme(defaultReaderSettings.theme)}
+					autoPositionOnResize={true}
+					reservePlayerSpace={false}
+					scrollContainerRef={{ current: document.documentElement }}
+					sections={[
+						{
+							reference: "chapter",
+							charactersWeight: 16000,
+							characters: 16000,
+						},
+					]}
+					initialPosition={undefined}
+					navigationBlocked={false}
+					onPositionChange={() => {}}
+					onSectionProgressChange={() => {}}
+					apiRef={(api) => {
+						readerApi = api;
+					}}
+				/>,
+			);
+			await waitFor(
+				() =>
+					expect(Boolean(view.container.querySelector(".animate-spin"))).toBe(
+						false,
+					),
+				{ timeout: 500 },
+			);
+			expect(measure.mock.calls.length).toBeLessThan(256);
+			await waitFor(() => expect(scan).toHaveBeenCalledTimes(1));
+			const api = readerApi as unknown as BookReaderApi;
+			api.scrollToPosition({
+				exploredCharCount: 1000,
+				progress: 0,
+				modifiedAt: 1,
+			});
+			await act(async () => {
+				background.resolve();
+				await scan.mock.results[0]?.value;
+			});
+			expect(api.getPosition()?.exploredCharCount).toBe(1000);
+			view.unmount();
+		} finally {
+			background.resolve();
+			measure.mockRestore();
+			scan.mockRestore();
+			if (scheduler) Object.defineProperty(globalThis, "scheduler", scheduler);
+			else Reflect.deleteProperty(globalThis, "scheduler");
+		}
+	});
+
 	test("centres a capped player-safe column and expands it at zero padding", async () => {
 		let readerApi: BookReaderApi | null = null;
 		const scrollContainerRef = { current: document.documentElement };

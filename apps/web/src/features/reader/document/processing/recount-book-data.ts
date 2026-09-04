@@ -43,5 +43,12 @@ export function recountBookData(
 		}
 	}
 
-	return { ...data, characters, sections };
+	return {
+		...data,
+		characters,
+		sections,
+		sectionCharacterCounts: sections.map(
+			(section) => countByReference.get(section.reference) ?? 0,
+		),
+	};
 }

@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { lazy, type RefObject, Suspense } from "react";
 import type { LazyHtmlBook } from "@/features/reader/document/lazy-html-book";
 import type { PdfReaderSource } from "@/features/reader/document/pdf-source";
 import type {
@@ -16,9 +16,15 @@ import type { BookReaderApi } from "@/features/reader/reader-contract";
 import { BookReaderContinuous } from "@/features/reader/renderers/continuous/book-reader-continuous";
 import { BookReaderFocus } from "@/features/reader/renderers/focus/book-reader-focus";
 import { BookReaderPaginated } from "@/features/reader/renderers/paginated/book-reader-paginated";
-import { BookReaderPdf } from "@/features/reader/renderers/pdf/book-reader-pdf";
 import { BookReaderVisual } from "@/features/reader/renderers/visual/book-reader-visual";
 import { useTextReaderDocument } from "@/features/reader/session/use-text-reader-document";
+import { ReaderLoadingOverlay } from "@/features/reader/ui/chrome/reader-loading-overlay";
+
+const BookReaderPdf = lazy(() =>
+	import("./pdf/book-reader-pdf").then((module) => ({
+		default: module.BookReaderPdf,
+	})),
+);
 
 interface ReaderEngineProps {
 	bookUuid: string;
@@ -77,7 +83,7 @@ export function ReaderEngine({
 	onPdfDocumentReady,
 }: ReaderEngineProps) {
 	const textDocument = useTextReaderDocument({
-		enabled: presentation.contentKind === "text",
+		enabled: presentation.renderer === "text-focus",
 		bookUuid,
 		htmlContent,
 		language: book.language,
@@ -87,20 +93,22 @@ export function ReaderEngine({
 	if (presentation.renderer === "pdf") {
 		if (!pdfSource) return null;
 		return (
-			<BookReaderPdf
-				source={pdfSource}
-				theme={theme}
-				sections={book.sections}
-				initialPosition={initialPosition}
-				onPositionChange={onPositionChange}
-				onSectionProgressChange={onSectionProgressChange}
-				onExit={onPdfExit}
-				onCompleteBook={onPdfCompleteBook}
-				onFullscreen={onPdfFullscreen}
-				onOpenSettings={onPdfOpenSettings}
-				apiRef={controllerRef}
-				onDocumentReady={onPdfDocumentReady}
-			/>
+			<Suspense fallback={<ReaderLoadingOverlay theme={theme} />}>
+				<BookReaderPdf
+					source={pdfSource}
+					theme={theme}
+					sections={book.sections}
+					initialPosition={initialPosition}
+					onPositionChange={onPositionChange}
+					onSectionProgressChange={onSectionProgressChange}
+					onExit={onPdfExit}
+					onCompleteBook={onPdfCompleteBook}
+					onFullscreen={onPdfFullscreen}
+					onOpenSettings={onPdfOpenSettings}
+					apiRef={controllerRef}
+					onDocumentReady={onPdfDocumentReady}
+				/>
+			</Suspense>
 		);
 	}
 	if (presentation.renderer === "visual") {

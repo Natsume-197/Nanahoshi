@@ -21,6 +21,7 @@ export class CharacterStatsCalculator {
 	private readonly nodeStartCharacters = new Map<Node, number>();
 
 	private paragraphPosToAccCharCount = new Map<number, number>();
+	private hasParagraphPositions = false;
 
 	constructor(
 		public readonly containerEl: HTMLElement,
@@ -52,7 +53,7 @@ export class CharacterStatsCalculator {
 	 * leading padding. Shared by updateParagraphPos and getReadingEdgeScrollPos.
 	 */
 	private getReadingReference() {
-		const scrollElRect = this.scrollEl.getBoundingClientRect();
+		const scrollElRect = this.getViewportRect();
 		const scrollElRef = formatPos(
 			this.verticalMode ? scrollElRect.right : scrollElRect.top,
 			this.direction,
@@ -103,6 +104,7 @@ export class CharacterStatsCalculator {
 				],
 			),
 		);
+		this.hasParagraphPositions = true;
 	}
 
 	/**
@@ -111,10 +113,12 @@ export class CharacterStatsCalculator {
 	 * relayout from becoming one proportional main-thread stall.
 	 */
 	async updateParagraphPosCooperative(
-		scrollPos = 0,
+		scrollPos = this.scrollPos,
 		isCancelled: () => boolean = () => false,
 	) {
+		this.hasParagraphPositions = false;
 		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const initialScrollPos = this.scrollPos;
 		const nextParagraphPos = Array<number>(this.paragraphs.length);
 		const paragraphPosToIndices = new Map<number, number[]>();
 		for (let i = 0; i < this.paragraphs.length; i += 1) {
@@ -131,7 +135,12 @@ export class CharacterStatsCalculator {
 			const paragraphPos =
 				paragraphSize <= 0
 					? nextParagraphPos[i - 1] || 0
-					: nodeLeft - scrollElRef - dimensionAdjustment + scrollPos;
+					: nodeLeft -
+						scrollElRef -
+						dimensionAdjustment +
+						scrollPos +
+						this.scrollPos -
+						initialScrollPos;
 			nextParagraphPos[i] = paragraphPos;
 			const indices = paragraphPosToIndices.get(paragraphPos) || [];
 			indices.push(i);
@@ -148,6 +157,7 @@ export class CharacterStatsCalculator {
 				Math.max(...indices.map((i) => this.accumulatedCharCount[i])),
 			]),
 		);
+		this.hasParagraphPositions = true;
 		return true;
 	}
 
@@ -212,13 +222,63 @@ export class CharacterStatsCalculator {
 	}
 
 	getCharCountByScrollPos(scrollPos: number) {
+		if (!this.hasParagraphPositions) {
+			// Before the background index is ready, validate a saved pixel offset
+			// with logarithmic live measurements. Upper-bound search includes all
+			// inline nodes sharing the same trailing edge, just like the full map.
+			const readPosition = this.liveParagraphPositions();
+			let low = 0;
+			let high = this.paragraphs.length;
+			while (low < high) {
+				const mid = Math.floor((low + high) / 2);
+				if (readPosition(mid) <= scrollPos) low = mid + 1;
+				else high = mid;
+			}
+			return this.accumulatedCharCount[low - 1] ?? 0;
+		}
 		const index = binarySearchNoNegative(this.paragraphPos, scrollPos);
 		return this.paragraphPosToAccCharCount.get(this.paragraphPos[index]) || 0;
 	}
 
 	getScrollPosByCharCount(charCount: number) {
 		const index = binarySearchNoNegative(this.accumulatedCharCount, charCount);
-		return formatPos(this.paragraphPos[index], this.direction) || 0;
+		const position = this.hasParagraphPositions
+			? this.paragraphPos[index]
+			: this.liveParagraphPositions()(index);
+		return formatPos(position, this.direction) || 0;
+	}
+
+	private liveParagraphPositions() {
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const scrollPos = this.scrollPos;
+		const positions = new Map<number, number>();
+		return (index: number): number => {
+			const empty: number[] = [];
+			let position = 0;
+			for (let i = index; i >= 0; i -= 1) {
+				const cached = positions.get(i);
+				if (cached !== undefined) {
+					position = cached;
+					break;
+				}
+				const rect = getNodeBoundingRect(this.document, this.paragraphs[i]);
+				if ((this.verticalMode ? rect.width : rect.height) > 0) {
+					position =
+						formatPos(
+							this.verticalMode ? rect.left : rect.bottom,
+							this.direction,
+						) -
+						scrollElRef -
+						dimensionAdjustment +
+						scrollPos;
+					positions.set(i, position);
+					break;
+				}
+				empty.push(i);
+			}
+			for (const i of empty) positions.set(i, position);
+			return position;
+		};
 	}
 
 	/**
@@ -244,10 +304,8 @@ export class CharacterStatsCalculator {
 		const node = this.paragraphs[index + 1] ?? this.paragraphs[index];
 		if (!node) return this.getScrollPosByCharCount(charCount);
 
-		// (nodeLeadingEdge - scrollElRef) is scroll-invariant — both rects shift
-		// together when the document scrolls — so it already gives the absolute
-		// scroll target; do NOT add the current scroll (that double-counts it).
-		// This mirrors updateParagraphPos's coordinate convention.
+		// Node rects are viewport-relative. Add the current scroll to recover
+		// the absolute reading coordinate for both route and document scrollers.
 		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
 		const nodeRect = getNodeBoundingRect(this.document, node);
 		// Leading edge: the first line of the paragraph — rightmost in
@@ -257,7 +315,8 @@ export class CharacterStatsCalculator {
 			this.direction,
 		);
 
-		const paragraphPos = nodeLeadingEdge - scrollElRef - dimensionAdjustment;
+		const paragraphPos =
+			nodeLeadingEdge - scrollElRef - dimensionAdjustment + this.scrollPos;
 		return formatPos(paragraphPos, this.direction);
 	}
 

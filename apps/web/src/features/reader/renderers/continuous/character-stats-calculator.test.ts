@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { CharacterStatsCalculator } from "./character-stats-calculator";
 
@@ -36,6 +36,109 @@ beforeAll(() => {
 });
 
 describe("precise reader positions", () => {
+	for (const vertical of [false, true]) {
+		test(`live geometry matches the complete index, including shared edges and empty nodes (${vertical ? "vertical" : "horizontal"})`, async () => {
+			const scroller = document.createElement("main");
+			const book = document.createElement("div");
+			scroller.append(book);
+			document.body.append(scroller);
+			book.innerHTML = Array.from(
+				{ length: 2000 },
+				(_, i) => `<p data-index="${i}">X</p>`,
+			).join("");
+			const scrollProp = vertical ? "scrollLeft" : "scrollTop";
+			scroller[scrollProp] = vertical ? -100 : 100;
+			scroller.getBoundingClientRect = () =>
+				({
+					top: 0,
+					left: 0,
+					right: 800,
+					bottom: 600,
+					width: 800,
+					height: 600,
+				}) as DOMRect;
+			const measure = spyOn(
+				dom.window.Range.prototype,
+				"getBoundingClientRect",
+			).mockImplementation(function (this: Range) {
+				const node =
+					this.startContainer.nodeType === Node.TEXT_NODE
+						? this.startContainer.parentElement
+						: (this.startContainer as Element);
+				const index = Number(node?.getAttribute("data-index"));
+				const edge = Math.floor(index / 2) * 20;
+				const size = index % 13 === 0 ? 0 : 10;
+				const top = edge - scroller.scrollTop;
+				const right = 800 - edge - scroller.scrollLeft;
+				return {
+					top,
+					bottom: top + size,
+					left: right - size,
+					right,
+					width: size,
+					height: size,
+				} as DOMRect;
+			});
+			const scheduler = Object.getOwnPropertyDescriptor(
+				globalThis,
+				"scheduler",
+			);
+			try {
+				const calculator = new CharacterStatsCalculator(
+					book,
+					vertical ? "vertical" : "horizontal",
+					vertical ? "rtl" : "ltr",
+					scroller,
+					document,
+				);
+				const targets = [0, 10, 11, 30, 500, 9999, 15000, 30000];
+				const live = targets.map((target) =>
+					calculator.getCharCountByScrollPos(target),
+				);
+				expect(live.slice(0, 4)).toEqual([1, 2, 2, 4]);
+				expect(measure.mock.calls.length).toBeLessThan(200);
+				// Scroll between batches: viewport-relative rects move, but their
+				// absolute reading coordinates must remain identical to the live lookup.
+				Object.defineProperty(globalThis, "scheduler", {
+					configurable: true,
+					value: {
+						yield: async () => {
+							scroller[scrollProp] += vertical ? -10 : 10;
+						},
+					},
+				});
+				expect(await calculator.updateParagraphPosCooperative()).toBe(true);
+				expect(
+					targets.map((target) => calculator.getCharCountByScrollPos(target)),
+				).toEqual(live);
+				let cancelled = false;
+				Object.defineProperty(globalThis, "scheduler", {
+					configurable: true,
+					value: {
+						yield: async () => {
+							cancelled = true;
+						},
+					},
+				});
+				expect(
+					await calculator.updateParagraphPosCooperative(
+						undefined,
+						() => cancelled,
+					),
+				).toBe(false);
+				expect(
+					targets.map((target) => calculator.getCharCountByScrollPos(target)),
+				).toEqual(live);
+			} finally {
+				measure.mockRestore();
+				scroller.remove();
+				if (scheduler)
+					Object.defineProperty(globalThis, "scheduler", scheduler);
+				else Reflect.deleteProperty(globalThis, "scheduler");
+			}
+		});
+	}
+
 	test("reads and restores an offset inside a mixed-script text node", () => {
 		const book = dom.window.document.getElementById("book") as HTMLElement;
 		const text = book.firstChild as Text;

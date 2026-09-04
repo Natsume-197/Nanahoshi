@@ -41,6 +41,8 @@ export interface ReaderBookData {
 	blobs: Record<string, Blob>;
 	characters: number;
 	sections: Section[];
+	/** Exact own counts per spine section, before folding children into chapters. */
+	sectionCharacterCounts?: number[];
 	/** See BOOK_SANITIZE_VERSION. */
 	sanitizeVersion?: number;
 }

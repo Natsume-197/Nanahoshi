@@ -53,5 +53,6 @@ function cloneReaderBookData(data: ReaderBookData): ReaderBookData {
 		...data,
 		blobs: { ...data.blobs },
 		sections: data.sections.map((section) => ({ ...section })),
+		sectionCharacterCounts: data.sectionCharacterCounts?.slice(),
 	};
 }
