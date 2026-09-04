@@ -47,6 +47,45 @@ describe("Dynamic Collection SQL compiler", () => {
 		expect(query.params).toContain("%星の王子さま%");
 	});
 
+	test("prefilters positive title searches through the PGroonga-backed id sets", () => {
+		const definition: DynamicCollectionDefinitionV1 = {
+			version: 1,
+			root: {
+				kind: "group",
+				match: "all",
+				children: [
+					{
+						kind: "rule",
+						field: "title",
+						operator: "contains",
+						value: "sorcery",
+					},
+				],
+			},
+			sort: [],
+		};
+		const compiled = compileDynamicCollectionQuery(definition, {
+			viewerId: "viewer-1",
+			serverId: "server-1",
+			accessibleLibraryIds: "ALL",
+			timeZone: "UTC",
+		});
+		const query = dialect.sqlToQuery(compiled.where);
+		const normalizedSql = query.sql.toLowerCase().replaceAll(/\s+/g, " ");
+
+		expect(normalizedSql).toContain(
+			"select bmq.book_id from book_metadata bmq where (bmq.title::text) ilike",
+		);
+		expect(normalizedSql).toContain(
+			"select amq.book_id from audiobook_metadata amq where (amq.title::text) ilike",
+		);
+		expect(normalizedSql).toContain(
+			"select bq.id from book bq where bq.filename ilike",
+		);
+		expect(normalizedSql).toContain("nullif(btrim(");
+		expect(compiled.requiresSerialScan).toBe(true);
+	});
+
 	test("an empty accessible scope compiles to false", () => {
 		const query = dialect.sqlToQuery(
 			compileDynamicCollectionQuery(

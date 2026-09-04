@@ -27,6 +27,7 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
+import { withSerialScan } from "../_shared/serial-scan";
 import type { DynamicCollectionDefinitionV1 } from "./collection-rules";
 import { compileDynamicCollectionQuery } from "./collection-rules.compiler";
 
@@ -541,81 +542,84 @@ export class CollectionsRepository {
 		options: { limit: number; offset: number },
 	) {
 		const compiled = compileDynamicCollectionQuery(definition, context);
-		const query = db
-			.select({
-				id: book.id,
-				uuid: book.uuid,
-				filename: book.filename,
-				title: sql<
-					string | null
-				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.title} ELSE ${bookMetadata.title} END`,
-				cover: sql<
-					string | null
-				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
-				mainColor: sql<
-					string | null
-				>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.mainColor} ELSE ${bookMetadata.mainColor} END`,
-				addedAt: book.createdAt,
-				mediaType: library.mediaType,
-				totalHits: sql<number>`COUNT(*) OVER()::int`,
-				ebookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'ebook') OVER()::int`,
-				audiobookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'audiobook') OVER()::int`,
-			})
-			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
-			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
-			.$dynamic();
-		let scopedQuery = query;
-		if (compiled.personalJoins.includes("liked")) {
-			scopedQuery = scopedQuery.leftJoin(
-				likedBook,
-				and(
-					eq(likedBook.bookId, book.id),
-					eq(likedBook.userId, context.viewerId),
-					eq(likedBook.serverId, context.serverId),
-				),
-			);
-		}
-		if (compiled.personalJoins.includes("progress")) {
-			scopedQuery = scopedQuery
-				.leftJoin(
-					readingProgress,
+		const run = (executor: Pick<typeof db, "select">) => {
+			const query = executor
+				.select({
+					id: book.id,
+					uuid: book.uuid,
+					filename: book.filename,
+					title: sql<
+						string | null
+					>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.title} ELSE ${bookMetadata.title} END`,
+					cover: sql<
+						string | null
+					>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
+					mainColor: sql<
+						string | null
+					>`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.mainColor} ELSE ${bookMetadata.mainColor} END`,
+					addedAt: book.createdAt,
+					mediaType: library.mediaType,
+					totalHits: sql<number>`COUNT(*) OVER()::int`,
+					ebookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'ebook') OVER()::int`,
+					audiobookHits: sql<number>`COUNT(*) FILTER (WHERE ${library.mediaType} = 'audiobook') OVER()::int`,
+				})
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
+				.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
+				.$dynamic();
+			let scopedQuery = query;
+			if (compiled.personalJoins.includes("liked")) {
+				scopedQuery = scopedQuery.leftJoin(
+					likedBook,
 					and(
-						eq(readingProgress.bookId, book.id),
-						eq(readingProgress.userId, context.viewerId),
-					),
-				)
-				.leftJoin(
-					listeningProgress,
-					and(
-						eq(listeningProgress.bookId, book.id),
-						eq(listeningProgress.userId, context.viewerId),
+						eq(likedBook.bookId, book.id),
+						eq(likedBook.userId, context.viewerId),
+						eq(likedBook.serverId, context.serverId),
 					),
 				);
-		}
-		if (compiled.personalJoins.includes("shelf")) {
-			scopedQuery = scopedQuery
-				.leftJoin(
-					userBookShelf,
-					and(
-						eq(userBookShelf.bookId, book.id),
-						eq(userBookShelf.userId, context.viewerId),
-					),
-				)
-				.leftJoin(
-					userAudiobookShelf,
-					and(
-						eq(userAudiobookShelf.bookId, book.id),
-						eq(userAudiobookShelf.userId, context.viewerId),
-					),
-				);
-		}
-		return scopedQuery
-			.where(compiled.where)
-			.orderBy(...compiled.orderBy)
-			.limit(options.limit)
-			.offset(options.offset);
+			}
+			if (compiled.personalJoins.includes("progress")) {
+				scopedQuery = scopedQuery
+					.leftJoin(
+						readingProgress,
+						and(
+							eq(readingProgress.bookId, book.id),
+							eq(readingProgress.userId, context.viewerId),
+						),
+					)
+					.leftJoin(
+						listeningProgress,
+						and(
+							eq(listeningProgress.bookId, book.id),
+							eq(listeningProgress.userId, context.viewerId),
+						),
+					);
+			}
+			if (compiled.personalJoins.includes("shelf")) {
+				scopedQuery = scopedQuery
+					.leftJoin(
+						userBookShelf,
+						and(
+							eq(userBookShelf.bookId, book.id),
+							eq(userBookShelf.userId, context.viewerId),
+						),
+					)
+					.leftJoin(
+						userAudiobookShelf,
+						and(
+							eq(userAudiobookShelf.bookId, book.id),
+							eq(userAudiobookShelf.userId, context.viewerId),
+						),
+					);
+			}
+			return scopedQuery
+				.where(compiled.where)
+				.orderBy(...compiled.orderBy)
+				.limit(options.limit)
+				.offset(options.offset);
+		};
+		return compiled.requiresSerialScan ? withSerialScan(run) : run(db);
 	}
 
 	async listManualItems(

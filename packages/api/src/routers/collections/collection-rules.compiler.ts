@@ -42,6 +42,7 @@ export type CompiledDynamicCollectionQuery = {
 	orderBy: SQL[];
 	isPersonalized: boolean;
 	personalJoins: Array<"liked" | "shelf" | "progress">;
+	requiresSerialScan: boolean;
 };
 
 export function compileDynamicCollectionQuery(
@@ -58,10 +59,12 @@ export function compileDynamicCollectionQuery(
 	const query = context.query?.trim();
 	const transientSearch = query
 		? or(
-				textPredicate(
-					sql`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename})`,
-					{ kind: "rule", field: "title", operator: "contains", value: query },
-				),
+				titlePredicate({
+					kind: "rule",
+					field: "title",
+					operator: "contains",
+					value: query,
+				}),
 				textPredicate(sql`${book.filename}`, {
 					kind: "rule",
 					field: "filename",
@@ -81,7 +84,18 @@ export function compileDynamicCollectionQuery(
 		orderBy: compileSort(definition, context),
 		isPersonalized: isPersonalizedCollectionDefinition(definition),
 		personalJoins: collectPersonalJoins(definition),
+		requiresSerialScan:
+			Boolean(query) || hasPositiveIndexedTitleRule(definition.root),
 	};
+}
+
+function hasPositiveIndexedTitleRule(group: CollectionRuleGroup): boolean {
+	return group.children.some((child) =>
+		child.kind === "group"
+			? hasPositiveIndexedTitleRule(child)
+			: child.field === "title" &&
+				["contains", "startsWith", "endsWith"].includes(child.operator),
+	);
 }
 
 function collectPersonalJoins(definition: DynamicCollectionDefinitionV1) {
@@ -220,10 +234,7 @@ function compileRule(
 		case "mediaType":
 			return enumPredicate(sql`${library.mediaType}`, rule);
 		case "title":
-			return textPredicate(
-				sql`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename})`,
-				rule,
-			);
+			return titlePredicate(rule);
 		case "subtitle":
 			return textPredicate(
 				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.subtitle} ELSE ${bookMetadata.subtitle} END`,
@@ -472,6 +483,36 @@ function escapeLike(value: string): string {
 		.replaceAll("\\", "\\\\")
 		.replaceAll("%", "\\%")
 		.replaceAll("_", "\\_");
+}
+
+function titlePredicate(rule: CollectionFieldRule): SQL {
+	const exact = textPredicate(
+		sql`COALESCE(${bookMetadata.title}, ${audiobookMetadata.title}, ${book.filename})`,
+		rule,
+	);
+	if (!["contains", "startsWith", "endsWith"].includes(rule.operator)) {
+		return exact;
+	}
+	const value = escapeLike(String(rule.value));
+	const pattern =
+		rule.operator === "startsWith"
+			? `${value}%`
+			: rule.operator === "endsWith"
+				? `%${value}`
+				: `%${value}%`;
+	const candidates = sql`
+		SELECT bmq.book_id FROM book_metadata bmq
+		WHERE (bmq.title::text) ILIKE ${pattern} ESCAPE '\\'
+		UNION ALL
+		SELECT amq.book_id FROM audiobook_metadata amq
+		WHERE (amq.title::text) ILIKE ${pattern} ESCAPE '\\'
+		UNION ALL
+		SELECT bq.id FROM book bq
+		WHERE bq.filename ILIKE ${pattern} ESCAPE '\\'
+	`;
+	// The indexed set is deliberately a superset: the exact COALESCE predicate
+	// remains authoritative when more than one title source exists.
+	return and(sql`${book.id} IN (${candidates})`, exact) as SQL;
 }
 
 function textPredicate(expression: SQL, rule: CollectionFieldRule): SQL {
