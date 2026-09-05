@@ -43,8 +43,9 @@ export const getRecentBooks = async (
 	limit = 20,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
+	compact = false,
 ) => {
-	return bookRepository.listRecent(limit, serverId, scope);
+	return bookRepository.listRecent(limit, serverId, scope, compact);
 };
 
 export const getRandomBooks = async (

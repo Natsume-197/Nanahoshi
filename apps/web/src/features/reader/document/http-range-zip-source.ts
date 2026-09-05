@@ -7,9 +7,13 @@ const CONTENT_RANGE = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i;
  * asks this source for the end-of-file directory and then for individual
  * entries, which map one-to-one to HTTP byte ranges.
  */
-export async function openHttpRangeZipSource(url: string): Promise<ZipSource> {
+export async function openHttpRangeZipSource(
+	url: string,
+	signal?: AbortSignal,
+): Promise<ZipSource> {
 	const probe = await fetch(url, {
 		credentials: "include",
+		signal,
 		headers: { Range: "bytes=0-0" },
 	});
 	if (!probe.ok) {
@@ -39,7 +43,7 @@ export async function openHttpRangeZipSource(url: string): Promise<ZipSource> {
 			const key = `${from}:${to}:${type}`;
 			let pending = cache.get(key);
 			if (!pending) {
-				pending = fetchRange(url, from, to, type);
+				pending = fetchRange(url, from, to, type, signal);
 				cache.set(key, pending);
 			}
 			return pending;
@@ -52,9 +56,11 @@ async function fetchRange(
 	start: number,
 	end: number,
 	type: string,
+	signal?: AbortSignal,
 ): Promise<Blob> {
 	const response = await fetch(url, {
 		credentials: "include",
+		signal,
 		headers: { Range: `bytes=${start}-${end - 1}` },
 	});
 	if (response.status !== 206) {

@@ -11,9 +11,15 @@ export async function loadEbook(
 	fallbackTitle: string,
 	document: Document,
 	readerFacts?: ReaderBookFacts,
+	signal?: AbortSignal,
 ): Promise<ReaderBookData> {
+	signal?.throwIfAborted();
 	const ebook = await openEbook(blob, { filename });
+	if (signal?.aborted) {
+		await ebook.close();
+		signal.throwIfAborted();
+	}
 	return ebook.content.kind === "pages"
-		? adaptPagedEbook(ebook, uuid, fallbackTitle, document)
-		: adaptHtmlEbook(ebook, uuid, fallbackTitle, document, readerFacts);
+		? adaptPagedEbook(ebook, uuid, fallbackTitle, document, signal)
+		: adaptHtmlEbook(ebook, uuid, fallbackTitle, document, readerFacts, signal);
 }

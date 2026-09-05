@@ -44,12 +44,14 @@ export const SearchAudiobooksInput = z.object({
 
 export const ListRecentAudiobooksInput = z
 	.object({
+		compact: z.boolean().optional(),
 		limit: z.number().int().min(1).max(50).default(20),
 	})
 	.optional();
 
 export const ListRandomAudiobooksInput = z
 	.object({
+		compact: z.boolean().optional(),
 		limit: z.number().int().min(1).max(50).default(15),
 	})
 	.optional();

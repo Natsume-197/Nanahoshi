@@ -11,6 +11,7 @@ import { getBook } from "@/functions/books/get-book";
 import { useSyncActiveOrg } from "@/hooks/use-sync-active-org";
 import { fetchLoaderQuery } from "@/lib/loader-query";
 import { PAGE_SHELL } from "@/lib/page-layout";
+import { prefetchRouteQuery } from "@/lib/prefetch-route-query";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 
@@ -38,22 +39,26 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 			// process-wide, so seeding per-user state there would leak across
 			// requests (see lib/loader-query.ts).
 			if (typeof window !== "undefined") {
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.readingProgress.getProgress.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.bookShelf.get.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.likedBooks.getLikeStatus.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.collections.listBookMemberships.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),

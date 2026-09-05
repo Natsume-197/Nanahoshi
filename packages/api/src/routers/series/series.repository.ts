@@ -283,7 +283,18 @@ export class SeriesRepository {
 		serverId: string,
 		scope: LibraryScope = "ALL",
 	) {
-		const [row] = (
+		return (
+			(await this.getVisibleHitsByUuids([uuid], serverId, scope))[0] ?? null
+		);
+	}
+
+	async getVisibleHitsByUuids(
+		uuids: string[],
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		if (uuids.length === 0) return [];
+		const rows = (
 			await db.execute(sql`
 			SELECT
 				s.id,
@@ -338,27 +349,36 @@ export class SeriesRepository {
 			INNER JOIN book_series bs ON bs.series_id = s.id
 			INNER JOIN book b ON b.id = bs.book_id
 			INNER JOIN library l ON l.id = b.library_id
-			WHERE s.uuid = ${uuid}
+			WHERE s.uuid IN (${sql.join(
+				uuids.map((uuid) => sql`${uuid}`),
+				sql`, `,
+			)})
 				AND ${visibleBookSql("b")}
 				AND l.server_id = ${serverId}
 				${accessibleSql(scope)}
 			GROUP BY s.id
 		`)
 		).rows as SeriesWithCountRow[];
-		if (!row) return null;
-		return {
-			id: row.id,
-			uuid: row.uuid,
-			name: row.name,
-			aliases: row.aliases ?? [],
-			bookCount: row.bookCount,
-			cover: row.coverInfo?.cover ?? null,
-			coverColor: row.coverInfo?.color ?? null,
-			previewCovers:
-				row.previewCovers ??
-				(row.coverInfo?.cover ? [row.coverInfo.cover] : []),
-			author: row.author,
-		};
+		const byUuid = new Map(rows.map((row) => [row.uuid, row]));
+		return uuids.flatMap((uuid) => {
+			const row = byUuid.get(uuid);
+			if (!row) return [];
+			return [
+				{
+					id: row.id,
+					uuid: row.uuid,
+					name: row.name,
+					aliases: row.aliases ?? [],
+					bookCount: row.bookCount,
+					cover: row.coverInfo?.cover ?? null,
+					coverColor: row.coverInfo?.color ?? null,
+					previewCovers:
+						row.previewCovers ??
+						(row.coverInfo?.cover ? [row.coverInfo.cover] : []),
+					author: row.author,
+				},
+			];
+		});
 	}
 
 	/**

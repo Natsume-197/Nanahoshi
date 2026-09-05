@@ -8,6 +8,7 @@ export const searchRouter = {
 		.handler(async ({ input, context }) => {
 			return searchService.topResults({
 				query: input.query,
+				pageSize: input.pageSize,
 				limit: input.limit,
 				userId: context.session.user.id,
 				serverId: context.serverId,

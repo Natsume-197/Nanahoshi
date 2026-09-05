@@ -95,6 +95,8 @@ export function useBookLoader({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: all other inputs identify the same book and are stable for this route
 	useEffect(() => {
 		let cancelled = false;
+		const controller = new AbortController();
+		const { signal } = controller;
 		const objectUrls: string[] = [];
 		let bookSession: LoadedReaderBook | undefined;
 
@@ -103,7 +105,7 @@ export function useBookLoader({
 				const localPosition = loadLocalReadingPosition(uuid);
 				// Server progress is fetched in parallel with download and parsing.
 				const serverProgressPromise = client.readingProgress
-					.getProgress({ bookUuid: uuid })
+					.getProgress({ bookUuid: uuid }, { signal })
 					.then((progress) => ({
 						exploredCharCount: progress?.exploredCharCount ?? 0,
 						bookCharCount: progress?.bookCharCount ?? 0,
@@ -128,7 +130,10 @@ export function useBookLoader({
 					if (!serverId)
 						throw new Error("PDF reading requires a server connection");
 					setLoadState({ phase: "parsing" });
-					const { url } = await client.files.getReaderUrl({ uuid, serverId });
+					const { url } = await client.files.getReaderUrl(
+						{ uuid, serverId },
+						{ signal },
+					);
 					if (cancelled) return;
 					const serverProgress = await serverProgressPromise;
 					if (cancelled) return;
@@ -184,6 +189,7 @@ export function useBookLoader({
 					serverId,
 					sourceFormat,
 					allowLazySections,
+					signal,
 					callbacks: {
 						onDownloadProgress: (progress) => {
 							if (!cancelled) setLoadState({ phase: "downloading", progress });
@@ -193,10 +199,14 @@ export function useBookLoader({
 						},
 					},
 				});
+				if (cancelled) {
+					await bookSession.dispose();
+					return;
+				}
 				const { data, lazyBook } = bookSession;
-				if (cancelled) return;
 
 				const serverProgress = await serverProgressPromise;
+				if (cancelled) return;
 				const position = resolveReadingPosition(
 					localPosition,
 					serverProgress,
@@ -250,6 +260,7 @@ export function useBookLoader({
 
 		return () => {
 			cancelled = true;
+			controller.abort();
 			for (const url of objectUrls) {
 				URL.revokeObjectURL(url);
 			}

@@ -32,17 +32,10 @@ export const seriesRouter = {
 				accessibleLibraryIds: context.accessibleLibraryIds,
 				limit: input.limit ?? 5,
 			});
-			const scoped = await Promise.all(
-				result.series.map((hit) =>
-					seriesRepository.getVisibleHitByUuid(
-						hit.uuid,
-						context.serverId,
-						context.accessibleLibraryIds,
-					),
-				),
-			);
-			return scoped.filter(
-				(hit): hit is NonNullable<typeof hit> => hit != null,
+			return seriesRepository.getVisibleHitsByUuids(
+				result.series.map((hit) => hit.uuid),
+				context.serverId,
+				context.accessibleLibraryIds,
 			);
 		}),
 	list: orgReadProcedure
@@ -62,17 +55,10 @@ export const seriesRouter = {
 					limit,
 					offset,
 				});
-				const scoped = await Promise.all(
-					result.series.map((hit) =>
-						seriesRepository.getVisibleHitByUuid(
-							hit.uuid,
-							context.serverId,
-							context.accessibleLibraryIds,
-						),
-					),
-				);
-				return scoped.filter(
-					(hit): hit is NonNullable<typeof hit> => hit != null,
+				return seriesRepository.getVisibleHitsByUuids(
+					result.series.map((hit) => hit.uuid),
+					context.serverId,
+					context.accessibleLibraryIds,
 				);
 			}
 

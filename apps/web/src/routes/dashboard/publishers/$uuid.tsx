@@ -8,6 +8,7 @@ import { EntityBooksView } from "@/components/catalog/entity-books-view";
 import type { SortOption } from "@/components/shared/sort-select";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { prefetchRouteQuery } from "@/lib/prefetch-route-query";
 import { m } from "@/paraglide/messages";
 import type { BookSortMode } from "@/utils/filter-sort-books";
 import { getErrorMessage } from "@/utils/format";
@@ -22,12 +23,9 @@ export const Route = createFileRoute("/dashboard/publishers/$uuid")({
 	},
 	loader: ({ context, params }) => {
 		if (typeof window === "undefined") return;
-		context.queryClient.prefetchQuery(
-			orpc.books.listByPublisher.queryOptions({
-				input: { publisherUuid: params.uuid },
-			}),
-		);
-		context.queryClient.prefetchQuery(
+
+		prefetchRouteQuery(
+			context.queryClient,
 			orpc.publishers.getByUuid.queryOptions({
 				input: { uuid: params.uuid },
 			}),
@@ -41,12 +39,6 @@ function PublisherDetailPage() {
 	const [editOpen, setEditOpen] = useState(false);
 	const canEdit = can("book", "editMetadata");
 
-	const { data: rawBooks, isLoading } = useQuery({
-		...orpc.books.listByPublisher.queryOptions({
-			input: { publisherUuid: uuid },
-		}),
-		staleTime: 30_000,
-	});
 	const { data: entity } = useQuery({
 		...orpc.publishers.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
@@ -65,7 +57,6 @@ function PublisherDetailPage() {
 			),
 	});
 
-	const total = rawBooks?.length ?? 0;
 	const sortOptions: readonly SortOption<BookSortMode>[] = [
 		{ value: "title", label: m["common.title"]() },
 		{ value: "author", label: m["common.author"]() },
@@ -77,13 +68,11 @@ function PublisherDetailPage() {
 			defaultSort="title"
 			sortOptions={sortOptions}
 			title={entity?.name ?? m["entity_page.publisher_fallback"]()}
-			subtitle={
-				total
-					? m["entity_page.publisher_subtitle"]({ count: total })
-					: undefined
+			key={uuid}
+			source={{ kind: "publisher", uuid }}
+			countLabel={(count) =>
+				count ? m["entity_page.publisher_subtitle"]({ count }) : undefined
 			}
-			isLoading={isLoading}
-			rawBooks={rawBooks}
 			searchAriaLabel={m["entity_page.publisher_search_aria"]()}
 			emptyDescription={m["entity_page.publisher_empty_desc"]()}
 			searchNoMatches={(query) =>

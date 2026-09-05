@@ -223,7 +223,12 @@ export class AudiobookRepository {
 		};
 	}
 
-	async listRecent(limit = 20, serverId?: string, scope: LibraryScope = "ALL") {
+	async listRecent(
+		limit = 20,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+		compact = false,
+	) {
 		const conditions = serverId ? [eq(library.serverId, serverId)] : [];
 
 		const rows = await db
@@ -252,9 +257,12 @@ export class AudiobookRepository {
 			.limit(limit);
 
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap =
-			await batchLoaderRepository.loadAudiobookAuthors(bookIds);
-		const narratorsMap = await batchLoaderRepository.loadNarrators(bookIds);
+		const [authorsMap, narratorsMap] = await Promise.all([
+			batchLoaderRepository.loadAudiobookAuthors(bookIds),
+			compact
+				? Promise.resolve(new Map<number, never[]>())
+				: batchLoaderRepository.loadNarrators(bookIds),
+		]);
 
 		return rows.map((row) => ({
 			...row,
@@ -263,8 +271,29 @@ export class AudiobookRepository {
 		}));
 	}
 
-	async listRandom(limit = 15, serverId?: string, scope: LibraryScope = "ALL") {
+	async listRandom(
+		limit = 15,
+		serverId?: string,
+		scope: LibraryScope = "ALL",
+		compact = false,
+	) {
 		const conditions = serverId ? [eq(library.serverId, serverId)] : [];
+
+		const sample = db
+			.select({ id: book.id, rank: sql<number>`RANDOM()`.as("rank") })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(
+				and(
+					eq(library.mediaType, "audiobook"),
+					isNull(book.duplicateOfBookId),
+					...conditions,
+					accessibleCondition(scope),
+				),
+			)
+			.orderBy(sql`rank`)
+			.limit(limit)
+			.as("sample");
 
 		const rows = await db
 			.select({
@@ -277,23 +306,17 @@ export class AudiobookRepository {
 				duration: audiobookMetadata.duration,
 			})
 			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
+			.innerJoin(sample, eq(sample.id, book.id))
 			.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
-			.where(
-				and(
-					eq(library.mediaType, "audiobook"),
-					isNull(book.duplicateOfBookId),
-					...conditions,
-					accessibleCondition(scope),
-				),
-			)
-			.orderBy(sql`RANDOM()`)
-			.limit(limit);
+			.orderBy(sample.rank);
 
 		const bookIds = rows.map((r) => r.id);
-		const authorsMap =
-			await batchLoaderRepository.loadAudiobookAuthors(bookIds);
-		const narratorsMap = await batchLoaderRepository.loadNarrators(bookIds);
+		const [authorsMap, narratorsMap] = await Promise.all([
+			batchLoaderRepository.loadAudiobookAuthors(bookIds),
+			compact
+				? Promise.resolve(new Map<number, never[]>())
+				: batchLoaderRepository.loadNarrators(bookIds),
+		]);
 
 		return rows.map((row) => ({
 			...row,

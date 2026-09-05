@@ -44,6 +44,7 @@ export async function loadBookForReader({
 	sourceFormat,
 	allowLazySections = false,
 	callbacks = {},
+	signal,
 }: {
 	uuid: string;
 	bookTitle: string;
@@ -56,7 +57,10 @@ export async function loadBookForReader({
 	/** Only paginated text can consume section HTML independently. */
 	allowLazySections?: boolean;
 	callbacks?: LoadBookCallbacks;
+	/** Owned by this opening; shared cache reads and writes are never aborted. */
+	signal?: AbortSignal;
 }): Promise<LoadedReaderBook> {
+	signal?.throwIfAborted();
 	if (!serverId) throw new Error("Reading requires a server connection");
 
 	const cacheGeneration = getReaderBookCacheGeneration();
@@ -86,13 +90,18 @@ export async function loadBookForReader({
 				getReaderBookFacts(cacheKey),
 			])
 		: [undefined, undefined];
+	signal?.throwIfAborted();
 	let readerUrl: string | undefined;
 
 	if (!filename || (!blob && facts)) {
-		const readerFile = await client.files.getReaderUrl({ uuid, serverId });
+		const readerFile = await client.files.getReaderUrl(
+			{ uuid, serverId },
+			{ signal },
+		);
 		filename ??= readerFile.filename;
 		readerUrl = readerFile.url;
 	}
+	signal?.throwIfAborted();
 	const resolvedFormat = filename
 		? ebookSourceFormatForFilename(filename)
 		: undefined;
@@ -112,17 +121,25 @@ export async function loadBookForReader({
 		facts &&
 		(resolvedFormat === "epub" || resolvedFormat === "kepub")
 	) {
+		let ebook: Awaited<ReturnType<typeof openEbook>> | undefined;
 		try {
 			callbacks.onParsing?.();
-			const ebook = blob
+			ebook = blob
 				? await openEbook(blob, { filename })
 				: await openEpubSource(
 						await openHttpRangeZipSource(
 							readerUrl ??
-								(await client.files.getReaderUrl({ uuid, serverId })).url,
+								(
+									await client.files.getReaderUrl(
+										{ uuid, serverId },
+										{ signal },
+									)
+								).url,
+							signal,
 						),
 						resolvedFormat,
 					);
+			signal?.throwIfAborted();
 			const lazyBook = await openLazyHtmlBook({
 				ebook,
 				uuid,
@@ -130,9 +147,14 @@ export async function loadBookForReader({
 				document,
 				facts,
 			});
+			signal?.throwIfAborted();
 			lazyBook.data.cover = cover ?? null;
 			return createReaderBookSession({ data: lazyBook.data, lazyBook });
 		} catch {
+			// Ownership transfers to the session only after lazy setup succeeds.
+			// Cleanup errors must not turn cancellation into a full download.
+			await ebook?.close().catch(() => {});
+			signal?.throwIfAborted();
 			// An old cache or a Range-stripping proxy must never make the book
 			// unreadable. The established complete-download path remains the
 			// conservative fallback and refreshes the facts below.
@@ -142,11 +164,14 @@ export async function loadBookForReader({
 	if (!blob) {
 		callbacks.onDownloadProgress?.(0);
 		if (!readerUrl) {
-			const readerFile = await client.files.getReaderUrl({ uuid, serverId });
+			const readerFile = await client.files.getReaderUrl(
+				{ uuid, serverId },
+				{ signal },
+			);
 			filename ??= readerFile.filename;
 			readerUrl = readerFile.url;
 		}
-		const response = await fetch(readerUrl, { credentials: "include" });
+		const response = await fetch(readerUrl, { credentials: "include", signal });
 		if (!response.ok) {
 			throw new Error(`Download failed with status ${response.status}`);
 		}
@@ -155,9 +180,11 @@ export async function loadBookForReader({
 			(progress) => callbacks.onDownloadProgress?.(progress),
 			fileSizeBytes,
 		);
+		signal?.throwIfAborted();
 		if (cacheKey) void putCachedReaderBookFile(cacheKey, blob, cacheGeneration);
 	}
 
+	signal?.throwIfAborted();
 	callbacks.onParsing?.();
 	const data = await loadEbook(
 		uuid,
@@ -166,7 +193,9 @@ export async function loadBookForReader({
 		bookTitle,
 		document,
 		facts,
+		signal,
 	);
+	signal?.throwIfAborted();
 	data.cover = cover ?? null;
 	if (cacheKey && cacheGeneration === getReaderBookCacheGeneration()) {
 		// Applying valid facts preserves this array, so there is nothing to rewrite.

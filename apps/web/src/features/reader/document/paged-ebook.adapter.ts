@@ -34,6 +34,7 @@ export async function adaptPagedEbook(
 	uuid: string,
 	fallbackTitle: string,
 	document: Document,
+	signal?: AbortSignal,
 ): Promise<ReaderBookData> {
 	try {
 		if (ebook.content.kind !== "pages") {
@@ -47,7 +48,9 @@ export async function adaptPagedEbook(
 		const sections: Section[] = [];
 
 		for (const [index, pageRef] of ebook.content.pages.entries()) {
+			signal?.throwIfAborted();
 			const page = await ebook.content.openPage(pageRef.id);
+			signal?.throwIfAborted();
 			if (!page) continue;
 			const key = `${sourceFormat}/page-${String(index + 1).padStart(4, "0")}${extensionFor(page.mediaType)}`;
 			blobs[key] = new Blob([Uint8Array.from(page.data)], {
@@ -85,6 +88,7 @@ export async function adaptPagedEbook(
 			});
 		}
 
+		signal?.throwIfAborted();
 		if (!sections.length) throw new Error("Comic contains no readable pages");
 		const base: ReaderBookData = {
 			uuid,

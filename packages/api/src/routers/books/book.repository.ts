@@ -36,7 +36,7 @@ import {
 } from "../_shared/library-scope";
 import { bayesianRatingSql } from "../_shared/rating";
 import { withSerialScan } from "../_shared/serial-scan";
-import type { Book, CreateBookInput } from "./book.model";
+import type { Book, CreateBookInput, ListBooksByEntity } from "./book.model";
 
 export type { LibraryScope };
 
@@ -585,7 +585,12 @@ export class BookRepository {
 		return row !== undefined;
 	}
 
-	async listRecent(limit = 20, serverId?: string, scope?: LibraryScope) {
+	async listRecent(
+		limit = 20,
+		serverId?: string,
+		scope?: LibraryScope,
+		compact = false,
+	) {
 		const conditions = [
 			eq(library.mediaType, "ebook"),
 			isNull(book.duplicateOfBookId),
@@ -604,17 +609,20 @@ export class BookRepository {
 				lastModified: book.lastModified,
 				title: bookMetadata.title,
 				subtitle: bookMetadata.subtitle,
-				description: bookMetadata.description,
+				description: compact ? sql<null>`NULL` : bookMetadata.description,
 				cover: bookMetadata.cover,
 				mainColor: bookMetadata.mainColor,
 				languageCode: bookMetadata.languageCode,
 				pageCount: bookMetadata.pageCount,
-				publisherName: publisher.name,
+				publisherName: compact ? sql<null>`NULL` : publisher.name,
 			})
 			.from(book)
 			.innerJoin(library, eq(library.id, book.libraryId))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.leftJoin(publisher, eq(publisher.id, bookMetadata.publisherId))
+			.leftJoin(
+				publisher,
+				compact ? sql`false` : eq(publisher.id, bookMetadata.publisherId),
+			)
 			.where(and(...conditions, accessibleCondition(scope)))
 			.orderBy(bookCreatedAtDesc)
 			.limit(limit);
@@ -639,6 +647,15 @@ export class BookRepository {
 			conditions.push(eq(library.serverId, serverId));
 		}
 
+		const sample = db
+			.select({ id: book.id, rank: sql<number>`RANDOM()`.as("rank") })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(and(...conditions, accessibleCondition(scope)))
+			.orderBy(sql`rank`)
+			.limit(limit)
+			.as("sample");
+
 		const query = db
 			.select({
 				id: book.id,
@@ -649,11 +666,9 @@ export class BookRepository {
 				mainColor: bookMetadata.mainColor,
 			})
 			.from(book)
-			.innerJoin(library, eq(library.id, book.libraryId))
+			.innerJoin(sample, eq(sample.id, book.id))
 			.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
-			.where(and(...conditions, accessibleCondition(scope)))
-			.orderBy(sql`RANDOM()`)
-			.limit(limit);
+			.orderBy(sample.rank);
 
 		const rows = await query;
 		const authorsMap = await batchLoaderRepository.loadEbookAuthors(
@@ -974,6 +989,85 @@ export class BookRepository {
 		const rows = result.rows as SeriesNameRow[];
 		const mapped = await this.withAuthors(rows);
 		return mapped.map((book, i) => ({ ...book, position: rows[i]?.position }));
+	}
+
+	async listByEntity(
+		input: ListBooksByEntity,
+		serverId: string,
+		scope: LibraryScope,
+	) {
+		const { kind, uuid, query, sort, limit } = input;
+		const offset = input.cursor ?? 0;
+		const pattern = `%${query?.replace(/[\\%_]/g, "\\$&") ?? ""}%`;
+		const mediaTypes =
+			kind === "publisher"
+				? ["ebook" as const]
+				: ["ebook" as const, "audiobook" as const];
+		const parts = (mediaType: "ebook" | "audiobook") => {
+			const prefix = mediaType === "ebook" ? "book" : "audiobook";
+			const entityJoin =
+				kind === "publisher"
+					? sql`INNER JOIN publisher e ON e.id = md.publisher_id`
+					: sql`INNER JOIN ${sql.identifier(`${prefix}_${kind}`)} link ON link.book_id = b.id
+					INNER JOIN ${sql.identifier(kind)} e ON e.id = link.${sql.identifier(`${kind}_id`)}`;
+			const from = sql`FROM book b INNER JOIN library l ON l.id = b.library_id
+				INNER JOIN ${sql.identifier(`${prefix}_metadata`)} md ON md.book_id = b.id
+				${entityJoin}
+				WHERE e.uuid = ${uuid} AND e.server_id = ${serverId}
+					AND l.server_id = ${serverId} AND l.media_type = ${mediaType}
+					AND ${visibleBookSql()} ${accessibleSql(scope)}`;
+			const authorFrom = sql`FROM ${sql.identifier(`${prefix}_author`)} ba
+				INNER JOIN author a ON a.id = ba.author_id WHERE ba.book_id = b.id`;
+			const matches = query
+				? sql`(md.title ILIKE ${pattern} OR b.filename ILIKE ${pattern})`
+				: sql`true`;
+			return { from, matches, authorFrom };
+		};
+		// Counts also determine the default format without downloading its titles.
+		// Availability is independent of the text query, so typing cannot flip tabs.
+		const counts = (
+			await db.execute(
+				sql.join(
+					mediaTypes.map((mediaType) => {
+						const { from, matches } = parts(mediaType);
+						return sql`SELECT ${mediaType} AS "mediaType", COUNT(*)::int AS count,
+				COUNT(*) FILTER (WHERE ${matches})::int AS "filteredCount" ${from}`;
+					}),
+					sql` UNION ALL `,
+				),
+			)
+		).rows as Array<{
+			mediaType: "ebook" | "audiobook";
+			count: number;
+			filteredCount: number;
+		}>;
+		const formats = mediaTypes.filter((mediaType) =>
+			counts.some((row) => row.mediaType === mediaType && row.count > 0),
+		);
+		const format =
+			input.format === "auto" ? (formats[0] ?? "ebook") : input.format;
+		const total =
+			counts.find((row) => row.mediaType === format)?.filteredCount ?? 0;
+		if (!total || offset >= total)
+			return { books: [], nextCursor: null, total, formats, format };
+		const { from, matches, authorFrom } = parts(format);
+		const rows = (
+			await db.execute(sql`
+			SELECT b.id, b.uuid, b.filename, md.title, md.cover, md.main_color AS "mainColor",
+				md.published_date AS "publishedDate", ${format} AS "mediaType"
+			${from} AND ${matches}
+			ORDER BY ${sort === "author" ? sql`(SELECT a.name ${authorFrom} ORDER BY a.id LIMIT 1) ASC NULLS FIRST,` : sql``}
+				COALESCE(md.title, b.filename) ASC, b.id ASC
+			LIMIT ${limit} OFFSET ${offset}
+		`)
+		).rows as MixedEntityBookRow[];
+		return {
+			books: await this.withAuthorsMixed(rows),
+			nextCursor: offset + rows.length < total ? offset + rows.length : null,
+			total,
+			formats,
+			format,
+		};
 	}
 
 	// Ebooks and audiobooks carrying the entity, each row tagged with its media

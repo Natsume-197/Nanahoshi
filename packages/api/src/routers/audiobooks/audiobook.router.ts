@@ -85,6 +85,7 @@ export const audiobooksRouter = {
 				input?.limit ?? 20,
 				serverId,
 				scope,
+				input?.compact ?? false,
 			);
 			return audiobooks.map(stripAudiobookId);
 		}),
@@ -98,6 +99,7 @@ export const audiobooksRouter = {
 				input?.limit ?? 15,
 				serverId,
 				scope,
+				input?.compact ?? false,
 			);
 			return audiobooks.map(stripAudiobookId);
 		}),

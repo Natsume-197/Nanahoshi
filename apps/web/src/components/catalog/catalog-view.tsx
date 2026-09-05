@@ -1,9 +1,9 @@
 import type { DynamicCollectionDefinitionV1 } from "@nanahoshi-v2/api/routers/collections/collection-rules";
 import { FunnelSimple } from "@phosphor-icons/react";
 import {
-	keepPreviousData,
 	useInfiniteQuery,
 	useQuery,
+	useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -14,6 +14,7 @@ import {
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
 import { SurpriseButton } from "@/components/catalog/surprise-button";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import type { MediaType } from "@/hooks/books/use-toggle-like";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useSession } from "@/hooks/use-session";
 import {
 	getLocationRestoreKey,
 	readUiSnapshot,
@@ -36,6 +38,7 @@ import {
 } from "@/lib/scroll-restoration";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+import { allCatalogOptions, retainCatalogData } from "./catalog-queries";
 
 const PAGE_SIZE = 30;
 
@@ -175,6 +178,29 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		[facets?.years],
 	);
 
+	const queryClient = useQueryClient();
+	const { data: session } = useSession();
+	const catalogScope = JSON.stringify([
+		session?.user.id,
+		session?.session.activeOrganizationId,
+		source.kind,
+		libraryUuid,
+		format,
+	]);
+	const placeholderOptions = {
+		meta: { catalogScope },
+		placeholderData: <T,>(
+			data: T | undefined,
+			previousQuery: Parameters<typeof retainCatalogData>[1],
+		) =>
+			retainCatalogData(
+				data,
+				previousQuery,
+				catalogScope,
+				queryClient.getQueryCache(),
+			),
+	};
+
 	// The two catalogs return different row shapes (only listAll carries
 	// mediaType), so they stay separate queries — a union of infiniteOptions
 	// isn't resolvable. Only the active one is enabled.
@@ -195,29 +221,30 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
 			initialPageParam: 0,
 		}),
+		...placeholderOptions,
 		enabled: isLibrary,
 	});
 
 	const allListQuery = useInfiniteQuery({
-		...orpc.books.listAll.infiniteOptions({
-			input: (pageParam: number) => ({
-				mediaType: format,
-				limit: PAGE_SIZE,
-				cursor: pageParam,
-				sort: effectiveSort,
-				query: query || undefined,
-				libraryUuid: libraryFilter,
-			}),
-			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-				lastPage.length === PAGE_SIZE ? lastPageParam + PAGE_SIZE : undefined,
-			initialPageParam: 0,
+		...allCatalogOptions({
+			format,
+			sort: effectiveSort,
+			query,
+			libraryUuid: libraryFilter,
 		}),
+		...placeholderOptions,
 		enabled: !isLibrary,
 	});
 
-	const { isLoading, isFetching, hasNextPage, isFetchingNextPage } = isLibrary
-		? libraryListQuery
-		: allListQuery;
+	const {
+		isLoading,
+		isFetching,
+		hasNextPage,
+		isFetchingNextPage,
+		isPlaceholderData,
+		isError,
+		refetch,
+	} = isLibrary ? libraryListQuery : allListQuery;
 	const fetchNextPage = isLibrary
 		? libraryListQuery.fetchNextPage
 		: allListQuery.fetchNextPage;
@@ -246,7 +273,7 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	// the heaviest list queries on every section hop.
 	const { data: total } = useQuery({
 		...countOptions,
-		placeholderData: keepPreviousData,
+		...placeholderOptions,
 	});
 
 	// Mixed-catalog rows carry their own media type; library rows fall back to
@@ -512,6 +539,8 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				title={title}
 				subtitle={subtitle}
 				isLoading={isLoading}
+				isError={isError}
+				errorState={<QueryErrorState onRetry={() => void refetch()} />}
 				isFetching={isFetching}
 				isFetchingNextPage={isFetchingNextPage}
 				search={search}
@@ -533,8 +562,10 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				}
 				items={books}
 				getKey={(book) => book.uuid}
-				hasNextPage={hasNextPage}
-				fetchNextPage={fetchNextPage}
+				hasNextPage={hasNextPage && !isPlaceholderData}
+				fetchNextPage={() => {
+					if (!isPlaceholderData && !isFetching) void fetchNextPage();
+				}}
 				gridRowEstimate={gridRowEstimate}
 				squareArtwork={isAudiobook}
 				renderGridItem={(book) => (

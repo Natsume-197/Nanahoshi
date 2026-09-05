@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getAudiobook } from "@/functions/books/get-audiobook";
 import { fetchLoaderQuery } from "@/lib/loader-query";
 import { PAGE_SHELL } from "@/lib/page-layout";
+import { prefetchRouteQuery } from "@/lib/prefetch-route-query";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 
@@ -35,17 +36,20 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 			// await). Client only: the SSR query client is process-wide, so seeding
 			// per-user state there would leak across requests (see lib/loader-query.ts).
 			if (typeof window !== "undefined") {
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.listeningProgress.getProgress.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.audiobookShelf.get.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				context.queryClient.prefetchQuery(
+				prefetchRouteQuery(
+					context.queryClient,
 					orpc.likedBooks.getLikeStatus.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),

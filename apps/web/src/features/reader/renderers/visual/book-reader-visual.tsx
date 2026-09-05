@@ -1,5 +1,6 @@
 import {
 	type CSSProperties,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -22,6 +23,7 @@ import {
 	viewportWidth,
 } from "@/features/reader/renderers/shared/viewport";
 import { useWindowEvent } from "@/hooks/use-window-event";
+import { findHorizontalStripPage } from "./strip-geometry";
 
 interface BookReaderVisualProps {
 	htmlContent: string;
@@ -46,6 +48,38 @@ interface VisualPage {
 	geometry: VisualPageGeometry | undefined;
 	imageSources: string[];
 }
+
+const VisualPageSlot = memo(function VisualPageSlot({
+	page,
+	index,
+	style,
+	showArtwork,
+	register,
+}: {
+	page: VisualPage;
+	index: number;
+	style: CSSProperties | undefined;
+	showArtwork: boolean;
+	register: (index: number, element: HTMLDivElement | null) => void;
+}) {
+	const attach = useCallback(
+		(element: HTMLDivElement | null) => register(index, element),
+		[index, register],
+	);
+	return (
+		<div
+			ref={attach}
+			data-visual-page-index={index}
+			className="visual-page-slot relative"
+			style={style}
+		>
+			{showArtwork && (
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: source was sanitized before entering ReaderBookData
+				<div dangerouslySetInnerHTML={{ __html: page.html }} />
+			)}
+		</div>
+	);
+});
 
 interface PointerGesture {
 	id: number;
@@ -247,8 +281,18 @@ export function BookReaderVisual({
 		),
 	);
 	const readerRef = useRef<HTMLDivElement | null>(null);
+	const [nearbyPages, setNearbyPages] = useState<ReadonlySet<number>>(
+		new Set(),
+	);
 	const canvasRef = useRef<HTMLDivElement | null>(null);
 	const pageSlotsRef = useRef(new Map<number, HTMLDivElement>());
+	const registerPageSlot = useCallback(
+		(index: number, element: HTMLDivElement | null) => {
+			if (element) pageSlotsRef.current.set(index, element);
+			else pageSlotsRef.current.delete(index);
+		},
+		[],
+	);
 	const scrollFrameRef = useRef<number | null>(null);
 	const gestureRef = useRef<PointerGesture | null>(null);
 	const preloadedImagesRef = useRef(new Map<string, HTMLImageElement>());
@@ -281,6 +325,46 @@ export function BookReaderVisual({
 	);
 	const visiblePages = spreads[spreadIndex] ?? spreads[0] ?? [];
 	const renderedPages = strip ? pages.map((_, index) => index) : visiblePages;
+
+	// Keep the lightweight, dimensioned slots for direct navigation. Only artwork
+	// near the viewport is attached, including SVG images that ignore loading=lazy.
+	const attachReader = useCallback(
+		(reader: HTMLDivElement | null) => {
+			readerRef.current = reader;
+			if (!reader || !strip) return;
+			const nearby = new Set<number>();
+			const observer = new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						const index = Number(
+							(entry.target as HTMLElement).dataset.visualPageIndex,
+						);
+						if (entry.isIntersecting) nearby.add(index);
+						else nearby.delete(index);
+					}
+					setNearbyPages((previous) =>
+						previous.size === nearby.size &&
+						[...nearby].every((index) => previous.has(index))
+							? previous
+							: new Set(nearby),
+					);
+				},
+				{
+					root: reader,
+					rootMargin: `${viewport.height}px ${viewport.width}px`,
+				},
+			);
+			for (const [index] of pages.entries()) {
+				const slot = pageSlotsRef.current.get(index);
+				if (slot) observer.observe(slot);
+			}
+			return () => {
+				observer.disconnect();
+				readerRef.current = null;
+			};
+		},
+		[strip, pages, viewport.height, viewport.width],
+	);
 
 	const scrollToStripPage = useCallback(
 		(index: number, behavior: ScrollBehavior = "smooth") => {
@@ -466,20 +550,13 @@ export function BookReaderVisual({
 		const probe =
 			readerRect.left +
 			reader.clientWidth * (direction === "rtl" ? 0.65 : 0.35);
-		let selected = anchorRef.current;
-		let closestDistance = Number.POSITIVE_INFINITY;
-		for (const [index, slot] of pageSlotsRef.current) {
-			const rect = slot.getBoundingClientRect();
-			const start = rect.left;
-			const end = rect.right;
-			const distance =
-				probe < start ? start - probe : probe > end ? probe - end : 0;
-			if (distance < closestDistance) {
-				selected = index;
-				closestDistance = distance;
-				if (distance === 0) break;
-			}
-		}
+		const selected = findHorizontalStripPage(
+			pages.length,
+			probe,
+			direction,
+			(index) =>
+				pageSlotsRef.current.get(index)?.getBoundingClientRect() ?? readerRect,
+		);
 		if (selected !== anchorRef.current) setAnchorPage(selected);
 	}, [direction, verticalStrip, pages.length, strip]);
 
@@ -641,40 +718,54 @@ export function BookReaderVisual({
 		"--visual-page-gap": twoPageSpread ? "clamp(0px, 0.75vw, 12px)" : "0px",
 	} as CSSProperties;
 	const pageGap = twoPageSpread ? Math.min(12, viewport.width * 0.0075) : 0;
-	const pageStyle = (page: VisualPage): CSSProperties | undefined => {
-		if (!page.geometry || !page.aspectRatio) return undefined;
-		if (horizontalStrip) {
-			return {
-				width: (viewport.height * page.geometry.width) / page.geometry.height,
-				height: viewport.height,
-				aspectRatio: page.aspectRatio,
-				flex: "none",
-			};
-		}
-		if (verticalStrip) {
-			const width = Math.min(viewport.width, 1200);
-			return {
-				width,
-				height: (width * page.geometry.height) / page.geometry.width,
-				aspectRatio: page.aspectRatio,
-				flex: "none",
-			};
-		}
-		const pageCount = twoPageSpread && visiblePages.length > 1 ? 2 : 1;
-		const fitted = fitVisualPage(page.geometry, {
-			width: (viewport.width - pageGap) / pageCount,
-			height: viewport.height,
-		});
-		return {
-			...fitted,
-			aspectRatio: page.aspectRatio,
-			flex: "none",
-		};
-	};
+	const pageStyles = useMemo(
+		() =>
+			pages.map((page): CSSProperties | undefined => {
+				if (!page.geometry || !page.aspectRatio) return undefined;
+				if (horizontalStrip) {
+					return {
+						width:
+							(viewport.height * page.geometry.width) / page.geometry.height,
+						height: viewport.height,
+						aspectRatio: page.aspectRatio,
+						flex: "none",
+					};
+				}
+				if (verticalStrip) {
+					const width = Math.min(viewport.width, 1200);
+					return {
+						width,
+						height: (width * page.geometry.height) / page.geometry.width,
+						aspectRatio: page.aspectRatio,
+						flex: "none",
+					};
+				}
+				const pageCount = twoPageSpread && visiblePages.length > 1 ? 2 : 1;
+				const fitted = fitVisualPage(page.geometry, {
+					width: (viewport.width - pageGap) / pageCount,
+					height: viewport.height,
+				});
+				return {
+					...fitted,
+					aspectRatio: page.aspectRatio,
+					flex: "none",
+				};
+			}),
+		[
+			pages,
+			horizontalStrip,
+			verticalStrip,
+			twoPageSpread,
+			visiblePages.length,
+			viewport.width,
+			viewport.height,
+			pageGap,
+		],
+	);
 
 	return (
 		<div
-			ref={readerRef}
+			ref={attachReader}
 			data-reader-renderer="visual"
 			className={`book-content book-content--visual relative h-dvh w-dvw ${verticalStrip ? "book-content--visual-continuous overflow-y-auto" : horizontalStrip ? "book-content--visual-horizontal-strip overflow-x-auto overflow-y-hidden" : "overflow-hidden"}`}
 			style={{
@@ -700,19 +791,19 @@ export function BookReaderVisual({
 					const page = pages[pageIndex];
 					if (!page) return null;
 					return (
-						<div
+						<VisualPageSlot
 							key={page.reference}
-							ref={(element) => {
-								if (element) pageSlotsRef.current.set(pageIndex, element);
-								else pageSlotsRef.current.delete(pageIndex);
-							}}
-							data-visual-page-index={pageIndex}
-							className="visual-page-slot relative"
-							style={pageStyle(page)}
-						>
-							{/* biome-ignore lint/security/noDangerouslySetInnerHtml: source was sanitized before entering ReaderBookData */}
-							<div dangerouslySetInnerHTML={{ __html: page.html }} />
-						</div>
+							page={page}
+							index={pageIndex}
+							register={registerPageSlot}
+							style={pageStyles[pageIndex]}
+							showArtwork={
+								!strip ||
+								!page.geometry ||
+								nearbyPages.has(pageIndex) ||
+								Math.abs(pageIndex - anchorPage) <= 1
+							}
+						/>
 					);
 				})}
 			</div>

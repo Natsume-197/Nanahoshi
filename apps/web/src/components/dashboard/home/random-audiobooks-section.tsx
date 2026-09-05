@@ -18,7 +18,7 @@ export const RandomAudiobooksSection = memo(
 	function RandomAudiobooksSection(): JSX.Element | null {
 		const queryClient = useQueryClient();
 		const randomAudiobooks = orpc.audiobooks.listRandom.queryOptions({
-			input: { limit: DASHBOARD_LIMIT },
+			input: { limit: DASHBOARD_LIMIT, compact: true },
 		});
 		const { data: audiobooks, isLoading } = useQuery({
 			...randomAudiobooks,
@@ -40,7 +40,7 @@ export const RandomAudiobooksSection = memo(
 
 			setIsRefreshing(true);
 			client.audiobooks
-				.listRandom({ limit: DASHBOARD_LIMIT })
+				.listRandom({ limit: DASHBOARD_LIMIT, compact: true })
 				.then((next) => {
 					// Write into the query cache (not local state) so the refreshed
 					// shuffle survives the section unmounting/remounting on navigation.

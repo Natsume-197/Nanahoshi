@@ -29,6 +29,7 @@ export async function adaptHtmlEbook(
 	fallbackTitle: string,
 	document: Document,
 	readerFacts?: ReaderBookFacts,
+	signal?: AbortSignal,
 ): Promise<ReaderBookData> {
 	try {
 		if (ebook.content.kind !== "html") {
@@ -56,6 +57,7 @@ export async function adaptHtmlEbook(
 		};
 
 		const persistResource = (href: string): Promise<string> => {
+			signal?.throwIfAborted();
 			const canonicalHref = canonicalizeResourceHref(href);
 			const existing = keyByHref.get(canonicalHref);
 			if (existing !== undefined) return existing;
@@ -67,6 +69,7 @@ export async function adaptHtmlEbook(
 				} catch {
 					return "";
 				}
+				signal?.throwIfAborted();
 				if (!parsed) return "";
 				let resource = new Blob([Uint8Array.from(parsed.data)], {
 					type: parsed.mediaType,
@@ -101,7 +104,9 @@ export async function adaptHtmlEbook(
 			content.sections,
 			4,
 			async (sectionRef) => {
+				signal?.throwIfAborted();
 				const section = await content.openSection(sectionRef.id);
+				signal?.throwIfAborted();
 				if (!section) return undefined;
 				const resolveHref = async (href: string) => {
 					const key = await persistResource(href);
@@ -159,6 +164,7 @@ export async function adaptHtmlEbook(
 				};
 			},
 		);
+		signal?.throwIfAborted();
 		for (const prepared of preparedSections) {
 			if (!prepared) continue;
 			if (prepared.section.label) {
@@ -202,6 +208,7 @@ export async function adaptHtmlEbook(
 			}
 		}
 
+		signal?.throwIfAborted();
 		const presentation = ebook.metadata.presentation;
 
 		const base: ReaderBookData = {

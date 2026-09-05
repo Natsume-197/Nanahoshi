@@ -11,7 +11,11 @@ import {
 	MagnifyingGlass,
 	User,
 } from "@phosphor-icons/react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -33,6 +37,7 @@ import {
 import { HitLink } from "@/components/dashboard/search/top-results-hit-link";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { VirtualizedResultList } from "@/components/shared/virtualized-result-list";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -156,10 +161,12 @@ function ResultSection({
 	id,
 	title,
 	children,
+	virtualized = false,
 }: {
 	id: string;
 	title: string;
 	children: ReactNode;
+	virtualized?: boolean;
 }) {
 	return (
 		<section aria-labelledby={id} className="space-y-2">
@@ -171,7 +178,11 @@ function ResultSection({
 					{title}
 				</h2>
 			</div>
-			<ul className="divide-y divide-border/60">{children}</ul>
+			{virtualized ? (
+				children
+			) : (
+				<ul className="divide-y divide-border/60">{children}</ul>
+			)}
 		</section>
 	);
 }
@@ -408,15 +419,13 @@ function MediaResultRow({
 	);
 
 	return (
-		<li>
-			<BookContextMenuTrigger
-				bookUuid={uuid}
-				mediaType={mediaType}
-				className="block"
-			>
-				{link}
-			</BookContextMenuTrigger>
-		</li>
+		<BookContextMenuTrigger
+			bookUuid={uuid}
+			mediaType={mediaType}
+			className="block"
+		>
+			{link}
+		</BookContextMenuTrigger>
 	);
 }
 
@@ -491,16 +500,14 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 	}
 
 	return (
-		<li>
-			<HitLink hit={hit} className={rowClassName}>
-				<ResultRowContent
-					artwork={artwork}
-					title={title}
-					subtitle={subtitle}
-					meta={meta}
-				/>
-			</HitLink>
-		</li>
+		<HitLink hit={hit} className={rowClassName}>
+			<ResultRowContent
+				artwork={artwork}
+				title={title}
+				subtitle={subtitle}
+				meta={meta}
+			/>
+		</HitLink>
 	);
 }
 
@@ -647,31 +654,30 @@ function ReadListenResultRow({ pairing }: { pairing: ReadListenSearchResult }) {
 	const authorText = formatNames(pairing.audiobook.authors);
 
 	return (
-		<li>
-			<BookContextMenuTrigger
-				bookUuid={pairing.audiobook.uuid}
-				mediaType="audiobook"
-				className="block"
+		<BookContextMenuTrigger
+			bookUuid={pairing.audiobook.uuid}
+			mediaType="audiobook"
+			className="block"
+		>
+			<Link
+				to="/dashboard/audiobooks/$uuid"
+				params={{ uuid: pairing.audiobook.uuid }}
+				preload="intent"
+				className={rowClassName}
 			>
-				<Link
-					to="/dashboard/audiobooks/$uuid"
-					params={{ uuid: pairing.audiobook.uuid }}
-					preload="intent"
-					className={rowClassName}
-				>
-					<ResultRowContent
-						artwork={<ReadListenArtwork pairing={pairing} />}
-						title={title}
-						subtitle={authorText}
-						meta={m["nav.read_listen"]()}
-					/>
-				</Link>
-			</BookContextMenuTrigger>
-		</li>
+				<ResultRowContent
+					artwork={<ReadListenArtwork pairing={pairing} />}
+					title={title}
+					subtitle={authorText}
+					meta={m["nav.read_listen"]()}
+				/>
+			</Link>
+		</BookContextMenuTrigger>
 	);
 }
 
 function SearchPage() {
+	const queryClient = useQueryClient();
 	const { q } = Route.useSearch();
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
@@ -701,10 +707,16 @@ function SearchPage() {
 		});
 	};
 	const isAll = filter === "all";
+	const topSearchOptions = orpc.search.top.queryOptions({
+		input: {
+			query: normalizedQuery,
+			limit: SEARCH_TOP_RESULTS_LIMIT,
+			pageSize: 30,
+		},
+		staleTime: 60_000,
+	});
 	const { data: topSearch, isLoading: isTopLoading } = useQuery({
-		...orpc.search.top.queryOptions({
-			input: { query: normalizedQuery, limit: SEARCH_TOP_RESULTS_LIMIT },
-		}),
+		...topSearchOptions,
 		enabled: shouldSearch,
 		staleTime: 60_000,
 	});
@@ -751,12 +763,20 @@ function SearchPage() {
 		isFetchingNextPage: booksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["books", "search", normalizedQuery],
-		queryFn: ({ pageParam }) =>
-			client.books.search({
+		queryFn: async ({ pageParam }) => {
+			// Share the initial media page with the ranked search, including its
+			// cursor. fetchQuery joins in-flight work and refreshes invalidated pages.
+			if (!pageParam) {
+				const initial = await queryClient.fetchQuery(topSearchOptions);
+				if (initial.mediaPages) return initial.mediaPages.books;
+			}
+			return client.books.search({
 				query: normalizedQuery || undefined,
 				cursor: pageParam ?? undefined,
 				limit: 30,
-			}),
+				sort: "relevance",
+			});
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch && (isAll || filter === "books"),
@@ -770,12 +790,20 @@ function SearchPage() {
 		isFetchingNextPage: audiobooksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["audiobooks", "search", normalizedQuery],
-		queryFn: ({ pageParam }) =>
-			client.audiobooks.search({
+		queryFn: async ({ pageParam }) => {
+			// Share the initial media page with the ranked search, including its
+			// cursor. fetchQuery joins in-flight work and refreshes invalidated pages.
+			if (!pageParam) {
+				const initial = await queryClient.fetchQuery(topSearchOptions);
+				if (initial.mediaPages) return initial.mediaPages.audiobooks;
+			}
+			return client.audiobooks.search({
 				query: normalizedQuery || undefined,
 				cursor: pageParam ?? undefined,
 				limit: 30,
-			}),
+				sort: "relevance",
+			});
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
 		enabled: shouldSearch && (isAll || filter === "audiobooks"),
@@ -995,11 +1023,12 @@ function SearchPage() {
 						<ResultListSkeleton />
 					) : rankedResults.length > 0 ? (
 						<BookContextMenuRoot>
-							<ul className="divide-y divide-border/60">
-								{rankedResults.map((hit) => (
-									<RankedResultRow key={searchResultKey(hit)} hit={hit} />
-								))}
-							</ul>
+							<VirtualizedResultList
+								key={normalizedQuery}
+								items={rankedResults}
+								getKey={searchResultKey}
+								renderItem={(hit) => <RankedResultRow hit={hit} />}
+							/>
 						</BookContextMenuRoot>
 					) : null)}
 
@@ -1015,19 +1044,27 @@ function SearchPage() {
 					(isBooksLoading ? (
 						<ResultListSkeleton title={m["search.books"]()} />
 					) : books.length > 0 ? (
-						<ResultSection id="search-books" title={m["search.books"]()}>
+						<ResultSection
+							id="search-books"
+							title={m["search.books"]()}
+							virtualized
+						>
 							<BookContextMenuRoot>
-								{books.map((book) => (
-									<MediaResultRow
-										key={book.uuid}
-										uuid={book.uuid}
-										title={book.title ?? null}
-										filename={book.filename}
-										cover={book.cover ?? null}
-										authors={book.authors}
-										mediaType="ebook"
-									/>
-								))}
+								<VirtualizedResultList
+									key={normalizedQuery}
+									items={books}
+									getKey={(book) => book.uuid}
+									renderItem={(book) => (
+										<MediaResultRow
+											uuid={book.uuid}
+											title={book.title ?? null}
+											filename={book.filename}
+											cover={book.cover ?? null}
+											authors={book.authors}
+											mediaType="ebook"
+										/>
+									)}
+								/>
 							</BookContextMenuRoot>
 						</ResultSection>
 					) : null)}
@@ -1046,20 +1083,25 @@ function SearchPage() {
 					) : audiobooks.length > 0 ? (
 						<ResultSection
 							id="search-audiobooks"
+							virtualized
 							title={m["search.audiobooks"]()}
 						>
 							<BookContextMenuRoot mediaType="audiobook">
-								{audiobooks.map((audiobook) => (
-									<MediaResultRow
-										key={audiobook.uuid}
-										uuid={audiobook.uuid}
-										title={audiobook.title ?? null}
-										filename={audiobook.filename}
-										cover={audiobook.cover ?? null}
-										authors={audiobook.authors}
-										mediaType="audiobook"
-									/>
-								))}
+								<VirtualizedResultList
+									key={normalizedQuery}
+									items={audiobooks}
+									getKey={(audiobook) => audiobook.uuid}
+									renderItem={(audiobook) => (
+										<MediaResultRow
+											uuid={audiobook.uuid}
+											title={audiobook.title ?? null}
+											filename={audiobook.filename}
+											cover={audiobook.cover ?? null}
+											authors={audiobook.authors}
+											mediaType="audiobook"
+										/>
+									)}
+								/>
 							</BookContextMenuRoot>
 						</ResultSection>
 					) : null)}
@@ -1082,7 +1124,9 @@ function SearchPage() {
 						>
 							<BookContextMenuRoot mediaType="audiobook">
 								{matchingReadListenPairings.map((pairing) => (
-									<ReadListenResultRow key={pairing.id} pairing={pairing} />
+									<li key={pairing.id}>
+										<ReadListenResultRow pairing={pairing} />
+									</li>
 								))}
 							</BookContextMenuRoot>
 						</ResultSection>

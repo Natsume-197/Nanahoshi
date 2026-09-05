@@ -30,7 +30,10 @@ export const BookUuidInput = z.object({ uuid: z.string() });
 export const BookSharePreviewInput = z.object({ uuid: z.string().uuid() });
 
 export const ListRecentBooksInput = z
-	.object({ limit: z.number().int().min(1).max(50).default(20) })
+	.object({
+		compact: z.boolean().optional(),
+		limit: z.number().int().min(1).max(50).default(20),
+	})
 	.optional();
 
 export const ListRandomBooksInput = z
@@ -147,3 +150,14 @@ export type BookComplete = z.infer<typeof BookSchema>;
 // Database-related types
 export type Book = typeof book.$inferSelect;
 export type CreateBookInput = typeof book.$inferInsert;
+
+export const ListBooksByEntityInput = z.object({
+	kind: z.enum(["genre", "tag", "publisher"]),
+	uuid: z.string().uuid(),
+	format: z.enum(["auto", "ebook", "audiobook"]).default("auto"),
+	sort: z.enum(["title", "author"]).default("title"),
+	query: z.string().trim().optional(),
+	cursor: z.number().int().min(0).optional(),
+	limit: z.number().int().min(1).max(100).default(40),
+});
+export type ListBooksByEntity = z.infer<typeof ListBooksByEntityInput>;

@@ -127,6 +127,7 @@ export function MembersList({
 		// Push events are primary. This bounded snapshot is the recovery path for
 		// abrupt process/network loss where no final offline event can be emitted.
 		refetchInterval: 60_000,
+		refetchOnMount: "always",
 	});
 	const scrollRef = useRef<HTMLDivElement>(null);
 

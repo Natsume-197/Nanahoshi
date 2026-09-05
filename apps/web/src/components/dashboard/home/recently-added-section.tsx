@@ -19,16 +19,18 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 }: {
 	format?: RecentlyAddedFormat;
 }): JSX.Element | null {
-	const booksQuery = useQuery(
-		orpc.books.listRecent.queryOptions({
-			input: { limit: DASHBOARD_LIMIT },
+	const booksQuery = useQuery({
+		...orpc.books.listRecent.queryOptions({
+			input: { limit: DASHBOARD_LIMIT, compact: true },
 		}),
-	);
-	const audiobooksQuery = useQuery(
-		orpc.audiobooks.listRecent.queryOptions({
-			input: { limit: DASHBOARD_LIMIT },
+		enabled: format !== "audiobooks",
+	});
+	const audiobooksQuery = useQuery({
+		...orpc.audiobooks.listRecent.queryOptions({
+			input: { limit: DASHBOARD_LIMIT, compact: true },
 		}),
-	);
+		enabled: format !== "books",
+	});
 
 	const entries = [
 		...(format === "audiobooks" ? [] : (booksQuery.data ?? [])).map((book) => ({

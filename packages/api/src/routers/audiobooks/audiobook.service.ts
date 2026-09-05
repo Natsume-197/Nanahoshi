@@ -36,16 +36,18 @@ export const listRecentAudiobooks = async (
 	limit = 20,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
+	compact = false,
 ) => {
-	return audiobookRepository.listRecent(limit, serverId, scope);
+	return audiobookRepository.listRecent(limit, serverId, scope, compact);
 };
 
 export const getRandomAudiobooks = async (
 	limit = 15,
 	serverId?: string,
 	scope: LibraryScope = "ALL",
+	compact = false,
 ) => {
-	return audiobookRepository.listRandom(limit, serverId, scope);
+	return audiobookRepository.listRandom(limit, serverId, scope, compact);
 };
 
 export const listAudiobooks = async (

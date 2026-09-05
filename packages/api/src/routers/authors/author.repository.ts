@@ -153,7 +153,18 @@ export class AuthorRepository {
 		serverId: string,
 		scope: LibraryScope = "ALL",
 	) {
-		const [row] = (
+		return (
+			(await this.getVisibleHitsByUuids([uuid], serverId, scope))[0] ?? null
+		);
+	}
+
+	async getVisibleHitsByUuids(
+		uuids: string[],
+		serverId: string,
+		scope: LibraryScope = "ALL",
+	) {
+		if (uuids.length === 0) return [];
+		const rows = (
 			await db.execute(sql`
 				SELECT
 					a.id,
@@ -168,14 +179,21 @@ export class AuthorRepository {
 				) combined ON combined.author_id = a.id
 				INNER JOIN book b ON b.id = combined.book_id
 				INNER JOIN library l ON l.id = b.library_id
-				WHERE a.uuid = ${uuid}
+				WHERE a.uuid IN (${sql.join(
+					uuids.map((uuid) => sql`${uuid}`),
+					sql`, `,
+				)})
 					AND l.server_id = ${serverId}
 					AND ${visibleBookSql("b")}
 					${accessibleSql(scope)}
 				GROUP BY a.id
 			`)
 		).rows as AuthorWithCountRow[];
-		return row ?? null;
+		const byUuid = new Map(rows.map((row) => [row.uuid, row]));
+		return uuids.flatMap((uuid) => {
+			const row = byUuid.get(uuid);
+			return row ? [row] : [];
+		});
 	}
 
 	async getByUuid(uuid: string, serverId: string, scope: LibraryScope = "ALL") {

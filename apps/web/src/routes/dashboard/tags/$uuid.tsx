@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { EntityBooksView } from "@/components/catalog/entity-books-view";
 import type { SortOption } from "@/components/shared/sort-select";
+import { prefetchRouteQuery } from "@/lib/prefetch-route-query";
 import { m } from "@/paraglide/messages";
 import type { BookSortMode } from "@/utils/filter-sort-books";
 import { capitalizeFirst } from "@/utils/format";
@@ -16,12 +17,9 @@ export const Route = createFileRoute("/dashboard/tags/$uuid")({
 	},
 	loader: ({ context, params }) => {
 		if (typeof window === "undefined") return;
-		context.queryClient.prefetchQuery(
-			orpc.books.listByTag.queryOptions({
-				input: { tagUuid: params.uuid },
-			}),
-		);
-		context.queryClient.prefetchQuery(
+
+		prefetchRouteQuery(
+			context.queryClient,
 			orpc.tags.getByUuid.queryOptions({
 				input: { uuid: params.uuid },
 			}),
@@ -32,16 +30,11 @@ export const Route = createFileRoute("/dashboard/tags/$uuid")({
 function TagDetailPage() {
 	const { uuid } = Route.useParams();
 
-	const { data: rawBooks, isLoading } = useQuery({
-		...orpc.books.listByTag.queryOptions({ input: { tagUuid: uuid } }),
-		staleTime: 30_000,
-	});
 	const { data: entity } = useQuery({
 		...orpc.tags.getByUuid.queryOptions({ input: { uuid } }),
 		staleTime: 30_000,
 	});
 
-	const total = rawBooks?.length ?? 0;
 	const sortOptions: readonly SortOption<BookSortMode>[] = [
 		{ value: "title", label: m["common.title"]() },
 		{ value: "author", label: m["common.author"]() },
@@ -58,11 +51,11 @@ function TagDetailPage() {
 					? capitalizeFirst(entity.name)
 					: m["entity_page.tag_fallback"]()
 			}
-			subtitle={
-				total ? m["entity_page.tag_subtitle"]({ count: total }) : undefined
+			key={uuid}
+			source={{ kind: "tag", uuid }}
+			countLabel={(count) =>
+				count ? m["entity_page.tag_subtitle"]({ count }) : undefined
 			}
-			isLoading={isLoading}
-			rawBooks={rawBooks}
 			searchAriaLabel={m["entity_page.tag_search_aria"]()}
 			emptyDescription={m["entity_page.tag_empty_desc"]()}
 			searchNoMatches={(query) =>

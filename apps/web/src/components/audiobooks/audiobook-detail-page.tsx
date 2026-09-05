@@ -15,10 +15,6 @@ import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
 import { Fragment, useId, useState } from "react";
 import { toast } from "sonner";
 import {
-	type Chapter,
-	ChapterList,
-} from "@/components/audio-player/chapter-list";
-import {
 	usePlayAudiobook,
 	usePrefetchAudiobook,
 } from "@/components/audio-player/use-play-audiobook";
@@ -59,13 +55,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-	toPlayerData,
-	useAudioPlayerActions,
-	useAudioPlayerBook,
-	useAudioPlayerState,
-	useIsAudiobookLoading,
-} from "@/context/audio-player-context";
+import { useIsAudiobookLoading } from "@/context/audio-player-context";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -90,6 +80,7 @@ import {
 	getErrorMessage,
 } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import { ChaptersSection } from "./chapters-section";
 
 type AudiobookData = NonNullable<Awaited<ReturnType<typeof getAudiobook>>>;
 
@@ -1003,41 +994,6 @@ function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
 				))}
 			</ol>
 		</section>
-	);
-}
-
-function ChaptersSection({ audiobook }: { audiobook: AudiobookData }) {
-	const playerBook = useAudioPlayerBook();
-	const { globalCurrentTime } = useAudioPlayerState();
-	const { loadAudiobook, seekTo } = useAudioPlayerActions();
-
-	const isActive = playerBook?.uuid === audiobook.uuid;
-	const chapters: Chapter[] = (audiobook.chapters ?? []).map((ch) => ({
-		index: ch.index,
-		title: ch.title,
-		startTime: ch.startTime,
-		endTime: ch.endTime,
-	}));
-
-	// Jump to a chapter: seek if this book already drives the player, otherwise
-	// load it starting at the chapter (startTime overrides the saved position).
-	const seekToChapter = (startTime: number) => {
-		if (isActive) {
-			seekTo(startTime);
-		} else {
-			loadAudiobook(toPlayerData(audiobook), { startTime });
-		}
-	};
-
-	return (
-		<ChapterList
-			chapters={chapters}
-			currentTime={isActive ? globalCurrentTime : -1}
-			onSeekToChapter={seekToChapter}
-			fallbackLabel={(index) =>
-				m["audiobook.chapter_fallback"]({ number: index + 1 })
-			}
-		/>
 	);
 }
 

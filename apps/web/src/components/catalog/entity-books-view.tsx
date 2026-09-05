@@ -1,3 +1,4 @@
+import { useInfiniteQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
@@ -6,6 +7,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -23,6 +25,7 @@ import {
 	type BookSortMode,
 	filterAndSortBooks,
 } from "@/utils/filter-sort-books";
+import { orpc } from "@/utils/orpc";
 
 const GRID_ROW_ESTIMATE = createBookCardShellRowHeightEstimator();
 
@@ -43,7 +46,7 @@ export type EntityBook = {
 	mediaType?: "ebook" | "audiobook";
 };
 
-type EntityBooksViewProps<T extends EntityBook> = {
+type EntityBooksViewProps = {
 	storageKey: string;
 	defaultSort: BookSortMode;
 	sortOptions: readonly SortOption<BookSortMode>[];
@@ -51,9 +54,11 @@ type EntityBooksViewProps<T extends EntityBook> = {
 	title: ReactNode;
 	/** Rendered subtitle — the route owns the count/rating copy. */
 	subtitle?: ReactNode;
-	isLoading: boolean;
+	isLoading?: boolean;
 	/** Full (unpaginated) book list; filtered and sorted client-side. */
-	rawBooks: T[] | undefined;
+	rawBooks?: EntityBook[];
+	source?: { kind: "genre" | "tag" | "publisher"; uuid: string };
+	countLabel?: (total: number) => ReactNode;
 	searchAriaLabel: string;
 	emptyDescription: string;
 	/** Search-empty sentence; receives the active debounced query. */
@@ -76,27 +81,46 @@ type EntityBooksViewProps<T extends EntityBook> = {
  * link to their own format's detail page. Owns client-side filter/sort; the
  * route supplies data, copy, and any entity-specific actions/dialogs.
  */
-export function EntityBooksView<T extends EntityBook>({
+export function EntityBooksView({
 	storageKey,
 	defaultSort,
 	sortOptions,
 	title,
 	subtitle,
-	isLoading,
+	isLoading = false,
 	rawBooks,
+	source,
+	countLabel,
 	searchAriaLabel,
 	emptyDescription,
 	searchNoMatches,
 	formatFilter = false,
 	extraActions,
 	children,
-}: EntityBooksViewProps<T>) {
+}: EntityBooksViewProps) {
 	const { sort, setSort, search, setSearch, query, isSearching } =
 		useCollectionView<BookSortMode>({ storageKey, defaultSort });
 
 	// null = auto: land on the entity's first available format.
 	const [formatChoice, setFormatChoice] =
 		useUiSnapshotState<EntityFormat | null>(`${storageKey}-format`, null);
+	const pagedBooks = useInfiniteQuery({
+		...orpc.books.listByEntity.infiniteOptions({
+			input: (cursor: number) => ({
+				kind: source?.kind ?? "genre",
+				uuid: source?.uuid ?? "",
+				format: formatFilter ? (formatChoice ?? "auto") : "ebook",
+				sort: sort === "author" ? "author" : "title",
+				query: query || undefined,
+				cursor,
+				limit: 40,
+			}),
+			initialPageParam: 0,
+			getNextPageParam: (page) => page.nextCursor ?? undefined,
+		}),
+		enabled: Boolean(source),
+	});
+	const firstPage = pagedBooks.data?.pages[0];
 	const defaultFormat: EntityFormat = useMemo(() => {
 		const rows = rawBooks ?? [];
 		if (rows.length === 0) return "ebook";
@@ -104,14 +128,16 @@ export function EntityBooksView<T extends EntityBook>({
 			? "ebook"
 			: "audiobook";
 	}, [rawBooks]);
-	const format = formatChoice ?? defaultFormat;
+	const format = formatChoice ?? firstPage?.format ?? defaultFormat;
 
 	const books = useMemo(() => {
+		if (source)
+			return pagedBooks.data?.pages.flatMap((page) => page.books) ?? [];
 		const rows = formatFilter
 			? (rawBooks ?? []).filter((b) => (b.mediaType ?? "ebook") === format)
 			: (rawBooks ?? []);
 		return filterAndSortBooks(rows, query, sort);
-	}, [rawBooks, formatFilter, format, query, sort]);
+	}, [rawBooks, formatFilter, format, query, sort, source, pagedBooks.data]);
 
 	const formatOptions: readonly FilterOption[] = [
 		{ value: "ebook", label: m["search.books"]() },
@@ -163,8 +189,38 @@ export function EntityBooksView<T extends EntityBook>({
 		<BookContextMenuRoot>
 			<CollectionView
 				title={title}
-				subtitle={subtitle}
-				isLoading={isLoading}
+				subtitle={
+					source && firstPage ? countLabel?.(firstPage.total) : subtitle
+				}
+				isLoading={isLoading || (Boolean(source) && pagedBooks.isLoading)}
+				isFetching={Boolean(source) && pagedBooks.isFetching}
+				isError={Boolean(source) && pagedBooks.isError}
+				errorState={
+					<QueryErrorState
+						onRetry={() => {
+							void pagedBooks.refetch();
+						}}
+					/>
+				}
+				isFetchingNextPage={Boolean(source) && pagedBooks.isFetchingNextPage}
+				hasNextPage={
+					Boolean(source) &&
+					pagedBooks.hasNextPage &&
+					!pagedBooks.isFetchNextPageError
+				}
+				fetchNextPage={() => {
+					if (source && !pagedBooks.isFetching) void pagedBooks.fetchNextPage();
+				}}
+				contentBefore={
+					source && pagedBooks.isFetchNextPageError ? (
+						<QueryErrorState
+							compact
+							onRetry={() => {
+								void pagedBooks.fetchNextPage();
+							}}
+						/>
+					) : undefined
+				}
 				search={search}
 				onSearchChange={setSearch}
 				searchPlaceholder={m["entity_page.search_placeholder"]()}

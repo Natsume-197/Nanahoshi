@@ -22,7 +22,8 @@ export interface LazyHtmlBook {
 }
 
 /**
- * A narrow session around an already-open EPUB. Facts provide the stable book
+ * The caller retains ownership of the EPUB if setup fails. The returned
+ * lazy book owns it after successful setup. Facts provide the stable book
  * outline and character totals; only the requested spine item is unpacked and
  * formatted into DOM-ready HTML.
  */
@@ -41,7 +42,6 @@ export async function openLazyHtmlBook({
 }): Promise<LazyHtmlBook> {
 	const content = ebook.content;
 	if (content.kind !== "html") {
-		await ebook.close();
 		throw new Error("Lazy reading only supports HTML ebook content");
 	}
 	const sourceFormat = ebook.format as ReaderSourceFormat;
@@ -49,7 +49,6 @@ export async function openLazyHtmlBook({
 		facts.sourceFormat !== sourceFormat ||
 		!hasMatchingSpine(content, sourceFormat, facts)
 	) {
-		await ebook.close();
 		throw new Error("Cached reader outline no longer matches this book");
 	}
 	const data: ReaderBookData = {

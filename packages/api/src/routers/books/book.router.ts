@@ -3,7 +3,12 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
-import { orgProcedure, protectedProcedure, publicProcedure } from "../../index";
+import {
+	orgProcedure,
+	orgReadProcedure,
+	protectedProcedure,
+	publicProcedure,
+} from "../../index";
 import {
 	groupAsEditions,
 	ungroupEdition,
@@ -17,6 +22,7 @@ import {
 	GroupAsEditionsInput,
 	LibraryFacetsInput,
 	ListAllBooksInput,
+	ListBooksByEntityInput,
 	ListBooksByGenreInput,
 	ListBooksByLibraryInput,
 	ListBooksByPublisherInput,
@@ -43,6 +49,16 @@ function stripBookId<T extends { id: unknown }>(book: T) {
 }
 
 export const bookRouter = {
+	listByEntity: orgReadProcedure
+		.input(ListBooksByEntityInput)
+		.handler(({ input, context }) =>
+			bookRepository.listByEntity(
+				input,
+				context.serverId,
+				context.accessibleLibraryIds,
+			),
+		),
+
 	/** Public only when the owning server opted in; never exposes files or IDs. */
 	getSharePreview: publicProcedure
 		.input(BookSharePreviewInput)
@@ -88,6 +104,7 @@ export const bookRouter = {
 				input?.limit ?? 20,
 				serverId,
 				scope,
+				input?.compact ?? false,
 			);
 			return books.map(stripBookId);
 		}),

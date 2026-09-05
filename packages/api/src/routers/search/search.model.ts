@@ -1,6 +1,11 @@
 import { z } from "zod";
+import type {
+	SearchAudiobooksResponse,
+	SearchBooksResponse,
+} from "../../infrastructure/search/search.types";
 
 export const TopSearchInput = z.object({
+	pageSize: z.number().int().min(8).max(50).optional(),
 	query: z.string().trim().min(1),
 	limit: z.number().int().min(1).max(20).default(10),
 });
@@ -60,6 +65,10 @@ export type TopReadListenPublication = {
 };
 
 export type TopSearchResults = {
+	mediaPages?: {
+		books: SearchBooksResponse;
+		audiobooks: SearchAudiobooksResponse;
+	};
 	hits: TopHit[];
 	/** Types with at least one eligible candidate before the top-N limit. */
 	availableTypes: TopHit["type"][];

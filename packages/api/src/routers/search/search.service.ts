@@ -23,6 +23,7 @@ const USER_POOL = 4;
 
 export async function topResults(input: {
 	query: string;
+	pageSize?: number;
 	limit: number;
 	userId: string;
 	serverId: string;
@@ -41,7 +42,7 @@ export async function topResults(input: {
 	] = await Promise.all([
 		bookService.searchBooks({
 			query,
-			limit: BOOK_POOL,
+			limit: input.pageSize ?? BOOK_POOL,
 			sort: "relevance",
 			serverId,
 			accessibleLibraryIds,
@@ -60,7 +61,7 @@ export async function topResults(input: {
 		}),
 		audiobookService.searchAudiobooks({
 			query,
-			limit: AUDIOBOOK_POOL,
+			limit: input.pageSize ?? AUDIOBOOK_POOL,
 			sort: "relevance",
 			serverId,
 			accessibleLibraryIds,
@@ -82,35 +83,23 @@ export async function topResults(input: {
 		usersRepository.search(query, serverId, userId, USER_POOL),
 	]);
 	const [series, authors] = await Promise.all([
-		Promise.all(
-			seriesRes.series.map((hit) =>
-				seriesRepository.getVisibleHitByUuid(
-					hit.uuid,
-					serverId,
-					accessibleLibraryIds,
-				),
-			),
-		).then((hits) =>
-			hits.filter((hit): hit is NonNullable<typeof hit> => hit != null),
+		seriesRepository.getVisibleHitsByUuids(
+			seriesRes.series.map((hit) => hit.uuid),
+			serverId,
+			accessibleLibraryIds,
 		),
-		Promise.all(
-			authorsRes.authors.map((hit) =>
-				authorRepository.getVisibleHitByUuid(
-					hit.uuid,
-					serverId,
-					accessibleLibraryIds,
-				),
-			),
-		).then((hits) =>
-			hits.filter((hit): hit is NonNullable<typeof hit> => hit != null),
+		authorRepository.getVisibleHitsByUuids(
+			authorsRes.authors.map((hit) => hit.uuid),
+			serverId,
+			accessibleLibraryIds,
 		),
 	]);
 
 	const pools = {
-		books: books.books,
+		books: books.books.slice(0, BOOK_POOL),
 		series,
 		authors,
-		audiobooks: audiobooks.audiobooks,
+		audiobooks: audiobooks.audiobooks.slice(0, AUDIOBOOK_POOL),
 		readListen,
 		collections,
 		users,
@@ -128,5 +117,6 @@ export async function topResults(input: {
 	return {
 		hits: rankTopResults(pools, query, limit),
 		availableTypes,
+		...(input.pageSize ? { mediaPages: { books, audiobooks } } : {}),
 	};
 }

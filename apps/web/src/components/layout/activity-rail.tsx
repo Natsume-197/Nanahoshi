@@ -55,7 +55,7 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 			>
 				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t border-b-0 bg-background text-foreground">
 					<div className="mt-3 flex min-h-0 min-w-0 flex-1 overflow-hidden font-medium text-sm tracking-wide">
-						<MembersList />
+						{open && !isSheet && <MembersList />}
 					</div>
 				</div>
 			</aside>
@@ -90,10 +90,12 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 							</div>
 							<span aria-hidden="true" />
 						</SheetHeader>
-						<MembersList
-							onNavigate={onClose}
-							className="ps-[max(0.25rem,var(--safe-area-left))] pe-[max(0.25rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
-						/>
+						{open && (
+							<MembersList
+								onNavigate={onClose}
+								className="ps-[max(0.25rem,var(--safe-area-left))] pe-[max(0.25rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
+							/>
+						)}
 					</SheetContent>
 				</Sheet>
 			)}

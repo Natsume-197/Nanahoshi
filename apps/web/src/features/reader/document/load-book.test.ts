@@ -1,8 +1,20 @@
 import "@/test-utils/setup-dom";
 
-import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
 import type { ReaderBookFacts } from "./reader-book-cache";
 import type { ReaderBookData } from "./types";
+
+process.env.VITE_SERVER_URL ??= "http://localhost:3000";
+
+const { renderHook, act } = await import("@testing-library/react");
 
 const cache = await import("./reader-book-cache");
 const memory = await import("./reader-book-memory-cache");
@@ -16,7 +28,9 @@ const getReaderUrl = mock(async () => ({
 	filename: "book.epub",
 	url: "https://reader.test/book",
 }));
-const download = mock(async () => new Response("ebook bytes"));
+const download = mock(
+	async (_url?: unknown, _init?: RequestInit) => new Response("ebook bytes"),
+);
 const data: ReaderBookData = {
 	uuid: "book",
 	sourceFormat: "epub",
@@ -48,7 +62,12 @@ mock.module("./reader-book-cache", () => ({
 	putReaderBookFacts: putFacts,
 }));
 mock.module("./load-ebook", () => ({ loadEbook: parse }));
-mock.module("@/utils/orpc", () => ({ client: { files: { getReaderUrl } } }));
+mock.module("@/utils/orpc", () => ({
+	client: {
+		files: { getReaderUrl },
+		readingProgress: { getProgress: async () => null },
+	},
+}));
 const { loadBookForReader } = await import("./load-book");
 const options = {
 	uuid: "book",
@@ -144,3 +163,151 @@ describe("reader startup critical path", () => {
 		expect(memory.getReaderBookMemoryCache(options)).toBeUndefined();
 	});
 });
+
+describe("abandoned reader loads", () => {
+	test("does not start downloads or parsing after a cancelled persistent read", async () => {
+		const file = Promise.withResolvers<Blob | undefined>();
+		getFile.mockImplementationOnce(() => file.promise);
+		const controller = new AbortController();
+		const opening = loadBookForReader({
+			...options,
+			signal: controller.signal,
+		});
+		controller.abort();
+		file.resolve(undefined);
+		await expect(opening).rejects.toHaveProperty("name", "AbortError");
+		expect(download).not.toHaveBeenCalled();
+		expect(parse).not.toHaveBeenCalled();
+	});
+
+	test("aborting a Range probe never falls back to a complete download", async () => {
+		getFacts.mockResolvedValueOnce(cache.readerBookFactsFromData(data));
+		const started = Promise.withResolvers<void>();
+		download.mockImplementationOnce(
+			async (_url: unknown, init?: RequestInit) => {
+				started.resolve();
+				return new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => reject(init?.signal?.reason),
+						{ once: true },
+					);
+				});
+			},
+		);
+		const controller = new AbortController();
+		const opening = loadBookForReader({
+			...options,
+			allowLazySections: true,
+			signal: controller.signal,
+		});
+		await started.promise;
+		controller.abort();
+		await expect(opening).rejects.toHaveProperty("name", "AbortError");
+		expect(download).toHaveBeenCalledTimes(1);
+		expect(parse).not.toHaveBeenCalled();
+	});
+
+	test("abandoned parsing cannot populate the shared parsed cache", async () => {
+		const started = Promise.withResolvers<void>();
+		const parsed = Promise.withResolvers<ReaderBookData>();
+		parse.mockImplementationOnce(() => {
+			started.resolve();
+			return parsed.promise;
+		});
+		const controller = new AbortController();
+		const opening = loadBookForReader({
+			...options,
+			signal: controller.signal,
+		});
+		await started.promise;
+		controller.abort();
+		parsed.resolve(data);
+		await expect(opening).rejects.toHaveProperty("name", "AbortError");
+		expect(memory.getReaderBookMemoryCache(options)).toBeUndefined();
+		expect(putFacts).not.toHaveBeenCalled();
+	});
+});
+
+test("unmount aborts the opening and disposes a late session exactly once", async () => {
+	const loader = await import("./load-book");
+	const { useBookLoader } = await import("../interaction/use-book-loader");
+	const { defaultReaderSettings } = await import("../presentation/settings");
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof loadBookForReader>>>();
+	let signal: AbortSignal | undefined;
+	const load = spyOn(loader, "loadBookForReader").mockImplementation(
+		(input) => {
+			signal = input.signal;
+			return pending.promise;
+		},
+	);
+	const dispose = mock(async () => {});
+	const onLoaded = mock(() => {});
+	try {
+		const hook = renderHook(() =>
+			useBookLoader({
+				...options,
+				allowLazySections: true,
+				readerSettings: defaultReaderSettings,
+				onLoaded,
+			}),
+		);
+		hook.unmount();
+		expect(signal?.aborted).toBe(true);
+		await act(async () => {
+			pending.resolve({ data, dispose });
+			await pending.promise;
+		});
+		expect(dispose).toHaveBeenCalledTimes(1);
+		expect(onLoaded).not.toHaveBeenCalled();
+	} finally {
+		load.mockRestore();
+	}
+});
+
+for (const abandoned of [true, false]) {
+	test(`failed lazy setup closes the acquired archive (${abandoned ? "abort" : "fallback"})`, async () => {
+		const parser = await import("@nanahoshi-v2/ebook-parser");
+		const lazy = await import("./lazy-html-book");
+		const close = mock(async () => {});
+		const ebook = { close } as unknown as Awaited<
+			ReturnType<typeof parser.openEpubSource>
+		>;
+		const opened = spyOn(parser, "openEpubSource").mockResolvedValue(ebook);
+		const started = Promise.withResolvers<void>();
+		const pending =
+			Promise.withResolvers<
+				Awaited<ReturnType<typeof lazy.openLazyHtmlBook>>
+			>();
+		const setup = spyOn(lazy, "openLazyHtmlBook").mockImplementation(() => {
+			started.resolve();
+			return pending.promise;
+		});
+		const controller = new AbortController();
+		getFacts.mockResolvedValueOnce(cache.readerBookFactsFromData(data));
+		try {
+			const opening = loadBookForReader({
+				...options,
+				allowLazySections: true,
+				signal: controller.signal,
+			});
+			await started.promise;
+			if (abandoned) controller.abort();
+			pending.reject(
+				abandoned
+					? controller.signal.reason
+					: new Error("Invalid cached outline"),
+			);
+			if (abandoned)
+				await expect(opening).rejects.toHaveProperty("name", "AbortError");
+			else expect((await opening).data.characters).toBe(4);
+			expect(close).toHaveBeenCalledTimes(1);
+			expect(download).toHaveBeenCalledTimes(abandoned ? 1 : 2);
+			expect(parse).toHaveBeenCalledTimes(abandoned ? 0 : 1);
+		} finally {
+			setup.mockRestore();
+			opened.mockRestore();
+		}
+	});
+}
