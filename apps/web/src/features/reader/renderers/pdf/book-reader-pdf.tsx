@@ -433,6 +433,7 @@ function PdfDocumentViewport({
 					pageIndex={pageIndex}
 					role="article"
 					aria-label={`PDF page ${pageIndex + 1} of ${pageCount}`}
+					data-reader-pdf-page={pageIndex + 1}
 					className="relative size-full"
 				>
 					<RenderLayer

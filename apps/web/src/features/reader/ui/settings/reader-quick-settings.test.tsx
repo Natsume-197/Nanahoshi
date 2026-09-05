@@ -33,6 +33,7 @@ function renderPanel(
 		presentation?: ReaderPresentation;
 		settings?: ReaderSettings;
 		readListenActive?: boolean;
+		onManualSavingChange?: (manual: boolean) => void;
 		onChange?: (patch: Partial<ReaderSettings>) => void;
 		profiles?: Array<{
 			id: string;
@@ -48,6 +49,7 @@ function renderPanel(
 	const panelSettings = overrides.settings ?? defaultReaderSettings;
 	return render(
 		<ReaderQuickSettings
+			onManualSavingChange={overrides.onManualSavingChange ?? (() => {})}
 			open
 			presentation={overrides.presentation ?? presentation}
 			visualSettings={defaultVisualReaderSettings}
@@ -405,11 +407,17 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		expect(panel.getByRole("button", { name: "Visual" })).toBeTruthy();
 		expect(panel.queryByRole("button", { name: "Text" })).toBeNull();
 		expect(panel.queryByRole("button", { name: "Layout" })).toBeNull();
-		expect(panel.queryByRole("button", { name: "Behaviour" })).toBeNull();
+		expect(panel.getByRole("button", { name: "Behaviour" })).toBeTruthy();
 		fireEvent.click(panel.getByRole("button", { name: "Visual" }));
 		expect(panel.getByRole("group", { name: "Reading theme" })).toBeTruthy();
 		expect(panel.queryByText("Character counter")).toBeNull();
 		expect(panel.queryByText("Percentage")).toBeNull();
+		fireEvent.click(
+			panel.getByRole("button", { name: "Back to settings categories" }),
+		);
+		fireEvent.click(panel.getByRole("button", { name: "Behaviour" }));
+		expect(panel.getByRole("combobox", { name: "Save position" })).toBeTruthy();
+		expect(panel.queryByText("Disable wheel navigation")).toBeNull();
 	});
 
 	test("moves paginated reader controls into Layout", () => {

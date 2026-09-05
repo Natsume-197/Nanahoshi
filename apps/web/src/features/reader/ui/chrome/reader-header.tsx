@@ -147,12 +147,14 @@ export function ReaderHeader({
 				<button
 					type="button"
 					aria-label="Show reader menu"
+					data-reader-position-overlay
 					className="writing-horizontal-tb fixed top-0 right-0 left-0 z-10 h-[calc(2rem+var(--safe-area-top))]"
 					onClick={onOpen}
 				/>
 			)}
 			<div
 				data-reader-header
+				data-reader-position-overlay
 				inert={!open}
 				className={`writing-horizontal-tb fixed top-0 right-0 left-0 z-10 transition-transform duration-300 ease-out motion-reduce:transition-none ${
 					open ? "translate-y-0" : "-translate-y-full"
@@ -175,6 +177,10 @@ export function ReaderHeader({
 								<List aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
+						<div
+							data-reader-point-actions
+							className="flex shrink-0 items-center"
+						/>
 						{searchAvailable && (
 							<IconButton title="Search this PDF" onClick={onSearchClick}>
 								<MagnifyingGlass aria-hidden="true" className="size-5" />

@@ -16,7 +16,9 @@ export interface ReaderNavigationCapability {
 	nextPage(): void;
 	prevPage(): void;
 	navigateToSection(reference: string): void;
-	getPosition(): ReaderPosition | undefined;
+	getPosition(options?: {
+		manualBookmark?: boolean;
+	}): ReaderPosition | undefined;
 	scrollToPosition(position: ReaderPosition): void;
 	/** Re-measure after a live (non-remount) layout-affecting setting change. */
 	relayout(position?: ReaderPosition): void;

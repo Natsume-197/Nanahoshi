@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { toast } from "sonner";
 import { ReadListenRuntime } from "@/components/read-listen/read-listen-runtime";
 import {
 	useAudioPlayerActions,
@@ -78,6 +79,7 @@ import { ReaderFooter } from "@/features/reader/ui/chrome/reader-footer";
 import { ReaderHeader } from "@/features/reader/ui/chrome/reader-header";
 import { ReaderImageGallery } from "@/features/reader/ui/chrome/reader-image-gallery";
 import { ReaderLoadingScreen } from "@/features/reader/ui/chrome/reader-loading-screen";
+import { ReaderReadingPoint } from "@/features/reader/ui/chrome/reader-reading-point";
 import { ReaderToc } from "@/features/reader/ui/chrome/reader-toc";
 import { ReaderQuickSettings } from "@/features/reader/ui/settings/reader-quick-settings";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -476,7 +478,9 @@ export function ReaderScreen({
 	}, []);
 
 	const getCharCounts = useCallback(() => {
-		const position = capturePosition(() => apiRef.current?.getPosition());
+		const position = readerSession.getResumePosition(
+			capturePosition(() => apiRef.current?.getPosition()),
+		);
 		return {
 			exploredCharCount: position?.exploredCharCount,
 			bookCharCount: bookCharCountRef.current,
@@ -504,6 +508,27 @@ export function ReaderScreen({
 
 	const captureReaderPosition = () => {
 		return capturePosition(() => apiRef.current?.getPosition());
+	};
+
+	const saveReadingPoint = (selected?: ReaderPosition) => {
+		const position =
+			selected ?? apiRef.current?.getPosition({ manualBookmark: true });
+		if (!position) return;
+		if (!readerSession.saveManualPosition(position))
+			toast.error(m.reader_point_error());
+	};
+	const goToReadingPoint = () => {
+		const position = readerSession.manualPoint.position;
+		if (!position || !apiRef.current) return;
+		apiRef.current.scrollToPosition(position);
+		handlePositionChange(position);
+	};
+	const changeManualSaving = (manual: boolean) => {
+		const position =
+			apiRef.current?.getPosition() ?? overlayEntryPositionRef.current;
+		if (!position) return;
+		if (!readerSession.setManualSaving(manual, position))
+			toast.error(m.reader_point_error());
 	};
 
 	// Direct commit path used by settings controls that do not touch the book layout.
@@ -925,6 +950,10 @@ export function ReaderScreen({
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: closeQuickSettings,
 		onChangeChapter: changeChapter,
+		onSaveReadingPoint: saveReadingPoint,
+		onGoToReadingPoint: readerSession.manualPoint.position
+			? goToReadingPoint
+			: undefined,
 	});
 
 	const completeBook = () => {
@@ -1249,7 +1278,18 @@ export function ReaderScreen({
 				/>
 			)}
 
+			<ReaderReadingPoint
+				position={readerSession.manualPoint.position}
+				sections={data.sections}
+				total={data.characters}
+				renderer={presentation.renderer}
+				theme={theme}
+				onSave={saveReadingPoint}
+				onGo={goToReadingPoint}
+			/>
 			<ReaderQuickSettings
+				manualSaving={readerSession.manualPoint.manual}
+				onManualSavingChange={changeManualSaving}
 				open={quickSettingsOpen}
 				presentation={presentation}
 				visualSettings={visualSettings}

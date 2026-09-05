@@ -382,10 +382,8 @@ export function BookReaderPaginated({
 		reportExplored(exploredCharCount);
 	};
 
-	// Debounced: the quick-settings sliders commit one layout change per drag
-	// tick, and re-measuring every paragraph on each tick freezes the drag.
-	// Only the last tick's layout matters; the timer also guarantees React has
-	// committed the new layout props before anything is measured.
+	// Coalesce pending settings changes and measure after React commits the
+	// new layout props, without a fixed delay on each click.
 	const scheduleRelayout = (position?: ReaderPosition) => {
 		const s = internalsRef.current;
 		if (position) s.previousIntendedCount = position.exploredCharCount;
@@ -483,6 +481,9 @@ export function BookReaderPaginated({
 					? section.id
 					: "";
 				s.calculator?.updateCurrentSection(index);
+				contentEl.dataset.readerCharacterStart = String(
+					s.calculator?.getSectionStartCharCount(index) ?? 0,
+				);
 				centerStandaloneIllustrations();
 
 				// Geometry reads below synchronously lay out the decoded section. Keep
@@ -560,10 +561,8 @@ export function BookReaderPaginated({
 		const layoutScheduler = createReaderLayoutScheduler({
 			run: (transaction) => {
 				document.fonts.ready.then(() => {
-					requestAnimationFrame(() => {
-						if (cancelled || !transaction.isCurrent()) return;
-						relayoutNow();
-					});
+					if (cancelled || !transaction.isCurrent()) return;
+					relayoutNow();
 				});
 			},
 		});

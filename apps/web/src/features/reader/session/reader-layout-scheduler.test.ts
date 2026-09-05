@@ -25,6 +25,39 @@ function fakeClock() {
 }
 
 describe("reader layout scheduler", () => {
+	test("applies settings in the next paint frame without a timer hop", () => {
+		const original = Object.getOwnPropertyDescriptor(
+			globalThis,
+			"requestAnimationFrame",
+		);
+		let frame: FrameRequestCallback | undefined;
+		let runs = 0;
+		Object.defineProperty(globalThis, "requestAnimationFrame", {
+			configurable: true,
+			value: (callback: FrameRequestCallback) => {
+				frame = callback;
+				return 1;
+			},
+		});
+		const scheduler = createReaderLayoutScheduler({
+			run: () => {
+				runs += 1;
+			},
+		});
+		try {
+			scheduler.request();
+			expect(runs).toBe(0);
+			expect(frame).toBeDefined();
+			frame?.(16);
+			expect(runs).toBe(1);
+		} finally {
+			scheduler.cancel();
+			if (original)
+				Object.defineProperty(globalThis, "requestAnimationFrame", original);
+			else Reflect.deleteProperty(globalThis, "requestAnimationFrame");
+		}
+	});
+
 	test("coalesces a burst into the final transaction", () => {
 		const fake = fakeClock();
 		const runs: boolean[] = [];

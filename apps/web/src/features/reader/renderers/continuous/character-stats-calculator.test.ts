@@ -57,6 +57,7 @@ describe("precise reader positions", () => {
 					width: 800,
 					height: 600,
 				}) as DOMRect;
+			let geometryScale = 1;
 			const measure = spyOn(
 				dom.window.Range.prototype,
 				"getBoundingClientRect",
@@ -66,7 +67,7 @@ describe("precise reader positions", () => {
 						? this.startContainer.parentElement
 						: (this.startContainer as Element);
 				const index = Number(node?.getAttribute("data-index"));
-				const edge = Math.floor(index / 2) * 20;
+				const edge = Math.floor(index / 2) * 20 * geometryScale;
 				const size = index % 13 === 0 ? 0 : 10;
 				const top = edge - scroller.scrollTop;
 				const right = 800 - edge - scroller.scrollLeft;
@@ -111,6 +112,25 @@ describe("precise reader positions", () => {
 				expect(
 					targets.map((target) => calculator.getCharCountByScrollPos(target)),
 				).toEqual(live);
+				geometryScale = 2;
+				calculator.invalidateParagraphPositions();
+				measure.mockClear();
+				const fresh = new CharacterStatsCalculator(
+					book,
+					vertical ? "vertical" : "horizontal",
+					vertical ? "rtl" : "ltr",
+					scroller,
+					document,
+				);
+				const afterReflow = targets.map((target) =>
+					calculator.getCharCountByScrollPos(target),
+				);
+				expect(afterReflow).not.toEqual(live);
+				expect(afterReflow).toEqual(
+					targets.map((target) => fresh.getCharCountByScrollPos(target)),
+				);
+				expect(measure.mock.calls.length).toBeLessThan(400);
+				geometryScale = 1;
 				let cancelled = false;
 				Object.defineProperty(globalThis, "scheduler", {
 					configurable: true,
@@ -139,6 +159,60 @@ describe("precise reader positions", () => {
 		});
 	}
 
+	test("locates a distant chapter without measuring skipped chapter contents", () => {
+		const book = document.createElement("main");
+		book.innerHTML = Array.from(
+			{ length: 40 },
+			(_, i) => `<div id="nanahoshi-${i}"><p data-chapter="${i}">AB</p></div>`,
+		).join("");
+		document.body.append(book);
+		for (const [index, section] of Array.from(book.children).entries()) {
+			section.getBoundingClientRect = () =>
+				({
+					top: index * 100,
+					bottom: (index + 1) * 100,
+					height: 100,
+					width: 100,
+					left: 0,
+					right: 100,
+				}) as DOMRect;
+		}
+		const measure = spyOn(
+			dom.window.Range.prototype,
+			"getBoundingClientRect",
+		).mockImplementation(function (this: Range) {
+			const element =
+				this.startContainer.nodeType === Node.TEXT_NODE
+					? this.startContainer.parentElement
+					: (this.startContainer as Element);
+			const chapter = Number(element?.getAttribute("data-chapter"));
+			expect(chapter).toBe(30);
+			return {
+				top: 3000,
+				bottom: 3080,
+				height: 80,
+				width: 100,
+				left: 0,
+				right: 100,
+			} as DOMRect;
+		});
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				"horizontal",
+				"ltr",
+				document.documentElement,
+				document,
+				true,
+			);
+			expect(calculator.getCharCountByScrollPos(3050)).toBe(60);
+			expect(measure.mock.calls.length).toBeLessThan(3);
+		} finally {
+			measure.mockRestore();
+			book.remove();
+		}
+	});
+
 	test("reads and restores an offset inside a mixed-script text node", () => {
 		const book = dom.window.document.getElementById("book") as HTMLElement;
 		const text = book.firstChild as Text;
@@ -156,6 +230,145 @@ describe("precise reader positions", () => {
 
 		expect(calculator.calcPreciseExploredCharCount()).toBe(2);
 		expect(calculator.getScrollPosForCharCount(2, 0)).toBe(50);
+	});
+
+	test("keeps a short first line instead of sampling the following sentence", () => {
+		const book = document.createElement("main");
+		book.innerHTML = "<p>A</p><p>Following sentence</p>";
+		document.body.append(book);
+		book.getBoundingClientRect = () =>
+			({ left: 0, right: 1000, top: 0, bottom: 700 }) as DOMRect;
+		Object.defineProperty(document, "caretPositionFromPoint", {
+			configurable: true,
+			value: (x: number, y: number) =>
+				x < 20 && y < 10
+					? { offsetNode: book.firstChild?.firstChild, offset: 0 }
+					: { offsetNode: book.lastChild?.firstChild, offset: 0 },
+		});
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				"horizontal",
+				"ltr",
+				book,
+				document,
+			);
+			const saved = calculator.calcPreciseExploredCharCount();
+			expect(saved).toBe(0);
+			expect(calculator.getReadingEdgeScrollPos(saved)).toBe(0);
+		} finally {
+			book.remove();
+		}
+	});
+
+	test("ignores the transparent menu hit area while measuring the visible first line", () => {
+		const book = document.createElement("main");
+		book.innerHTML = "<p>First visible line</p><p>Following line</p>";
+		book.style.lineHeight = "60px";
+		const trigger = document.createElement("button");
+		trigger.setAttribute("data-reader-position-overlay", "");
+		document.body.append(book, trigger);
+		book.getBoundingClientRect = () =>
+			({ left: 0, right: 1000, top: 0, bottom: 700 }) as DOMRect;
+		Object.defineProperty(document, "caretPositionFromPoint", {
+			configurable: true,
+			value: (_x: number, y: number) => {
+				if (y < 32 && trigger.style.pointerEvents !== "none") return null;
+				return {
+					offsetNode:
+						y < 40 ? book.firstChild?.firstChild : book.lastChild?.firstChild,
+					offset: 0,
+				};
+			},
+		});
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				"horizontal",
+				"ltr",
+				book,
+				document,
+			);
+			expect(calculator.calcPreciseExploredCharCount()).toBe(0);
+			expect(trigger.style.pointerEvents).toBe("");
+		} finally {
+			book.remove();
+			trigger.remove();
+		}
+	});
+
+	test("reuses a measured line during scrolling without caret queries or style writes", () => {
+		const scroller = document.createElement("main");
+		const book = document.createElement("div");
+		book.textContent = "abcdefghij".repeat(10);
+		scroller.append(book);
+		document.body.append(scroller);
+		scroller.scrollTop = 24;
+		scroller.getBoundingClientRect = () =>
+			({ top: 0, left: 0, right: 100, bottom: 100 }) as DOMRect;
+		let lineHeight = 20;
+		const rect = (line: number) =>
+			({
+				top: line * lineHeight - scroller.scrollTop,
+				bottom: (line + 1) * lineHeight - scroller.scrollTop,
+				left: 0,
+				right: 100,
+				width: 100,
+				height: lineHeight,
+			}) as DOMRect;
+		const prototype = dom.window.Range.prototype;
+		const originalRects = Object.getOwnPropertyDescriptor(
+			prototype,
+			"getClientRects",
+		);
+		Object.defineProperty(prototype, "getClientRects", {
+			configurable: true,
+			value: () => Array.from({ length: 10 }, (_, i) => rect(i)),
+		});
+		const geometry = spyOn(
+			prototype,
+			"getBoundingClientRect",
+		).mockImplementation(function (this: Range) {
+			const end =
+				this.endContainer.nodeType === Node.TEXT_NODE ? this.endOffset : 100;
+			return rect(Math.floor(Math.max(0, end - 1) / 10));
+		});
+		const caret = spyOn(document, "caretPositionFromPoint" as keyof Document);
+		const styles = spyOn(book.style, "setProperty");
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				"horizontal",
+				"ltr",
+				scroller,
+				document,
+				true,
+			);
+			expect(calculator.calcPreciseExploredCharCount()).toBe(10);
+			const reads = geometry.mock.calls.length;
+			for (let offset = 25; offset < 40; offset++) {
+				scroller.scrollTop = offset;
+				expect(calculator.calcPreciseExploredCharCount()).toBe(10);
+			}
+			expect(geometry.mock.calls.length).toBe(reads);
+			scroller.scrollTop = 40;
+			expect(calculator.calcPreciseExploredCharCount()).toBe(20);
+			scroller.scrollTop = 24;
+			expect(calculator.calcPreciseExploredCharCount()).toBe(10);
+			expect(caret).not.toHaveBeenCalled();
+			expect(styles).not.toHaveBeenCalled();
+			lineHeight = 40;
+			calculator.updateParagraphPos(scroller.scrollTop);
+			expect(calculator.calcPreciseExploredCharCount()).toBe(0);
+		} finally {
+			geometry.mockRestore();
+			caret.mockRestore();
+			styles.mockRestore();
+			scroller.remove();
+			if (originalRects)
+				Object.defineProperty(prototype, "getClientRects", originalRects);
+			else Reflect.deleteProperty(prototype, "getClientRects");
+		}
 	});
 
 	test("reads and restores an image as its own reading position", () => {
@@ -200,3 +413,53 @@ describe("precise reader positions", () => {
 		expect(calculator.getScrollPosForCharCount(1, 0)).toBe(100);
 	});
 });
+
+for (const vertical of [false, true]) {
+	test(`manual bookmark skips a clipped previous line and tolerates the gap (${vertical})`, () => {
+		const book = dom.window.document.getElementById("book") as HTMLElement;
+		book.textContent = "AAAABBBB";
+		const scroller = dom.window.document.createElement("div");
+		const viewport = spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+			top: 0,
+			bottom: 600,
+			left: -600,
+			right: 0,
+			width: 600,
+			height: 600,
+			x: -600,
+			y: 0,
+			toJSON() {},
+		} as DOMRect);
+		const geometry = spyOn(
+			dom.window.Range.prototype,
+			"getBoundingClientRect",
+		).mockImplementation(function (this: Range) {
+			const second = this.startOffset >= 4;
+			const top = second ? 30 : -18;
+			return {
+				top,
+				bottom: top + 24,
+				left: -top - 24,
+				right: -top,
+				width: 24,
+				height: 24,
+				x: 0,
+				y: top,
+				toJSON() {},
+			} as DOMRect;
+		});
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				vertical ? "vertical" : "horizontal",
+				vertical ? "rtl" : "ltr",
+				scroller,
+				dom.window.document,
+			);
+			expect(calculator.calcBookmarkCharCount()).toBe(4);
+		} finally {
+			geometry.mockRestore();
+			viewport.mockRestore();
+		}
+	});
+}

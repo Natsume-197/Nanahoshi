@@ -80,3 +80,49 @@ describe("useReaderKeybinds", () => {
 		expect(api.prevPage).not.toHaveBeenCalled();
 	});
 });
+
+test("B and R share bookmark actions across reader modes and ignore typing and modified keys", () => {
+	const save = mock(() => {});
+	const go = mock(() => {});
+	for (const renderer of [
+		"text-scroll",
+		"text-paginated",
+		"text-focus",
+		"visual",
+		"pdf",
+	] as const) {
+		const api = createApi();
+		const hook = renderHook(() =>
+			useReaderKeybinds({
+				apiRef: { current: api },
+				presentation: { ...paginatedPresentation, renderer },
+				verticalMode: false,
+				galleryOpen: false,
+				tocOpen: false,
+				settingsOpen: false,
+				onCloseToc: () => {},
+				onCloseSettings: () => {},
+				onChangeChapter: () => {},
+				onSaveReadingPoint: save,
+				onGoToReadingPoint: go,
+			}),
+		);
+		fireEvent.keyDown(window, { key: "b", code: "KeyB" });
+		fireEvent.keyDown(window, { key: "r", code: "KeyR" });
+		fireEvent.keyDown(window, { key: "b", code: "KeyB", repeat: true });
+		fireEvent.keyDown(window, { key: "r", code: "KeyR", ctrlKey: true });
+		fireEvent.keyDown(window, { key: "b", code: "KeyB", isComposing: true });
+		const input = document.createElement("input");
+		document.body.append(input);
+		fireEvent.keyDown(input, { key: "b", code: "KeyB" });
+		const editor = document.createElement("div");
+		editor.setAttribute("contenteditable", "");
+		document.body.append(editor);
+		fireEvent.keyDown(editor, { key: "r", code: "KeyR" });
+		hook.unmount();
+		input.remove();
+		editor.remove();
+	}
+	expect(save).toHaveBeenCalledTimes(5);
+	expect(go).toHaveBeenCalledTimes(5);
+});

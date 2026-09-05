@@ -2721,5 +2721,15 @@
 		"remove_failed": "No se pudo quitar la asociación. Inténtalo de nuevo.",
 		"library": "Biblioteca: {name}",
 		"abridged": "Versión abreviada"
-	}
+	},
+	"reader_point_mode": "Guardar posición",
+	"reader_point_automatic": "Automáticamente",
+	"reader_point_manual": "Manualmente",
+	"reader_point_description": "El guardado manual conserva un punto de lectura de este libro en este dispositivo. Navegar no lo mueve.",
+	"reader_point_save": "Guardar aquí",
+	"reader_point_go": "Ir al punto guardado",
+	"reader_point_selection": "Continuar desde aquí",
+	"reader_point_marker": "Punto de lectura guardado",
+	"reader_point_saved": "Punto de lectura guardado",
+	"reader_point_error": "No se pudo guardar el punto de lectura. Comprueba que el almacenamiento del navegador esté disponible."
 }

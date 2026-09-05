@@ -2666,5 +2666,15 @@
 		"remove_failed": "関連付けを解除できませんでした。もう一度お試しください。",
 		"library": "ライブラリ：{name}",
 		"abridged": "抄訳版"
-	}
+	},
+	"reader_point_mode": "読書位置の保存",
+	"reader_point_automatic": "自動",
+	"reader_point_manual": "手動",
+	"reader_point_description": "この端末で本ごとに読書位置を1か所保存します。読み進めても保存位置は変わりません。",
+	"reader_point_save": "ここに保存",
+	"reader_point_go": "保存位置へ移動",
+	"reader_point_selection": "ここから読み続ける",
+	"reader_point_marker": "保存した読書位置",
+	"reader_point_saved": "読書位置を保存しました",
+	"reader_point_error": "読書位置を保存できませんでした。ブラウザーのストレージを確認してください。"
 }

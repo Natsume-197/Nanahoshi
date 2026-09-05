@@ -3,13 +3,13 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 
 /** The transaction clock and surface observer for a renderer reflow. */
 export interface ReaderLayoutSchedulerClock {
-	schedule(callback: () => void, delay: number): unknown;
+	schedule(callback: () => void): unknown;
 	cancel(handle: unknown): void;
 }
 
 const browserClock: ReaderLayoutSchedulerClock = {
-	schedule: (callback, delay) => setTimeout(callback, delay),
-	cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+	schedule: (callback) => requestAnimationFrame(callback),
+	cancel: (handle) => cancelAnimationFrame(handle as number),
 };
 
 export interface ReaderLayoutTransaction {
@@ -18,7 +18,6 @@ export interface ReaderLayoutTransaction {
 
 interface CreateReaderLayoutSchedulerOptions {
 	run: (transaction: ReaderLayoutTransaction) => void;
-	delayMs?: number;
 	clock?: ReaderLayoutSchedulerClock;
 }
 
@@ -29,7 +28,6 @@ export interface ReaderLayoutScheduler {
 
 export function createReaderLayoutScheduler({
 	run,
-	delayMs = 100,
 	clock = browserClock,
 }: CreateReaderLayoutSchedulerOptions): ReaderLayoutScheduler {
 	let handle: unknown;
@@ -38,10 +36,12 @@ export function createReaderLayoutScheduler({
 		request() {
 			const transactionRevision = ++revision;
 			if (handle !== undefined) clock.cancel(handle);
+			// Measure the latest committed settings before the next paint.
+			// Rapid requests share a frame instead of restarting a timer.
 			handle = clock.schedule(() => {
 				handle = undefined;
 				run({ isCurrent: () => transactionRevision === revision });
-			}, delayMs);
+			});
 		},
 		cancel() {
 			revision += 1;

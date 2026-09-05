@@ -22,6 +22,13 @@ export class CharacterStatsCalculator {
 
 	private paragraphPosToAccCharCount = new Map<number, number>();
 	private hasParagraphPositions = false;
+	private readonly sectionParagraphs: {
+		element: Element;
+		start: number;
+		end: number;
+	}[] = [];
+
+	private readingLine?: { from: number; to: number; character: number };
 
 	constructor(
 		public readonly containerEl: HTMLElement,
@@ -29,6 +36,7 @@ export class CharacterStatsCalculator {
 		public readonly direction: "ltr" | "rtl",
 		private readonly scrollEl: HTMLElement,
 		private readonly document: Document,
+		private readonly useHorizontalLineGeometry = false,
 	) {
 		this.paragraphs = getParagraphNodes(containerEl);
 
@@ -39,6 +47,31 @@ export class CharacterStatsCalculator {
 			this.nodeStartCharacters.set(node, exploredCharCount);
 			exploredCharCount += getCharacterCount(node);
 			this.accumulatedCharCount.push(exploredCharCount);
+		}
+		// Section boxes remain measurable when content-visibility skips their
+		// descendants. Find the chapter first so live lookups never wake unrelated
+		// chapters (whose changing heights would invalidate the search itself).
+		if (useHorizontalLineGeometry && !this.verticalMode) {
+			for (const [index, node] of this.paragraphs.entries()) {
+				let section: Node | null = node;
+				while (section && section.parentNode !== containerEl)
+					section = section.parentNode;
+				if (
+					!(section instanceof Element) ||
+					!section.id.startsWith("nanahoshi-")
+				) {
+					this.sectionParagraphs.length = 0;
+					break;
+				}
+				const last = this.sectionParagraphs.at(-1);
+				if (last?.element === section) last.end = index + 1;
+				else
+					this.sectionParagraphs.push({
+						element: section,
+						start: index,
+						end: index + 1,
+					});
+			}
 		}
 		this.charCount = exploredCharCount;
 	}
@@ -66,7 +99,14 @@ export class CharacterStatsCalculator {
 		return { scrollElRef, dimensionAdjustment };
 	}
 
+	/** Use live lookups after reflow instead of eagerly measuring hidden sections. */
+	invalidateParagraphPositions() {
+		this.readingLine = undefined;
+		this.hasParagraphPositions = false;
+	}
+
 	updateParagraphPos(scrollPos = 0) {
+		this.readingLine = undefined;
 		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
 		const paragraphPosToIndices = new Map<number, number[]>();
 		for (let i = 0; i < this.paragraphs.length; i += 1) {
@@ -116,6 +156,7 @@ export class CharacterStatsCalculator {
 		scrollPos = this.scrollPos,
 		isCancelled: () => boolean = () => false,
 	) {
+		this.readingLine = undefined;
 		this.hasParagraphPositions = false;
 		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
 		const initialScrollPos = this.scrollPos;
@@ -167,13 +208,142 @@ export class CharacterStatsCalculator {
 		);
 	}
 
+	/** Manual saves prefer a readable line over a sliver of the previous one. */
+	calcBookmarkCharCount() {
+		const viewport = this.getViewportRect();
+		const style = getComputedStyle(this.containerEl);
+		const edge = this.verticalMode
+			? this.direction === "rtl"
+				? viewport.right - (Number.parseFloat(style.paddingRight) || 0)
+				: viewport.left + (Number.parseFloat(style.paddingLeft) || 0)
+			: viewport.top + (Number.parseFloat(style.paddingTop) || 0);
+		const range = this.document.createRange();
+		const readable = (rect: DOMRect) =>
+			this.verticalMode
+				? this.direction === "rtl"
+					? rect.left + rect.width / 2 <= edge
+					: rect.left + rect.width / 2 >= edge
+				: rect.top + rect.height / 2 >= edge;
+		const bounds = this.paragraphSearchBounds(this.scrollPos);
+		for (let index = bounds.start; index < this.paragraphs.length; index += 1) {
+			const node = this.paragraphs[index];
+			if (node.nodeType !== Node.TEXT_NODE) {
+				const rect = getNodeBoundingRect(this.document, node);
+				if ((rect.width || rect.height) && readable(rect))
+					return this.nodeStartCharacters.get(node) ?? 0;
+				continue;
+			}
+			const text = node as Text;
+			// Reject completed nodes with one glyph measurement, then locate the
+			// first character on a line whose midpoint is inside the reading area.
+			range.setStart(text, text.length - 1);
+			range.setEnd(text, text.length);
+			const last = range.getBoundingClientRect();
+			if (!(last.width || last.height) || !readable(last)) continue;
+			let low = 0;
+			let high = text.length - 1;
+			while (low < high) {
+				const mid = (low + high) >>> 1;
+				range.setStart(text, mid);
+				range.setEnd(text, mid + 1);
+				if (readable(range.getBoundingClientRect())) high = mid;
+				else low = mid + 1;
+			}
+			return (
+				(this.nodeStartCharacters.get(text) ?? 0) +
+				countTextCharactersBeforeOffset(text.data, low)
+			);
+		}
+		return this.calcPreciseExploredCharCount();
+	}
+
 	/**
 	 * Reads the first rendered character at the reading edge. Unlike the legacy
 	 * paragraph geometry this preserves a position inside a text node that spans
-	 * several screens. It is intentionally used for saves/reflows rather than
-	 * every scroll event: caret hit-testing may force layout in the browser.
+	 * several screens. Scroll callers throttle this measurement because caret hit-testing
+	 * may force layout in the browser.
 	 */
 	calcPreciseExploredCharCount() {
+		if (this.useHorizontalLineGeometry && !this.verticalMode) {
+			const scroll = this.scrollPos;
+			if (
+				this.readingLine &&
+				scroll >= this.readingLine.from &&
+				scroll < this.readingLine.to
+			) {
+				return this.readingLine.character;
+			}
+			const character = this.readHorizontalReadingLine(scroll);
+			if (character !== undefined) return character;
+		}
+		// Transparent reader controls still intercept caret hit-testing. Exclude
+		// them synchronously, including the loading mask used during restoration.
+		const overlays = [
+			...this.document.querySelectorAll<HTMLElement>(
+				"[data-reader-position-overlay]",
+			),
+		].map((element) => ({
+			element,
+			value: element.style.getPropertyValue("pointer-events"),
+			priority: element.style.getPropertyPriority("pointer-events"),
+		}));
+		try {
+			for (const { element } of overlays)
+				element.style.setProperty("pointer-events", "none", "important");
+			return this.readPreciseExploredCharCount();
+		} finally {
+			for (const { element, value, priority } of overlays) {
+				if (value) element.style.setProperty("pointer-events", value, priority);
+				else element.style.removeProperty("pointer-events");
+			}
+		}
+	}
+
+	/** Geometry is unaffected by the invisible menu or loading overlay. */
+	private readHorizontalReadingLine(scroll: number): number | undefined {
+		const range = this.document.createRange();
+		if (typeof range.getClientRects !== "function") return undefined;
+		const completed = this.getCharCountByScrollPos(scroll);
+		let low = 0;
+		let high = this.accumulatedCharCount.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			if (this.accumulatedCharCount[mid] <= completed) low = mid + 1;
+			else high = mid;
+		}
+		const node = this.paragraphs[low];
+		if (!node || node.nodeType !== Node.TEXT_NODE) return undefined;
+		const text = node as Text;
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const edge = scrollElRef + dimensionAdjustment;
+		range.selectNodeContents(text);
+		const line = [...range.getClientRects()].find(
+			(rect) => rect.width > 0 && rect.bottom > edge,
+		);
+		if (!line) return undefined;
+
+		// A prefix's bottom moves monotonically through the lines of a text
+		// node. Find the first source character still visible at the reading edge.
+		low = 0;
+		high = text.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			range.setEnd(text, mid + 1);
+			if (range.getBoundingClientRect().bottom <= edge) low = mid + 1;
+			else high = mid;
+		}
+		const character =
+			(this.nodeStartCharacters.get(text) ?? 0) +
+			countTextCharactersBeforeOffset(text.data, low);
+		this.readingLine = {
+			from: scroll,
+			to: scroll + line.bottom - edge,
+			character,
+		};
+		return character;
+	}
+
+	private readPreciseExploredCharCount() {
 		const view = this.document.defaultView;
 		if (!view) return this.calcExploredCharCount();
 		const viewport = this.getViewportRect();
@@ -221,14 +391,39 @@ export class CharacterStatsCalculator {
 		return this.firstVisibleImageCharacter() ?? this.calcExploredCharCount();
 	}
 
+	private paragraphSearchBounds(scrollPos: number) {
+		if (!this.sectionParagraphs.length)
+			return { start: 0, end: this.paragraphs.length };
+		const { scrollElRef, dimensionAdjustment } = this.getReadingReference();
+		const edge = scrollElRef + dimensionAdjustment + scrollPos - this.scrollPos;
+		let low = 0;
+		let high = this.sectionParagraphs.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			if (
+				this.sectionParagraphs[mid].element.getBoundingClientRect().bottom <=
+				edge
+			)
+				low = mid + 1;
+			else high = mid;
+		}
+		return (
+			this.sectionParagraphs[low] ?? {
+				start: this.paragraphs.length,
+				end: this.paragraphs.length,
+			}
+		);
+	}
+
 	getCharCountByScrollPos(scrollPos: number) {
 		if (!this.hasParagraphPositions) {
 			// Before the background index is ready, validate a saved pixel offset
 			// with logarithmic live measurements. Upper-bound search includes all
 			// inline nodes sharing the same trailing edge, just like the full map.
 			const readPosition = this.liveParagraphPositions();
-			let low = 0;
-			let high = this.paragraphs.length;
+			const bounds = this.paragraphSearchBounds(scrollPos);
+			let low = bounds.start;
+			let high = bounds.end;
 			while (low < high) {
 				const mid = Math.floor((low + high) / 2);
 				if (readPosition(mid) <= scrollPos) low = mid + 1;
@@ -494,9 +689,13 @@ export class CharacterStatsCalculator {
 function sampleBetween(start: number, end: number) {
 	if (end <= start) return [(start + end) / 2];
 	const size = end - start;
-	return [0.15, 0.35, 0.5, 0.65, 0.85].map(
-		(fraction) => start + size * fraction,
-	);
+	// Include the leading edge: interior samples can miss a short first line
+	// entirely and resolve to the following sentence instead.
+	return [
+		start + Math.min(1, size / 2),
+		...[0.15, 0.35, 0.5, 0.65, 0.85].map((fraction) => start + size * fraction),
+		end - Math.min(1, size / 2),
+	];
 }
 
 async function yieldToMainThread() {

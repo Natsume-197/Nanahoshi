@@ -4,6 +4,13 @@ import {
 	type ReaderPosition,
 } from "@/features/reader/document/types";
 
+import {
+	loadManualReadingPoint,
+	type ManualReadingPoint,
+	resumeReadingPosition,
+	saveManualReadingPoint,
+} from "./manual-reading-point";
+
 export interface ReaderPositionSaveScheduler {
 	schedule(callback: () => void, delay: number): unknown;
 	cancel(handle: unknown): void;
@@ -181,6 +188,11 @@ export function createReaderSessionCoordinator({
 
 /** The screen-facing session interface: one canonical position per book. */
 export function useReaderSession(bookUuid: string) {
+	const [manualPoint, setManualPoint] = useState(() =>
+		loadManualReadingPoint(bookUuid),
+	);
+	const manualPointRef = useRef(manualPoint);
+	manualPointRef.current = manualPoint;
 	const [exploredCharCount, setExploredCharCount] = useState(0);
 	const exploredRef = useRef(-1);
 	const bookCharCountRef = useRef(0);
@@ -191,14 +203,19 @@ export function useReaderSession(bookUuid: string) {
 	> | null>(null);
 	if (!readerSessionRef.current) {
 		readerSessionRef.current = createReaderSessionCoordinator({
-			save: (position) =>
-				saveLocalReadingPosition(readerUuidRef.current, position),
+			save: (position) => {
+				if (!manualPointRef.current.manual)
+					saveLocalReadingPosition(readerUuidRef.current, position);
+			},
 		});
 	}
 	const previousBookUuidRef = useRef(bookUuid);
 	if (bookUuid !== previousBookUuidRef.current) {
 		readerSessionRef.current.flush();
 		readerSessionRef.current.reset();
+		const point = loadManualReadingPoint(bookUuid);
+		manualPointRef.current = point;
+		setManualPoint(point);
 		readerUuidRef.current = bookUuid;
 		previousBookUuidRef.current = bookUuid;
 		exploredRef.current = -1;
@@ -218,6 +235,7 @@ export function useReaderSession(bookUuid: string) {
 			positionClockAt: number;
 		}) => {
 			bookCharCountRef.current = characters;
+			position = resumeReadingPosition(manualPointRef.current, position);
 			const restored = readerSessionRef.current?.snapshot().position
 				? undefined
 				: position && saveLocalReadingPosition(bookUuid, position);
@@ -264,7 +282,39 @@ export function useReaderSession(bookUuid: string) {
 		},
 		[],
 	);
+	const commitManualPoint = (point: ManualReadingPoint) => {
+		if (!saveManualReadingPoint(bookUuid, point)) return false;
+		manualPointRef.current = point;
+		setManualPoint(point);
+		if (point.position) saveLocalReadingPosition(bookUuid, point.position);
+		return true;
+	};
+	const saveManualPosition = (position: ReaderPosition) =>
+		commitManualPoint({
+			manual: true,
+			position: {
+				...position,
+				modifiedAt: Math.max(Date.now(), positionClockRef.current + 1),
+			},
+		});
+	const setManualSaving = (manual: boolean, position: ReaderPosition) =>
+		commitManualPoint({
+			manual,
+			position: {
+				...position,
+				modifiedAt: Math.max(Date.now(), positionClockRef.current + 1),
+			},
+		});
+	const getResumePosition = useCallback(
+		(automatic: ReaderPosition | undefined) =>
+			resumeReadingPosition(manualPointRef.current, automatic),
+		[],
+	);
 	return {
+		manualPoint,
+		saveManualPosition,
+		setManualSaving,
+		getResumePosition,
 		bookCharCountRef,
 		capturePosition,
 		exploredCharCount,

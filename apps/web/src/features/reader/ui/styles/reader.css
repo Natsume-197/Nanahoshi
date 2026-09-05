@@ -741,3 +741,11 @@
 		text-decoration-color: HighlightText;
 	}
 }
+
+/* Keep offscreen continuous sections in the document without laying out their
+   descendants on every typography change. Retain measured section heights. */
+.book-content--continuous.book-content--writing-horizontal-tb
+> div[id^="nanahoshi-"] {
+	content-visibility: auto;
+	contain-intrinsic-block-size: auto 1000px;
+}

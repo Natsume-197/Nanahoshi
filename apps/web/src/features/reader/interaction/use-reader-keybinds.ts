@@ -18,6 +18,8 @@ interface UseReaderKeybindsArgs {
 	onCloseToc: () => void;
 	onCloseSettings: () => void;
 	onChangeChapter: (offset: number) => void;
+	onSaveReadingPoint?: () => void;
+	onGoToReadingPoint?: () => void;
 }
 
 /** Keys that keep firing while held (OS key repeat) instead of once per press. */
@@ -48,6 +50,8 @@ export function useReaderKeybinds({
 	onCloseToc,
 	onCloseSettings,
 	onChangeChapter,
+	onSaveReadingPoint,
+	onGoToReadingPoint,
 }: UseReaderKeybindsArgs) {
 	useWindowEvent("keydown", (event) => {
 		const isPaginated =
@@ -62,7 +66,14 @@ export function useReaderKeybinds({
 				? visualDirection === "rtl"
 				: verticalMode;
 		const isPageFlipKey = isPaginated && pageFlipCodes.has(event.code);
-		if (event.altKey || event.ctrlKey || event.shiftKey || event.metaKey) {
+		if (
+			event.defaultPrevented ||
+			event.isComposing ||
+			event.altKey ||
+			event.ctrlKey ||
+			event.shiftKey ||
+			event.metaKey
+		) {
 			return;
 		}
 		// Holding a page-flip key keeps turning pages; everything else
@@ -88,14 +99,20 @@ export function useReaderKeybinds({
 			// continue to control a paginated reader behind it.
 			if (tocOpen || !isPageFlipKey) return;
 		}
-		const target = event.target as HTMLElement | null;
+		const target = event.target instanceof Element ? event.target : null;
 		const isEditingTarget = target?.closest(
-			'input, textarea, select, a, [contenteditable="true"]',
+			'input, textarea, select, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
 		);
 		const isButtonTarget = target?.closest("button");
+		const isBookmarkKey = event.code === "KeyB" || event.code === "KeyR";
+		const isNavbarBookmarkKey =
+			isBookmarkKey &&
+			target?.closest("[data-reader-point-actions], [data-reader-header]");
 		if (
 			isEditingTarget ||
-			(isButtonTarget && !(settingsOpen && isPageFlipKey))
+			(isButtonTarget &&
+				!isNavbarBookmarkKey &&
+				!(settingsOpen && isPageFlipKey))
 		) {
 			return;
 		}
@@ -150,6 +167,14 @@ export function useReaderKeybinds({
 				} else {
 					handled = false;
 				}
+				break;
+			case "KeyB":
+				if (onSaveReadingPoint) onSaveReadingPoint();
+				else handled = false;
+				break;
+			case "KeyR":
+				if (onGoToReadingPoint) onGoToReadingPoint();
+				else handled = false;
 				break;
 			case "KeyN":
 				onChangeChapter(verticalMode ? 1 : -1);

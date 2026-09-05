@@ -8,6 +8,7 @@ import type { ReaderTheme } from "@/features/reader/presentation/settings";
 export function ReaderLoadingOverlay({ theme }: { theme: ReaderTheme }) {
 	return (
 		<div
+			data-reader-position-overlay
 			className="writing-horizontal-tb fixed inset-0 z-20 flex items-center justify-center"
 			style={{
 				color: theme.fontColor,

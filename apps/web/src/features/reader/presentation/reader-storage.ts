@@ -1,5 +1,6 @@
 export const READER_STORAGE_KEYS = {
 	settings: "nanahoshi-reader-settings",
+	manualReadingPoints: "nanahoshi-manual-reading-points",
 	customThemes: "nanahoshi-reader-custom-themes",
 	profiles: "nanahoshi-reader-profiles",
 	activeProfile: "nanahoshi-reader-active-profile",

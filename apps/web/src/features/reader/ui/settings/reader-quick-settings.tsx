@@ -89,6 +89,8 @@ import { ReaderCustomThemeDialog } from "@/features/reader/ui/controls/reader-cu
 import { m } from "@/paraglide/messages";
 
 interface ReaderQuickSettingsProps {
+	manualSaving?: boolean;
+	onManualSavingChange?: (manual: boolean) => void;
 	open: boolean;
 	presentation: ReaderPresentation;
 	visualSettings: VisualReaderSettings;
@@ -225,6 +227,8 @@ function QuickSettingsRow({
 }
 
 export function ReaderQuickSettings({
+	manualSaving = false,
+	onManualSavingChange,
 	open,
 	presentation,
 	visualSettings,
@@ -652,12 +656,12 @@ export function ReaderQuickSettings({
 						id: "layout" as const,
 						label: m["reader_settings.category_layout"](),
 					},
-					{
-						id: "behaviour" as const,
-						label: m["reader_settings.category_behaviour"](),
-					},
 				]
 			: []),
+		{
+			id: "behaviour" as const,
+			label: m["reader_settings.category_behaviour"](),
+		},
 	];
 	const settingsCategoryTitle =
 		settingsCategories.find((category) => category.id === selectedCategory)
@@ -1691,11 +1695,38 @@ export function ReaderQuickSettings({
 			)}
 
 			{!activeCategory && <Separator style={{ backgroundColor: mix(14) }} />}
-			{!isPdf && (!activeCategory || activeCategory === "behaviour") && (
+			{(!activeCategory || activeCategory === "behaviour") && (
 				<QuickSettingsSection
 					title={m["reader_settings.category_behaviour"]()}
 					showTitle={activeCategory === null}
 				>
+					{onManualSavingChange && (
+						<div className="flex flex-col gap-2">
+							<QuickSettingsRow label={m.reader_point_mode()}>
+								<select
+									aria-label={m.reader_point_mode()}
+									value={manualSaving ? "manual" : "automatic"}
+									onChange={(event) =>
+										onManualSavingChange(event.target.value === "manual")
+									}
+									className="min-h-11 rounded-lg border px-3 text-sm"
+									style={{
+										backgroundColor: theme.backgroundColor,
+										color: theme.fontColor,
+										borderColor: mix(20),
+									}}
+								>
+									<option value="automatic">
+										{m.reader_point_automatic()}
+									</option>
+									<option value="manual">{m.reader_point_manual()}</option>
+								</select>
+							</QuickSettingsRow>
+							<p className="text-sm opacity-70">
+								{m.reader_point_description()}
+							</p>
+						</div>
+					)}
 					{presentation.renderer === "text-scroll" && (
 						<QuickSettingsRow
 							label={m["reader_settings.keep_position_on_resize"]()}
@@ -1710,7 +1741,7 @@ export function ReaderQuickSettings({
 							/>
 						</QuickSettingsRow>
 					)}
-					{!isVisual && (
+					{!isVisual && !isPdf && (
 						<QuickSettingsRow
 							label={m["reader_settings.disable_wheel_navigation"]()}
 						>

@@ -12,7 +12,6 @@ import {
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
 import { CharacterStatsCalculator } from "@/features/reader/renderers/continuous/character-stats-calculator";
 import {
-	formatPos,
 	horizontalMouseWheel,
 	PageManagerContinuous,
 } from "@/features/reader/renderers/continuous/continuous-primitives";
@@ -210,15 +209,14 @@ export function BookReaderContinuous({
 		}, 500);
 	};
 
-	// Keep the intended position stable across reflows. Only move when the
-	// reflow actually displaced the position into a different paragraph step
-	// (getReadingEdgeScrollPos anchors the paragraph's leading edge, consistent
-	// with calcExploredCharCount, so a settled layout compares equal and we
-	// don't fight it).
+	// Re-measuring must not snap a valid precise position to a line boundary.
+	// Only restore when the saved character actually left the reading edge.
 	const restoreIntendedPos = () => {
 		const s = internalsRef.current;
 		if (!s.calculator || !s.pageManager) return;
-		if (s.calculator.calcExploredCharCount() === s.prevIntendedCharCount) {
+		if (
+			s.calculator.calcPreciseExploredCharCount() === s.prevIntendedCharCount
+		) {
 			return;
 		}
 		s.isProgrammaticScroll = true;
@@ -361,15 +359,18 @@ export function BookReaderContinuous({
 	const exactScrollFor = (position: ReaderPosition) => {
 		const s = internalsRef.current;
 		const offset = verticalMode ? position.scrollX : position.scrollY;
-		if (!offset || !s.calculator) return undefined;
-		const formatted = formatPos(offset, s.calculator.direction);
-		if (
-			s.calculator.getCharCountByScrollPos(formatted) !==
-			position.exploredCharCount
-		) {
+		if (offset === undefined || !Number.isFinite(offset) || !s.calculator) {
 			return undefined;
 		}
-		return verticalMode ? { left: offset } : { top: offset };
+		// Validate with the same character-level measurement used when saving.
+		// Paragraph-end counts cannot validate a position inside a paragraph.
+		const exact = verticalMode ? { left: offset } : { top: offset };
+		s.isProgrammaticScroll = true;
+		getScrollContainer().scrollTo(exact);
+		return s.calculator.calcPreciseExploredCharCount() ===
+			position.exploredCharCount
+			? exact
+			: undefined;
 	};
 
 	const scrollToReadingPos = (position: ReaderPosition) => {
@@ -428,48 +429,49 @@ export function BookReaderContinuous({
 		const layoutScheduler = createReaderLayoutScheduler({
 			run: (transaction) => {
 				const revision = s.pendingRelayoutRevision;
-				document.fonts.ready.then(() => {
-					requestAnimationFrame(async () => {
-						if (
-							cancelled ||
-							!transaction.isCurrent() ||
-							revision === undefined ||
-							revision !== s.layoutRevision
-						) {
-							return;
-						}
-						applyVerticalReadingHeight();
-						const margin = livePropsRef.current.firstDimensionMargin || 0;
-						s.pageManager = new PageManagerContinuous(
-							verticalMode,
-							margin,
-							scrollEl,
-						);
-						refitImages();
-						s.isProgrammaticScroll = true;
-						s.pageManager.scrollTo(
-							calculator.getReadingEdgeScrollPos(s.prevIntendedCharCount),
-						);
-						const measured = await calculator.updateParagraphPosCooperative(
+				document.fonts.ready.then(async () => {
+					if (
+						cancelled ||
+						!transaction.isCurrent() ||
+						revision === undefined ||
+						revision !== s.layoutRevision
+					) {
+						return;
+					}
+					applyVerticalReadingHeight();
+					const margin = livePropsRef.current.firstDimensionMargin || 0;
+					s.pageManager = new PageManagerContinuous(
+						verticalMode,
+						margin,
+						scrollEl,
+					);
+					refitImages();
+					s.isProgrammaticScroll = true;
+					s.pageManager.scrollTo(
+						calculator.getReadingEdgeScrollPos(s.prevIntendedCharCount),
+					);
+					calculator.invalidateParagraphPositions();
+					const measured =
+						!verticalMode ||
+						(await calculator.updateParagraphPosCooperative(
 							undefined,
 							() =>
 								cancelled ||
 								!transaction.isCurrent() ||
 								revision !== s.layoutRevision,
-						);
-						if (
-							!measured ||
-							cancelled ||
-							!transaction.isCurrent() ||
-							revision !== s.layoutRevision
-						) {
-							return;
-						}
-						restoreIntendedPos();
-						reportIntendedPosition();
-						updateSectionProgress();
-						clearLayoutDirtyNextFrame();
-					});
+						));
+					if (
+						!measured ||
+						cancelled ||
+						!transaction.isCurrent() ||
+						revision !== s.layoutRevision
+					) {
+						return;
+					}
+					if (verticalMode) restoreIntendedPos();
+					reportIntendedPosition();
+					updateSectionProgress();
+					clearLayoutDirtyNextFrame();
 				});
 			},
 		});
@@ -494,6 +496,7 @@ export function BookReaderContinuous({
 			verticalMode ? "rtl" : "ltr",
 			scrollEl,
 			document,
+			true,
 		);
 		const pageManager = new PageManagerContinuous(
 			verticalMode,
@@ -514,10 +517,13 @@ export function BookReaderContinuous({
 			const revision = ++s.layoutRevision;
 			s.recalcTimer = setTimeout(async () => {
 				if (cancelled) return;
-				const measured = await calculator.updateParagraphPosCooperative(
-					undefined,
-					() => cancelled || revision !== s.layoutRevision,
-				);
+				calculator.invalidateParagraphPositions();
+				const measured =
+					!verticalMode ||
+					(await calculator.updateParagraphPosCooperative(
+						undefined,
+						() => cancelled || revision !== s.layoutRevision,
+					));
 				if (!measured) return;
 				if (restorePosition) {
 					restoreIntendedPos();
@@ -536,6 +542,13 @@ export function BookReaderContinuous({
 		};
 		s.scheduleRecalc = scheduleRecalc;
 		contentEl.addEventListener("load", handleResourceLoad, true);
+		const handleSectionVisibility = () =>
+			calculator.invalidateParagraphPositions();
+		contentEl.addEventListener(
+			"contentvisibilityautostatechange",
+			handleSectionVisibility,
+			true,
+		);
 
 		// Vertical mode: translate vertical wheel into horizontal page scroll
 		const scrollFn = horizontalMouseWheel(4, scrollEl, requestAnimationFrame);
@@ -581,6 +594,13 @@ export function BookReaderContinuous({
 			setAllowDisplay(true);
 			clearLayoutDirtyNextFrame();
 
+			// Horizontal sections render on demand; a full scan would force every
+			// offscreen section to render and defeat content-visibility.
+			if (!verticalMode) {
+				updateSectionProgress();
+				return;
+			}
+
 			// Paint the restored page before scanning the rest of the document.
 			// Live position queries remain usable until this index is complete.
 			// Completion never restores again: the reader may already have moved.
@@ -609,7 +629,19 @@ export function BookReaderContinuous({
 			// prevIntendedCharCount is the canonical semantic anchor. Re-sampling a
 			// line after reflow would return that line's new first character and
 			// slowly move the saved position on every viewport or font change.
-			getPosition: () => readPosition(s.prevIntendedCharCount),
+			getPosition: (options) => {
+				if (options?.manualBookmark)
+					return textSession.positionFor(calculator.calcBookmarkCharCount());
+				if (
+					s.uncommittedUserPosition &&
+					!s.layoutDirty &&
+					!s.isProgrammaticScroll
+				) {
+					s.prevIntendedCharCount = calculator.calcPreciseExploredCharCount();
+					s.uncommittedUserPosition = false;
+				}
+				return readPosition(s.prevIntendedCharCount);
+			},
 			scrollToPosition: (position) => scrollToReadingPos(position),
 			setScrollbarHidden: (hidden) => {
 				// Preserve the stable gutter so opening an overlay cannot resize and
@@ -618,10 +650,7 @@ export function BookReaderContinuous({
 			},
 			relayout: (position) => {
 				s.layoutDirty = true;
-				// Debounced: the quick-settings sliders commit one change per drag
-				// tick and re-measuring the whole book each tick freezes the drag.
-				// Then wait for any new font to be ready and re-measure with the
-				// margin/page-size dependent managers rebuilt from live props.
+				// Keep the semantic anchor while applying the latest typography.
 				if (position) {
 					s.prevIntendedCharCount = position.exploredCharCount;
 				}
@@ -641,10 +670,16 @@ export function BookReaderContinuous({
 			clearTimeout(s.resizeTimer);
 			clearTimeout(s.sectionTimer);
 			clearTimeout(s.preciseScrollTimer);
+			s.preciseScrollTimer = undefined;
 			clearTimeout(s.userInputTimer);
 			s.scheduleRecalc = undefined;
 			contentEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
+			contentEl.removeEventListener(
+				"contentvisibilityautostatechange",
+				handleSectionVisibility,
+				true,
+			);
 			contentEl.innerHTML = "";
 			document.body.removeEventListener("wheel", handleWheel);
 			cleanupChrome();
@@ -729,16 +764,24 @@ export function BookReaderContinuous({
 		s.userInputPending = false;
 		clearTimeout(s.sectionTimer);
 		s.sectionTimer = setTimeout(updateSectionProgress, 500);
-		clearTimeout(s.preciseScrollTimer);
-		if (!ignorePositionUpdate) {
-			s.preciseScrollTimer = setTimeout(() => {
-				if (!s.calculator || s.isProgrammaticScroll || s.layoutDirty) return;
-				const precise = s.calculator.calcPreciseExploredCharCount();
-				s.prevIntendedCharCount = precise;
-				s.uncommittedUserPosition = false;
-				const position = readPosition(precise);
-				if (position) onPositionChangeRef.current(position);
-			}, 120);
+		if (ignorePositionUpdate) {
+			clearTimeout(s.preciseScrollTimer);
+			s.preciseScrollTimer = undefined;
+		} else if (s.preciseScrollTimer === undefined) {
+			// Horizontal reading uses cached line geometry and can report on the
+			// next task. Keep the caret-based vertical path throttled.
+			s.preciseScrollTimer = setTimeout(
+				() => {
+					s.preciseScrollTimer = undefined;
+					if (!s.calculator || s.isProgrammaticScroll || s.layoutDirty) return;
+					const precise = s.calculator.calcPreciseExploredCharCount();
+					s.prevIntendedCharCount = precise;
+					s.uncommittedUserPosition = false;
+					const position = readPosition(precise);
+					if (position) onPositionChangeRef.current(position);
+				},
+				verticalMode ? 100 : 0,
+			);
 		}
 	};
 
@@ -752,6 +795,7 @@ export function BookReaderContinuous({
 		const s = internalsRef.current;
 		const scrollEl = getScrollContainer();
 		clearTimeout(s.preciseScrollTimer);
+		s.preciseScrollTimer = undefined;
 		// The resize event fires after the browser has started reflowing, so live
 		// geometry is already unsafe to sample here. Preserve the last settled
 		// character anchor and ignore reflow-induced scroll events until the new
@@ -836,6 +880,7 @@ export function BookReaderContinuous({
 			<div
 				ref={contentElRef}
 				data-reader-renderer="text-scroll"
+				data-reader-character-start={0}
 				lang={language || undefined}
 				className={containerClasses}
 				style={containerStyle}

@@ -131,6 +131,7 @@ export function PdfNavigationToolbar({
 			className="nanahoshi-pdf-toolbar writing-horizontal-tb fixed top-0 right-0 left-0 z-[8] flex min-h-[calc(3.25rem+var(--safe-area-top))] items-center gap-1 border-b px-[max(0.5rem,var(--safe-area-left))] pt-[var(--safe-area-top)] pr-[max(0.5rem,var(--safe-area-right))] shadow-md max-sm:flex-wrap max-sm:gap-y-1 max-sm:pb-1 sm:min-h-[calc(3rem+var(--safe-area-top))]"
 			style={toolbarStyle}
 		>
+			<div data-reader-point-actions className="flex shrink-0 items-center" />
 			<div className="flex shrink-0 items-center gap-0.5">
 				<Button
 					variant="ghost"

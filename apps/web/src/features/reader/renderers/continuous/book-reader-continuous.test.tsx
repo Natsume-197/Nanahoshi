@@ -98,6 +98,74 @@ afterEach(() => {
 });
 
 describe("BookReaderContinuous vertical padding", () => {
+	test("reanchors a font-size change without scanning offscreen text", async () => {
+		let readerApi: BookReaderApi | null = null;
+		const props = {
+			...defaultReaderSettings,
+			htmlContent: `<div id="nanahoshi-section">${"<p>Reading text</p>".repeat(500)}</div>`,
+			verticalMode: false,
+			theme: getReaderTheme(defaultReaderSettings.theme),
+			autoPositionOnResize: true,
+			reservePlayerSpace: false,
+			scrollContainerRef: { current: document.documentElement },
+			sections: [],
+			navigationBlocked: false,
+			onPositionChange: () => {},
+			onSectionProgressChange: () => {},
+			apiRef: (api: BookReaderApi | null) => {
+				readerApi = api;
+			},
+		};
+		const view = render(<BookReaderContinuous {...props} />);
+		await waitFor(() =>
+			expect(Boolean(view.container.querySelector(".animate-spin"))).toBe(
+				false,
+			),
+		);
+		const frames: FrameRequestCallback[] = [];
+		const requestFrame = spyOn(
+			globalThis,
+			"requestAnimationFrame",
+		).mockImplementation((callback) => {
+			frames.push(callback);
+			return frames.length;
+		});
+		const anchor = spyOn(
+			CharacterStatsCalculator.prototype,
+			"getReadingEdgeScrollPos",
+		);
+		const scan = spyOn(
+			CharacterStatsCalculator.prototype,
+			"updateParagraphPosCooperative",
+		);
+		try {
+			await act(async () => {
+				(readerApi as unknown as BookReaderApi).relayout({
+					exploredCharCount: 4,
+					progress: 0,
+					modifiedAt: 1,
+				});
+				view.rerender(<BookReaderContinuous {...props} fontSize={32} />);
+			});
+			expect(frames).toHaveLength(1);
+			expect(anchor).not.toHaveBeenCalled();
+			await act(async () => {
+				frames.shift()?.(16);
+			});
+			expect(anchor).toHaveBeenCalledWith(4);
+			expect(scan).not.toHaveBeenCalled();
+			expect(
+				(readerApi as unknown as BookReaderApi).getPosition()
+					?.exploredCharCount,
+			).toBe(4);
+		} finally {
+			view.unmount();
+			anchor.mockRestore();
+			scan.mockRestore();
+			requestFrame.mockRestore();
+		}
+	});
+
 	test("shows the reading position before the whole-book geometry scan finishes", async () => {
 		const scheduler = Object.getOwnPropertyDescriptor(globalThis, "scheduler");
 		const background = Promise.withResolvers<void>();
@@ -117,7 +185,7 @@ describe("BookReaderContinuous vertical padding", () => {
 					{...defaultReaderSettings}
 					htmlContent={`<div id="chapter">${"<p>Book text.</p>".repeat(2000)}</div>`}
 					language="en"
-					verticalMode={false}
+					verticalMode={true}
 					theme={getReaderTheme(defaultReaderSettings.theme)}
 					autoPositionOnResize={true}
 					reservePlayerSpace={false}
@@ -165,6 +233,133 @@ describe("BookReaderContinuous vertical padding", () => {
 			scan.mockRestore();
 			if (scheduler) Object.defineProperty(globalThis, "scheduler", scheduler);
 			else Reflect.deleteProperty(globalThis, "scheduler");
+		}
+	});
+
+	test("reports characters during scrolling without waiting for a pause", async () => {
+		const precise = spyOn(
+			CharacterStatsCalculator.prototype,
+			"calcPreciseExploredCharCount",
+		).mockReturnValue(4);
+		let readerApi: BookReaderApi | null = null;
+		let reported = 0;
+		try {
+			render(
+				<BookReaderContinuous
+					{...defaultReaderSettings}
+					htmlContent="<p>Reading text</p>"
+					verticalMode={false}
+					theme={getReaderTheme(defaultReaderSettings.theme)}
+					autoPositionOnResize={true}
+					reservePlayerSpace={false}
+					scrollContainerRef={{ current: document.documentElement }}
+					sections={[]}
+					navigationBlocked={false}
+					onPositionChange={(position) => {
+						reported = position.exploredCharCount;
+					}}
+					onSectionProgressChange={() => {}}
+					apiRef={(api) => {
+						readerApi = api;
+					}}
+				/>,
+			);
+			await act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 80));
+			});
+			await act(async () => {
+				for (let i = 0; i < 6; i++) {
+					document.documentElement.dispatchEvent(new window.Event("scroll"));
+					await new Promise((resolve) => setTimeout(resolve, 25));
+				}
+			});
+			expect(reported).toBe(4);
+			expect(
+				(readerApi as unknown as BookReaderApi).getPosition()
+					?.exploredCharCount,
+			).toBe(4);
+			// Leaving before the next counter update must still save the last scroll.
+			precise.mockReturnValue(8);
+			document.documentElement.dispatchEvent(new window.Event("scroll"));
+			expect(
+				(readerApi as unknown as BookReaderApi).getPosition()
+					?.exploredCharCount,
+			).toBe(8);
+		} finally {
+			precise.mockRestore();
+		}
+	});
+
+	test("reopening preserves the exact scroll inside a paragraph", async () => {
+		const precise = spyOn(
+			CharacterStatsCalculator.prototype,
+			"calcPreciseExploredCharCount",
+		).mockReturnValue(4);
+		const coarse = spyOn(
+			CharacterStatsCalculator.prototype,
+			"getCharCountByScrollPos",
+		).mockReturnValue(0);
+		const anchor = spyOn(
+			CharacterStatsCalculator.prototype,
+			"getReadingEdgeScrollPos",
+		).mockReturnValue(180);
+		let readerApi: BookReaderApi | null = null;
+		const reader = (
+			initialPosition?: import("@/features/reader/document/types").ReaderPosition,
+		) => (
+			<BookReaderContinuous
+				{...defaultReaderSettings}
+				htmlContent="<p>Reading text spanning multiple lines</p>"
+				verticalMode={false}
+				theme={getReaderTheme(defaultReaderSettings.theme)}
+				autoPositionOnResize={true}
+				reservePlayerSpace={false}
+				scrollContainerRef={{ current: document.documentElement }}
+				sections={[]}
+				initialPosition={initialPosition}
+				navigationBlocked={false}
+				onPositionChange={() => {}}
+				onSectionProgressChange={() => {}}
+				apiRef={(api) => {
+					readerApi = api;
+				}}
+			/>
+		);
+		const settle = () =>
+			act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 80));
+			});
+		try {
+			const view = render(reader());
+			await settle();
+			document.documentElement.scrollTop = 173;
+			document.documentElement.dispatchEvent(new window.Event("scroll"));
+			const saved = (readerApi as unknown as BookReaderApi).getPosition();
+			expect(saved?.scrollY).toBe(173);
+			expect(saved?.exploredCharCount).toBe(4);
+			view.unmount();
+			document.documentElement.scrollTop = 0;
+			render(reader(saved));
+			await settle();
+			expect(document.documentElement.scrollTop).toBe(173);
+			// A late resource remeasure must not snap the restored line to its start.
+			document
+				.querySelector('[data-reader-renderer="text-scroll"]')
+				?.dispatchEvent(new window.Event("load"));
+			await act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 250));
+			});
+			expect(document.documentElement.scrollTop).toBe(173);
+			// A changed layout no longer maps the old pixels to the saved character.
+			precise.mockReturnValue(8);
+			if (!saved) throw new Error("Missing saved position");
+			(readerApi as unknown as BookReaderApi).scrollToPosition(saved);
+			expect(document.documentElement.scrollTop).toBe(180);
+		} finally {
+			precise.mockRestore();
+			coarse.mockRestore();
+			anchor.mockRestore();
+			document.documentElement.scrollTop = 0;
 		}
 	});
 

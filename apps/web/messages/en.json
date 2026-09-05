@@ -2721,5 +2721,15 @@
 		"remove_failed": "Unable to remove the pairing. Try again.",
 		"library": "Library: {name}",
 		"abridged": "Abridged"
-	}
+	},
+	"reader_point_mode": "Save position",
+	"reader_point_automatic": "Automatically",
+	"reader_point_manual": "Manually",
+	"reader_point_description": "Manual saving keeps one reading point for this book on this device. Browsing does not move it.",
+	"reader_point_save": "Save here",
+	"reader_point_go": "Go to saved point",
+	"reader_point_selection": "Continue from here",
+	"reader_point_marker": "Saved reading point",
+	"reader_point_saved": "Reading point saved",
+	"reader_point_error": "Unable to save the reading point. Check that browser storage is available."
 }

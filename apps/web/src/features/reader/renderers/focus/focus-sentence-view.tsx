@@ -103,6 +103,7 @@ export function FocusSentenceView({
 		<div
 			ref={contentRef}
 			id={sentence.sectionReference}
+			data-reader-character-start={sentence.startCharacter}
 			data-focus-fragment-ids={JSON.stringify(sentence.fragmentIds)}
 			role="document"
 			// biome-ignore lint/a11y/noNoninteractiveTabindex: the rendered publication is a keyboard surface for furigana and Read & Listen sentence seeking
