@@ -2731,5 +2731,8 @@
 	"reader_point_selection": "Continuar desde aquí",
 	"reader_point_marker": "Punto de lectura guardado",
 	"reader_point_saved": "Punto de lectura guardado",
-	"reader_point_error": "No se pudo guardar el punto de lectura. Comprueba que el almacenamiento del navegador esté disponible."
+	"reader_point_error": "No se pudo guardar el punto de lectura. Comprueba que el almacenamiento del navegador esté disponible.",
+	"reader_settings_sync_conflict": "Los perfiles de lectura cambiaron en otro dispositivo. Elige qué cambios en conflicto conservar. Tus ajustes actuales se mantienen en este dispositivo hasta que elijas.",
+	"reader_settings_sync_keep_local": "Conservar mis cambios",
+	"reader_settings_sync_use_remote": "Usar los cambios sincronizados"
 }

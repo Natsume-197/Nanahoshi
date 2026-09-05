@@ -32,11 +32,13 @@ import {
 	duplicateProfile,
 	getActiveProfileId,
 	getProfileSettings,
+	hasPendingReaderProfileConflict,
 	loadProfilesStore,
 	READER_PROFILES_RECONCILED_EVENT,
 	type ReaderProfilesStore,
 	renameProfile,
 	replaceProfileThemeReferences,
+	resolveReaderProfileConflict,
 	setActiveProfileId,
 	setProfileSettings,
 	syncReaderProfiles,
@@ -258,6 +260,9 @@ export function ReaderScreen({
 			prepareReaderStorage(userId);
 			return loadProfilesStore();
 		},
+	);
+	const [profilesConflict, setProfilesConflict] = useState(
+		hasPendingReaderProfileConflict,
 	);
 	const [activeProfileId, setActiveProfileIdState] = useState<string>(() =>
 		getActiveProfileId(profilesStore),
@@ -815,6 +820,7 @@ export function ReaderScreen({
 	// profile's settings changed under us.
 	useMountEffect(() => {
 		const handleReconciled = (event: Event) => {
+			setProfilesConflict(hasPendingReaderProfileConflict());
 			const detail = (
 				event as CustomEvent<{
 					profiles?: ReaderProfilesStore;
@@ -1288,6 +1294,8 @@ export function ReaderScreen({
 				onGo={goToReadingPoint}
 			/>
 			<ReaderQuickSettings
+				profilesConflict={profilesConflict}
+				onResolveProfilesConflict={resolveReaderProfileConflict}
 				manualSaving={readerSession.manualPoint.manual}
 				onManualSavingChange={changeManualSaving}
 				open={quickSettingsOpen}

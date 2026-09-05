@@ -97,6 +97,8 @@ interface ReaderQuickSettingsProps {
 	settings: ReaderSettings;
 	theme: ReaderTheme;
 	customThemes: CustomReaderThemes;
+	profilesConflict?: boolean;
+	onResolveProfilesConflict?: (choice: "local" | "remote") => void;
 	profiles: ReaderProfile[];
 	activeProfileId: string;
 	isMobile: boolean;
@@ -235,6 +237,8 @@ export function ReaderQuickSettings({
 	settings,
 	theme,
 	customThemes,
+	profilesConflict,
+	onResolveProfilesConflict,
 	profiles,
 	activeProfileId,
 	isMobile,
@@ -735,6 +739,27 @@ export function ReaderQuickSettings({
 			aria-labelledby="reader-profiles-heading"
 			className="flex min-w-0 flex-col gap-2 py-2"
 		>
+			{profilesConflict && (
+				<div className="rounded-lg border p-3 text-sm">
+					<p role="status">{m.reader_settings_sync_conflict()}</p>
+					<div className="mt-2 flex flex-wrap gap-2">
+						<button
+							type="button"
+							className="min-h-11 rounded-md border px-3 focus-visible:outline-2"
+							onClick={() => onResolveProfilesConflict?.("local")}
+						>
+							{m.reader_settings_sync_keep_local()}
+						</button>
+						<button
+							type="button"
+							className="min-h-11 rounded-md border px-3 focus-visible:outline-2"
+							onClick={() => onResolveProfilesConflict?.("remote")}
+						>
+							{m.reader_settings_sync_use_remote()}
+						</button>
+					</div>
+				</div>
+			)}
 			<div className="px-0.5">
 				<h2
 					id="reader-profiles-heading"

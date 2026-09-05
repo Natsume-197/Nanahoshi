@@ -2,8 +2,7 @@
  * Named reader-settings profiles, synced per user across devices.
  *
  * The localStorage mirror is the source of truth for rendering (the reader
- * must work offline); the server copy is reconciled by whole-blob
- * last-write-wins using the client-stamped `updatedAt` inside the blob.
+ * must work offline); conflicts merge settings against the last server copy.
  * The active-profile pointer is per device and never synced.
  */
 
@@ -42,10 +41,102 @@ interface SyncMeta {
 	updatedAt: number;
 	dirty?: boolean;
 	serverUpdatedAt?: string;
+	baseProfiles?: ReaderProfile[];
+	conflict?: { profiles: ReaderProfile[]; serverUpdatedAt: string };
 }
 
 export const READER_PROFILES_RECONCILED_EVENT =
 	"nanahoshi:reader-profiles-reconciled";
+
+/** Apply only local changes since the shared base; unrelated remote edits survive. */
+export function mergeReaderProfiles(
+	base: readonly ReaderProfile[] | undefined,
+	local: readonly ReaderProfile[],
+	remote: readonly ReaderProfile[],
+): ReaderProfile[] {
+	const merged: ReaderProfile[] = [];
+	for (const id of new Set(
+		[...local, ...remote].map((profile) => profile.id),
+	)) {
+		const before = base?.find((profile) => profile.id === id);
+		const ours = local.find((profile) => profile.id === id);
+		const theirs = remote.find((profile) => profile.id === id);
+		if (!ours) {
+			if (!before && theirs) merged.push(theirs);
+			continue;
+		}
+		if (!theirs) {
+			if (!before || JSON.stringify(ours) !== JSON.stringify(before))
+				merged.push(ours);
+			continue;
+		}
+		const settings = { ...theirs.settings };
+		for (const key of Object.keys(ours.settings) as (keyof ReaderSettings)[]) {
+			if (!before || ours.settings[key] !== before.settings[key]) {
+				Object.assign(settings, { [key]: ours.settings[key] });
+			}
+		}
+		merged.push({
+			...theirs,
+			name: !before || ours.name !== before.name ? ours.name : theirs.name,
+			settings,
+		});
+	}
+	// Concurrent deletions must still leave a usable profile.
+	return merged.length ? merged : local.slice(0, 1);
+}
+
+export function hasReaderProfileConflict(
+	base: readonly ReaderProfile[] | undefined,
+	local: readonly ReaderProfile[],
+	remote: readonly ReaderProfile[],
+): boolean {
+	const canonical = (profiles: readonly ReaderProfile[]) =>
+		JSON.stringify([...profiles].sort((a, b) => a.id.localeCompare(b.id)));
+	if (!base) return canonical(local) !== canonical(remote);
+	return (
+		canonical(mergeReaderProfiles(base, local, remote)) !==
+		canonical(mergeReaderProfiles(base, remote, local))
+	);
+}
+
+export function hasPendingReaderProfileConflict(): boolean {
+	return Boolean(loadProfilesMeta().conflict);
+}
+
+/** Resolve only overlapping edits; keep independent changes from both copies. */
+export function resolveReaderProfileConflict(choice: "local" | "remote") {
+	const meta = loadProfilesMeta();
+	const conflict = meta.conflict;
+	if (!conflict) return;
+	const local = loadProfilesStore();
+	const profiles =
+		choice === "local"
+			? mergeReaderProfiles(
+					meta.baseProfiles,
+					local.profiles,
+					conflict.profiles,
+				)
+			: meta.baseProfiles
+				? mergeReaderProfiles(
+						meta.baseProfiles,
+						conflict.profiles,
+						local.profiles,
+					)
+				: conflict.profiles;
+	saveProfilesMeta({
+		...meta,
+		conflict: undefined,
+		baseProfiles: conflict.profiles,
+		serverUpdatedAt: conflict.serverUpdatedAt,
+	});
+	const committed = commitProfilesStore({ ...local, profiles });
+	window.dispatchEvent(
+		new CustomEvent(READER_PROFILES_RECONCILED_EVENT, {
+			detail: { profiles: committed },
+		}),
+	);
+}
 
 function newProfileId(): string {
 	return typeof crypto !== "undefined" && crypto.randomUUID
@@ -293,6 +384,7 @@ export function deleteProfile(
 export function commitProfilesStore(
 	store: ReaderProfilesStore,
 ): ReaderProfilesStore {
+	const previous = loadProfilesStore();
 	const next: ReaderProfilesStore = {
 		...store,
 		updatedAt: Date.now(),
@@ -300,7 +392,13 @@ export function commitProfilesStore(
 	};
 	saveProfilesStore(next);
 	const meta = loadProfilesMeta();
-	saveProfilesMeta({ ...meta, updatedAt: next.updatedAt, dirty: true });
+	saveProfilesMeta({
+		...meta,
+		baseProfiles:
+			meta.baseProfiles ?? (!previous.dirty ? previous.profiles : undefined),
+		updatedAt: next.updatedAt,
+		dirty: true,
+	});
 	saveReaderSettings(getProfileSettings(next, getActiveProfileId(next)));
 	scheduleProfilesPush();
 	return next;
@@ -383,6 +481,7 @@ let themesPushInFlight: Promise<boolean> | undefined;
 async function pushProfiles(): Promise<boolean> {
 	const store = loadProfilesStore();
 	const meta = loadProfilesMeta();
+	if (meta.conflict) return false;
 	try {
 		const result = await client.userSettings.set({
 			key: "reader-profiles",
@@ -391,7 +490,11 @@ async function pushProfiles(): Promise<boolean> {
 		});
 		const latest = loadProfilesStore();
 		// Only clear dirty if nothing changed while the request was in flight.
-		if (latest.updatedAt === store.updatedAt && latest.dirty) {
+		if (
+			latest.updatedAt === store.updatedAt &&
+			JSON.stringify(latest.profiles) === JSON.stringify(store.profiles) &&
+			latest.dirty
+		) {
 			saveProfilesStore({ ...latest, dirty: false });
 		}
 		const latestMeta = loadProfilesMeta();
@@ -399,33 +502,75 @@ async function pushProfiles(): Promise<boolean> {
 			...latestMeta,
 			...(latestMeta.updatedAt === store.updatedAt && { dirty: false }),
 			serverUpdatedAt: new Date(result.updatedAt).toISOString(),
+			baseProfiles: store.profiles,
 		});
 		return true;
 	} catch (error) {
 		if (!(error instanceof ORPCError) || error.status !== 409) return false;
-		// Resolve a failed CAS against the latest server revision. A newer local
-		// edit is retried; otherwise the other device's value is authoritative.
+		// Resolve a failed CAS without undoing an explicit local edit.
 		try {
 			const server = await client.userSettings.get({ key: "reader-profiles" });
 			if (!server) return false;
 			const latest = loadProfilesStore();
 			const serverRevision = new Date(server.updatedAt).toISOString();
-			// A new local edit made while the failed request was in flight has not
-			// participated in this conflict. Preserve it, advance the CAS revision,
-			// and let flushProfilesPush retry that newer snapshot.
-			if (
-				latest.dirty &&
-				(latest.updatedAt !== store.updatedAt ||
-					JSON.stringify(latest.profiles) !== JSON.stringify(store.profiles))
-			) {
+			// A conflict must not reset the controls after the user stops editing.
+			// Keep committed local settings and retry against the current revision.
+			// If that revision was already rejected, leave the edit dirty for a
+			// later sync instead of retrying the same request indefinitely.
+			if (latest.dirty && latest.updatedAt > 0) {
 				const latestMeta = loadProfilesMeta();
+				const remote = normalizeProfilesStore(
+					server.value,
+					loadVisualReaderSettings(),
+				);
+				if (
+					hasReaderProfileConflict(
+						meta.baseProfiles,
+						latest.profiles,
+						remote.profiles,
+					)
+				) {
+					saveProfilesMeta({
+						...latestMeta,
+						conflict: {
+							profiles: remote.profiles,
+							serverUpdatedAt: serverRevision,
+						},
+					});
+					window.dispatchEvent(
+						new CustomEvent(READER_PROFILES_RECONCILED_EVENT, { detail: {} }),
+					);
+					return false;
+				}
+				const merged = {
+					...latest,
+					profiles: mergeReaderProfiles(
+						meta.baseProfiles,
+						latest.profiles,
+						remote.profiles,
+					),
+				};
+				saveProfilesStore(merged);
+				saveReaderSettings(
+					getProfileSettings(merged, getActiveProfileId(merged)),
+				);
 				saveProfilesMeta({
 					...latestMeta,
 					updatedAt: latest.updatedAt,
 					dirty: true,
+					baseProfiles: remote.profiles,
 					serverUpdatedAt: serverRevision,
 				});
-				return true;
+				window.dispatchEvent(
+					new CustomEvent(READER_PROFILES_RECONCILED_EVENT, {
+						detail: { profiles: merged },
+					}),
+				);
+				return (
+					serverRevision !== meta.serverUpdatedAt ||
+					latest.updatedAt !== store.updatedAt ||
+					JSON.stringify(latest.profiles) !== JSON.stringify(store.profiles)
+				);
 			}
 			const adopted = {
 				...normalizeProfilesStore(server.value, loadVisualReaderSettings()),
@@ -434,6 +579,7 @@ async function pushProfiles(): Promise<boolean> {
 			saveProfilesStore(adopted);
 			saveProfilesMeta({
 				updatedAt: adopted.updatedAt,
+				baseProfiles: adopted.profiles,
 				serverUpdatedAt: serverRevision,
 			});
 			window.dispatchEvent(
@@ -568,9 +714,9 @@ export function shouldAdoptServerProfiles(
 }
 
 /**
- * Whole-blob last-write-wins reconciliation with the server. Offline or
+ * Reconcile the account copy while preserving pending local edits. Offline or
  * logged out this is a silent no-op (dirty state persists and is pushed on a
- * later sync). When local is dirty AND the server is newer, the server wins.
+ * later sync). Unedited local profiles can adopt the server copy.
  */
 export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 	const result: ReaderProfilesSyncResult = { profiles: null, themes: null };
@@ -596,6 +742,7 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 			saveProfilesStore(adopted);
 			saveProfilesMeta({
 				updatedAt: adopted.updatedAt,
+				baseProfiles: adopted.profiles,
 				serverUpdatedAt: serverRevision,
 			});
 			saveReaderSettings(
@@ -603,9 +750,6 @@ export async function syncReaderProfiles(): Promise<ReaderProfilesSyncResult> {
 			);
 			result.profiles = adopted;
 		} else if (!serverStore || local.dirty) {
-			if (serverRevision && !meta.serverUpdatedAt) {
-				saveProfilesMeta({ ...meta, serverUpdatedAt: serverRevision });
-			}
 			if (local.updatedAt === 0) {
 				const stamped = { ...local, updatedAt: Date.now(), dirty: true };
 				saveProfilesStore(stamped);

@@ -30,6 +30,8 @@ function renderPanel(
 	onClose: () => void,
 	isMobile = false,
 	overrides: {
+		profilesConflict?: boolean;
+		onResolveProfilesConflict?: (choice: "local" | "remote") => void;
 		presentation?: ReaderPresentation;
 		settings?: ReaderSettings;
 		readListenActive?: boolean;
@@ -49,6 +51,8 @@ function renderPanel(
 	const panelSettings = overrides.settings ?? defaultReaderSettings;
 	return render(
 		<ReaderQuickSettings
+			profilesConflict={overrides.profilesConflict}
+			onResolveProfilesConflict={overrides.onResolveProfilesConflict}
 			onManualSavingChange={overrides.onManualSavingChange ?? (() => {})}
 			open
 			presentation={overrides.presentation ?? presentation}
@@ -96,6 +100,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ReaderQuickSettings desktop dialog", () => {
+	for (const mobile of [false, true]) {
+		test(`offers explicit sync conflict choices without changing settings automatically (${mobile})`, () => {
+			const resolve = mock(() => {});
+			const panel = renderPanel(() => {}, mobile, {
+				profilesConflict: true,
+				onResolveProfilesConflict: resolve,
+			});
+			expect(panel.getByRole("status").textContent).toContain("another device");
+			expect(resolve).not.toHaveBeenCalled();
+			fireEvent.click(panel.getByRole("button", { name: "Keep my changes" }));
+			expect(resolve).toHaveBeenLastCalledWith("local");
+			fireEvent.click(
+				panel.getByRole("button", { name: "Use synced changes" }),
+			);
+			expect(resolve).toHaveBeenLastCalledWith("remote");
+		});
+	}
+
 	test("provides reader settings copy in every supported locale", () => {
 		setLocale("es", { reload: false });
 		expect(m["reader_settings.text_size"]()).toBe("Tamaño del texto");

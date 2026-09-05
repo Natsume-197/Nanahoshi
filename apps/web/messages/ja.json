@@ -2676,5 +2676,8 @@
 	"reader_point_selection": "ここから読み続ける",
 	"reader_point_marker": "保存した読書位置",
 	"reader_point_saved": "読書位置を保存しました",
-	"reader_point_error": "読書位置を保存できませんでした。ブラウザーのストレージを確認してください。"
+	"reader_point_error": "読書位置を保存できませんでした。ブラウザーのストレージを確認してください。",
+	"reader_settings_sync_conflict": "別の端末で読書プロファイルが変更されました。競合する変更のどちらを保持するか選択してください。選択するまで、この端末の設定は維持されます。",
+	"reader_settings_sync_keep_local": "自分の変更を保持",
+	"reader_settings_sync_use_remote": "同期された変更を使用"
 }

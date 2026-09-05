@@ -2731,5 +2731,8 @@
 	"reader_point_selection": "Continue from here",
 	"reader_point_marker": "Saved reading point",
 	"reader_point_saved": "Reading point saved",
-	"reader_point_error": "Unable to save the reading point. Check that browser storage is available."
+	"reader_point_error": "Unable to save the reading point. Check that browser storage is available.",
+	"reader_settings_sync_conflict": "Reading profiles changed on another device. Choose which conflicting changes to keep. Your current settings remain on this device until you choose.",
+	"reader_settings_sync_keep_local": "Keep my changes",
+	"reader_settings_sync_use_remote": "Use synced changes"
 }
