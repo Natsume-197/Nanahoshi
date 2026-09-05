@@ -742,10 +742,7 @@
 	}
 }
 
-/* Keep offscreen continuous sections in the document without laying out their
-   descendants on every typography change. Retain measured section heights. */
-.book-content--continuous.book-content--writing-horizontal-tb
-> div[id^="nanahoshi-"] {
-	content-visibility: auto;
-	contain-intrinsic-block-size: auto 1000px;
-}
+/* Continuous text positions depend on stable chapter geometry. Do not use
+   content-visibility/estimated chapter heights here: measuring a saved character
+   can expand a skipped chapter during restoration and move the reading edge.
+   The browser regression suite checks cold reopens and manual marks. */
