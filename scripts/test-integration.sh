@@ -26,6 +26,7 @@ export RECS_INTEGRATION=1
 export SERVER_DELETE_INTEGRATION=1
 export SCAN_RECOVERY_INTEGRATION=1
 export DYNAMIC_COLLECTION_INTEGRATION=1
+export READING_SESSIONS_INTEGRATION=1
 
 files=(
 	packages/api/src/infrastructure/search/pgroonga/__tests__/pgroonga.provider.integration.test.ts
@@ -34,6 +35,7 @@ files=(
 	packages/api/src/routers/recommendations/__tests__/recommendations.integration.test.ts
 	packages/api/src/routers/collections/__tests__/collections.dynamic.integration.test.ts
 	packages/api/src/routers/server-profile/__tests__/server-profile.delete.integration.test.ts
+	packages/api/src/routers/reading-sessions/__tests__/reading-sessions.integration.test.ts
 )
 
 mapfile -t discovered_files < <(
@@ -41,8 +43,8 @@ mapfile -t discovered_files < <(
 )
 mapfile -t listed_files < <(printf '%s\n' "${files[@]}" | sort)
 
-if [[ ${#files[@]} -ne 6 ]]; then
-	echo "Expected exactly 6 integration test files, listed ${#files[@]}." >&2
+if [[ ${#files[@]} -ne 7 ]]; then
+	echo "Expected exactly 7 integration test files, listed ${#files[@]}." >&2
 	exit 1
 fi
 

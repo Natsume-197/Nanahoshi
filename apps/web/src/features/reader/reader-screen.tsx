@@ -84,6 +84,8 @@ import { ReaderLoadingScreen } from "@/features/reader/ui/chrome/reader-loading-
 import { ReaderReadingPoint } from "@/features/reader/ui/chrome/reader-reading-point";
 import { ReaderToc } from "@/features/reader/ui/chrome/reader-toc";
 import { ReaderQuickSettings } from "@/features/reader/ui/settings/reader-quick-settings";
+import { ReadingSessionControl } from "@/features/reading-sessions/reading-session-control";
+import { useReadingTracker } from "@/features/reading-sessions/use-reading-tracker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePresenceEvents } from "@/hooks/use-presence-events";
@@ -357,7 +359,7 @@ export function ReaderScreen({
 				});
 			}
 		},
-		[readListenPairUuid],
+		[readListenPairUuid, exploredRef],
 	);
 
 	const toggleReadListen = () => {
@@ -440,6 +442,8 @@ export function ReaderScreen({
 		rememberReadListenPosition,
 		router,
 		uuid,
+		bookCharCountRef.current,
+		exploredRef.current,
 	]);
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
@@ -475,12 +479,15 @@ export function ReaderScreen({
 		},
 	});
 
-	const handlePdfDocumentReady = useCallback((pageCount: number) => {
-		setBookCharCount(pageCount);
-		setPdfDocumentPageCount((current) =>
-			current === pageCount ? current : pageCount,
-		);
-	}, []);
+	const handlePdfDocumentReady = useCallback(
+		(pageCount: number) => {
+			setBookCharCount(pageCount);
+			setPdfDocumentPageCount((current) =>
+				current === pageCount ? current : pageCount,
+			);
+		},
+		[setBookCharCount],
+	);
 
 	const getCharCounts = useCallback(() => {
 		const position = readerSession.getResumePosition(
@@ -491,10 +498,40 @@ export function ReaderScreen({
 			bookCharCount: bookCharCountRef.current,
 			positionIntentAt: position?.modifiedAt,
 		};
-	}, []);
+	}, [
+		readerSession.getResumePosition,
+		capturePosition,
+		bookCharCountRef.current,
+	]);
 
+	// Session activity follows the visible position even when the member keeps
+	// a manual bookmark as their separate resume position.
+	const getTrackingPosition = () =>
+		apiRef.current?.getPosition() ??
+		readerSessionRef.current?.snapshot().position;
+	const readingTracker = useReadingTracker({
+		getLocator: () => JSON.stringify(getTrackingPosition()) ?? null,
+		userId,
+		bookUuid: uuid,
+		contentVersion: book?.filehash ?? uuid,
+		bookCharCount: isPdfBook ? undefined : bookCharCountRef.current,
+		enabled:
+			!tocOpen &&
+			!galleryOpen &&
+			!quickSettingsOpen &&
+			loadState.phase === "ready" &&
+			(!isPdfBook || pdfDocumentPageCount !== null),
+		getPosition: () => {
+			const position = getTrackingPosition();
+			const total = bookCharCountRef.current;
+			return position !== undefined && total > 0
+				? Math.max(0, Math.min(1, position.exploredCharCount / total))
+				: null;
+		},
+	});
 	useReaderSync({
 		bookUuid: uuid,
+		trackTime: false,
 		enabled:
 			loadState.phase === "ready" &&
 			(!isPdfBook || pdfDocumentPageCount !== null) &&
@@ -505,6 +542,10 @@ export function ReaderScreen({
 	const handlePositionChange = (nextPosition: ReaderPosition) => {
 		const position = reportPosition(nextPosition);
 		if (!position) return;
+		if (bookCharCountRef.current > 0)
+			readingTracker.reportPosition(
+				position.exploredCharCount / bookCharCountRef.current,
+			);
 		// Quick Settings is deliberately non-modal so the navbar remains usable.
 		// If the reader is also moved behind the sheet, that genuine reading input
 		// becomes the new reflow anchor instead of snapping to the opening point.
@@ -523,6 +564,7 @@ export function ReaderScreen({
 			toast.error(m.reader_point_error());
 	};
 	const goToReadingPoint = () => {
+		readingTracker.markJump();
 		const position = readerSession.manualPoint.position;
 		if (!position || !apiRef.current) return;
 		apiRef.current.scrollToPosition(position);
@@ -874,9 +916,12 @@ export function ReaderScreen({
 			if (currentIndex === -1) currentIndex = chapters.length - 1;
 
 			const target = chapters[currentIndex + offset];
-			if (target) apiRef.current?.navigateToSection(target.reference);
+			if (target) {
+				readingTracker.markJump();
+				apiRef.current?.navigateToSection(target.reference);
+			}
 		},
-		[sectionProgress],
+		[sectionProgress, readingTracker.markJump],
 	);
 
 	const verticalMode = settings.writingMode === "vertical-rl";
@@ -962,21 +1007,23 @@ export function ReaderScreen({
 			: undefined,
 	});
 
-	const completeBook = () => {
-		const total = bookCharCountRef.current;
-		client.readingProgress
-			.saveProgress({
+	const completeBook = async () => {
+		try {
+			await readingTracker.completeReading();
+			const total = bookCharCountRef.current;
+			await client.readingProgress.saveProgress({
 				bookUuid: uuid,
 				exploredCharCount: total,
 				bookCharCount: total,
 				status: "completed",
-			})
-			.then(() => {
-				invalidateReadingProgress();
-				invalidateRecommendations();
-			})
-			.catch(() => {});
-		navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
+				positionIntentAt: Date.now(),
+			});
+			invalidateReadingProgress();
+			invalidateRecommendations();
+			await navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
+		} catch {
+			toast.error(m.reading_error());
+		}
 	};
 
 	const onFullscreenClick = () => {
@@ -1208,6 +1255,11 @@ export function ReaderScreen({
 						/>
 					</>
 				)}
+			{isPdf && (
+				<div className="fixed end-4 bottom-20 z-40 rounded-xl bg-background text-foreground shadow-sm">
+					<ReadingSessionControl tracker={readingTracker} />
+				</div>
+			)}
 			{!isPdf && showHeader && (
 				<button
 					type="button"
@@ -1219,6 +1271,7 @@ export function ReaderScreen({
 			{/* Text and image readers use the shared activity-rail-style header. */}
 			{!isPdf && (
 				<ReaderHeader
+					sessionControl={<ReadingSessionControl tracker={readingTracker} />}
 					open={showHeader}
 					onOpen={() => setShowHeader(true)}
 					theme={theme}
@@ -1277,9 +1330,10 @@ export function ReaderScreen({
 					sectionProgress={sectionProgress}
 					exploredCharCount={exploredCharCount}
 					verticalMode={verticalMode}
-					onNavigate={(reference) =>
-						apiRef.current?.navigateToSection(reference)
-					}
+					onNavigate={(reference) => {
+						readingTracker.markJump();
+						apiRef.current?.navigateToSection(reference);
+					}}
 					onClose={() => setTocOpen(false)}
 				/>
 			)}

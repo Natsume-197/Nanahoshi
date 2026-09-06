@@ -1,0 +1,1 @@
+ALTER TABLE "reading_run" ADD COLUMN "closure_reason" text;

@@ -13,6 +13,7 @@ import { client } from "@/utils/orpc";
 interface UseReaderSyncOptions {
 	bookUuid: string;
 	enabled: boolean;
+	trackTime?: boolean;
 	/** exploredCharCount undefined = the reader has not reported a position yet;
 	 * the count is then omitted so existing server progress is never wiped. */
 	getCharCounts: () => {
@@ -28,6 +29,7 @@ const COMPLETION_THRESHOLD = 0.9;
 export function useReaderSync({
 	bookUuid,
 	enabled,
+	trackTime = true,
 	getCharCounts,
 }: UseReaderSyncOptions) {
 	const lastSyncRef = useRef(Date.now());
@@ -80,7 +82,7 @@ export function useReaderSync({
 					bookUuid,
 					...positionWrite,
 					bookCharCount,
-					readingTimeSeconds: elapsedSinceLastSync,
+					...(trackTime ? { readingTimeSeconds: elapsedSinceLastSync } : {}),
 					status: newStatus,
 				},
 				{ context: { keepalive: true } },
@@ -89,7 +91,7 @@ export function useReaderSync({
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
 		}
-	}, [bookUuid, enabled, getCharCounts]);
+	}, [bookUuid, enabled, getCharCounts, trackTime]);
 	const syncProgress = useCallback(
 		() => enqueue(performSync),
 		[enqueue, performSync],

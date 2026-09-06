@@ -20,6 +20,7 @@ import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { m } from "@/paraglide/messages";
 
 interface ReaderHeaderProps {
+	sessionControl?: ReactNode;
 	open: boolean;
 	onOpen: () => void;
 	theme: ReaderTheme;
@@ -78,6 +79,7 @@ function IconButton({
 }
 
 export function ReaderHeader({
+	sessionControl,
 	open,
 	onOpen,
 	theme,
@@ -257,6 +259,7 @@ export function ReaderHeader({
 								</div>
 							)}
 						</div>
+						{sessionControl}
 						<IconButton
 							title="Open Quick Settings"
 							onClick={onQuickSettingsClick}

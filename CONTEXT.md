@@ -4,6 +4,19 @@ Nanahoshi organizes a shared digital library and reconciles catalog records from
 
 ## Language
 
+**Reading Run**:
+One personal reading of a book, containing its reading sessions until it is finished or left. An explicit reread begins another run while preserving the previous history; returning to an earlier chapter does not begin a new run.
+_Avoid_: Attempt, Reading Session, Playback Session
+
+**Reading Session**:
+A persistent personal record of time and positions observed while reading one book through one client and device. It belongs to a Reading Run and remains part of the reader's history after the activity ends.
+_Avoid_: Playback Session, authenticated session, Reading Run
+
+**Observed Reading Progress**:
+Forward movement recorded during reading, excluding detected navigation jumps and pauses. It is an estimate of activity, not proof of attention or of every intervening passage having been read; rereading may contribute activity again.
+_Avoid_: Position reached, verified reading, unique coverage
+
+
 **Playback Session**:
 One actively reading or listening consumption context bound to one authenticated device session. A member using the same publication from two devices produces two Playback Sessions, each retaining its own client, device and current progress context; browser tabs sharing an authenticated session resolve to one row with its most recent activity. An authenticated but non-consuming device is not a Playback Session. It is live-only telemetry: a clean close removes it immediately and a missing heartbeat removes it after 90 seconds; its title is never retained as administrative consumption history.
 _Avoid_: User presence, reading progress, active member

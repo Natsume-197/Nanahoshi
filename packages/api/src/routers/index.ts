@@ -26,6 +26,7 @@ import { profileRouter } from "./profile";
 import { publishersRouter } from "./publishers";
 import { readListenRouter } from "./read-listen";
 import { readingProgressRouter } from "./reading-progress";
+import { readingSessionsRouter } from "./reading-sessions/reading-sessions.router";
 import { recommendationsRouter } from "./recommendations/recommendations.router";
 import { registrationRouter } from "./registration";
 import { rolesRouter } from "./roles";
@@ -43,7 +44,53 @@ import { tasksRouter } from "./tasks/task.router";
 import { userSettingsRouter } from "./user-settings";
 import { usersRouter } from "./users/users.router";
 
-export const appRouter = {
+export const appRouter: {
+	admin: typeof adminRouter;
+	audiobooks: typeof audiobooksRouter;
+	audiobookShelf: typeof audiobookShelfRouter;
+	authors: typeof authorsRouter;
+	books: typeof booksRouter;
+	collections: typeof collectionsRouter;
+	files: typeof filesRouter;
+	libraries: typeof librariesRouter;
+	enrichment: typeof enrichmentRouter;
+	listeningProgress: typeof listeningProgressRouter;
+	narrators: typeof narratorsRouter;
+	genres: typeof genresRouter;
+	tags: typeof tagsRouter;
+	publishers: typeof publishersRouter;
+	search: typeof searchRouter;
+	series: typeof seriesRouter;
+	sessions: typeof sessionsRouter;
+	settings: typeof settingsRouter;
+	serverAccess: typeof serverAccessRouter;
+	serverProfile: typeof serverProfileRouter;
+	serverStats: typeof serverStatsRouter;
+	setup: typeof setupRouter;
+	readingProgress: typeof readingProgressRouter;
+	readingSessions: typeof readingSessionsRouter;
+	readListen: typeof readListenRouter;
+	bookShelf: typeof bookShelfRouter;
+	shelves: typeof shelvesRouter;
+	likedBooks: typeof likedBooksRouter;
+	profile: typeof profileRouter;
+	tasks: typeof tasksRouter;
+	invitations: typeof invitationsRouter;
+	inviteLinks: typeof inviteLinksRouter;
+	instanceActivity: typeof instanceActivityRouter;
+	users: typeof usersRouter;
+	userSettings: typeof userSettingsRouter;
+	discordRules: typeof discordRulesRouter;
+	roles: typeof rolesRouter;
+	members: typeof membersRouter;
+	libraryAccess: typeof libraryAccessRouter;
+	presence: typeof presenceRouter;
+	notifications: typeof notificationsRouter;
+	kindle: typeof kindleRouter;
+	opdsKeys: typeof opdsKeysRouter;
+	recommendations: typeof recommendationsRouter;
+	registration: typeof registrationRouter;
+} = {
 	admin: adminRouter,
 	audiobooks: audiobooksRouter,
 	audiobookShelf: audiobookShelfRouter,
@@ -67,6 +114,7 @@ export const appRouter = {
 	serverStats: serverStatsRouter,
 	setup: setupRouter,
 	readingProgress: readingProgressRouter,
+	readingSessions: readingSessionsRouter,
 	readListen: readListenRouter,
 	bookShelf: bookShelfRouter,
 	shelves: shelvesRouter,

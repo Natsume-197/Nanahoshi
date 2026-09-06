@@ -61,6 +61,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ReadingHistory } from "@/features/reading-sessions/reading-history";
 import type { getBook } from "@/functions/books/get-book";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -289,6 +290,12 @@ export function BookDetailPage() {
 												{m["book.tab_copies_short"]({ count: copiesCount })}
 											</TabsTrigger>
 										)}
+										<TabsTrigger
+											value="reading"
+											className={BOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m.reading_title()}
+										</TabsTrigger>
 									</TabsList>
 								</div>
 
@@ -309,6 +316,10 @@ export function BookDetailPage() {
 									className="pt-8 data-[state=active]:animate-none"
 								>
 									<FileAndMetadataSection book={book} />
+								</TabsContent>
+
+								<TabsContent value="reading" className="pt-8">
+									<ReadingHistory bookUuid={book.uuid} />
 								</TabsContent>
 
 								{otherCopiesCount > 0 && (
