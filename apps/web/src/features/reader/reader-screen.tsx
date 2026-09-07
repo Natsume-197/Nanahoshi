@@ -76,6 +76,7 @@ import {
 	viewportWidth,
 } from "@/features/reader/renderers/shared/viewport";
 import { resolveVisualReadingDirection } from "@/features/reader/renderers/visual/book-reader-visual";
+import { resolveReadingPosition } from "@/features/reader/session/reader-position";
 import { useReaderSession } from "@/features/reader/session/reader-session";
 import { ReaderFooter } from "@/features/reader/ui/chrome/reader-footer";
 import { ReaderHeader } from "@/features/reader/ui/chrome/reader-header";
@@ -529,7 +530,7 @@ export function ReaderScreen({
 				: null;
 		},
 	});
-	useReaderSync({
+	const { syncNow } = useReaderSync({
 		bookUuid: uuid,
 		trackTime: false,
 		enabled:
@@ -537,6 +538,26 @@ export function ReaderScreen({
 			(!isPdfBook || pdfDocumentPageCount !== null) &&
 			bookCharCountRef.current > 0,
 		getCharCounts,
+		onRemoteProgress: (progress) => {
+			if (!apiRef.current) return;
+			const position = resolveReadingPosition(
+				undefined,
+				{
+					exploredCharCount: progress.exploredCharCount ?? 0,
+					bookCharCount: progress.bookCharCount ?? 0,
+					modifiedAt:
+						progress.positionIntentAt ??
+						(progress.positionUpdatedAt
+							? new Date(progress.positionUpdatedAt).getTime()
+							: 0),
+				},
+				bookCharCountRef.current,
+			);
+			if (position && readerSession.applyRemotePosition(position)) {
+				readingTracker.markJump();
+				apiRef.current.scrollToPosition(position);
+			}
+		},
 	});
 
 	const handlePositionChange = (nextPosition: ReaderPosition) => {
@@ -562,6 +583,7 @@ export function ReaderScreen({
 		if (!position) return;
 		if (!readerSession.saveManualPosition(position))
 			toast.error(m.reader_point_error());
+		else void syncNow();
 	};
 	const goToReadingPoint = () => {
 		readingTracker.markJump();
@@ -576,6 +598,7 @@ export function ReaderScreen({
 		if (!position) return;
 		if (!readerSession.setManualSaving(manual, position))
 			toast.error(m.reader_point_error());
+		else void syncNow();
 	};
 
 	// Direct commit path used by settings controls that do not touch the book layout.

@@ -48,7 +48,7 @@ test("manual navigation and capture keep the resume point while mode switches ke
 	act(() =>
 		reopened.result.current.hydrate({
 			characters: 100,
-			position: at(80),
+			position: { ...at(80), modifiedAt: 0 },
 			positionClockAt: 0,
 		}),
 	);
@@ -102,4 +102,75 @@ test("selection counts base text, and the same coordinate resolves in focus", ()
 	} finally {
 		root.remove();
 	}
+});
+
+test("reopening adopts a newer bookmark from another device", () => {
+	const first = renderHook(() => useReaderSession("shared-book"));
+	act(() => {
+		first.result.current.saveManualPosition(at(10));
+	});
+	const old = loadManualReadingPoint("shared-book").position;
+	if (!old) throw new Error("missing local bookmark");
+	first.unmount();
+	const remote = { ...at(60), modifiedAt: old.modifiedAt + 1000 };
+	const second = renderHook(() => useReaderSession("shared-book"));
+	act(() =>
+		second.result.current.hydrate({
+			characters: 100,
+			position: remote,
+			positionClockAt: remote.modifiedAt,
+		}),
+	);
+	expect(second.result.current.exploredCharCount).toBe(60);
+	expect(
+		second.result.current.getResumePosition(at(80))?.exploredCharCount,
+	).toBe(60);
+});
+
+test("an open reader accepts newer remote positions but preserves newer local intent", () => {
+	const hook = renderHook(() => useReaderSession("open-book"));
+	act(() =>
+		hook.result.current.hydrate({
+			characters: 100,
+			position: { ...at(10), modifiedAt: 10 },
+			positionClockAt: 10,
+		}),
+	);
+	act(() => {
+		expect(
+			hook.result.current.applyRemotePosition({ ...at(60), modifiedAt: 60 }),
+		).toBe(true);
+	});
+	expect(hook.result.current.exploredCharCount).toBe(60);
+	act(() => {
+		hook.result.current.reportPosition({ ...at(70), modifiedAt: 100 });
+	});
+	act(() => {
+		expect(
+			hook.result.current.applyRemotePosition({ ...at(20), modifiedAt: 80 }),
+		).toBe(false);
+	});
+	expect(hook.result.current.exploredCharCount).toBe(70);
+});
+
+test("switching back to automatic saving sends a new intent even without movement", () => {
+	const hook = renderHook(() => useReaderSession("mode-book"));
+	act(() =>
+		hook.result.current.hydrate({
+			characters: 100,
+			position: { ...at(10), modifiedAt: 10 },
+			positionClockAt: 10,
+		}),
+	);
+	act(() => {
+		hook.result.current.setManualSaving(true, at(10));
+	});
+	const manualClock = hook.result.current.manualPoint.position?.modifiedAt ?? 0;
+	act(() => {
+		hook.result.current.setManualSaving(false, at(10));
+	});
+	const resume = hook.result.current.getResumePosition(
+		hook.result.current.readerSessionRef.current?.snapshot().position,
+	);
+	expect(resume?.modifiedAt).toBeGreaterThan(manualClock);
 });

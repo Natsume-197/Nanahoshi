@@ -11,6 +11,11 @@ import {
 import { client } from "@/utils/orpc";
 
 interface UseReaderSyncOptions {
+	onRemoteProgress?: (
+		progress: NonNullable<
+			Awaited<ReturnType<typeof client.readingProgress.getProgress>>
+		>,
+	) => void;
 	bookUuid: string;
 	enabled: boolean;
 	trackTime?: boolean;
@@ -31,6 +36,7 @@ export function useReaderSync({
 	enabled,
 	trackTime = true,
 	getCharCounts,
+	onRemoteProgress,
 }: UseReaderSyncOptions) {
 	const lastSyncRef = useRef(Date.now());
 	const syncRef = useRef<(() => Promise<void>) | undefined>(undefined);
@@ -56,7 +62,6 @@ export function useReaderSync({
 			positionSnapshot !== lastPositionSnapshotRef.current
 				? { exploredCharCount, positionIntentAt }
 				: {};
-		if (positionSnapshot) lastPositionSnapshotRef.current = positionSnapshot;
 
 		// Claim the time slice up front: advancing lastSyncRef before the await
 		// keeps a second trigger firing in the same tick from re-sending it.
@@ -87,6 +92,7 @@ export function useReaderSync({
 				},
 				{ context: { keepalive: true } },
 			);
+			if (positionSnapshot) lastPositionSnapshotRef.current = positionSnapshot;
 			invalidateReadingProgress();
 		} catch (err) {
 			console.error("Failed to sync reading progress:", err);
@@ -99,16 +105,47 @@ export function useReaderSync({
 
 	syncRef.current = syncProgress;
 
+	const refreshSessionRef = useRef<object | null>(null);
+	useEffect(() => {
+		refreshSessionRef.current = { bookUuid, enabled };
+		return () => {
+			refreshSessionRef.current = null;
+		};
+	}, [bookUuid, enabled]);
+	const remoteHandlerRef = useRef(onRemoteProgress);
+	remoteHandlerRef.current = onRemoteProgress;
+	const refreshProgress = () => {
+		if (!enabled || !onRemoteProgress) return;
+		const session = refreshSessionRef.current;
+		void enqueue(async () => {
+			try {
+				const progress = await client.readingProgress.getProgress({ bookUuid });
+				if (progress && session && session === refreshSessionRef.current)
+					remoteHandlerRef.current?.(progress);
+			} catch (err) {
+				console.error("Failed to refresh reading progress:", err);
+			}
+		});
+	};
+	useWindowEvent("focus", refreshProgress);
+	useWindowEvent("pageshow", refreshProgress);
+	useWindowEvent("online", () => {
+		refreshProgress();
+		void syncRef.current?.();
+	});
+
 	// Sync progress when the tab is hidden (also covers mobile app switches)
 	useDocumentEvent("visibilitychange", () => {
 		if (document.visibilityState === "hidden") {
 			syncRef.current?.();
+		} else {
+			refreshProgress();
 		}
 	});
 
 	// Periodic sync
 	useInterval(() => {
-		if (enabled) {
+		if (enabled && document.visibilityState !== "hidden") {
 			syncRef.current?.();
 		}
 	}, SYNC_INTERVAL_MS);
@@ -120,7 +157,10 @@ export function useReaderSync({
 			enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
 		const stopped = previous.enabled && !enabled;
 		previousSessionRef.current = { enabled, bookUuid };
-		if (started) syncRef.current?.();
+		if (started) {
+			lastPositionSnapshotRef.current = undefined;
+			syncRef.current?.();
+		}
 		if (stopped) {
 			enqueue(async () => {
 				await client.presence

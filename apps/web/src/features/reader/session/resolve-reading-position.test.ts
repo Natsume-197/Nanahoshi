@@ -50,3 +50,13 @@ describe("resolve reading position", () => {
 		).toEqual(local());
 	});
 });
+
+test("a remote bookmark at the start supersedes an older local position", () => {
+	expect(
+		resolveReadingPosition(local(), {
+			exploredCharCount: 0,
+			bookCharCount: 100,
+			modifiedAt: 999,
+		}),
+	).toMatchObject({ exploredCharCount: 0, modifiedAt: 999 });
+});

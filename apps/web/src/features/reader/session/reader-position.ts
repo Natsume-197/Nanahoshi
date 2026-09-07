@@ -166,20 +166,21 @@ export function resolveReadingPosition(
 					positionVersion: READER_POSITION_VERSION,
 				}
 		: undefined;
-	const remote: ReaderPosition | undefined = serverProgress.exploredCharCount
-		? {
-				exploredCharCount: rescale(
-					serverProgress.exploredCharCount,
-					serverProgress.bookCharCount,
-				),
-				progress:
-					serverProgress.bookCharCount && serverProgress.bookCharCount > 0
-						? serverProgress.exploredCharCount / serverProgress.bookCharCount
-						: 0,
-				modifiedAt: serverProgress.modifiedAt,
-				positionVersion: READER_POSITION_VERSION,
-			}
-		: undefined;
+	const remote: ReaderPosition | undefined =
+		serverProgress.exploredCharCount || serverProgress.modifiedAt > 0
+			? {
+					exploredCharCount: rescale(
+						serverProgress.exploredCharCount,
+						serverProgress.bookCharCount,
+					),
+					progress:
+						serverProgress.bookCharCount && serverProgress.bookCharCount > 0
+							? serverProgress.exploredCharCount / serverProgress.bookCharCount
+							: 0,
+					modifiedAt: serverProgress.modifiedAt,
+					positionVersion: READER_POSITION_VERSION,
+				}
+			: undefined;
 	if (!migratedLocal || !remote) return migratedLocal ?? remote;
 	return migratedLocal.exploredCharCount === remote.exploredCharCount ||
 		(migratedLocal.modifiedAt ?? 0) > remote.modifiedAt

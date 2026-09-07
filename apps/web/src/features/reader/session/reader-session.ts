@@ -235,6 +235,18 @@ export function useReaderSession(bookUuid: string) {
 			positionClockAt: number;
 		}) => {
 			bookCharCountRef.current = characters;
+			// A local manual marker must not hide a newer cross-device resume point.
+			if (
+				!readerSessionRef.current?.snapshot().position &&
+				manualPointRef.current.manual &&
+				position &&
+				position.modifiedAt > (manualPointRef.current.position?.modifiedAt ?? 0)
+			) {
+				const point = { manual: true, position };
+				saveManualReadingPoint(bookUuid, point);
+				manualPointRef.current = point;
+				setManualPoint(point);
+			}
 			position = resumeReadingPosition(manualPointRef.current, position);
 			const restored = readerSessionRef.current?.snapshot().position
 				? undefined
@@ -286,7 +298,21 @@ export function useReaderSession(bookUuid: string) {
 		if (!saveManualReadingPoint(bookUuid, point)) return false;
 		manualPointRef.current = point;
 		setManualPoint(point);
-		if (point.position) saveLocalReadingPosition(bookUuid, point.position);
+		positionClockRef.current = Math.max(
+			positionClockRef.current,
+			point.position?.modifiedAt ?? 0,
+		);
+		if (point.position) {
+			saveLocalReadingPosition(bookUuid, point.position);
+			if (!point.manual) {
+				readerSessionRef.current?.reset();
+				hydrate({
+					characters: bookCharCountRef.current,
+					position: point.position,
+					positionClockAt: point.position.modifiedAt,
+				});
+			}
+		}
 		return true;
 	};
 	const saveManualPosition = (position: ReaderPosition) =>
@@ -310,7 +336,21 @@ export function useReaderSession(bookUuid: string) {
 			resumeReadingPosition(manualPointRef.current, automatic),
 		[],
 	);
+	const applyRemotePosition = (position: ReaderPosition) => {
+		const current = getResumePosition(
+			readerSessionRef.current?.snapshot().position,
+		);
+		if (position.modifiedAt <= (current?.modifiedAt ?? 0)) return false;
+		readerSessionRef.current?.reset();
+		hydrate({
+			characters: bookCharCountRef.current,
+			position,
+			positionClockAt: position.modifiedAt,
+		});
+		return true;
+	};
 	return {
+		applyRemotePosition,
 		manualPoint,
 		saveManualPosition,
 		setManualSaving,
