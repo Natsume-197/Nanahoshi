@@ -2,7 +2,6 @@ import { CircleNotch, Users } from "@phosphor-icons/react";
 import {
 	getRouteApi,
 	Outlet,
-	useLocation,
 	useRouter,
 	useRouterState,
 } from "@tanstack/react-router";
@@ -21,6 +20,10 @@ import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
+import {
+	getRenderedDashboardRoute,
+	isStandaloneDashboardRoute,
+} from "@/components/layout/dashboard-route-presentation";
 import { ScrollContainerProvider } from "@/components/layout/scroll-container-context";
 import {
 	NotificationBell,
@@ -197,10 +200,7 @@ function ServerSwitchOverlay() {
 // and header, so the app rail, the top bar and the members rail would only
 // compete with it. They must offer their own way back — mobile still keeps the
 // bottom tab bar, which is its real navigation.
-const STANDALONE_ROUTES = new Set(["/dashboard/metadata"]);
-
 export function DashboardLayout() {
-	const location = useLocation();
 	const router = useRouter();
 	const { organizations } = dashboardRoute.useRouteContext();
 	const { data: session } = useSession();
@@ -216,13 +216,20 @@ export function DashboardLayout() {
 	// separate row for it below the workspace so the scroll area ends above the
 	// bar instead of painting and scrolling behind it.
 	const showPlayerBar = Boolean(audiobook);
-	const standalone =
-		STANDALONE_ROUTES.has(location.pathname) ||
-		(location.pathname === "/dashboard/read-listen" &&
-			(location.search as { review?: string }).review === "matches");
+	const renderedRoute = useRouterState({
+		select: (state) =>
+			getRenderedDashboardRoute(
+				state.matches,
+				state.resolvedLocation ?? state.location,
+			),
+	});
+	const standalone = isStandaloneDashboardRoute(
+		renderedRoute.pathname,
+		renderedRoute.search,
+	);
 	// The phone header is home chrome. Every other mobile route already has the
 	// persistent bottom navigation and should give its full height to content.
-	const showMobileHeader = location.pathname === "/dashboard";
+	const showMobileHeader = renderedRoute.pathname === "/dashboard";
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
@@ -388,7 +395,7 @@ export function DashboardLayout() {
 					{!standalone && (
 						<div className="hidden shrink-0 md:flex">
 							<DashboardAppRail
-								locationPathname={location.pathname}
+								locationPathname={renderedRoute.pathname}
 								activeOrganizationId={activeOrganizationId}
 							/>
 						</div>
@@ -402,8 +409,9 @@ export function DashboardLayout() {
 						<div className="theme-gradient-surface relative z-10 flex min-h-0 flex-1 overflow-hidden bg-sidebar">
 							<div
 								className={cn(
-									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-background md:border md:border-sidebar-border md:border-r-0 md:border-b-0",
-									!standalone && "md:rounded-tl-2xl",
+									"theme-gradient-surface relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+									!standalone &&
+										"md:rounded-tl-2xl md:border md:border-sidebar-border md:border-r-0 md:border-b-0",
 								)}
 							>
 								<main

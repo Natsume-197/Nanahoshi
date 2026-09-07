@@ -5,7 +5,7 @@ import { useRef } from "react";
 import { AccountMenu } from "@/components/dashboard/account-menu";
 import { SectionSkeleton } from "@/components/dashboard/home/section-skeleton";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
+import { preloadSettingsPage } from "@/components/layout/settings-modal-host";
 import {
 	AudiobookShelfSections,
 	type AudiobookShelfStatus,
@@ -155,7 +155,7 @@ function UserProfilePage() {
 			<Button
 				variant="secondary"
 				size="sm"
-				onPointerEnter={preloadSettingsModal}
+				onPointerEnter={preloadSettingsPage}
 				onClick={() => openSettings("profile")}
 				className="hidden gap-1.5 shadow-sm sm:inline-flex"
 			>

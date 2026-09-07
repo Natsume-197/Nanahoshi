@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { preloadSettingsModal } from "@/components/layout/settings-modal-host";
+import { preloadSettingsPage } from "@/components/layout/settings-modal-host";
 import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
@@ -91,7 +91,7 @@ export function AccountMenuItems({
 					</DropdownMenuItem>
 				)}
 				<DropdownMenuItem
-					onPointerEnter={preloadSettingsModal}
+					onPointerEnter={preloadSettingsPage}
 					onClick={() => openSettings("profile")}
 				>
 					<GearSix />

@@ -1,6 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"settings": {
+		"back_to_dashboard": "Volver al dashboard",
 		"group": {
 			"account": "Cuenta",
 			"preferences": "Preferencias",

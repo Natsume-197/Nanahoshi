@@ -16,16 +16,7 @@ import {
 	Trash,
 	X,
 } from "@phosphor-icons/react";
-import {
-	type CSSProperties,
-	type KeyboardEvent,
-	type PointerEvent,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import {
 	Drawer,
 	DrawerContent,
@@ -51,6 +42,12 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import {
+	constrainFloatingWindowOffset,
+	type FloatingWindowOffset,
+	useFloatingWindowDrag,
+	useFloatingWindowResize,
+} from "@/components/ui/use-floating-window-drag";
 import type { ReaderProfile } from "@/features/reader/presentation/profiles";
 import type {
 	ReadAs,
@@ -133,36 +130,7 @@ const DESKTOP_DIALOG_HEADER_HEIGHT = 44;
 const DESKTOP_DIALOG_MIN_WIDTH = 320;
 const DESKTOP_DIALOG_MIN_HEIGHT = 320;
 
-interface DialogOffset {
-	x: number;
-	y: number;
-}
-
-interface DialogDragState {
-	pointerId: number;
-	startX: number;
-	startY: number;
-	startOffset: DialogOffset;
-	minX: number;
-	maxX: number;
-	minY: number;
-	maxY: number;
-}
-
-interface DialogSize {
-	width: number;
-	height: number;
-}
-
-interface DialogResizeState {
-	pointerId: number;
-	startX: number;
-	startY: number;
-	startOffset: DialogOffset;
-	startSize: DialogSize;
-	maxWidth: number;
-	maxHeight: number;
-}
+type DialogOffset = FloatingWindowOffset;
 
 type DialogBounds = Pick<DOMRect, "bottom" | "left" | "right" | "top">;
 
@@ -172,20 +140,19 @@ export function constrainQuickSettingsDialogOffset(
 	bounds: DialogBounds,
 	viewport: { width: number; height: number },
 ): DialogOffset {
-	const baseLeft = bounds.left - current.x;
-	const baseRight = bounds.right - current.x;
-	const baseTop = bounds.top - current.y;
-	const baseBottom = bounds.bottom - current.y;
-	const minX = DESKTOP_DIALOG_INSET - baseLeft;
-	const maxX = viewport.width - DESKTOP_DIALOG_INSET - baseRight;
-	const minY = DESKTOP_DIALOG_INSET - baseTop;
-	const maxY = viewport.height - DESKTOP_DIALOG_INSET - baseBottom;
-
-	return {
-		x: Math.min(Math.max(next.x, Math.min(minX, maxX)), Math.max(minX, maxX)),
-		y: Math.min(Math.max(next.y, Math.min(minY, maxY)), Math.max(minY, maxY)),
-	};
+	return constrainFloatingWindowOffset(
+		next,
+		current,
+		bounds,
+		viewport,
+		DESKTOP_DIALOG_INSET,
+	);
 }
+
+const getReaderViewport = () => ({
+	width: viewportWidth(),
+	height: viewportHeight(),
+});
 
 interface CustomThemeDialogState {
 	selectedTheme: string;
@@ -281,35 +248,36 @@ export function ReaderQuickSettings({
 	const [newProfileName, setNewProfileName] = useState("");
 	const [customThemeDialog, setCustomThemeDialog] =
 		useState<CustomThemeDialogState | null>(null);
-	const desktopDialogOffsetRef = useRef<DialogOffset>({
-		x: 0,
-		y: 0,
+	const {
+		surfaceRef: desktopDialogSurfaceRef,
+		offsetRef: desktopDialogOffsetRef,
+		applyOffset: applyDesktopDialogOffset,
+		cancelDrag: cancelDesktopDialogDrag,
+		dragHandleProps: desktopDialogDragHandleProps,
+	} = useFloatingWindowDrag<HTMLElement>({
+		enabled: open && !isMobile,
+		inset: DESKTOP_DIALOG_INSET,
+		keyboardStep: DESKTOP_DIALOG_KEYBOARD_STEP,
+		viewport: getReaderViewport,
 	});
-	const desktopDialogSurfaceRef = useRef<HTMLElement>(null);
-	const desktopDialogDragRef = useRef<DialogDragState | null>(null);
-	const desktopDialogResizeRef = useRef<DialogResizeState | null>(null);
-	const desktopDialogSizeRef = useRef<DialogSize | null>(null);
-	const desktopDialogExpandedSizeRef = useRef<DialogSize | null>(null);
 	const [desktopDialogCollapsed, setDesktopDialogCollapsed] = useState(false);
-	const applyDesktopDialogOffset = useCallback((next: DialogOffset) => {
-		desktopDialogOffsetRef.current = next;
-		if (desktopDialogSurfaceRef.current) {
-			desktopDialogSurfaceRef.current.style.transform = `translate3d(calc(-50% + ${next.x}px), calc(-50% + ${next.y}px), 0)`;
-		}
-	}, []);
-
-	const applyDesktopDialogGeometry = useCallback(
-		(nextOffset: DialogOffset, nextSize: DialogSize) => {
-			desktopDialogSizeRef.current = nextSize;
-			const surface = desktopDialogSurfaceRef.current;
-			if (surface) {
-				surface.style.width = `${nextSize.width}px`;
-				surface.style.height = `${nextSize.height}px`;
-			}
-			applyDesktopDialogOffset(nextOffset);
-		},
-		[applyDesktopDialogOffset],
-	);
+	const {
+		sizeRef: desktopDialogSizeRef,
+		expandedSizeRef: desktopDialogExpandedSizeRef,
+		applyGeometry: applyDesktopDialogGeometry,
+		resetResize: resetDesktopDialogResize,
+		resizeHandleProps: desktopDialogResizeHandleProps,
+	} = useFloatingWindowResize({
+		surfaceRef: desktopDialogSurfaceRef,
+		offsetRef: desktopDialogOffsetRef,
+		applyOffset: applyDesktopDialogOffset,
+		enabled: open && !isMobile && !desktopDialogCollapsed,
+		inset: DESKTOP_DIALOG_INSET,
+		keyboardStep: DESKTOP_DIALOG_KEYBOARD_STEP,
+		minWidth: DESKTOP_DIALOG_MIN_WIDTH,
+		minHeight: DESKTOP_DIALOG_MIN_HEIGHT,
+		viewport: getReaderViewport,
+	});
 
 	useEffect(() => {
 		if (!open) {
@@ -319,10 +287,8 @@ export function ReaderQuickSettings({
 			setCreatingProfile(false);
 			setNewProfileName("");
 			applyDesktopDialogOffset({ x: 0, y: 0 });
-			desktopDialogDragRef.current = null;
-			desktopDialogResizeRef.current = null;
-			desktopDialogSizeRef.current = null;
-			desktopDialogExpandedSizeRef.current = null;
+			cancelDesktopDialogDrag();
+			resetDesktopDialogResize();
 			setDesktopDialogCollapsed(false);
 			if (customThemeDialog) {
 				onCustomThemePreviewCancel(customThemeDialog.previousTheme);
@@ -331,29 +297,12 @@ export function ReaderQuickSettings({
 		}
 	}, [
 		applyDesktopDialogOffset,
+		cancelDesktopDialogDrag,
 		customThemeDialog,
 		onCustomThemePreviewCancel,
 		open,
+		resetDesktopDialogResize,
 	]);
-
-	useEffect(() => {
-		if (!open || isMobile) return;
-		const keepDialogInViewport = () => {
-			const surface = desktopDialogSurfaceRef.current;
-			if (!surface) return;
-			const current = desktopDialogOffsetRef.current;
-			applyDesktopDialogOffset(
-				constrainQuickSettingsDialogOffset(
-					current,
-					current,
-					surface.getBoundingClientRect(),
-					{ width: viewportWidth(), height: viewportHeight() },
-				),
-			);
-		};
-		window.addEventListener("resize", keepDialogInViewport);
-		return () => window.removeEventListener("resize", keepDialogInViewport);
-	}, [applyDesktopDialogOffset, isMobile, open]);
 
 	useEffect(() => {
 		if (!open || isMobile || customThemeDialog) return;
@@ -363,88 +312,6 @@ export function ReaderQuickSettings({
 		window.addEventListener("keydown", closeOnEscape);
 		return () => window.removeEventListener("keydown", closeOnEscape);
 	}, [customThemeDialog, isMobile, onClose, open]);
-
-	const beginDesktopDialogDrag = (event: PointerEvent<HTMLButtonElement>) => {
-		if (!event.isPrimary || event.button !== 0) return;
-		const surface = desktopDialogSurfaceRef.current;
-		if (!surface) return;
-		const desktopDialogOffset = desktopDialogOffsetRef.current;
-		const bounds = surface.getBoundingClientRect();
-		const baseLeft = bounds.left - desktopDialogOffset.x;
-		const baseRight = bounds.right - desktopDialogOffset.x;
-		const baseTop = bounds.top - desktopDialogOffset.y;
-		const baseBottom = bounds.bottom - desktopDialogOffset.y;
-		event.currentTarget.setPointerCapture(event.pointerId);
-		desktopDialogDragRef.current = {
-			pointerId: event.pointerId,
-			startX: event.clientX,
-			startY: event.clientY,
-			startOffset: desktopDialogOffset,
-			minX: DESKTOP_DIALOG_INSET - baseLeft,
-			maxX: viewportWidth() - DESKTOP_DIALOG_INSET - baseRight,
-			minY: DESKTOP_DIALOG_INSET - baseTop,
-			maxY: viewportHeight() - DESKTOP_DIALOG_INSET - baseBottom,
-		};
-	};
-
-	const moveDesktopDialog = (event: PointerEvent<HTMLButtonElement>) => {
-		const drag = desktopDialogDragRef.current;
-		if (!drag || drag.pointerId !== event.pointerId) return;
-		event.preventDefault();
-		applyDesktopDialogOffset({
-			x: Math.min(
-				Math.max(drag.startOffset.x + event.clientX - drag.startX, drag.minX),
-				drag.maxX,
-			),
-			y: Math.min(
-				Math.max(drag.startOffset.y + event.clientY - drag.startY, drag.minY),
-				drag.maxY,
-			),
-		});
-	};
-
-	const endDesktopDialogDrag = (event: PointerEvent<HTMLButtonElement>) => {
-		if (desktopDialogDragRef.current?.pointerId !== event.pointerId) return;
-		desktopDialogDragRef.current = null;
-		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
-		}
-	};
-
-	const moveDesktopDialogWithKeyboard = (
-		event: KeyboardEvent<HTMLButtonElement>,
-	) => {
-		const direction = {
-			ArrowDown: { x: 0, y: 1 },
-			ArrowLeft: { x: -1, y: 0 },
-			ArrowRight: { x: 1, y: 0 },
-			ArrowUp: { x: 0, y: -1 },
-		}[event.key];
-		if (event.key === "Home") {
-			event.preventDefault();
-			applyDesktopDialogOffset({ x: 0, y: 0 });
-			return;
-		}
-		if (!direction) return;
-		event.preventDefault();
-		const surface = desktopDialogSurfaceRef.current;
-		if (!surface) return;
-		const step = event.shiftKey
-			? DESKTOP_DIALOG_KEYBOARD_STEP * 4
-			: DESKTOP_DIALOG_KEYBOARD_STEP;
-		const current = desktopDialogOffsetRef.current;
-		applyDesktopDialogOffset(
-			constrainQuickSettingsDialogOffset(
-				{
-					x: current.x + direction.x * step,
-					y: current.y + direction.y * step,
-				},
-				current,
-				surface.getBoundingClientRect(),
-				{ width: viewportWidth(), height: viewportHeight() },
-			),
-		);
-	};
 
 	const toggleDesktopDialogCollapsed = () => {
 		const surface = desktopDialogSurfaceRef.current;
@@ -490,121 +357,6 @@ export function ReaderQuickSettings({
 			nextSize,
 		);
 		setDesktopDialogCollapsed(false);
-	};
-
-	const beginDesktopDialogResize = (event: PointerEvent<HTMLButtonElement>) => {
-		if (desktopDialogCollapsed || !event.isPrimary || event.button !== 0)
-			return;
-		const surface = desktopDialogSurfaceRef.current;
-		if (!surface) return;
-		const bounds = surface.getBoundingClientRect();
-		event.currentTarget.setPointerCapture(event.pointerId);
-		desktopDialogResizeRef.current = {
-			pointerId: event.pointerId,
-			startX: event.clientX,
-			startY: event.clientY,
-			startOffset: desktopDialogOffsetRef.current,
-			startSize: { width: bounds.width, height: bounds.height },
-			maxWidth: viewportWidth() - DESKTOP_DIALOG_INSET - bounds.left,
-			maxHeight: viewportHeight() - DESKTOP_DIALOG_INSET - bounds.top,
-		};
-	};
-
-	const resizeDesktopDialog = (event: PointerEvent<HTMLButtonElement>) => {
-		const resize = desktopDialogResizeRef.current;
-		if (!resize || resize.pointerId !== event.pointerId) return;
-		event.preventDefault();
-		const nextSize = {
-			width: Math.min(
-				Math.max(
-					resize.startSize.width + event.clientX - resize.startX,
-					DESKTOP_DIALOG_MIN_WIDTH,
-				),
-				Math.max(DESKTOP_DIALOG_MIN_WIDTH, resize.maxWidth),
-			),
-			height: Math.min(
-				Math.max(
-					resize.startSize.height + event.clientY - resize.startY,
-					DESKTOP_DIALOG_MIN_HEIGHT,
-				),
-				Math.max(DESKTOP_DIALOG_MIN_HEIGHT, resize.maxHeight),
-			),
-		};
-		desktopDialogExpandedSizeRef.current = nextSize;
-		applyDesktopDialogGeometry(
-			{
-				x: resize.startOffset.x + (nextSize.width - resize.startSize.width) / 2,
-				y:
-					resize.startOffset.y +
-					(nextSize.height - resize.startSize.height) / 2,
-			},
-			nextSize,
-		);
-	};
-
-	const endDesktopDialogResize = (event: PointerEvent<HTMLButtonElement>) => {
-		if (desktopDialogResizeRef.current?.pointerId !== event.pointerId) return;
-		desktopDialogResizeRef.current = null;
-		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
-		}
-	};
-
-	const resizeDesktopDialogWithKeyboard = (
-		event: KeyboardEvent<HTMLButtonElement>,
-	) => {
-		const direction = {
-			ArrowDown: { width: 0, height: 1 },
-			ArrowLeft: { width: -1, height: 0 },
-			ArrowRight: { width: 1, height: 0 },
-			ArrowUp: { width: 0, height: -1 },
-		}[event.key];
-		if (!direction || desktopDialogCollapsed) return;
-		event.preventDefault();
-		const surface = desktopDialogSurfaceRef.current;
-		if (!surface) return;
-		const bounds = surface.getBoundingClientRect();
-		const step = event.shiftKey
-			? DESKTOP_DIALOG_KEYBOARD_STEP * 4
-			: DESKTOP_DIALOG_KEYBOARD_STEP;
-		const currentSize = { width: bounds.width, height: bounds.height };
-		const nextSize = {
-			width: Math.min(
-				Math.max(
-					currentSize.width + direction.width * step,
-					DESKTOP_DIALOG_MIN_WIDTH,
-				),
-				Math.max(
-					DESKTOP_DIALOG_MIN_WIDTH,
-					currentSize.width +
-						viewportWidth() -
-						DESKTOP_DIALOG_INSET -
-						bounds.right,
-				),
-			),
-			height: Math.min(
-				Math.max(
-					currentSize.height + direction.height * step,
-					DESKTOP_DIALOG_MIN_HEIGHT,
-				),
-				Math.max(
-					DESKTOP_DIALOG_MIN_HEIGHT,
-					currentSize.height +
-						viewportHeight() -
-						DESKTOP_DIALOG_INSET -
-						bounds.bottom,
-				),
-			),
-		};
-		const currentOffset = desktopDialogOffsetRef.current;
-		desktopDialogExpandedSizeRef.current = nextSize;
-		applyDesktopDialogGeometry(
-			{
-				x: currentOffset.x + (nextSize.width - currentSize.width) / 2,
-				y: currentOffset.y + (nextSize.height - currentSize.height) / 2,
-			},
-			nextSize,
-		);
 	};
 
 	const commitProfileRename = () => {
@@ -1939,16 +1691,12 @@ export function ReaderQuickSettings({
 					<span aria-hidden="true" />
 				)}
 				<button
+					{...desktopDialogDragHandleProps}
 					type="button"
 					aria-label={m["reader_settings.move_window"]()}
 					title={m["reader_settings.drag_to_move"]()}
 					className="flex h-9 min-w-0 touch-none select-none items-center justify-center rounded-md px-2 text-center outline-none transition-opacity duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 active:cursor-grabbing"
 					style={{ cursor: "grab" }}
-					onKeyDown={moveDesktopDialogWithKeyboard}
-					onPointerDown={beginDesktopDialogDrag}
-					onPointerMove={moveDesktopDialog}
-					onPointerUp={endDesktopDialogDrag}
-					onPointerCancel={endDesktopDialogDrag}
 				>
 					<span
 						id="reader-quick-settings-window-title"
@@ -2000,16 +1748,12 @@ export function ReaderQuickSettings({
 				{selectedCategory === null ? categoryList : settingsContent}
 			</div>
 			<button
+				{...desktopDialogResizeHandleProps}
 				hidden={desktopDialogCollapsed}
 				type="button"
 				aria-label={m["reader_settings.resize_window"]()}
 				title={m["reader_settings.drag_to_resize"]()}
 				className="absolute right-0 bottom-0 z-10 flex size-7 cursor-nwse-resize touch-none select-none items-center justify-center rounded-tl-md outline-none transition-opacity duration-150 hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-[-3px] active:opacity-50"
-				onKeyDown={resizeDesktopDialogWithKeyboard}
-				onPointerDown={beginDesktopDialogResize}
-				onPointerMove={resizeDesktopDialog}
-				onPointerUp={endDesktopDialogResize}
-				onPointerCancel={endDesktopDialogResize}
 			>
 				<svg
 					aria-hidden="true"

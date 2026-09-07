@@ -1,8 +1,6 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
 	ArrowCounterClockwise,
-	CaretDown,
-	Check,
 	Desktop,
 	Moon,
 	Palette,
@@ -83,8 +81,9 @@ function ColorRow({
 	onChange: (next: string) => void;
 }) {
 	return (
-		<SettingControlRow label={<span className="text-sm">{label}</span>}>
-			<label className="flex items-center justify-end gap-2">
+		<div className="flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl bg-surface-card px-3">
+			<span className="min-w-0 flex-1 text-sm">{label}</span>
+			<label className="flex shrink-0 items-center justify-end gap-2">
 				<span className="text-muted-foreground text-xs uppercase tabular-nums">
 					{value}
 				</span>
@@ -93,10 +92,10 @@ function ColorRow({
 					aria-label={label}
 					value={value}
 					onChange={(event) => onChange(event.target.value)}
-					className="size-8 cursor-pointer rounded-md border border-border bg-transparent p-0.5"
+					className="size-8 cursor-pointer rounded-full border border-border bg-transparent p-0.5 transition-transform hover:scale-105"
 				/>
 			</label>
-		</SettingControlRow>
+		</div>
 	);
 }
 
@@ -271,7 +270,13 @@ function ThemeOrb({
 	);
 }
 
-export function AppearanceSettings() {
+export function AppearanceSettings({
+	customizer = false,
+	onCustomize,
+}: {
+	customizer?: boolean;
+	onCustomize?: () => void;
+} = {}) {
 	const { theme, palette, setTheme, setPalette } = useTheme();
 	const [hideCardText, setHideCardText] = useHideCardText();
 	const { radius: cornerRadius, setRadius: setCornerRadius } =
@@ -287,8 +292,6 @@ export function AppearanceSettings() {
 					? "dark"
 					: "light");
 	const [dirty, setDirty] = useState(false);
-	const [editorOpen, setEditorOpen] = useState(false);
-	const editorRef = useRef<HTMLDetailsElement>(null);
 	const initialSeed = palette?.seed ?? DEFAULT_SEED_INPUT[initialBase];
 	const initialGradient =
 		palette?.gradient ??
@@ -531,13 +534,7 @@ export function AppearanceSettings() {
 		else choosePlainTheme(next);
 	};
 	const openEditor = () => {
-		setEditorOpen(true);
-		requestAnimationFrame(() =>
-			editorRef.current?.scrollIntoView({
-				block: "nearest",
-				behavior: "smooth",
-			}),
-		);
+		onCustomize?.();
 	};
 
 	// Leaving the section with an uncommitted preview reverts to the saved theme.
@@ -548,165 +545,175 @@ export function AppearanceSettings() {
 	});
 
 	return (
-		<div className="flex flex-col gap-8">
-			<section className="flex flex-col gap-6">
-				<div className="flex flex-col gap-1">
-					<h2 className="font-semibold text-foreground text-xl">
-						{m["settings.appearance.title"]()}
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						{m["settings.appearance.desc"]()}
-					</p>
-				</div>
-				<h3 className="font-medium text-sm">
-					{m["settings.appearance.color_scheme"]()}
-				</h3>
-				<div className="grid grid-cols-3 gap-2 sm:gap-3">
-					{[THEME_OPTIONS[2], THEME_OPTIONS[0], THEME_OPTIONS[1]].map(
-						({ value, label, hint }) => (
-							<button
-								key={value}
-								type="button"
-								aria-label={label()}
-								title={hint?.()}
-								aria-pressed={value === theme}
-								onClick={() => chooseScheme(value)}
-								className={cn(
-									"flex min-w-0 flex-col items-center gap-2 rounded-2xl bg-surface-card p-2 text-sm transition-colors hover:bg-surface-card-hover focus-visible:outline-2 focus-visible:outline-ring sm:p-3",
-									value === theme && "ring-1 ring-primary",
-								)}
-							>
-								<SchemeIllustration scheme={value} />
-								<span>{label()}</span>
-							</button>
-						),
-					)}
-				</div>
-			</section>
-
-			<section className="flex flex-col gap-4">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<h3 className="font-medium">{m["settings.appearance.themes"]()}</h3>
-					<Button type="button" variant="ghost" size="sm" onClick={openEditor}>
-						<Palette />
-						{m["settings.appearance.customize"]()}
-					</Button>
-				</div>
-				<div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-					<div className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4">
-						<div className="flex justify-center gap-3 py-2 sm:gap-5">
-							{(["light", "dark"] as const).map((base) => (
-								<ThemeOrb
-									key={base}
-									colors={
-										base === "light"
-											? ["#ffffff", "#ddd6fe", "#e5e7eb"]
-											: ["#383b50", "#18181b", "#17171c"]
-									}
-									base={base}
-									label={`Nanahoshi · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
-									active={!palette && initialBase === base}
-									onSelect={() => choosePlainTheme(base)}
-								/>
-							))}
-						</div>
-						<span className="font-medium text-sm">Nanahoshi</span>
+		<div className={cn("flex flex-col", !customizer && "gap-8")}>
+			{!customizer && (
+				<section className="flex flex-col gap-6">
+					<div className="flex flex-col gap-1">
+						<h2 className="font-semibold text-foreground text-xl">
+							{m["settings.appearance.title"]()}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							{m["settings.appearance.desc"]()}
+						</p>
 					</div>
-					{THEME_PRESETS.map((preset) => (
-						<div
-							key={preset.id}
-							className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4"
+					<h3 className="font-medium text-sm">
+						{m["settings.appearance.color_scheme"]()}
+					</h3>
+					<div className="grid grid-cols-3 gap-2 sm:gap-3">
+						{[THEME_OPTIONS[2], THEME_OPTIONS[0], THEME_OPTIONS[1]].map(
+							({ value, label, hint }) => (
+								<button
+									key={value}
+									type="button"
+									aria-label={label()}
+									title={hint?.()}
+									aria-pressed={value === theme}
+									onClick={() => chooseScheme(value)}
+									className={cn(
+										"flex min-w-0 flex-col items-center gap-2 rounded-2xl bg-surface-card p-2 text-sm transition-colors hover:bg-surface-card-hover focus-visible:outline-2 focus-visible:outline-ring sm:p-3",
+										value === theme && "ring-1 ring-primary",
+									)}
+								>
+									<SchemeIllustration scheme={value} />
+									<span>{label()}</span>
+								</button>
+							),
+						)}
+					</div>
+				</section>
+			)}
+
+			{!customizer && (
+				<section className="flex flex-col gap-4">
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<h3 className="font-medium">{m["settings.appearance.themes"]()}</h3>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							onClick={openEditor}
 						>
+							<Palette />
+							{m["settings.appearance.customize"]()}
+						</Button>
+					</div>
+					<div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+						<div className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4">
 							<div className="flex justify-center gap-3 py-2 sm:gap-5">
 								{(["light", "dark"] as const).map((base) => (
 									<ThemeOrb
 										key={base}
 										colors={
 											base === "light"
-												? [preset.colors[0], preset.colors[1], preset.colors[2]]
-												: [preset.colors[2], preset.colors[0], "#17171c"]
+												? ["#ffffff", "#ddd6fe", "#e5e7eb"]
+												: ["#383b50", "#18181b", "#17171c"]
 										}
 										base={base}
-										label={`${preset.label()} · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
-										active={
-											palette?.id === `preset-${preset.id}` &&
-											palette.base === base
-										}
-										onSelect={() =>
-											choosePalette({
-												...buildGradientPalette({
-													base,
-													stops: preset.colors.map((color, index) => ({
-														id: `color-${index}`,
-														color,
-													})),
-													angle: 135,
-													intensity: base === "light" ? 35 : 50,
-												}),
-												id: `preset-${preset.id}`,
-											})
-										}
+										label={`Nanahoshi · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
+										active={!palette && initialBase === base}
+										onSelect={() => choosePlainTheme(base)}
 									/>
 								))}
 							</div>
-							<span className="font-medium text-sm">{preset.label()}</span>
+							<span className="font-medium text-sm">Nanahoshi</span>
 						</div>
-					))}
-				</div>
-			</section>
-			<details
-				ref={editorRef}
-				open={editorOpen}
-				onToggle={(event) => setEditorOpen(event.currentTarget.open)}
-				className="group/editor"
-			>
-				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-					{m["settings.appearance.custom_title"]()}
-					<CaretDown className="size-4 transition-transform group-open/editor:rotate-180" />
-				</summary>
-				<section className="mt-4 flex flex-col gap-6">
-					<p className="text-muted-foreground text-sm">
-						{m["settings.appearance.editor_desc"]()}
-					</p>
-
-					<fieldset
-						aria-label={m["settings.appearance.custom_mode"]()}
-						className="flex min-w-0 flex-wrap gap-1 border-0"
-					>
-						{CUSTOM_MODES.map((value) => (
-							<button
-								key={value}
-								type="button"
-								aria-pressed={mode === value}
-								onClick={() => selectMode(value)}
-								className={cn(
-									"rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-									mode === value
-										? "bg-muted font-medium text-foreground"
-										: "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-								)}
+						{THEME_PRESETS.map((preset) => (
+							<div
+								key={preset.id}
+								className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4"
 							>
-								<span className="flex w-full items-center justify-between gap-2 font-medium text-sm">
-									{CUSTOM_MODE_LABELS[value]()}
-									{mode === value && <Check className="size-4 shrink-0" />}
-								</span>
-							</button>
+								<div className="flex justify-center gap-3 py-2 sm:gap-5">
+									{(["light", "dark"] as const).map((base) => (
+										<ThemeOrb
+											key={base}
+											colors={
+												base === "light"
+													? [
+															preset.colors[0],
+															preset.colors[1],
+															preset.colors[2],
+														]
+													: [preset.colors[2], preset.colors[0], "#17171c"]
+											}
+											base={base}
+											label={`${preset.label()} · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
+											active={
+												palette?.id === `preset-${preset.id}` &&
+												palette.base === base
+											}
+											onSelect={() =>
+												choosePalette({
+													...buildGradientPalette({
+														base,
+														stops: preset.colors.map((color, index) => ({
+															id: `color-${index}`,
+															color,
+														})),
+														angle: 135,
+														intensity: base === "light" ? 35 : 50,
+													}),
+													id: `preset-${preset.id}`,
+												})
+											}
+										/>
+									))}
+								</div>
+								<span className="font-medium text-sm">{preset.label()}</span>
+							</div>
 						))}
-					</fieldset>
-					<p className="-mt-3 text-muted-foreground text-sm">
-						{CUSTOM_MODE_DESCRIPTIONS[mode]()}
-					</p>
-					<SettingRows>
-						<SettingControlRow
-							label={
-								<span className="text-sm">
-									{m["settings.appearance.base"]()}
-								</span>
-							}
+					</div>
+				</section>
+			)}
+			{customizer && (
+				<section className="flex flex-col gap-5">
+					<div>
+						<h3 className="font-semibold text-sm">
+							{m["settings.appearance.custom_title"]()}
+						</h3>
+						<p className="mt-1 text-muted-foreground text-xs leading-5">
+							{m["settings.appearance.editor_desc"]()}
+						</p>
+					</div>
+
+					<div>
+						<p className="mb-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							{m["settings.appearance.custom_mode"]()}
+						</p>
+						<fieldset
+							aria-label={m["settings.appearance.custom_mode"]()}
+							className="grid min-w-0 grid-cols-3 gap-1 rounded-xl border-0 bg-surface-card p-1"
 						>
+							{CUSTOM_MODES.map((value) => (
+								<button
+									key={value}
+									type="button"
+									aria-pressed={mode === value}
+									onClick={() => selectMode(value)}
+									className={cn(
+										"min-w-0 rounded-lg px-2 py-2 text-center font-medium text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+										mode === value
+											? "bg-background text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground",
+									)}
+								>
+									<span className="truncate">
+										{CUSTOM_MODE_LABELS[value]()}
+									</span>
+								</button>
+							))}
+						</fieldset>
+						<p className="mt-2 text-muted-foreground text-xs leading-5">
+							{CUSTOM_MODE_DESCRIPTIONS[mode]()}
+						</p>
+					</div>
+					<SettingRows>
+						<div className="rounded-xl bg-surface-card p-3">
+							<p className="mb-2 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+								{m["settings.appearance.base"]()}
+							</p>
 							<fieldset
 								aria-label={m["settings.appearance.base"]()}
-								className="flex gap-1 rounded-lg border-0 bg-muted p-1"
+								className="grid grid-cols-2 gap-1 rounded-lg border-0 bg-muted p-1"
 							>
 								{(["light", "dark"] as const).map((base) => (
 									<button
@@ -715,7 +722,7 @@ export function AppearanceSettings() {
 										aria-pressed={activeBase === base}
 										onClick={() => setBase(base)}
 										className={cn(
-											"rounded-md px-3 py-1 text-xs transition-colors",
+											"rounded-md px-3 py-1.5 text-xs transition-colors",
 											activeBase === base
 												? "bg-background font-medium text-foreground shadow-sm"
 												: "text-muted-foreground",
@@ -727,7 +734,7 @@ export function AppearanceSettings() {
 									</button>
 								))}
 							</fieldset>
-						</SettingControlRow>
+						</div>
 
 						{mode === "seed" && (
 							<ColorRow
@@ -941,7 +948,7 @@ export function AppearanceSettings() {
 							</div>
 						)}
 					</SettingRows>
-					<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="sticky -bottom-5 z-10 -mx-5 flex flex-wrap items-center justify-between gap-3 border-border border-t bg-background/95 px-5 pt-4 pb-1 backdrop-blur-sm">
 						<p role="status" className="text-muted-foreground text-sm">
 							{dirty
 								? m["settings.appearance.unsaved"]()
@@ -962,66 +969,70 @@ export function AppearanceSettings() {
 						</div>
 					</div>
 				</section>
-			</details>
-			<section className="flex flex-col gap-6">
-				<SettingRows>
-					<SettingControlRow
-						label={
-							<h3 className="font-medium text-base text-foreground">
-								{m["settings.appearance.corner_radius"]()}
-							</h3>
-						}
-						description={m["settings.appearance.corner_radius_desc"]()}
-					>
-						<div className="flex w-full items-center justify-end gap-3 sm:w-72">
-							<span className="text-muted-foreground text-xs tabular-nums">
-								{cornerRadius.toFixed(2)}rem
-							</span>
-							<Slider
-								min={RADIUS_MIN}
-								max={RADIUS_MAX}
-								step={RADIUS_STEP}
-								value={[cornerRadius]}
-								aria-label={m["settings.appearance.corner_radius"]()}
-								onValueChange={([value]) => {
-									if (value !== undefined) setCornerRadius(value);
-								}}
-							/>
+			)}
+			{!customizer && (
+				<section className="flex flex-col gap-6">
+					<SettingRows>
+						<SettingControlRow
+							label={
+								<h3 className="font-medium text-base text-foreground">
+									{m["settings.appearance.corner_radius"]()}
+								</h3>
+							}
+							description={m["settings.appearance.corner_radius_desc"]()}
+						>
+							<div className="flex w-full items-center justify-end gap-3 sm:w-72">
+								<span className="text-muted-foreground text-xs tabular-nums">
+									{cornerRadius.toFixed(2)}rem
+								</span>
+								<Slider
+									min={RADIUS_MIN}
+									max={RADIUS_MAX}
+									step={RADIUS_STEP}
+									value={[cornerRadius]}
+									aria-label={m["settings.appearance.corner_radius"]()}
+									onValueChange={([value]) => {
+										if (value !== undefined) setCornerRadius(value);
+									}}
+								/>
+							</div>
+						</SettingControlRow>
+					</SettingRows>
+				</section>
+			)}
+			{!customizer && (
+				<section className="flex flex-col gap-6">
+					<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+						<div className="flex min-w-0 flex-col gap-1">
+							<h2 className="font-semibold text-foreground text-xl">
+								{m["nav.home"]()}
+							</h2>
+							<p className="max-w-xl text-muted-foreground text-sm">
+								{m["home.organize_description"]()}
+							</p>
 						</div>
-					</SettingControlRow>
-				</SettingRows>
-			</section>
-			<section className="flex flex-col gap-6">
-				<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-					<div className="flex min-w-0 flex-col gap-1">
-						<h2 className="font-semibold text-foreground text-xl">
-							{m["nav.home"]()}
-						</h2>
-						<p className="max-w-xl text-muted-foreground text-sm">
-							{m["home.organize_description"]()}
-						</p>
+						<div className="shrink-0">
+							<HomeLayoutModal />
+						</div>
 					</div>
-					<div className="shrink-0">
-						<HomeLayoutModal />
-					</div>
-				</div>
-				<SettingRows>
-					<SettingControlRow
-						label={
-							<h3 className="font-medium text-base text-foreground">
-								{m["settings.appearance.card_text"]()}
-							</h3>
-						}
-						description={m["settings.appearance.card_text_desc"]()}
-					>
-						<Switch
-							aria-label={m["settings.appearance.card_text"]()}
-							checked={!hideCardText}
-							onCheckedChange={(checked) => setHideCardText(!checked)}
-						/>
-					</SettingControlRow>
-				</SettingRows>
-			</section>
+					<SettingRows>
+						<SettingControlRow
+							label={
+								<h3 className="font-medium text-base text-foreground">
+									{m["settings.appearance.card_text"]()}
+								</h3>
+							}
+							description={m["settings.appearance.card_text_desc"]()}
+						>
+							<Switch
+								aria-label={m["settings.appearance.card_text"]()}
+								checked={!hideCardText}
+								onCheckedChange={(checked) => setHideCardText(!checked)}
+							/>
+						</SettingControlRow>
+					</SettingRows>
+				</section>
+			)}
 		</div>
 	);
 }

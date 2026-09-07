@@ -1,6 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"settings": {
+		"back_to_dashboard": "ダッシュボードに戻る",
 		"group": {
 			"account": "アカウント",
 			"preferences": "設定",

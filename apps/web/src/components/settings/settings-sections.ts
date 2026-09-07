@@ -1,4 +1,4 @@
-const SETTINGS_SECTIONS = [
+export const SETTINGS_SECTIONS = [
 	"profile",
 	"account",
 	"privacy",
@@ -17,6 +17,10 @@ const SETTINGS_SECTIONS = [
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+export function isSettingsSection(value: string): value is SettingsSection {
+	return (SETTINGS_SECTIONS as readonly string[]).includes(value);
+}
 
 export type OrgSettingsSection =
 	| "general"
