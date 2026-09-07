@@ -1,5 +1,15 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import { Check, Desktop, Moon, Sun, Warning } from "@phosphor-icons/react";
+import {
+	ArrowCounterClockwise,
+	CaretDown,
+	Check,
+	Desktop,
+	Moon,
+	Palette,
+	Shuffle,
+	Sun,
+	Warning,
+} from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { HomeLayoutModal } from "@/components/dashboard/home/home-layout-modal";
 import {
@@ -32,6 +42,7 @@ import {
 	previewSeedVars,
 	randomGradientInput,
 	type SeedThemeInput,
+	type StoredPalette,
 } from "@/lib/theme-palettes";
 import { cancelThemePreview, previewTheme } from "@/lib/theme-preview";
 import { RADIUS_MAX, RADIUS_MIN, RADIUS_STEP } from "@/lib/theme-radius";
@@ -140,43 +151,122 @@ function normalizeHexColor(value: string) {
 	return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate.toLowerCase() : null;
 }
 
-/** Selectable icon + label row with an active check. */
-function OptionButton({
-	icon: Icon,
+const THEME_PRESETS = [
+	{
+		id: "rose",
+		label: () => m["settings.appearance.preset_rose"](),
+		colors: ["#ec4899", "#f9a8d4", "#881337"],
+	},
+	{
+		id: "forest",
+		label: () => m["settings.appearance.preset_forest"](),
+		colors: ["#34d399", "#fde68a", "#14532d"],
+	},
+	{
+		id: "ocean",
+		label: () => m["settings.appearance.preset_ocean"](),
+		colors: ["#38bdf8", "#a5f3fc", "#164e63"],
+	},
+	{
+		id: "ember",
+		label: () => m["settings.appearance.preset_ember"](),
+		colors: ["#fb923c", "#fed7aa", "#7c2d12"],
+	},
+	{
+		id: "iris",
+		label: () => m["settings.appearance.preset_iris"](),
+		colors: ["#a78bfa", "#f5d0fe", "#4c1d95"],
+	},
+];
+
+/** A small schematic of the app, drawn with CSS so no image assets are needed. */
+function SchemeIllustration({ scheme }: { scheme: Theme }) {
+	const renderSurface = (dark: boolean) => (
+		<div
+			className="absolute inset-0 flex"
+			style={{
+				background: dark ? "#242129" : "#f3f7f5",
+				color: dark ? "#e5ddea" : "#344a42",
+			}}
+		>
+			<div
+				className="flex w-[23%] flex-col gap-1.5 p-[4%]"
+				style={{ background: dark ? "#1b181f" : "#e0ebe5" }}
+			>
+				{[0, 1, 2, 3].map((i) => (
+					<span
+						key={i}
+						className="h-2 rounded-full"
+						style={{
+							background: "currentColor",
+							opacity: i === 1 ? 0.24 : 0.09,
+						}}
+					/>
+				))}
+			</div>
+			<div className="relative flex-1 p-[5%]">
+				<div className="mb-3 ml-auto h-2 w-1/3 rounded-full bg-current opacity-15" />
+				<div className="h-2 w-3/5 rounded-full bg-current opacity-20" />
+				<div className="mt-1.5 h-2 w-2/5 rounded-full bg-current opacity-15" />
+				<div className="absolute right-[6%] bottom-[9%] left-[6%] flex h-5 items-center justify-between rounded-md bg-current/5 px-2 ring-1 ring-current/10">
+					<span className="h-1.5 w-1/3 rounded-full bg-current opacity-15" />
+					<span
+						className="size-2.5 rounded-full"
+						style={{ background: dark ? "#a78bfa" : "#4f8271" }}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+	return (
+		<div
+			aria-hidden="true"
+			className="relative aspect-[1.9] w-full overflow-hidden rounded-xl"
+		>
+			{renderSurface(scheme === "dark")}
+			{scheme === "system" && (
+				<div className="absolute inset-0 [clip-path:inset(0_0_0_50%)]">
+					{renderSurface(true)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function ThemeOrb({
+	colors,
+	base,
 	label,
-	hint,
-	isActive,
+	active,
 	onSelect,
 }: {
-	icon: PhosphorIcon;
+	colors: string[];
+	base: PaletteBase;
 	label: string;
-	hint?: string;
-	isActive: boolean;
+	active: boolean;
 	onSelect: () => void;
 }) {
+	const Icon = base === "dark" ? Moon : Sun;
 	return (
 		<button
 			type="button"
-			onClick={() => {
-				if (!isActive) onSelect();
-			}}
+			aria-label={label}
+			aria-pressed={active}
+			onClick={onSelect}
 			className={cn(
-				"flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition-colors",
-				isActive
-					? "bg-muted font-medium text-foreground"
-					: "text-muted-foreground hover:bg-muted/60 active:bg-muted",
+				"relative size-10 shrink-0 rounded-full p-1 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4 sm:size-16 min-[360px]:size-14",
+				active && "ring-2 ring-primary ring-offset-2 ring-offset-surface-card",
 			)}
 		>
-			<Icon className="size-5" />
-			<span className="flex-1">
-				{label}
-				{hint && (
-					<span className="block font-normal text-muted-foreground text-xs">
-						{hint}
-					</span>
-				)}
+			<span
+				className="block size-full rounded-full shadow-md ring-1 ring-black/5"
+				style={{
+					background: `radial-gradient(at 32% 25%, ${colors[0]}, transparent 65%), radial-gradient(at 75% 80%, ${colors[1]}, transparent 65%), ${base === "light" ? "#faf5f1" : colors[2]}`,
+				}}
+			/>
+			<span className="absolute -right-1 -bottom-1 rounded-full bg-surface-card p-1 text-foreground">
+				<Icon className="size-3" />
 			</span>
-			{isActive && <Check className="size-4 shrink-0 text-primary" />}
 		</button>
 	);
 }
@@ -186,22 +276,34 @@ export function AppearanceSettings() {
 	const [hideCardText, setHideCardText] = useHideCardText();
 	const { radius: cornerRadius, setRadius: setCornerRadius } =
 		useCornerRadius();
-	const initialSeed =
-		palette?.seed ?? DEFAULT_SEED_INPUT[palette?.base ?? "dark"];
+	const initialBase =
+		palette?.base ??
+		(theme === "light"
+			? "light"
+			: theme === "dark"
+				? "dark"
+				: typeof document === "undefined" ||
+						document.documentElement.classList.contains("dark")
+					? "dark"
+					: "light");
+	const [dirty, setDirty] = useState(false);
+	const [editorOpen, setEditorOpen] = useState(false);
+	const editorRef = useRef<HTMLDetailsElement>(null);
+	const initialSeed = palette?.seed ?? DEFAULT_SEED_INPUT[initialBase];
 	const initialGradient =
 		palette?.gradient ??
 		(palette?.seed
 			? gradientInputFromSeed(palette.seed)
-			: DEFAULT_GRADIENT_INPUT.dark);
+			: DEFAULT_GRADIENT_INPUT[initialBase]);
 	const [custom, setCustom] = useState<CustomThemeInput>(
-		() => palette?.custom ?? DEFAULT_CUSTOM_INPUT.dark,
+		() => palette?.custom ?? DEFAULT_CUSTOM_INPUT[initialBase],
 	);
 	const [gradient, setGradient] = useState<GradientThemeInput>(() =>
 		cloneGradientInput(initialGradient),
 	);
 	const [seedInput, setSeedInput] = useState<SeedThemeInput>(() => initialSeed);
 	const [mode, setMode] = useState<CustomMode>(() =>
-		palette?.custom ? "advanced" : palette?.seed ? "seed" : "gradient",
+		palette?.custom ? "advanced" : palette?.gradient ? "gradient" : "seed",
 	);
 	const [selectedStopId, setSelectedStopId] = useState(
 		() => initialGradient.stops[0]?.id ?? "",
@@ -239,16 +341,19 @@ export function AppearanceSettings() {
 	const previewGradient = (next: GradientThemeInput) => {
 		setGradient(next);
 		didPreviewRef.current = true;
+		setDirty(true);
 		previewTheme(() => ({ base: next.base, vars: previewGradientVars(next) }));
 	};
 	const previewSeed = (next: SeedThemeInput) => {
 		setSeedInput(next);
 		didPreviewRef.current = true;
+		setDirty(true);
 		previewTheme(() => ({ base: next.base, vars: previewSeedVars(next) }));
 	};
 	const previewCustom = (next: CustomThemeInput) => {
 		setCustom(next);
 		didPreviewRef.current = true;
+		setDirty(true);
 		previewTheme(() => ({ base: next.base, vars: previewCustomVars(next) }));
 	};
 
@@ -293,14 +398,16 @@ export function AppearanceSettings() {
 		if (next === mode) return;
 		setMode(next);
 		if (next === "seed") {
-			previewSeed(seedInput);
+			previewSeed({ ...seedInput, base: activeBase });
 			return;
 		}
 		if (next === "gradient") {
-			previewGradient(gradient);
+			previewGradient({ ...gradient, base: activeBase });
 			return;
 		}
-		previewCustom(custom);
+		previewCustom(
+			custom.base === activeBase ? custom : DEFAULT_CUSTOM_INPUT[activeBase],
+		);
 	};
 
 	const updateSelectedColor = (color: string) => {
@@ -355,7 +462,21 @@ export function AppearanceSettings() {
 		previewGradient(next);
 	};
 
+	const discardCustom = () => {
+		cancelThemePreview();
+		applyStoredTheme();
+		didPreviewRef.current = false;
+		setDirty(false);
+		setSeedInput(initialSeed);
+		setGradient(cloneGradientInput(initialGradient));
+		setCustom(palette?.custom ?? DEFAULT_CUSTOM_INPUT[initialBase]);
+		setMode(
+			palette?.custom ? "advanced" : palette?.gradient ? "gradient" : "seed",
+		);
+	};
+
 	const applyCustom = () => {
+		setDirty(false);
 		didPreviewRef.current = false;
 		if (mode === "seed") {
 			setPalette(buildSeedPalette(seedInput));
@@ -368,6 +489,57 @@ export function AppearanceSettings() {
 		setPalette(buildCustomPalette(custom));
 	};
 
+	const choosePalette = (next: StoredPalette) => {
+		didPreviewRef.current = false;
+		setDirty(false);
+		setPalette(next);
+		setSeedInput(next.seed ?? DEFAULT_SEED_INPUT[next.base]);
+		setGradient(
+			cloneGradientInput(next.gradient ?? DEFAULT_GRADIENT_INPUT[next.base]),
+		);
+		setCustom(next.custom ?? DEFAULT_CUSTOM_INPUT[next.base]);
+		setMode(next.custom ? "advanced" : next.gradient ? "gradient" : "seed");
+	};
+	const choosePlainTheme = (next: Theme) => {
+		didPreviewRef.current = false;
+		setDirty(false);
+		setTheme(next);
+		const base =
+			next === "system"
+				? window.matchMedia("(prefers-color-scheme: dark)").matches
+					? "dark"
+					: "light"
+				: next;
+		setSeedInput(DEFAULT_SEED_INPUT[base]);
+		setGradient(cloneGradientInput(DEFAULT_GRADIENT_INPUT[base]));
+		setCustom(DEFAULT_CUSTOM_INPUT[base]);
+		setMode("seed");
+	};
+	const chooseScheme = (next: Theme) => {
+		if (!palette || next === "system") {
+			choosePlainTheme(next);
+			return;
+		}
+		const updated = palette.gradient
+			? buildGradientPalette({ ...palette.gradient, base: next })
+			: palette.seed
+				? buildSeedPalette({ ...palette.seed, base: next })
+				: palette.custom
+					? buildCustomPalette({ ...palette.custom, base: next })
+					: null;
+		if (updated) choosePalette({ ...updated, id: palette.id });
+		else choosePlainTheme(next);
+	};
+	const openEditor = () => {
+		setEditorOpen(true);
+		requestAnimationFrame(() =>
+			editorRef.current?.scrollIntoView({
+				block: "nearest",
+				behavior: "smooth",
+			}),
+		);
+	};
+
 	// Leaving the section with an uncommitted preview reverts to the saved theme.
 	useOnUnmount(() => {
 		if (!didPreviewRef.current) return;
@@ -376,7 +548,7 @@ export function AppearanceSettings() {
 	});
 
 	return (
-		<div className="flex flex-col gap-12">
+		<div className="flex flex-col gap-8">
 			<section className="flex flex-col gap-6">
 				<div className="flex flex-col gap-1">
 					<h2 className="font-semibold text-foreground text-xl">
@@ -386,18 +558,412 @@ export function AppearanceSettings() {
 						{m["settings.appearance.desc"]()}
 					</p>
 				</div>
-				<SettingRows>
-					{THEME_OPTIONS.map(({ value, label, hint, icon }) => (
-						<OptionButton
-							key={value}
-							icon={icon}
-							label={label()}
-							hint={hint?.()}
-							isActive={!palette && value === theme}
-							onSelect={() => setTheme(value)}
-						/>
+				<h3 className="font-medium text-sm">
+					{m["settings.appearance.color_scheme"]()}
+				</h3>
+				<div className="grid grid-cols-3 gap-2 sm:gap-3">
+					{[THEME_OPTIONS[2], THEME_OPTIONS[0], THEME_OPTIONS[1]].map(
+						({ value, label, hint }) => (
+							<button
+								key={value}
+								type="button"
+								aria-label={label()}
+								title={hint?.()}
+								aria-pressed={value === theme}
+								onClick={() => chooseScheme(value)}
+								className={cn(
+									"flex min-w-0 flex-col items-center gap-2 rounded-2xl bg-surface-card p-2 text-sm transition-colors hover:bg-surface-card-hover focus-visible:outline-2 focus-visible:outline-ring sm:p-3",
+									value === theme && "ring-1 ring-primary",
+								)}
+							>
+								<SchemeIllustration scheme={value} />
+								<span>{label()}</span>
+							</button>
+						),
+					)}
+				</div>
+			</section>
+
+			<section className="flex flex-col gap-4">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<h3 className="font-medium">{m["settings.appearance.themes"]()}</h3>
+					<Button type="button" variant="ghost" size="sm" onClick={openEditor}>
+						<Palette />
+						{m["settings.appearance.customize"]()}
+					</Button>
+				</div>
+				<div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+					<div className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4">
+						<div className="flex justify-center gap-3 py-2 sm:gap-5">
+							{(["light", "dark"] as const).map((base) => (
+								<ThemeOrb
+									key={base}
+									colors={
+										base === "light"
+											? ["#ffffff", "#ddd6fe", "#e5e7eb"]
+											: ["#383b50", "#18181b", "#17171c"]
+									}
+									base={base}
+									label={`Nanahoshi · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
+									active={!palette && initialBase === base}
+									onSelect={() => choosePlainTheme(base)}
+								/>
+							))}
+						</div>
+						<span className="font-medium text-sm">Nanahoshi</span>
+					</div>
+					{THEME_PRESETS.map((preset) => (
+						<div
+							key={preset.id}
+							className="flex flex-col gap-5 rounded-2xl bg-surface-card p-4"
+						>
+							<div className="flex justify-center gap-3 py-2 sm:gap-5">
+								{(["light", "dark"] as const).map((base) => (
+									<ThemeOrb
+										key={base}
+										colors={
+											base === "light"
+												? [preset.colors[0], preset.colors[1], preset.colors[2]]
+												: [preset.colors[2], preset.colors[0], "#17171c"]
+										}
+										base={base}
+										label={`${preset.label()} · ${base === "light" ? m["settings.appearance.theme_light"]() : m["settings.appearance.theme_dark"]()}`}
+										active={
+											palette?.id === `preset-${preset.id}` &&
+											palette.base === base
+										}
+										onSelect={() =>
+											choosePalette({
+												...buildGradientPalette({
+													base,
+													stops: preset.colors.map((color, index) => ({
+														id: `color-${index}`,
+														color,
+													})),
+													angle: 135,
+													intensity: base === "light" ? 35 : 50,
+												}),
+												id: `preset-${preset.id}`,
+											})
+										}
+									/>
+								))}
+							</div>
+							<span className="font-medium text-sm">{preset.label()}</span>
+						</div>
 					))}
-				</SettingRows>
+				</div>
+			</section>
+			<details
+				ref={editorRef}
+				open={editorOpen}
+				onToggle={(event) => setEditorOpen(event.currentTarget.open)}
+				className="group/editor"
+			>
+				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+					{m["settings.appearance.custom_title"]()}
+					<CaretDown className="size-4 transition-transform group-open/editor:rotate-180" />
+				</summary>
+				<section className="mt-4 flex flex-col gap-6">
+					<p className="text-muted-foreground text-sm">
+						{m["settings.appearance.editor_desc"]()}
+					</p>
+
+					<fieldset
+						aria-label={m["settings.appearance.custom_mode"]()}
+						className="flex min-w-0 flex-wrap gap-1 border-0"
+					>
+						{CUSTOM_MODES.map((value) => (
+							<button
+								key={value}
+								type="button"
+								aria-pressed={mode === value}
+								onClick={() => selectMode(value)}
+								className={cn(
+									"rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+									mode === value
+										? "bg-muted font-medium text-foreground"
+										: "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+								)}
+							>
+								<span className="flex w-full items-center justify-between gap-2 font-medium text-sm">
+									{CUSTOM_MODE_LABELS[value]()}
+									{mode === value && <Check className="size-4 shrink-0" />}
+								</span>
+							</button>
+						))}
+					</fieldset>
+					<p className="-mt-3 text-muted-foreground text-sm">
+						{CUSTOM_MODE_DESCRIPTIONS[mode]()}
+					</p>
+					<SettingRows>
+						<SettingControlRow
+							label={
+								<span className="text-sm">
+									{m["settings.appearance.base"]()}
+								</span>
+							}
+						>
+							<fieldset
+								aria-label={m["settings.appearance.base"]()}
+								className="flex gap-1 rounded-lg border-0 bg-muted p-1"
+							>
+								{(["light", "dark"] as const).map((base) => (
+									<button
+										key={base}
+										type="button"
+										aria-pressed={activeBase === base}
+										onClick={() => setBase(base)}
+										className={cn(
+											"rounded-md px-3 py-1 text-xs transition-colors",
+											activeBase === base
+												? "bg-background font-medium text-foreground shadow-sm"
+												: "text-muted-foreground",
+										)}
+									>
+										{base === "light"
+											? m["settings.appearance.theme_light"]()
+											: m["settings.appearance.theme_dark"]()}
+									</button>
+								))}
+							</fieldset>
+						</SettingControlRow>
+
+						{mode === "seed" && (
+							<ColorRow
+								label={m["settings.appearance.color_seed"]()}
+								value={seedInput.seed}
+								onChange={(seed) => previewSeed({ ...seedInput, seed })}
+							/>
+						)}
+
+						{mode === "gradient" && (
+							<>
+								<SettingControlRow
+									label={
+										<span className="text-sm">
+											{m["settings.appearance.gradient_colors"]()}
+										</span>
+									}
+									controlClassName="sm:w-80"
+								>
+									<div className="flex w-full flex-col gap-3">
+										<div className="flex flex-wrap items-center gap-2">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={surpriseGradient}
+											>
+												<Shuffle />
+												{m["settings.appearance.gradient_surprise"]()}
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={resetGradient}
+											>
+												<ArrowCounterClockwise />
+												{m["settings.appearance.gradient_reset"]()}
+											</Button>
+										</div>
+
+										<div className="flex flex-wrap items-center gap-2">
+											{gradient.stops.map((stop, index) => (
+												<Button
+													key={stop.id}
+													type="button"
+													variant="ghost"
+													size="icon"
+													aria-label={`${m["settings.appearance.gradient_colors"]()} ${index + 1}`}
+													aria-pressed={stop.id === selectedStop?.id}
+													onClick={() => setSelectedStopId(stop.id)}
+													className={cn(
+														"rounded-xl",
+														stop.id === selectedStop?.id &&
+															"border-ring ring-2 ring-ring/30",
+													)}
+												>
+													<span
+														className="size-5 rounded-lg border border-border/60"
+														style={{ backgroundColor: stop.color }}
+													/>
+												</Button>
+											))}
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={addGradientStop}
+												disabled={gradient.stops.length >= MAX_GRADIENT_STOPS}
+											>
+												{m["settings.appearance.gradient_add_color"]()}
+											</Button>
+										</div>
+
+										<div className="flex items-center gap-2">
+											<Input
+												type="color"
+												value={selectedStop?.color ?? "#000000"}
+												onChange={(event) =>
+													updateSelectedColor(event.target.value)
+												}
+												aria-label={`${m["settings.appearance.gradient_color_picker"]()} ${selectedStopNumber}`}
+												className="size-8 shrink-0 cursor-pointer p-1"
+											/>
+											<Input
+												type="text"
+												value={hexDraft}
+												maxLength={7}
+												spellCheck={false}
+												aria-label={`${m["settings.appearance.gradient_hex"]()} ${selectedStopNumber}`}
+												aria-invalid={!normalizeHexColor(hexDraft)}
+												className="font-mono uppercase"
+												onChange={(event) => {
+													const next = event.target.value.toUpperCase();
+													setHexDraft(next);
+													const color = normalizeHexColor(next);
+													if (color) updateSelectedColor(color);
+												}}
+												onBlur={() => {
+													const color = normalizeHexColor(hexDraft);
+													setHexDraft(
+														color?.toUpperCase() ??
+															selectedStop?.color.toUpperCase() ??
+															"",
+													);
+												}}
+											/>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={removeSelectedStop}
+												disabled={gradient.stops.length <= 1}
+											>
+												{m["settings.appearance.gradient_remove_color"]()}
+											</Button>
+										</div>
+									</div>
+								</SettingControlRow>
+
+								<SettingControlRow
+									label={
+										<span className="text-sm">
+											{m["settings.appearance.gradient_direction"]()}
+										</span>
+									}
+								>
+									<div className="flex w-full items-center gap-3 sm:w-72">
+										<Slider
+											value={[gradient.angle]}
+											min={0}
+											max={359}
+											step={1}
+											disabled={gradient.stops.length < 2}
+											aria-label={m["settings.appearance.gradient_direction"]()}
+											onValueChange={([value]) => {
+												if (value !== undefined) {
+													previewGradient({ ...gradient, angle: value });
+												}
+											}}
+										/>
+										<span className="w-10 text-right text-muted-foreground text-xs tabular-nums">
+											{gradient.angle}°
+										</span>
+									</div>
+								</SettingControlRow>
+
+								<SettingControlRow
+									label={
+										<span className="text-sm">
+											{m["settings.appearance.gradient_intensity"]()}
+										</span>
+									}
+								>
+									<div className="flex w-full items-center gap-3 sm:w-72">
+										<Slider
+											value={[gradient.intensity]}
+											min={0}
+											max={100}
+											step={1}
+											aria-label={m["settings.appearance.gradient_intensity"]()}
+											onValueChange={([value]) => {
+												if (value !== undefined) {
+													previewGradient({ ...gradient, intensity: value });
+												}
+											}}
+										/>
+										<span className="w-10 text-right text-muted-foreground text-xs tabular-nums">
+											{gradient.intensity}%
+										</span>
+									</div>
+								</SettingControlRow>
+							</>
+						)}
+
+						{mode === "advanced" && (
+							<>
+								<ColorRow
+									label={m["settings.appearance.color_background"]()}
+									value={custom.background}
+									onChange={(background) =>
+										previewCustom({ ...custom, background })
+									}
+								/>
+								<ColorRow
+									label={m["settings.appearance.color_card"]()}
+									value={custom.card}
+									onChange={(card) => previewCustom({ ...custom, card })}
+								/>
+								<ColorRow
+									label={m["settings.appearance.color_primary"]()}
+									value={custom.primary}
+									onChange={(primary) => previewCustom({ ...custom, primary })}
+								/>
+							</>
+						)}
+
+						{warnings.length > 0 && (
+							<div className="flex flex-col gap-1.5 py-4">
+								{warnings.map((warning) => (
+									<p
+										key={warning.key}
+										className="flex items-start gap-2 text-warning text-xs"
+									>
+										<Warning className="mt-0.5 size-3.5 shrink-0" />
+										{CONTRAST_MESSAGES[warning.key]({
+											ratio: warning.ratio.toFixed(1),
+										})}
+									</p>
+								))}
+							</div>
+						)}
+					</SettingRows>
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<p role="status" className="text-muted-foreground text-sm">
+							{dirty
+								? m["settings.appearance.unsaved"]()
+								: m["settings.appearance.saved"]()}
+						</p>
+						<div className="flex items-center gap-2">
+							<Button
+								type="button"
+								variant="ghost"
+								disabled={!dirty}
+								onClick={discardCustom}
+							>
+								{m["settings.appearance.discard"]()}
+							</Button>
+							<Button type="button" disabled={!dirty} onClick={applyCustom}>
+								{m["settings.appearance.apply"]()}
+							</Button>
+						</div>
+					</div>
+				</section>
+			</details>
+			<section className="flex flex-col gap-6">
 				<SettingRows>
 					<SettingControlRow
 						label={
@@ -425,7 +991,6 @@ export function AppearanceSettings() {
 					</SettingControlRow>
 				</SettingRows>
 			</section>
-
 			<section className="flex flex-col gap-6">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 					<div className="flex min-w-0 flex-col gap-1">
@@ -456,293 +1021,6 @@ export function AppearanceSettings() {
 						/>
 					</SettingControlRow>
 				</SettingRows>
-			</section>
-
-			<section className="flex flex-col gap-6">
-				<div className="flex flex-col gap-1">
-					<h2 className="font-semibold text-foreground text-xl">
-						{m["settings.appearance.custom_title"]()}
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						{CUSTOM_MODE_DESCRIPTIONS[mode]()}
-					</p>
-				</div>
-
-				<SettingRows>
-					<SettingControlRow
-						label={
-							<span className="text-sm">
-								{m["settings.appearance.custom_mode"]()}
-							</span>
-						}
-					>
-						<fieldset
-							aria-label={m["settings.appearance.custom_mode"]()}
-							className="flex gap-1 rounded-lg border-0 bg-muted p-1"
-						>
-							{CUSTOM_MODES.map((value) => (
-								<button
-									key={value}
-									type="button"
-									aria-pressed={mode === value}
-									onClick={() => selectMode(value)}
-									className={cn(
-										"rounded-md px-3 py-1 text-xs transition-colors",
-										mode === value
-											? "bg-background font-medium text-foreground shadow-sm"
-											: "text-muted-foreground",
-									)}
-								>
-									{CUSTOM_MODE_LABELS[value]()}
-								</button>
-							))}
-						</fieldset>
-					</SettingControlRow>
-
-					<SettingControlRow
-						label={
-							<span className="text-sm">{m["settings.appearance.base"]()}</span>
-						}
-					>
-						<fieldset
-							aria-label={m["settings.appearance.base"]()}
-							className="flex gap-1 rounded-lg border-0 bg-muted p-1"
-						>
-							{(["light", "dark"] as const).map((base) => (
-								<button
-									key={base}
-									type="button"
-									aria-pressed={activeBase === base}
-									onClick={() => setBase(base)}
-									className={cn(
-										"rounded-md px-3 py-1 text-xs transition-colors",
-										activeBase === base
-											? "bg-background font-medium text-foreground shadow-sm"
-											: "text-muted-foreground",
-									)}
-								>
-									{base === "light"
-										? m["settings.appearance.theme_light"]()
-										: m["settings.appearance.theme_dark"]()}
-								</button>
-							))}
-						</fieldset>
-					</SettingControlRow>
-
-					{mode === "seed" && (
-						<ColorRow
-							label={m["settings.appearance.color_seed"]()}
-							value={seedInput.seed}
-							onChange={(seed) => previewSeed({ ...seedInput, seed })}
-						/>
-					)}
-
-					{mode === "gradient" && (
-						<>
-							<SettingControlRow
-								label={
-									<span className="text-sm">
-										{m["settings.appearance.gradient_colors"]()}
-									</span>
-								}
-								controlClassName="sm:w-80"
-							>
-								<div className="flex w-full flex-col gap-3">
-									<div className="flex flex-wrap items-center gap-2">
-										{gradient.stops.map((stop, index) => (
-											<Button
-												key={stop.id}
-												type="button"
-												variant="outline"
-												size="icon"
-												aria-label={`${m["settings.appearance.gradient_colors"]()} ${index + 1}`}
-												aria-pressed={stop.id === selectedStop?.id}
-												onClick={() => setSelectedStopId(stop.id)}
-												className={cn(
-													"rounded-xl",
-													stop.id === selectedStop?.id &&
-														"border-ring ring-2 ring-ring/30",
-												)}
-											>
-												<span
-													className="size-5 rounded-lg border border-border/60"
-													style={{ backgroundColor: stop.color }}
-												/>
-											</Button>
-										))}
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={addGradientStop}
-											disabled={gradient.stops.length >= MAX_GRADIENT_STOPS}
-										>
-											{m["settings.appearance.gradient_add_color"]()}
-										</Button>
-									</div>
-
-									<div className="flex items-center gap-2">
-										<Input
-											type="color"
-											value={selectedStop?.color ?? "#000000"}
-											onChange={(event) =>
-												updateSelectedColor(event.target.value)
-											}
-											aria-label={`${m["settings.appearance.gradient_color_picker"]()} ${selectedStopNumber}`}
-											className="size-8 shrink-0 cursor-pointer p-1"
-										/>
-										<Input
-											type="text"
-											value={hexDraft}
-											maxLength={7}
-											spellCheck={false}
-											aria-label={`${m["settings.appearance.gradient_hex"]()} ${selectedStopNumber}`}
-											aria-invalid={!normalizeHexColor(hexDraft)}
-											className="font-mono uppercase"
-											onChange={(event) => {
-												const next = event.target.value.toUpperCase();
-												setHexDraft(next);
-												const color = normalizeHexColor(next);
-												if (color) updateSelectedColor(color);
-											}}
-											onBlur={() => {
-												const color = normalizeHexColor(hexDraft);
-												setHexDraft(
-													color?.toUpperCase() ??
-														selectedStop?.color.toUpperCase() ??
-														"",
-												);
-											}}
-										/>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={removeSelectedStop}
-											disabled={gradient.stops.length <= 1}
-										>
-											{m["settings.appearance.gradient_remove_color"]()}
-										</Button>
-									</div>
-								</div>
-							</SettingControlRow>
-
-							<SettingControlRow
-								label={
-									<span className="text-sm">
-										{m["settings.appearance.gradient_direction"]()}
-									</span>
-								}
-							>
-								<div className="flex w-full items-center gap-3 sm:w-72">
-									<Slider
-										value={[gradient.angle]}
-										min={0}
-										max={359}
-										step={1}
-										disabled={gradient.stops.length < 2}
-										aria-label={m["settings.appearance.gradient_direction"]()}
-										onValueChange={([value]) => {
-											if (value !== undefined) {
-												previewGradient({ ...gradient, angle: value });
-											}
-										}}
-									/>
-									<span className="w-10 text-right text-muted-foreground text-xs tabular-nums">
-										{gradient.angle}°
-									</span>
-								</div>
-							</SettingControlRow>
-
-							<SettingControlRow
-								label={
-									<span className="text-sm">
-										{m["settings.appearance.gradient_intensity"]()}
-									</span>
-								}
-							>
-								<div className="flex w-full items-center gap-3 sm:w-72">
-									<Slider
-										value={[gradient.intensity]}
-										min={0}
-										max={100}
-										step={1}
-										aria-label={m["settings.appearance.gradient_intensity"]()}
-										onValueChange={([value]) => {
-											if (value !== undefined) {
-												previewGradient({ ...gradient, intensity: value });
-											}
-										}}
-									/>
-									<span className="w-10 text-right text-muted-foreground text-xs tabular-nums">
-										{gradient.intensity}%
-									</span>
-								</div>
-							</SettingControlRow>
-						</>
-					)}
-
-					{mode === "advanced" && (
-						<>
-							<ColorRow
-								label={m["settings.appearance.color_background"]()}
-								value={custom.background}
-								onChange={(background) =>
-									previewCustom({ ...custom, background })
-								}
-							/>
-							<ColorRow
-								label={m["settings.appearance.color_card"]()}
-								value={custom.card}
-								onChange={(card) => previewCustom({ ...custom, card })}
-							/>
-							<ColorRow
-								label={m["settings.appearance.color_primary"]()}
-								value={custom.primary}
-								onChange={(primary) => previewCustom({ ...custom, primary })}
-							/>
-						</>
-					)}
-
-					{warnings.length > 0 && (
-						<div className="flex flex-col gap-1.5 py-4">
-							{warnings.map((warning) => (
-								<p
-									key={warning.key}
-									className="flex items-start gap-2 text-warning text-xs"
-								>
-									<Warning className="mt-0.5 size-3.5 shrink-0" />
-									{CONTRAST_MESSAGES[warning.key]({
-										ratio: warning.ratio.toFixed(1),
-									})}
-								</p>
-							))}
-						</div>
-					)}
-				</SettingRows>
-
-				<div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-					{mode === "gradient" ? (
-						<div className="flex flex-wrap gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={surpriseGradient}
-							>
-								{m["settings.appearance.gradient_surprise"]()}
-							</Button>
-							<Button type="button" variant="ghost" onClick={resetGradient}>
-								{m["settings.appearance.gradient_reset"]()}
-							</Button>
-						</div>
-					) : (
-						<span />
-					)}
-					<Button type="button" onClick={applyCustom}>
-						{palette?.id === "custom" && <Check data-icon="inline-start" />}
-						{m["settings.appearance.apply"]()}
-					</Button>
-				</div>
 			</section>
 		</div>
 	);

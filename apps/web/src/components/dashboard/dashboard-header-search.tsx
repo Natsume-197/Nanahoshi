@@ -330,7 +330,9 @@ export function DashboardHeaderSearch() {
 	const rowClass = (index: number) =>
 		cn(
 			"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
-			index === activeIndex ? "bg-foreground/10" : "hover:bg-foreground/10",
+			index === activeIndex
+				? "bg-accent text-accent-foreground"
+				: "hover:bg-accent hover:text-accent-foreground",
 		);
 
 	const thumb = (cover: string | null, fallback: React.ReactNode) => {
@@ -522,8 +524,8 @@ export function DashboardHeaderSearch() {
 							className={cn(
 								"group flex items-center transition-colors",
 								index === activeIndex
-									? "bg-foreground/10"
-									: "hover:bg-foreground/10",
+									? "bg-accent text-accent-foreground"
+									: "hover:bg-accent hover:text-accent-foreground",
 							)}
 						>
 							<button
@@ -624,8 +626,8 @@ export function DashboardHeaderSearch() {
 								className={cn(
 									"flex w-full items-center justify-between px-3 py-2.5 text-left text-primary text-sm transition-colors",
 									activeIndex === seeAllIndex
-										? "bg-foreground/10"
-										: "hover:bg-foreground/10",
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-accent hover:text-accent-foreground",
 								)}
 							>
 								<span>{m["search.see_all_results"]()}</span>

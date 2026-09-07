@@ -17,7 +17,7 @@ export function SettingsDialogShell({
 	onNavigate,
 	onClose,
 	children,
-	surfaceClassName,
+	surfaceClassName = "theme-gradient-surface",
 }: {
 	title: string;
 	closeLabel: string;
@@ -63,7 +63,7 @@ export function SettingsDialogShell({
 						/>
 					</header>
 
-					<aside className="min-w-0 overflow-hidden border-border border-b bg-sidebar px-3 py-3 text-sidebar-foreground md:col-start-1 md:row-span-2 md:row-start-1 md:overflow-y-auto md:border-e md:border-b-0 md:px-4 md:py-6">
+					<aside className="theme-gradient-surface min-w-0 overflow-hidden border-border border-b bg-sidebar px-3 py-3 text-sidebar-foreground md:col-start-1 md:row-span-2 md:row-start-1 md:overflow-y-auto md:border-e md:border-b-0 md:px-4 md:py-6">
 						<SettingsSidebarNav
 							groups={groups}
 							activeKey={activeKey}

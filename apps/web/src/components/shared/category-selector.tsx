@@ -19,7 +19,7 @@ export function CategorySelector<Value extends string>({
 	ariaLabel: string;
 }) {
 	return (
-		<div className="scrollbar-none shrink-0 overflow-x-auto overscroll-x-contain bg-background">
+		<div className="scrollbar-none shrink-0 overflow-x-auto overscroll-x-contain">
 			<ToggleGroup
 				value={[value]}
 				onValueChange={(values) => {

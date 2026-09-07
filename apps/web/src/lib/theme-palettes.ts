@@ -120,7 +120,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 			{ id: "rose", color: "#f472b6" },
 		],
 		angle: 135,
-		intensity: 12,
+		intensity: 35,
 	},
 	light: {
 		base: "light",
@@ -130,7 +130,7 @@ export const DEFAULT_GRADIENT_INPUT: Record<PaletteBase, GradientThemeInput> = {
 			{ id: "violet", color: "#a78bfa" },
 		],
 		angle: 110,
-		intensity: 9,
+		intensity: 28,
 	},
 };
 
@@ -198,10 +198,12 @@ export function getStoredPalette(): StoredPalette | null {
 		if (parsed.custom !== undefined) {
 			if (!isRecord(parsed.custom)) return null;
 			palette.custom = normalizeCustomInput(parsed.custom, parsed.base);
+			palette.vars = previewCustomVars(palette.custom);
 		}
 		if (parsed.seed !== undefined) {
 			if (!isRecord(parsed.seed)) return null;
 			palette.seed = normalizeSeedInput(parsed.seed, parsed.base);
+			palette.vars = previewSeedVars(palette.seed);
 		}
 		if (parsed.gradient !== undefined) {
 			if (!isRecord(parsed.gradient)) return null;
@@ -301,12 +303,25 @@ export function contrastRatio(a: string, b: string): number {
 	return (hi + 0.05) / (lo + 0.05);
 }
 
-// The 0.28 cutoff keeps white text on saturated accents (reds/oranges read
-// better with it despite the WCAG formula) while never letting the white-text
-// pair drop below ~3.2:1; above it, dark text always clears 4.5:1.
+// Choose the higher-contrast text color, including saturated orange and red.
 function primaryForegroundFor(primary: string): string {
-	return relativeLuminance(primary) > 0.28 ? "#1c1c1f" : "#fbfbfb";
+	return contrastRatio(primary, "#000000") > contrastRatio(primary, "#ffffff")
+		? "#000000"
+		: "#ffffff";
 }
+
+// New UI surfaces must follow the recipe instead of the base theme's neutrals.
+const RECIPE_SURFACES = {
+	"--theme-gradient": "none",
+	"--surface-card": "var(--card)",
+	"--surface-card-hover":
+		"color-mix(in oklab, var(--foreground) 8%, var(--card))",
+	"--surface-accent": "color-mix(in oklab, var(--primary) 14%, var(--card))",
+	"--surface-accent-hover":
+		"color-mix(in oklab, var(--primary) 22%, var(--card))",
+	"--surface-hover": "var(--muted)",
+	"--control": "var(--input)",
+};
 
 // Approximations of the base themes' --foreground (which is oklch in CSS) for
 // contrast checks against editor-picked surfaces.
@@ -395,7 +410,7 @@ function customPaletteVars(
 	vars["--chart-4"] = mix(primary, 40, background);
 	vars["--chart-5"] = mix(primary, 20, background);
 
-	return vars;
+	return { ...RECIPE_SURFACES, ...vars };
 }
 
 export function buildCustomPalette(input: CustomThemeInput): StoredPalette {
@@ -416,7 +431,7 @@ export function previewCustomVars(
 }
 
 export const DEFAULT_SEED_INPUT: Record<PaletteBase, SeedThemeInput> = {
-	dark: { base: "dark", seed: "#f0f0f0" },
+	dark: { base: "dark", seed: "#a78bfa" },
 	light: { base: "light", seed: "#33628a" },
 };
 
@@ -514,6 +529,18 @@ function gradientPaletteVars(
 		"--theme-gradient": "none",
 	};
 	if (normalized.intensity === 0) return vars;
+	// Menus render in portals and cannot inherit the painted background image.
+	// Derive their semantic colors from the recipe too, just like single-color themes.
+	Object.assign(
+		vars,
+		seedPaletteVars(
+			{
+				base: normalized.base,
+				seed: normalized.stops[0].color,
+			},
+			mixExpression,
+		),
+	);
 	const alpha = formatCssNumber(gradientAlpha(normalized.intensity));
 	const sidebarAccentAlpha = normalized.base === "dark" ? 15 : 10;
 
@@ -678,11 +705,11 @@ export function randomGradientInput(
 	const intensityUnit = randomUnit(rng);
 	const intensity =
 		normalized.base === "dark"
-			? Math.round(8 + intensityUnit * 8)
-			: Math.round(6 + intensityUnit * 6);
+			? Math.round(25 + intensityUnit * 50)
+			: Math.round(20 + intensityUnit * 45);
 	const offsets = GRADIENT_HARMONIES[harmony][count - 2];
-	const saturation = normalized.base === "dark" ? 72 : 68;
-	const lightness = normalized.base === "dark" ? 62 : 54;
+	const saturation = 48 + randomUnit(rng) * 45;
+	const lightness = 40 + randomUnit(rng) * 32;
 
 	return {
 		base: normalized.base,
@@ -697,26 +724,26 @@ export function randomGradientInput(
 
 // Neutral background anchors the seed tint is mixed into (auto mode).
 const SEED_BACKGROUND_ANCHOR: Record<PaletteBase, string> = {
-	dark: "#252525",
-	light: "#f7f6f3",
+	dark: "#181818",
+	light: "#ffffff",
 };
 
 // A seed outside the readable luminance range gets lightened/darkened before
 // being used as the accent, so it always reads against its base.
-function normalizeSeedAccent(
-	seed: string,
-	base: PaletteBase,
-	mix: (a: string, pct: number, b: string) => string,
-): string {
-	const lum = relativeLuminance(seed);
-	if (base === "dark") {
-		if (lum < 0.06) return mix(seed, 40, "#f5f5f5");
-		if (lum < 0.2) return mix(seed, 70, "#f5f5f5");
-	} else {
-		if (lum > 0.55) return mix(seed, 45, "#262626");
-		if (lum > 0.32) return mix(seed, 72, "#262626");
+function normalizeSeedAccent(seed: string, base: PaletteBase): string {
+	const [hue, saturation, initialLightness] = hslFromHex(seed);
+	let accent = seed;
+	// Keep the hue, but move the accent into a readable range. Hex output also
+	// avoids treating browser-computed oklab() colors as black in contrast checks.
+	for (let step = 0; step <= 100; step++) {
+		if (contrastRatio(accent, SEED_BACKGROUND_ANCHOR[base]) >= 4.5) break;
+		accent = hexFromHsl(
+			hue,
+			saturation,
+			clamp(initialLightness + (base === "dark" ? step : -step), 0, 100),
+		);
 	}
-	return seed;
+	return accent;
 }
 
 /**
@@ -735,9 +762,8 @@ function seedPaletteVars(
 	mix: MixFn,
 ): Record<string, string> {
 	const { base, seed } = input;
-	// The accent is always probe-resolved, even on the preview path:
-	// primaryForegroundFor needs a parseable color to pick the text color.
-	const primary = normalizeSeedAccent(seed, base, mixResolved);
+	// Keep the accent as hex so contrast checks work identically in preview and storage.
+	const primary = normalizeSeedAccent(seed, base);
 	const primaryForeground = primaryForegroundFor(primary);
 
 	const vars: Record<string, string> =
@@ -746,10 +772,10 @@ function seedPaletteVars(
 					"--background": mix(seed, 12, SEED_BACKGROUND_ANCHOR.dark),
 					"--foreground": mix(seed, 8, "#ededed"),
 					"--reading": mix(seed, 6, "#e3e3e3"),
-					"--card": mix(seed, 14, "#333333"),
+					"--card": mix(seed, 10, "#252529"),
 					"--card-border": mix(seed, 10, "#484848"),
 					"--card-foreground": mix(seed, 8, "#f1f1f1"),
-					"--popover": mix(seed, 12, "#333333"),
+					"--popover": mix(seed, 10, "#252529"),
 					"--popover-foreground": mix(seed, 8, "#f1f1f1"),
 					"--secondary": mix(seed, 15, "#3e3e3e"),
 					"--secondary-foreground": mix(seed, 8, "#f1f1f1"),
@@ -768,7 +794,7 @@ function seedPaletteVars(
 				}
 			: {
 					"--background": mix(seed, 10, SEED_BACKGROUND_ANCHOR.light),
-					"--foreground": mix(seed, 30, "#37343c"),
+					"--foreground": mix(seed, 12, "#242328"),
 					"--reading": mix(seed, 24, "#403d45"),
 					"--card": mix(seed, 3, "#ffffff"),
 					"--card-foreground": mix(seed, 30, "#332f38"),
@@ -778,7 +804,7 @@ function seedPaletteVars(
 					"--secondary": mix(seed, 12, "#efede9"),
 					"--secondary-foreground": mix(seed, 30, "#37343c"),
 					"--muted": mix(seed, 12, "#efede9"),
-					"--muted-foreground": mix(seed, 28, "#75717c"),
+					"--muted-foreground": mix(seed, 8, "#625e69"),
 					"--accent": mix(seed, 16, "#eae7e1"),
 					"--accent-foreground": mix(seed, 30, "#37343c"),
 					"--border": mix(seed, 14, "#e4e1db"),
@@ -804,7 +830,7 @@ function seedPaletteVars(
 	vars["--chart-4"] = mix(primary, 40, vars["--background"]);
 	vars["--chart-5"] = mix(primary, 20, vars["--background"]);
 
-	return vars;
+	return { ...RECIPE_SURFACES, ...vars };
 }
 
 export function buildSeedPalette(input: SeedThemeInput): StoredPalette {
