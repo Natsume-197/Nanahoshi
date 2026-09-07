@@ -177,33 +177,36 @@ html[data-rail="expanded"] {
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	--background: oklch(0.21 0 0);
-	--foreground: oklch(0.9551 0 90);
-	--reading: oklch(0.917 0 90);
-	--card: oklch(0.262 0.0055 286);
-	--card-border: rgba(255, 255, 255, 0.1);
-	--card-foreground: oklch(0.9587 0 90);
+	--background: color-mix(in oklab, #352d3e 12%, #181818);
+	--foreground: color-mix(in oklab, #352d3e 8%, #ededed);
+	--reading: color-mix(in oklab, #352d3e 6%, #e3e3e3);
+	--card: color-mix(in oklab, #352d3e 10%, #252529);
+	--card-border: color-mix(in oklab, #352d3e 10%, #484848);
+	--card-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
 	--surface-card: var(--card);
 	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
-	--popover: oklch(0.262 0.0055 286);
-	--popover-foreground: oklch(0.9587 0 90);
+	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
+	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
+	--surface-hover: var(--muted);
+	--popover: color-mix(in oklab, #352d3e 10%, #252529);
+	--popover-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
 	--dropdown: var(--popover);
 	--dropdown-destructive: color-mix(
 		in oklab,
 		var(--destructive) 40%,
 		var(--popover-foreground)
 	);
-	--primary: oklch(0.9551 0 0);
-	--primary-foreground: oklch(0.198 0.004 286);
+	--primary: #8b7a9e;
+	--primary-foreground: #000000;
 	--floating-action: oklch(0.198 0.004 286);
 	--floating-action-foreground: oklch(0.97 0 90);
 	/* Discord's row-hover/active fill. */
-	--secondary: oklch(0.298 0.004 286);
-	--secondary-foreground: oklch(0.9587 0 90);
-	--muted: oklch(0.262 0.0055 286);
-	--muted-foreground: oklch(0.738 0 90);
-	--accent: rgba(255, 255, 255, 0.14);
-	--accent-foreground: oklch(0.9672 0 90);
+	--secondary: color-mix(in oklab, #352d3e 15%, #3e3e3e);
+	--secondary-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--muted: color-mix(in oklab, #352d3e 12%, #373737);
+	--muted-foreground: color-mix(in oklab, #352d3e 12%, #aaaaaa);
+	--accent: color-mix(in oklab, #352d3e 16%, #515151);
+	--accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
@@ -211,23 +214,23 @@ html[data-rail="expanded"] {
 	--selection-foreground: oklch(0.16 0.03 255);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: rgba(255, 255, 255, 0.1);
-	--input: oklch(0.216 0.006 286);
-	--control: rgba(255, 255, 255, 0.03);
-	--ring: oklch(0.7641 0 0);
-	--chart-1: oklch(0.9551 0 0);
-	--chart-2: oklch(0.8178 0 90);
-	--chart-3: oklch(0.6805 0 90);
-	--chart-4: oklch(0.5432 0 90);
-	--chart-5: oklch(0.4059 0 90);
-	--sidebar: oklch(0.19 0 0);
-	--sidebar-foreground: oklch(0.9587 0 90);
-	--sidebar-primary: oklch(0.9551 0 0);
-	--sidebar-primary-foreground: oklch(0.198 0.004 286);
-	--sidebar-accent: rgba(255, 255, 255, 0.1);
-	--sidebar-accent-foreground: oklch(0.9672 0 90);
-	--sidebar-border: rgba(255, 255, 255, 0.1);
-	--sidebar-ring: oklch(0.7641 0 0);
+	--border: color-mix(in oklab, #352d3e 10%, #3b3b3b);
+	--input: color-mix(in oklab, #352d3e 12%, #2c2c2c);
+	--control: var(--input);
+	--ring: color-mix(in oklab, #8b7a9e 80%, black);
+	--chart-1: #8b7a9e;
+	--chart-2: color-mix(in oklab, #8b7a9e 80%, var(--background));
+	--chart-3: color-mix(in oklab, #8b7a9e 60%, var(--background));
+	--chart-4: color-mix(in oklab, #8b7a9e 40%, var(--background));
+	--chart-5: color-mix(in oklab, #8b7a9e 20%, var(--background));
+	--sidebar: color-mix(in oklab, #352d3e 10%, #1d1d1d);
+	--sidebar-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--sidebar-primary: #8b7a9e;
+	--sidebar-primary-foreground: #000000;
+	--sidebar-accent: color-mix(in oklab, #352d3e 14%, #353535);
+	--sidebar-accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
+	--sidebar-border: color-mix(in oklab, #352d3e 10%, #353535);
+	--sidebar-ring: color-mix(in oklab, #8b7a9e 80%, black);
 	--nav-inactive: color-mix(
 		in oklab,
 		var(--sidebar-foreground) 78%,
