@@ -7,6 +7,7 @@ import {
 	isSuppressed,
 	recencyDecay,
 	rerankMixRows,
+	rotateDashboardRows,
 	type ServingContext,
 	workKey,
 } from "../rerank";
@@ -26,6 +27,7 @@ function row(overrides: Partial<RepresentativeRow> = {}): RepresentativeRow {
 		bookTitle: "T",
 		bookFilename: "t.epub",
 		bookCover: null,
+		bookMainColor: null,
 		bookMediaType: "ebook",
 		authors: null,
 		representativeCompleted: false,
@@ -345,5 +347,46 @@ describe("filterFlatRows", () => {
 		];
 		const out = filterFlatRows(rows, ctx(), 2);
 		expect(out.map((r) => r.bookUuid)).toEqual(["a", "b"]);
+	});
+});
+
+describe("partial dashboard rotation", () => {
+	test("keeps half as anchors and cycles discovery across immediate reloads", () => {
+		const rows = Array.from({ length: 8 }, (_, i) =>
+			row({ itemId: i, bookUuid: `b${i}`, rank: i }),
+		);
+		const context = emptyServingContext();
+		context.impressions = new Map();
+		const first = rotateDashboardRows(rows, context, 4, 1000);
+		expect(first.map((r) => r.itemId)).toEqual([0, 1, 2, 3]);
+		for (const r of first)
+			context.impressions.set(workKey(r.kind, r.itemId), {
+				count: 1,
+				lastMs: 1000,
+				lastShownMs: 1000,
+			});
+		const second = rotateDashboardRows(rows, context, 4, 1001);
+		expect(second.map((r) => r.itemId)).toEqual([0, 1, 4, 5]);
+		for (const r of second)
+			context.impressions.set(workKey(r.kind, r.itemId), {
+				count: 1,
+				lastMs: 1000,
+				lastShownMs: 1001,
+			});
+		expect(
+			rotateDashboardRows(rows, context, 4, 1002).map((r) => r.itemId),
+		).toEqual([0, 1, 6, 7]);
+		expect(
+			rotateDashboardRows(rows, context, 4, 7 * 3_600_000).map((r) => r.itemId),
+		).toEqual([0, 1, 2, 3]);
+	});
+	test("small pools stay full, odd limits retain the extra anchor, and input is unchanged", () => {
+		const rows = Array.from({ length: 3 }, (_, i) => row({ itemId: i }));
+		expect(rotateDashboardRows(rows, emptyServingContext(), 6)).toEqual(rows);
+		expect(rotateDashboardRows(rows, emptyServingContext(), 1)).toEqual([
+			rows[0],
+		]);
+		expect(rotateDashboardRows(rows, emptyServingContext(), 0)).toEqual([]);
+		expect(rows.map((r) => r.itemId)).toEqual([0, 1, 2]);
 	});
 });

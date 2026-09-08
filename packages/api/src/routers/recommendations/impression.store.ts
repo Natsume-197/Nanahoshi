@@ -11,6 +11,8 @@ const IMPRESSION_TTL_S = 30 * 24 * 3_600;
 export interface ImpressionEntry {
 	count: number;
 	lastMs: number;
+	/** Last served time, independent of the session-spaced count. */
+	lastShownMs?: number;
 }
 
 // The subset of ioredis this store touches — injectable so tests pass a fake
@@ -51,9 +53,15 @@ export class ImpressionStore {
 				const sep = value.indexOf(":");
 				if (sep <= 0) continue;
 				const count = Number(value.slice(0, sep));
-				const lastMs = Number(value.slice(sep + 1));
+				const [countedAt, shownAt] = value.slice(sep + 1).split(":");
+				const lastMs = Number(countedAt);
+				const lastShownMs = Number(shownAt);
 				if (Number.isFinite(count) && Number.isFinite(lastMs)) {
-					out.set(workKey, { count, lastMs });
+					out.set(workKey, {
+						count,
+						lastMs,
+						...(Number.isFinite(lastShownMs) ? { lastShownMs } : {}),
+					});
 				}
 			}
 		} catch {}
@@ -63,7 +71,7 @@ export class ImpressionStore {
 	/**
 	 * Count one impression per shown work, but only when the previous one is
 	 * older than the session window — reloading the dashboard five times in a
-	 * row is one viewing, not five. Fire-and-forget by design.
+	 * row is one viewing, not five. Last shown time updates on every response.
 	 */
 	async record(
 		serverId: string,
@@ -75,8 +83,10 @@ export class ImpressionStore {
 		const fields: Record<string, string> = {};
 		for (const workKey of workKeys) {
 			const prev = existing.get(workKey);
-			if (prev && nowMs - prev.lastMs < IMPRESSION_WINDOW_MS) continue;
-			fields[workKey] = `${(prev?.count ?? 0) + 1}:${nowMs}`;
+			const sameSession = prev && nowMs - prev.lastMs < IMPRESSION_WINDOW_MS;
+			const count = sameSession ? prev.count : (prev?.count ?? 0) + 1;
+			const countedAt = sameSession ? prev.lastMs : nowMs;
+			fields[workKey] = `${count}:${countedAt}:${nowMs}`;
 		}
 		if (Object.keys(fields).length === 0) return;
 		try {

@@ -26,8 +26,9 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 	const { data, isLoading } = useQuery({
 		...recommendationsQuery,
 		// Back-navigation should reuse the recommendation work already in cache.
-		// A later dashboard visit may still rotate the mixes after this short window.
-		staleTime: 60_000,
+		// Keep the selection until a reload or explicit recommendation invalidation.
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: Number.POSITIVE_INFINITY,
 		refetchOnWindowFocus: false,
 		refetchOnReconnect: false,
 	});

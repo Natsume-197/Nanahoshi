@@ -50,7 +50,7 @@ describe("ImpressionStore", () => {
 		const store = new ImpressionStore(fake.client);
 		await store.record("org", "u1", ["book:1", "book:2"], new Map(), 5000);
 		const hash = fake.hashes.get("recs:imp:org:u1");
-		expect(hash).toEqual({ "book:1": "1:5000", "book:2": "1:5000" });
+		expect(hash).toEqual({ "book:1": "1:5000:5000", "book:2": "1:5000:5000" });
 		expect(fake.expires.length).toBe(1);
 	});
 
@@ -59,21 +59,29 @@ describe("ImpressionStore", () => {
 		const store = new ImpressionStore(fake.client);
 		const now = 100 * HOUR;
 		const existing = new Map([
-			// 1h ago: same session, skip
+			// 1h ago: update last shown without incrementing count
 			["book:1", { count: 2, lastMs: now - HOUR }],
 			// 7h ago: new session, count
 			["book:2", { count: 2, lastMs: now - 7 * HOUR }],
 		]);
 		await store.record("org", "u1", ["book:1", "book:2"], existing, now);
 		const hash = fake.hashes.get("recs:imp:org:u1");
-		expect(hash).toEqual({ "book:2": `3:${now}` });
+		expect(hash).toEqual({
+			"book:1": `2:${now - HOUR}:${now}`,
+			"book:2": `3:${now}:${now}`,
+		});
+		expect((await store.load("org", "u1")).get("book:1")).toEqual({
+			count: 2,
+			lastMs: now - HOUR,
+			lastShownMs: now,
+		});
 	});
 
 	test("nothing to write → no Redis calls at all", async () => {
 		const fake = fakeRedis();
 		const store = new ImpressionStore(fake.client);
 		const existing = new Map([["book:1", { count: 1, lastMs: 1000 }]]);
-		await store.record("org", "u1", ["book:1"], existing, 1000 + HOUR);
+		await store.record("org", "u1", [], existing, 1000 + HOUR);
 		expect(fake.hashes.size).toBe(0);
 		expect(fake.expires.length).toBe(0);
 	});

@@ -135,3 +135,28 @@ export function filterFlatRows(
 	}
 	return out;
 }
+
+/** Keep strong anchors, then rotate the remaining slots through ranked candidates.
+ * Recent exposure only affects discovery slots, never taste or exclusions.
+ * Input is already ranked, deduplicated and permission-filtered.
+ */
+export function rotateDashboardRows(
+	rows: RepresentativeRow[],
+	ctx: ServingContext,
+	limit: number,
+	nowMs = Date.now(),
+): RepresentativeRow[] {
+	if (limit <= 0) return [];
+	const anchorCount = Math.ceil(limit / 2);
+	const anchors = rows.slice(0, anchorCount);
+	const lastShown = (row: RepresentativeRow): number => {
+		const entry = ctx.impressions?.get(workKey(row.kind, row.itemId));
+		const at = entry?.lastShownMs ?? entry?.lastMs ?? 0;
+		return nowMs - at < 6 * 3_600_000 ? at : 0;
+	};
+	// Stable sort preserves relevance among equally fresh candidates.
+	const discovery = rows
+		.slice(anchorCount)
+		.sort((a, b) => lastShown(a) - lastShown(b));
+	return [...anchors, ...discovery.slice(0, limit - anchors.length)];
+}

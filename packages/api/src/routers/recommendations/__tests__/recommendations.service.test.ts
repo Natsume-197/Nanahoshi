@@ -208,6 +208,42 @@ describe("forUser", () => {
 		expect(recordedImpressions[0]).toHaveLength(14);
 	});
 
+	test("immediate reload keeps half and reaches beyond the previous rail across mixes", async () => {
+		mixHeaders = [0, 1].map((mixIndex) => ({
+			mixIndex,
+			anchorTitle: null,
+			hasAnchor: false,
+		}));
+		mixItems = Array.from({ length: 12 }, (_, i) =>
+			row({
+				kind: "book",
+				itemId: i,
+				bookUuid: `b${i}`,
+				mixIndex: i % 2,
+				rank: Math.floor(i / 2),
+				score: 1 - i / 20,
+			}),
+		);
+		const options = { format: "books" as const, perMixLimit: 4 };
+		const first = await service.forUser("u1", "org-a", "ALL", options);
+		const firstIds = first.mixes.flatMap((mix) =>
+			mix.items.map((item) => item.book.uuid),
+		);
+		impressions = new Map(
+			recordedImpressions[0]?.map((key) => [
+				key,
+				{ count: 1, lastMs: Date.now() },
+			]),
+		);
+		const second = await service.forUser("u1", "org-a", "ALL", options);
+		const secondIds = second.mixes.flatMap((mix) =>
+			mix.items.map((item) => item.book.uuid),
+		);
+		expect(secondIds).toHaveLength(4);
+		expect(secondIds.filter((id) => firstIds.includes(id))).toHaveLength(2);
+		expect(new Set(secondIds)).toEqual(new Set(["b0", "b1", "b4", "b5"]));
+	});
+
 	test("a new visit rotates an unseen near-tie into the visible rail", async () => {
 		mixHeaders = [{ mixIndex: 0, anchorTitle: "Taste", hasAnchor: true }];
 		mixItems = Array.from({ length: 15 }, (_, index) =>

@@ -23,6 +23,7 @@ import {
 	filterFlatRows,
 	isSuppressed,
 	rerankMixRows,
+	rotateDashboardRows,
 	type ServingContext,
 	workKey,
 } from "./rerank";
@@ -187,10 +188,14 @@ export async function forUser(
 	]);
 
 	// online re-rank: drop consumed/dismissed, lean toward recent reads, re-cap
-	const reranked = rerankMixRows(items, ctx, options.perMixLimit);
-	const personalizedRows = selectDashboardRows(
-		reranked,
-		headers.map((header) => header.mixIndex),
+	const reranked = rerankMixRows(items, ctx, items.length);
+	const personalizedRows = rotateDashboardRows(
+		selectDashboardRows(
+			reranked,
+			headers.map((header) => header.mixIndex),
+			items.length,
+		),
+		ctx,
 		options.perMixLimit,
 	);
 
@@ -241,9 +246,9 @@ export async function forUser(
 		}
 	}
 
-	// fire-and-forget: serving latency never waits on impression bookkeeping
+	// Persist before responding so the next reload can rotate this selection.
 	if (shownRows.length > 0) {
-		void impressionStore.record(
+		await impressionStore.record(
 			serverId,
 			userId,
 			shownRows.map((row) => workKey(row.kind, row.itemId)),
