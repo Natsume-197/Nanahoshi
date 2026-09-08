@@ -1,20 +1,19 @@
+import { BookOpen, Headphones } from "@phosphor-icons/react";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { BookCard } from "@/components/books/book-card";
-import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import {
+	DASHBOARD_BOOK_TILE_CLASS,
+	SectionSkeleton,
+} from "@/components/dashboard/home/section-skeleton";
+import { ScrollSection } from "@/components/shared/scroll-section";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 const BOOK_GRID_ITEM_LIMIT = 10;
 const AUDIOBOOK_GRID_ITEM_LIMIT = 8;
-const SHOW_ALL_THRESHOLD = 10;
-const GRID_SKELETON_IDS = Array.from(
-	{ length: BOOK_GRID_ITEM_LIMIT },
-	(_, index) => `shelf-grid-skeleton-${index}`,
-);
 
 export type ShelfStatus = "want_to_read" | "backlog" | "reading" | "completed";
 export type AudiobookShelfStatus =
@@ -178,51 +177,49 @@ function ShelfGrid<TStatus extends string>({
 		mediaType === "audiobook"
 			? AUDIOBOOK_GRID_ITEM_LIMIT
 			: BOOK_GRID_ITEM_LIMIT;
-	const gridClassName =
-		mediaType === "audiobook"
-			? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4"
-			: "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-5";
-
 	return (
-		<div className="rounded-xl bg-card/60 p-4 shadow-sm sm:p-5">
-			<div className="mb-4 flex items-center justify-between gap-3">
-				<div className="flex min-w-0 items-center gap-2">
-					<h2 className="truncate font-semibold text-lg">{label}</h2>
+		<ScrollSection
+			title={
+				<span className="inline-flex items-center gap-2">
+					{label}
 					<Badge
 						variant="secondary"
-						className="bg-primary/15 text-primary tabular-nums"
+						className="rounded-full bg-muted px-2 text-muted-foreground tabular-nums"
 					>
 						{total}
 					</Badge>
+				</span>
+			}
+			headerAction={
+				<button
+					type="button"
+					onClick={() => onViewMore(status)}
+					className="rounded-sm font-medium text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+				>
+					{m["nav.show_all"]()}
+					<span className="sr-only">: {label}</span>
+				</button>
+			}
+		>
+			{books.slice(0, itemLimit).map((book) => (
+				<div
+					key={book.bookId}
+					className={`${DASHBOARD_BOOK_TILE_CLASS} shrink-0`}
+				>
+					<BookCard
+						uuid={book.bookUuid}
+						title={book.title}
+						filename={book.bookFilename}
+						cover={book.cover}
+						tint={book.mainColor}
+						authors={book.authors}
+						coverPreset={coverPresets.small}
+						mediaType={mediaType}
+						coverFrameRatio={mediaType === "audiobook" ? "square" : "book"}
+					/>
 				</div>
-				{total > SHOW_ALL_THRESHOLD && (
-					<button
-						type="button"
-						onClick={() => onViewMore(status)}
-						className="shrink-0 font-semibold text-muted-foreground text-sm transition-colors hover:text-foreground"
-					>
-						{m["nav.show_all"]()}
-					</button>
-				)}
-			</div>
-			<div className={gridClassName}>
-				{books.slice(0, itemLimit).map((book) => (
-					<div key={book.bookId} className="min-w-0">
-						<BookCard
-							uuid={book.bookUuid}
-							title={book.title}
-							filename={book.bookFilename}
-							cover={book.cover}
-							tint={book.mainColor}
-							authors={book.authors}
-							coverPreset={coverPresets.small}
-							mediaType={mediaType}
-							coverFrameRatio={mediaType === "audiobook" ? "square" : "book"}
-						/>
-					</div>
-				))}
-			</div>
-		</div>
+			))}
+		</ScrollSection>
 	);
 }
 
@@ -242,37 +239,31 @@ function ShelfSections<TStatus extends string>({
 	const { byStatus, totalByStatus, isLoading, hasBooks } = shelves;
 
 	if (isLoading) {
-		const isAudiobook = mediaType === "audiobook";
-		const itemLimit = isAudiobook
-			? AUDIOBOOK_GRID_ITEM_LIMIT
-			: BOOK_GRID_ITEM_LIMIT;
-		const gridClassName = isAudiobook
-			? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4"
-			: "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-5";
-
-		return (
-			<div className="rounded-xl bg-card/60 p-4 shadow-sm sm:p-5">
-				<Skeleton className="mb-4 h-7 w-44 rounded" />
-				<div className={gridClassName}>
-					{GRID_SKELETON_IDS.slice(0, itemLimit).map((id) => (
-						<BookCardSkeleton key={id} square={isAudiobook} />
-					))}
-				</div>
-			</div>
-		);
+		return <SectionSkeleton square={mediaType === "audiobook"} />;
 	}
 
 	if (!hasBooks) {
 		return (
-			<div className="rounded-lg bg-card/30 px-6 py-10 text-center text-muted-foreground text-sm">
-				No {mediaType === "audiobook" ? "audiobooks" : "books"} on any shelf
-				yet.
+			<div className="flex flex-col items-center rounded-2xl border border-border/60 bg-muted/25 px-6 py-12 text-center">
+				<div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+					{mediaType === "audiobook" ? (
+						<Headphones aria-hidden="true" className="size-6" />
+					) : (
+						<BookOpen aria-hidden="true" className="size-6" />
+					)}
+				</div>
+				<p className="font-medium">
+					{mediaType === "audiobook" ? m["nav.audiobooks"]() : m["nav.books"]()}
+				</p>
+				<p className="mt-1 text-muted-foreground text-sm">
+					{m["catalog_pages.empty_shelf"]()}
+				</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-10">
 			{sections.map((section) => (
 				<ShelfGrid
 					key={section.status}

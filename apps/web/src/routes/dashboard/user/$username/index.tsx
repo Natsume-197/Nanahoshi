@@ -55,7 +55,7 @@ const AUDIOBOOK_SHELF_STATUS_VALUES: AudiobookShelfStatus[] = [
 ];
 
 const PROFILE_TAB_TRIGGER_CLASS =
-	"h-full flex-1 rounded-lg px-2 py-0 after:inset-x-2 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary data-active:after:opacity-100 sm:px-3";
+	"h-full flex-1 rounded-none px-2 py-0 text-xs after:rounded-full group-data-horizontal/tabs:after:inset-x-2 group-data-horizontal/tabs:after:bottom-0 sm:flex-none sm:px-5 sm:text-sm";
 
 export const Route = createFileRoute("/dashboard/user/$username/")({
 	component: UserProfilePage,
@@ -155,12 +155,15 @@ function UserProfilePage() {
 			<Button
 				variant="secondary"
 				size="sm"
+				aria-label={m["user_profile.edit_profile"]()}
 				onPointerEnter={preloadSettingsPage}
 				onClick={() => openSettings("profile")}
-				className="hidden gap-1.5 shadow-sm sm:inline-flex"
+				className="gap-2 rounded-full px-3 sm:px-4"
 			>
 				<PencilSimple className="size-4" />
-				{m["user_profile.edit_profile"]()}
+				<span className="hidden sm:inline">
+					{m["user_profile.edit_profile"]()}
+				</span>
 			</Button>
 			<AccountMenu />
 		</div>
@@ -171,10 +174,12 @@ function UserProfilePage() {
 		canReadCollections &&
 		(publicCollectionsQuery.isLoading ||
 			Boolean(publicCollectionsQuery.data?.length)) ? (
-			<section className="flex min-w-0 flex-col gap-3 rounded-xl bg-card/60 p-4 sm:p-5">
-				<h2 className="font-semibold text-base">Public Collections</h2>
+			<section className="flex min-w-0 flex-col gap-5 border-border/60 border-t pt-8">
+				<h2 className="font-semibold text-xl tracking-tight">
+					Public Collections
+				</h2>
 				{publicCollectionsQuery.isLoading ? (
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(2,minmax(0,220px))]">
+					<div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
 						{[
 							"collection-1",
 							"collection-2",
@@ -185,7 +190,7 @@ function UserProfilePage() {
 						))}
 					</div>
 				) : (
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(2,minmax(0,140px))]">
+					<div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
 						{publicCollectionsQuery.data?.map((collection) => {
 							const preview = resolveCollectionPreview(
 								collection,
@@ -212,46 +217,46 @@ function UserProfilePage() {
 		) : null;
 
 	return (
-		<div className="pb-8">
-			<div className="relative aspect-[3/2] w-full bg-muted sm:aspect-[4/1]">
-				{headerImageSources ? (
-					<img
-						{...headerImageSources}
-						alt=""
-						className="h-full w-full object-cover opacity-0 transition-opacity duration-700 ease-out"
-						decoding="async"
-						onLoad={(e) => e.currentTarget.classList.remove("opacity-0")}
-						ref={(el) => {
-							if (el?.complete) el.classList.remove("opacity-0");
-						}}
-					/>
-				) : (
-					<div className="h-full w-full bg-gradient-to-br from-primary/25 via-muted to-chart-5/25" />
-				)}
-				<div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/30 via-black/5 to-transparent" />
-
-				<div className="absolute inset-x-0 bottom-0 z-10">
-					<div className="mx-auto flex w-full max-w-[1400px] items-end justify-between gap-3 px-4 pb-3 sm:px-6 sm:pb-4">
-						<div className="flex min-w-0 flex-1 items-end gap-3 sm:gap-4">
-							<UserAvatar
-								name={profileName}
-								image={profile?.image}
-								className="size-28 shrink-0 drop-shadow-lg sm:size-36 md:size-40"
-								fallbackClassName="bg-muted font-bold text-3xl text-foreground sm:text-4xl"
-							/>
-							<div className="min-w-0 pb-3 sm:pb-4">
-								<h1 className="truncate font-bold text-white text-xl leading-tight tracking-tight [text-shadow:0_1px_3px_rgb(0_0_0/0.32)] sm:text-2xl md:text-3xl">
-									{profileName}
-								</h1>
-								<p className="truncate text-base text-white/85 [text-shadow:0_1px_3px_rgb(0_0_0/0.28)] sm:text-lg">
-									@{displayUsername}
-								</p>
-							</div>
+		<div className="mx-auto w-full max-w-[1400px] px-4 pt-4 pb-12 sm:px-8 sm:pt-6 lg:px-10">
+			<header>
+				<div className="relative h-40 overflow-hidden rounded-t-2xl bg-muted [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:h-56 lg:h-64">
+					{headerImageSources ? (
+						<img
+							{...headerImageSources}
+							alt=""
+							className="h-full w-full object-cover"
+							decoding="async"
+						/>
+					) : (
+						<div
+							aria-hidden="true"
+							className="absolute inset-0 bg-gradient-to-br from-primary/15 via-muted to-primary/5"
+						>
+							<div className="absolute -top-36 -right-12 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
+							<div className="absolute -top-20 -right-28 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
 						</div>
-						<div className="shrink-0 pb-2">{actionButton}</div>
+					)}
+				</div>
+				<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-4 gap-y-5 px-2 pb-7 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6 sm:px-6 sm:pb-8">
+					<UserAvatar
+						name={profileName}
+						image={profile?.image}
+						className="-mt-10 size-24 shrink-0 ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]"
+						fallbackClassName="bg-muted font-semibold text-3xl text-foreground sm:text-4xl"
+					/>
+					<div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:pb-2">
+						<h1 className="break-words font-semibold text-3xl leading-tight tracking-tight sm:text-4xl">
+							{profileName}
+						</h1>
+						<p className="mt-1.5 break-all text-muted-foreground text-sm sm:text-base">
+							@{displayUsername}
+						</p>
+					</div>
+					<div className="col-start-2 row-start-1 justify-self-end sm:col-start-3 sm:self-center">
+						{actionButton}
 					</div>
 				</div>
-			</div>
+			</header>
 
 			<Tabs
 				value={activeTab}
@@ -276,11 +281,11 @@ function UserProfilePage() {
 			>
 				<div
 					ref={tabsNavRef}
-					className="mx-auto mt-6 w-full max-w-[1400px] scroll-mt-4 px-4 sm:px-6"
+					className="w-full scroll-mt-4 border-border/70 border-b"
 				>
 					<TabsList
 						variant="line"
-						className="scrollbar-none h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-card/60 p-1 data-[variant=line]:rounded-xl"
+						className="scrollbar-none w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-12"
 					>
 						<TabsTrigger value="overview" className={PROFILE_TAB_TRIGGER_CLASS}>
 							Overview
@@ -305,18 +310,10 @@ function UserProfilePage() {
 					</TabsList>
 				</div>
 
-				{/* Body — sidebar + main */}
-				<div className="mx-auto mt-6 flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:gap-8">
-					{isOverviewTab && (
-						<aside className="space-y-6 lg:w-[590px] lg:shrink-0">
-							{publicCollectionsSection}
-						</aside>
-					)}
-
-					{/* Main */}
+				<div className="mt-8 w-full sm:mt-10">
 					<main className="min-w-0 flex-1">
 						<TabsContent value="overview">
-							<div className="flex flex-col gap-8">
+							<div className="flex flex-col gap-10">
 								<BookShelfSections
 									shelves={shelves}
 									onViewMore={(status) =>
@@ -336,6 +333,7 @@ function UserProfilePage() {
 										})
 									}
 								/>
+								{publicCollectionsSection}
 							</div>
 						</TabsContent>
 
@@ -387,45 +385,23 @@ function UserProfilePage() {
 
 function ProfileSkeleton() {
 	return (
-		<div className="pb-8">
-			{/* Banner with identity overlay */}
-			<div className="relative aspect-[3/2] w-full sm:aspect-[4/1]">
-				<Skeleton className="h-full w-full rounded-none" />
-				<div className="absolute inset-x-0 bottom-0">
-					<div className="mx-auto flex w-full max-w-[1400px] items-end gap-3 px-4 pb-3 sm:gap-4 sm:px-6 sm:pb-4">
-						<Skeleton className="size-28 shrink-0 rounded-full sm:size-36 md:size-40" />
-						<div className="space-y-2 pb-3 sm:pb-4">
-							<Skeleton className="h-7 w-40" />
-							<Skeleton className="h-5 w-28" />
-						</div>
-					</div>
+		<div className="mx-auto w-full max-w-[1400px] px-4 pt-4 pb-12 sm:px-8 sm:pt-6 lg:px-10">
+			<Skeleton className="h-40 w-full rounded-t-2xl [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:h-56 lg:h-64" />
+			<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-6 gap-y-5 px-2 pb-8 sm:px-6">
+				<Skeleton className="-mt-10 size-24 rounded-full ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]" />
+				<div className="col-span-2 sm:col-span-1 sm:pb-2">
+					<Skeleton className="h-10 w-48" />
+					<Skeleton className="mt-2 h-5 w-28" />
 				</div>
 			</div>
-
-			<div className="mx-auto mt-6 w-full max-w-[1400px] px-4 sm:px-6">
-				<div className="flex h-10 items-center gap-4 rounded-lg bg-card/60 px-5">
-					<Skeleton className="h-4 w-20" />
-					<Skeleton className="h-4 w-16" />
-					<Skeleton className="h-4 w-24" />
-					<Skeleton className="h-4 w-14" />
-				</div>
+			<div className="flex h-12 items-center gap-6 border-border/70 border-b">
+				<Skeleton className="h-4 w-20" />
+				<Skeleton className="h-4 w-16" />
+				<Skeleton className="h-4 w-24" />
 			</div>
-
-			<div className="mx-auto mt-6 flex w-full max-w-[1400px] flex-col gap-6 px-4 sm:px-6 lg:flex-row lg:gap-8">
-				<aside className="space-y-6 lg:w-[590px] lg:shrink-0">
-					<div className="space-y-3 rounded-xl bg-card/60 p-4 sm:p-5">
-						<Skeleton className="h-4 w-48" />
-						<Skeleton className="h-4 w-40" />
-						<Skeleton className="h-4 w-32" />
-						<Skeleton className="h-4 w-36" />
-					</div>
-				</aside>
-				<main className="min-w-0 flex-1">
-					<div className="space-y-6">
-						<Skeleton className="h-40 w-full rounded-lg" />
-						<SectionSkeleton />
-					</div>
-				</main>
+			<div className="mt-10 space-y-10">
+				<SectionSkeleton />
+				<SectionSkeleton />
 			</div>
 		</div>
 	);

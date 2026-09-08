@@ -36,6 +36,7 @@ import {
 } from "@/components/books/book-context-menu";
 import { HitLink } from "@/components/dashboard/search/top-results-hit-link";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
+import { CategorySelector } from "@/components/shared/category-selector";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { VirtualizedResultList } from "@/components/shared/virtualized-result-list";
 import {
@@ -116,15 +117,9 @@ const compactRowClassName =
 
 function FilterChipsSkeleton() {
 	return (
-		<div className="flex gap-2 overflow-hidden" aria-busy="true">
+		<div className="flex gap-3 overflow-hidden" aria-busy="true">
 			{CHIP_SKELETONS.map(({ id, width }) => (
-				<Skeleton
-					key={id}
-					className={cn(
-						"h-11 shrink-0 rounded-full shadow-[0_0_0_1px_oklch(0_0_0/0.06)] dark:shadow-[0_0_0_1px_oklch(1_0_0/0.08)]",
-						width,
-					)}
-				/>
+				<Skeleton key={id} className={cn("h-10 shrink-0 rounded-xl", width)} />
 			))}
 		</div>
 	);
@@ -985,29 +980,16 @@ function SearchPage() {
 				{shouldSearch && isSearchLoading ? (
 					<FilterChipsSkeleton />
 				) : shouldSearch ? (
-					<div className="scrollbar-none -mx-4 overflow-x-auto px-4 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-						<fieldset className="flex w-max gap-2">
-							<legend className="sr-only">
-								{m["search.filter_results"]()}
-							</legend>
-							{filterOptions.map(({ key, label }) => (
-								<button
-									key={key}
-									type="button"
-									aria-pressed={filter === key}
-									onClick={() => setFilter(key)}
-									className={cn(
-										"min-h-11 shrink-0 touch-manipulation whitespace-nowrap rounded-full px-4 font-semibold text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] motion-safe:transition-[background-color,color,box-shadow,scale] motion-safe:duration-150",
-										filter === key
-											? "bg-foreground text-background shadow-sm"
-											: "bg-accent text-foreground/80 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_1px_2px_oklch(0_0_0/0.04)] hover:bg-surface-accent-hover hover:text-foreground dark:shadow-[0_0_0_1px_oklch(1_0_0/0.08)]",
-									)}
-								>
-									{label}
-								</button>
-							))}
-						</fieldset>
-					</div>
+					<CategorySelector
+						value={filter}
+						items={filterOptions.map(({ key, label }) => ({
+							value: key,
+							label: () => label,
+						}))}
+						onValueChange={setFilter}
+						ariaLabel={m["search.filter_results"]()}
+						className="p-0 md:p-0 lg:p-0"
+					/>
 				) : null}
 
 				{normalizedQuery && !shouldSearch && (

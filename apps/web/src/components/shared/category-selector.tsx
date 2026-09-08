@@ -12,11 +12,13 @@ export function CategorySelector<Value extends string>({
 	items,
 	onValueChange,
 	ariaLabel,
+	className,
 }: {
 	value: Value;
 	items: readonly CategorySelectorItem<Value>[];
 	onValueChange: (value: Value) => void;
 	ariaLabel: string;
+	className?: string;
 }) {
 	return (
 		<div className="scrollbar-none shrink-0 overflow-x-auto overscroll-x-contain">
@@ -30,7 +32,7 @@ export function CategorySelector<Value extends string>({
 				size="category"
 				spacing={3}
 				aria-label={ariaLabel}
-				className={cn(PAGE_GUTTER, "min-w-max pt-5 pb-2 md:pt-6")}
+				className={cn(PAGE_GUTTER, "min-w-max pt-5 pb-2 md:pt-6", className)}
 			>
 				{items.map((item) => (
 					<ToggleGroupItem key={item.value} value={item.value}>

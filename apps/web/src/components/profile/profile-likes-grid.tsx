@@ -5,8 +5,8 @@ import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { ProfilePagination } from "@/components/profile/profile-pagination";
 import type { LikedFormat } from "@/components/profile/profile-tabs";
+import { CategorySelector } from "@/components/shared/category-selector";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
@@ -83,20 +83,17 @@ export function ProfileLikesGrid({
 				)}
 			</p>
 
-			<div className="flex flex-wrap gap-2.5">
-				{FORMAT_FILTERS.map((filter) => (
-					<Button
-						key={filter.format}
-						variant={format === filter.format ? "default" : "outline"}
-						size="sm"
-						onClick={() => handleFormatChange(filter.format)}
-					>
-						{filter.format === "books"
-							? m["nav.books"]()
-							: m["nav.audiobooks"]()}
-					</Button>
-				))}
-			</div>
+			<CategorySelector
+				value={format}
+				items={FORMAT_FILTERS.map((filter) => ({
+					value: filter.format,
+					label:
+						filter.format === "books" ? m["nav.books"] : m["nav.audiobooks"],
+				}))}
+				onValueChange={handleFormatChange}
+				ariaLabel={m["search.filter_results"]()}
+				className="p-0 md:p-0 lg:p-0"
+			/>
 
 			{isError || isCountError ? (
 				<QueryErrorState

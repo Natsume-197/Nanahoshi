@@ -1,12 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
+import { retainCatalogData } from "@/components/catalog/catalog-queries";
 import { QueryErrorState } from "@/components/libraries/query-error-state";
 import type { AudiobookShelfStatus } from "@/components/profile/book-shelf-sections";
 import { ProfilePagination } from "@/components/profile/profile-pagination";
+import { CategorySelector } from "@/components/shared/category-selector";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
@@ -46,7 +47,8 @@ export function ProfileAudiobooksGrid({
 		setPage(0);
 	}
 
-	const { data, isLoading, isError, refetch } = useQuery({
+	const queryClient = useQueryClient();
+	const { data, isLoading, isError, isPlaceholderData, refetch } = useQuery({
 		...orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
 			input: {
 				username,
@@ -56,6 +58,15 @@ export function ProfileAudiobooksGrid({
 			},
 		}),
 		staleTime: 60_000,
+		meta: { catalogScope: username },
+		// Keep cards mounted during filter/page requests, only within this profile.
+		placeholderData: (data, previousQuery) =>
+			retainCatalogData(
+				data,
+				previousQuery,
+				username,
+				queryClient.getQueryCache(),
+			),
 	});
 
 	const total = data?.total ?? 0;
@@ -78,7 +89,7 @@ export function ProfileAudiobooksGrid({
 						: m["catalog_pages.want_listen"]();
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-4" aria-busy={isPlaceholderData}>
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<p className="font-medium text-muted-foreground text-sm tabular-nums">
 					{isLoading ? (
@@ -89,18 +100,18 @@ export function ProfileAudiobooksGrid({
 				</p>
 			</div>
 
-			<div className="flex flex-wrap gap-2.5">
-				{STATUS_FILTERS.map((filter) => (
-					<Button
-						key={filter.label}
-						variant={activeStatus === filter.status ? "default" : "outline"}
-						size="sm"
-						onClick={() => handleStatusChange(filter.status)}
-					>
-						{statusLabel(filter.status)}
-					</Button>
-				))}
-			</div>
+			<CategorySelector<AudiobookShelfStatus | "all">
+				value={activeStatus ?? "all"}
+				items={STATUS_FILTERS.map((filter) => ({
+					value: filter.status ?? "all",
+					label: () => statusLabel(filter.status),
+				}))}
+				onValueChange={(status) =>
+					handleStatusChange(status === "all" ? undefined : status)
+				}
+				ariaLabel={m["search.filter_results"]()}
+				className="p-0 md:p-0 lg:p-0"
+			/>
 
 			{isError ? (
 				<QueryErrorState onRetry={() => void refetch()} />
@@ -138,11 +149,13 @@ export function ProfileAudiobooksGrid({
 				</div>
 			)}
 
-			<ProfilePagination
-				page={page}
-				totalPages={totalPages}
-				onPageChange={setPage}
-			/>
+			<fieldset disabled={isPlaceholderData} className="min-w-0">
+				<ProfilePagination
+					page={page}
+					totalPages={totalPages}
+					onPageChange={setPage}
+				/>
+			</fieldset>
 		</div>
 	);
 }
