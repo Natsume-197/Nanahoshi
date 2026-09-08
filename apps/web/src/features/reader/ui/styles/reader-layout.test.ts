@@ -88,6 +88,29 @@ describe("focus mode sentence box", () => {
 });
 
 describe("reader layout", () => {
+	test("hides empty vertical centering spacers only on horizontal paginated artwork", () => {
+		for (const [mode, direction, imageOnly, content, expected] of [
+			["paginated", "horizontal-tb", true, "", "none"],
+			["paginated", "vertical-rl", true, "", "inline-block"],
+			["continuous", "horizontal-tb", true, "", "inline-block"],
+			["paginated", "horizontal-tb", false, "", "inline-block"],
+			["paginated", "horizontal-tb", true, "本文", "inline-block"],
+		] as const) {
+			const dom = new JSDOM(`
+				<style>.book-content .h-valign-width { display: inline-block; width: 100%; vertical-align: middle; }</style>
+				<style>${readerCss}</style>
+				<div class="book-content book-content--${mode} book-content--writing-${direction}">
+					<div class="nanahoshi-book-body-wrapper ${imageOnly ? "nanahoshi-no-text" : ""}">
+						<span class="h-valign-width">${content}</span><div class="inline-height"><img alt="cover"></div>
+					</div>
+				</div>
+			`);
+			const spacer = dom.window.document.querySelector(".h-valign-width")!;
+			expect(dom.window.getComputedStyle(spacer).display).toBe(expected);
+			dom.window.close();
+		}
+	});
+
 	test("does not paint browser focus frames around reader surfaces", () => {
 		const renderers = [
 			"text-paginated",

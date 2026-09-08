@@ -462,6 +462,15 @@
 	max-height: var(--book-content-child-height, 95vh) !important;
 }
 
+/* EPUB vertical centering uses an empty full-width inline spacer. In
+   horizontal columns it consumes a line before the page-height cover and
+   pushes the artwork into an overflowing column, leaving page one blank. */
+.book-content--paginated.book-content--writing-horizontal-tb
+	.nanahoshi-book-body-wrapper.nanahoshi-no-text
+	.h-valign-width:empty {
+	display: none;
+}
+
 /* Doubled-up .book-content: must win over the .book-content-prefixed EPUB
    stylesheet (see the continuous rule above), or page-fitted images overflow
    the page horizontally and get clipped. */
