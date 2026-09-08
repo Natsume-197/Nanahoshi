@@ -2,6 +2,7 @@ import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/r
 export type TrackingMode = "automatic" | "manual" | "off";
 export interface ClockSnapshot {
 	state: "idle" | "active" | "paused" | "finished";
+	pauseReason: "manual" | "idle" | "hidden" | null;
 	seconds: number;
 	observedProgress: number;
 	startPosition: number | null;
@@ -22,6 +23,7 @@ export class SessionClock {
 	private lastActivity = 0;
 	private pausedAt = 0;
 	private manualPause = false;
+	private pauseReason: ClockSnapshot["pauseReason"] = null;
 	private segmentStart: number | null = null;
 	private locator: string | null = null;
 	private startLocator: string | null = null;
@@ -48,6 +50,7 @@ export class SessionClock {
 		this.lastWall = now.wall;
 		this.lastActivity = now.mono;
 		this.manualPause = false;
+		this.pauseReason = null;
 		this.kind = "reading";
 	}
 	activity(mode: TrackingMode) {
@@ -82,6 +85,7 @@ export class SessionClock {
 		this.flush();
 	}
 	move(position: number, jump = false, locator: string | null = null) {
+		if (this.state === "finished") return;
 		const previous = this.position;
 		const navigation =
 			jump ||
@@ -131,11 +135,16 @@ export class SessionClock {
 		this.startLocator = this.locator;
 		this.kind = "reading";
 	}
-	pause(manual = true, flush = true) {
+	pause(
+		manual = true,
+		flush = true,
+		reason: ClockSnapshot["pauseReason"] = manual ? "manual" : "idle",
+	) {
 		if (flush) this.flush();
 		if (this.state !== "active") return;
 		this.state = "paused";
 		this.manualPause = manual;
+		this.pauseReason = reason;
 		this.pausedAt = this.now().mono;
 	}
 	resume() {
@@ -148,6 +157,7 @@ export class SessionClock {
 		this.segmentStart = this.position;
 		this.startLocator = this.locator;
 		this.manualPause = false;
+		this.pauseReason = null;
 	}
 	finish() {
 		this.flush();
@@ -162,6 +172,7 @@ export class SessionClock {
 	snapshot(): ClockSnapshot {
 		return {
 			state: this.state,
+			pauseReason: this.state === "paused" ? this.pauseReason : null,
 			seconds: this.seconds,
 			observedProgress: this.observedProgress,
 			startPosition: this.startPosition,

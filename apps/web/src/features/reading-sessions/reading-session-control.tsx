@@ -1,5 +1,6 @@
-import { Pause, Timer } from "@phosphor-icons/react";
-import { useState } from "react";
+import { Check, Pause, Timer } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -10,7 +11,9 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
-import { sessionDuration } from "./reading-duration";
+import { orpc } from "@/utils/orpc";
+import { readingDuration, sessionDuration } from "./reading-duration";
+import { ReadingHistory } from "./reading-history";
 import type { TrackingMode } from "./session-clock";
 import type { ReadingTracker } from "./use-reading-tracker";
 export function ReadingSessionControl({
@@ -19,21 +22,71 @@ export function ReadingSessionControl({
 	tracker: ReadingTracker;
 }) {
 	const mobile = useIsMobile();
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const stateId = useId();
 	const [open, setOpen] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [failed, setFailed] = useState(false);
+	const [historyOpen, setHistoryOpen] = useState(false);
+	const [discarding, setDiscarding] = useState(false);
+	const [discardFailed, setDiscardFailed] = useState(false);
+	const disabled = tracker.preferences?.mode === "off";
+	const stateLabel = disabled
+		? m.reading_off()
+		: tracker.otherTab
+			? m.reading_other_tab()
+			: tracker.state === "paused"
+				? tracker.pauseReason === "manual"
+					? m.reading_paused_manual()
+					: tracker.pauseReason === "hidden"
+						? m.reading_paused_hidden()
+						: m.reading_paused_idle()
+				: tracker.state === "active"
+					? m.reading_active()
+					: tracker.state === "finished"
+						? m.reading_finished()
+						: tracker.preferences?.mode === "manual"
+							? m.reading_ready_manual()
+							: m.reading_ready();
+	const viewHistory = () => {
+		if (tracker.state === "active") tracker.act("pause");
+		setOpen(false);
+		setHistoryOpen(true);
+	};
 	const trigger = (
 		<button
 			type="button"
+			ref={triggerRef}
 			aria-label={m.reading_session()}
-			className="flex size-10 shrink-0 items-center justify-center rounded-md text-sm hover:bg-[var(--rh-hover)] focus-visible:outline-2"
+			aria-describedby={stateId}
+			title={stateLabel}
+			className="flex h-[40px] w-[80px] shrink-0 items-center justify-center gap-1 rounded-md text-xs tabular-nums hover:bg-[var(--rh-hover)] focus-visible:outline-2 sm:w-[112px] sm:gap-2"
+			data-reading-session-trigger
 			onClick={() => setOpen(true)}
 		>
-			{tracker.state === "paused" ? (
-				<Pause aria-hidden="true" className="size-5" />
+			{tracker.state === "finished" ? (
+				<Check aria-hidden="true" className="size-4 shrink-0" />
+			) : tracker.state === "paused" ? (
+				<Pause aria-hidden="true" className="size-4 shrink-0" />
 			) : (
-				<Timer aria-hidden="true" className="size-5" />
+				<Timer aria-hidden="true" className="size-4 shrink-0" />
 			)}
+			<span className="truncate" aria-hidden="true">
+				{disabled
+					? m.reading_off_short()
+					: tracker.otherTab
+						? m.reading_elsewhere_short()
+						: tracker.state === "paused"
+							? m.reading_paused()
+							: tracker.state === "active"
+								? readingDuration(tracker.seconds)
+								: tracker.state === "finished"
+									? m.reading_done_short()
+									: m.reading_ready_short()}
+			</span>
+			<span id={stateId} className="sr-only">
+				{stateLabel}
+			</span>
 		</button>
 	);
 	const change = async (mode: TrackingMode, idleMinutes: number) => {
@@ -48,30 +101,34 @@ export function ReadingSessionControl({
 		}
 	};
 	const content = (
-		<div data-reading-controls className="space-y-5">
+		<div
+			data-reading-controls
+			className="min-w-0 space-y-4 break-words [&_select]:min-w-0 [&_select]:max-w-full"
+		>
 			<div>
-				<p className="text-muted-foreground text-sm">
-					{tracker.state === "active"
-						? m.reading_active()
-						: tracker.state === "paused"
-							? m.reading_paused()
-							: tracker.state === "finished"
-								? m.reading_finished()
-								: m.reading_session()}
-				</p>
-				<p className="mt-1 font-medium text-3xl tabular-nums" aria-live="off">
+				<p className="text-muted-foreground text-sm">{stateLabel}</p>
+				<p
+					className="mt-1 font-medium text-[clamp(1rem,8vw,1.875rem)] tabular-nums"
+					aria-live="off"
+				>
 					{sessionDuration(tracker.seconds)}
 				</p>
-				<dl className="mt-4 text-sm">
+				<dl
+					className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs"
+					title={m.reading_characters_hint()}
+				>
 					<dt className="text-muted-foreground">{m.reading_characters()}</dt>
-					<dd className="mt-1 font-medium text-xl tabular-nums" aria-live="off">
+					<dd className="font-medium tabular-nums" aria-live="off">
 						{tracker.characters === null
 							? m.reading_characters_unavailable()
-							: new Intl.NumberFormat(getLocale()).format(tracker.characters)}
+							: `≈ ${new Intl.NumberFormat(getLocale()).format(tracker.characters)}`}
 					</dd>
 				</dl>
 				{tracker.startPosition !== null && tracker.position !== null && (
-					<p className="mt-2 text-muted-foreground text-sm tabular-nums">
+					<p
+						className="mt-2 text-muted-foreground text-sm tabular-nums"
+						title={m.reading_range_hint()}
+					>
 						{Math.round(tracker.startPosition * 100)} % →{" "}
 						{Math.round(tracker.position * 100)} %
 					</p>
@@ -79,12 +136,15 @@ export function ReadingSessionControl({
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{tracker.state === "active" ? (
-					<Button className="min-h-11" onClick={() => tracker.act("pause")}>
+					<Button
+						className="h-auto min-h-11 max-w-full whitespace-normal py-2"
+						onClick={() => tracker.act("pause")}
+					>
 						{m.reading_pause()}
 					</Button>
 				) : tracker.state === "paused" ? (
 					<Button
-						className="min-h-11"
+						className="h-auto min-h-11 max-w-full whitespace-normal py-2"
 						disabled={tracker.otherTab || tracker.preferences?.mode === "off"}
 						onClick={() => tracker.act("resume")}
 					>
@@ -92,8 +152,9 @@ export function ReadingSessionControl({
 					</Button>
 				) : (
 					<Button
-						className="min-h-11"
+						className="h-auto min-h-11 max-w-full whitespace-normal py-2"
 						disabled={
+							discarding ||
 							tracker.otherTab ||
 							!tracker.preferences ||
 							tracker.preferences.mode === "off"
@@ -105,7 +166,7 @@ export function ReadingSessionControl({
 				)}
 				{(tracker.state === "active" || tracker.state === "paused") && (
 					<Button
-						className="min-h-11"
+						className="h-auto min-h-11 max-w-full whitespace-normal py-2"
 						variant="outline"
 						onClick={() => tracker.act("finish")}
 					>
@@ -113,7 +174,7 @@ export function ReadingSessionControl({
 					</Button>
 				)}
 			</div>
-			{(failed || tracker.error || tracker.preferencesError) && (
+			{(failed || tracker.preferencesError) && (
 				<p role="alert" className="text-destructive text-sm">
 					{m.reading_error()}
 				</p>
@@ -121,9 +182,9 @@ export function ReadingSessionControl({
 			{tracker.otherTab && (
 				<p className="text-muted-foreground text-sm">{m.reading_other_tab()}</p>
 			)}
-			{tracker.pending && (
-				<p role="status" className="text-muted-foreground text-sm">
-					{m.reading_pending()}{" "}
+			{tracker.storageError ? (
+				<p role="alert" className="text-destructive text-sm">
+					{m.reading_storage_error()}{" "}
 					<button
 						type="button"
 						className="underline"
@@ -132,8 +193,66 @@ export function ReadingSessionControl({
 						{m.reading_retry()}
 					</button>
 				</p>
+			) : tracker.syncError ? (
+				<p role="status" className="text-muted-foreground text-sm">
+					{m.reading_sync_error()}{" "}
+					<button
+						type="button"
+						className="underline"
+						onClick={() => void tracker.retry()}
+					>
+						{m.reading_retry()}
+					</button>
+				</p>
+			) : tracker.pending ? (
+				<p role="status" className="text-muted-foreground text-sm">
+					{m.reading_local_saved()}
+				</p>
+			) : tracker.state === "finished" && tracker.sessionId ? (
+				<p role="status" className="text-muted-foreground text-sm">
+					{m.reading_synced()}
+				</p>
+			) : null}
+			{tracker.state === "finished" && tracker.sessionId && (
+				<div className="space-y-2 border-t pt-4">
+					<Button
+						variant="ghost"
+						size="sm"
+						className="h-auto max-w-full whitespace-normal py-2"
+						disabled={discarding}
+						onClick={async () => {
+							setDiscarding(true);
+							setDiscardFailed(false);
+							try {
+								await tracker.discardSession();
+							} catch {
+								setDiscardFailed(true);
+							} finally {
+								setDiscarding(false);
+							}
+						}}
+					>
+						{m.reading_discard()}
+					</Button>
+					{discardFailed && (
+						<p role="alert" className="text-destructive text-sm">
+							{m.reading_discard_failed()}
+						</p>
+					)}
+				</div>
 			)}
-			<div className="space-y-3 border-t pt-4">
+			<ReadingToday bookUuid={tracker.bookUuid} />
+			<Button
+				variant="outline"
+				className="min-h-11 w-full whitespace-normal"
+				onClick={viewHistory}
+			>
+				{m.reading_view_history()}
+			</Button>
+			<details className="space-y-3 border-t pt-4">
+				<summary className="cursor-pointer py-2 font-medium text-sm">
+					{m.reading_preferences()}
+				</summary>
 				<label className="grid gap-2 text-sm">
 					{m.reading_mode()}
 					<select
@@ -173,9 +292,9 @@ export function ReadingSessionControl({
 					</select>
 				</label>
 				<p className="text-muted-foreground text-xs leading-relaxed">
-					{m.reading_explain()}
+					{m.reading_explain()} {m.reading_characters_hint()}
 				</p>
-			</div>
+			</details>
 		</div>
 	);
 	return (
@@ -187,7 +306,7 @@ export function ReadingSessionControl({
 						open={open}
 						onOpenChange={setOpen}
 						title={m.reading_session()}
-						className="top-auto bottom-0 max-h-[85dvh] translate-y-0 rounded-b-none pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+						className="top-auto bottom-0 max-h-[85dvh] translate-y-0 rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>div:first-child]:pr-8"
 					>
 						{content}
 					</Modal>
@@ -195,11 +314,50 @@ export function ReadingSessionControl({
 			) : (
 				<Popover open={open} onOpenChange={setOpen}>
 					<PopoverTrigger asChild>{trigger}</PopoverTrigger>
-					<PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
+					<PopoverContent
+						align="end"
+						className="max-h-[min(80dvh,44rem)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+					>
 						{content}
 					</PopoverContent>
 				</Popover>
 			)}
+			<Modal
+				open={historyOpen}
+				onOpenChange={setHistoryOpen}
+				onOpenChangeComplete={(open) => {
+					if (!open) triggerRef.current?.focus();
+				}}
+				title={m.reading_title()}
+				className="break-words p-4 sm:max-w-3xl sm:p-6 [&>*]:min-w-0 [&>div:first-child]:pr-8"
+			>
+				{historyOpen && <ReadingHistory bookUuid={tracker.bookUuid} />}
+			</Modal>
+		</div>
+	);
+}
+
+function ReadingToday({ bookUuid }: { bookUuid: string }) {
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const query = useQuery(
+		orpc.readingSessions.history.queryOptions({
+			input: { bookUuid, timeZone },
+		}),
+	);
+	const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+		new Date(),
+	);
+	const day = query.data?.days.find((day) => day.day === today);
+	return (
+		<div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-4 text-sm">
+			<span className="text-muted-foreground">{m.reading_today_run()}</span>
+			<span className="font-medium tabular-nums">
+				{query.isError
+					? m.reading_today_unavailable()
+					: query.isPending
+						? "…"
+						: readingDuration(day?.seconds ?? 0)}
+			</span>
 		</div>
 	);
 }

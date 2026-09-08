@@ -140,3 +140,30 @@ describe("reading session clock", () => {
 		expect(f.clock.seconds).toBe(before);
 	});
 });
+
+test("pause reasons preserve a manual pause and clear on resume", () => {
+	const f = fixture();
+	f.clock.start(0.1);
+	f.clock.pause();
+	f.clock.pause(false, true, "hidden");
+	expect(f.clock.snapshot().pauseReason).toBe("manual");
+	f.clock.resume();
+	expect(f.clock.snapshot().pauseReason).toBeNull();
+	f.clock.pause(false, true, "hidden");
+	expect(f.clock.snapshot().pauseReason).toBe("hidden");
+	f.clock.resume();
+	f.advance(300_000);
+	f.clock.tick(5);
+	expect(f.clock.snapshot().pauseReason).toBe("idle");
+});
+
+test("the finished summary retains its final position while the reader navigates", () => {
+	const f = fixture();
+	f.clock.start(0.1);
+	f.clock.move(0.12);
+	f.clock.finish();
+	f.clock.move(0.8, true);
+	expect(f.clock.snapshot().position).toBe(0.12);
+	f.clock.start(0.8);
+	expect(f.clock.snapshot().startPosition).toBe(0.8);
+});

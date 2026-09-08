@@ -118,64 +118,22 @@ try {
 			.waitFor();
 		await action(page, "Toda la lectura").click();
 		await action(page, "Ver más días").click();
-		assert.equal(
-			await page
-				.getByRole("button", { name: "Corregir sesión", exact: true })
-				.count(),
-			20,
-		);
-		const table = page.getByRole("table");
-		assert.equal(await table.getByRole("columnheader").count(), 8);
-		assert.equal(await table.getByRole("row").count(), 21);
-		const ranges = table.getByRole("img", { name: /^Posición:/ });
-		assert.equal(
-			await ranges.count(),
-			19,
-			"Manual session with unknown positions must not invent a range",
-		);
-		const forwardRange = table.getByRole("img", {
-			name: "Posición: 58 % → 63 %",
-			exact: true,
-		});
-		const bounds = await forwardRange.evaluate((track) => {
-			const bar = track.firstElementChild;
-			return {
-				left:
-					(bar?.getBoundingClientRect().left ?? 0) -
-					track.getBoundingClientRect().left,
-				width: bar?.getBoundingClientRect().width ?? 0,
-				track: track.getBoundingClientRect().width,
-			};
-		});
-		assert(Math.abs(bounds.left / bounds.track - 0.576) < 0.01);
-		assert(Math.abs(bounds.width / bounds.track - 0.055) < 0.01);
-		assert.equal(
-			await ranges.locator(".bg-amber-500").count(),
-			1,
-			"Backward movement must remain distinguishable",
-		);
-		await page.getByRole("region", { name: "Sesiones", exact: true }).focus();
-		await page.keyboard.press("ArrowDown");
-		assert(
-			await table
-				.getByRole("columnheader")
-				.first()
-				.evaluate((header) => {
-					const region = header.closest("section");
-					return (
-						region !== null &&
-						header.getBoundingClientRect().top >=
-							region.getBoundingClientRect().top
-					);
-				}),
-			"Table header must remain visible when scrolling",
-		);
-		await page
-			.getByRole("region", { name: "Sesiones", exact: true })
-			.evaluate((region) => {
-				region.scrollTop = 0;
-			});
-		await page.getByRole("heading", { name: "Historial de lectura" }).click();
+		const diary = page.locator("[data-reading-diary]");
+		assert.equal(await diary.locator("[data-reading-session]").count(), 20);
+		const days = diary.locator("button[aria-expanded]");
+		assert.equal(await days.count(), 17);
+		assert.equal(await diary.locator("button[aria-expanded=true]").count(), 0);
+		await days.first().click();
+		assert.equal(await days.first().getAttribute("aria-expanded"), "true");
+		await diary
+			.locator("[data-reading-session]")
+			.getByText("58 % → 63 %", { exact: true })
+			.waitFor();
+		assert.equal(await action(page, "Corregir sesión").count(), 1);
+		await action(page, "Corregir sesión").click();
+		await page.getByRole("dialog", { name: "Corregir sesión" }).waitFor();
+		await page.keyboard.press("Escape");
+		await page.getByRole("dialog").waitFor({ state: "hidden" });
 		await screenshot(page, "old-all");
 		const points = page.locator("[data-reading-chart]").getByRole("button");
 		assert.equal(await points.count(), 17);
@@ -196,6 +154,20 @@ try {
 			2,
 			"Unknown positions must break the line",
 		);
+		await positions.first().click();
+		assert.equal(
+			await days.last().getAttribute("aria-expanded"),
+			"true",
+			"A chart selection opens the matching day",
+		);
+		await positions.last().hover();
+		assert.equal(
+			await days.last().getAttribute("aria-expanded"),
+			"true",
+			"Hover previews without changing the pinned diary day",
+		);
+		await action(page, "Ver sesiones del día seleccionado").click();
+		assert(await days.last().evaluate((el) => el === document.activeElement));
 		await positions.last().click();
 		assert.equal(await positions.last().getAttribute("aria-pressed"), "true");
 		await screenshot(page, "position-chart");
@@ -206,7 +178,9 @@ try {
 			timeout: 60000,
 		});
 		await page.getByRole("heading", { name: "Historial de lectura" }).waitFor();
-		await page.getByText("Tus lecturas").click();
+		await page
+			.getByRole("combobox", { name: "Tus lecturas", exact: true })
+			.focus();
 		await action(page, "Eliminar lectura 4").click();
 		await page.getByRole("dialog", { name: "Eliminar lectura" }).waitFor();
 	});
@@ -361,13 +335,50 @@ try {
 		await screenshot(page, "tracking");
 	});
 
+	await check("reader-history", async (page) => {
+		await page.clock.install();
+		await open(page);
+		await trigger(page).click();
+		await action(page, "Iniciar sesión").click();
+		await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+		await page.clock.runFor(12000);
+		await action(page, "Ver historial del libro").click();
+		const history = page.getByRole("dialog", {
+			name: "Historial de lectura",
+			exact: true,
+		});
+		await history.waitFor();
+		await history.getByRole("heading", { name: "Diario de lectura" }).waitFor();
+		await page.keyboard.press("Escape");
+		await page.clock.runFor(500);
+		await history.waitFor({ state: "hidden" });
+		await trigger(page).click();
+		await page.getByText("Pausado por ti", { exact: true }).first().waitFor();
+		await action(page, "Reanudar").click();
+		await page.clock.runFor(3000);
+		await action(page, "Terminar sesión").click();
+		await page.getByText("Sesión sincronizada con tu historial.").waitFor();
+		const finished = await seconds(page);
+		await page.clock.runFor(5000);
+		assert.equal(await seconds(page), finished);
+		await screenshot(page, "finished-summary");
+		await action(page, "Descartar sesión").click();
+		await action(page, "Descartar sesión").waitFor({ state: "hidden" });
+		await page.clock.runFor(12000);
+		assert.equal(
+			(await records(page)).length,
+			0,
+			"Discarded sessions must not be requeued",
+		);
+	});
+
 	await check("layout-keyboard", async (page) => {
 		await open(page);
 		await action(page, "Tiempo").click();
 		assert.equal(
-			(await trigger(page).innerText()).trim(),
-			"",
-			"Header must display only the session icon",
+			(await trigger(page).locator("span[aria-hidden]").innerText()).trim(),
+			"Iniciar",
+			"Header must display the tracking state",
 		);
 		await trigger(page).focus();
 		await page.keyboard.press("Enter");
@@ -425,6 +436,12 @@ try {
 				);
 				const sessionOverflow = await page.evaluate(
 					() => document.documentElement.scrollWidth > innerWidth,
+				);
+				assert(
+					await page
+						.getByRole("dialog")
+						.evaluate((panel) => panel.scrollWidth <= panel.clientWidth + 1),
+					"Session panel must not clip its contents horizontally",
 				);
 				if (sessionOverflow)
 					failures.push(
@@ -488,6 +505,54 @@ try {
 		console.log(
 			"KEYBOARD header icon, Enter start, Space pause, modal Tab trap, Escape/focus restoration; zoom-equivalent 720x450",
 		);
+	});
+
+	await check("reader-toolbar", async (page) => {
+		await page.goto(`${url}?toolbar=full`, { waitUntil: "domcontentloaded" });
+		await page.getByRole("heading", { name: "Diario de lectura" }).waitFor();
+		await page.locator("[data-reader-point-actions]").evaluate((toolbar) => {
+			for (const label of ["Save point", "Go to point", "Use selection"]) {
+				const button = document.createElement("button");
+				button.className = "size-10 shrink-0";
+				button.setAttribute("aria-label", label);
+				toolbar.append(button);
+			}
+		});
+		for (const scale of [1, 2]) {
+			await page.evaluate((scale) => {
+				document.documentElement.style.fontSize = `${scale * 100}%`;
+			}, scale);
+			for (const width of [320, 375, 768, 1440]) {
+				await page.setViewportSize({ width, height: 900 });
+				const bounds = await page
+					.locator("[data-reader-header] button:visible")
+					.evaluateAll((buttons) =>
+						buttons.map((button) => {
+							const r = button.getBoundingClientRect();
+							return {
+								left: r.left,
+								right: r.right,
+								top: r.top,
+								bottom: r.bottom,
+							};
+						}),
+					);
+				assert(
+					bounds.every((r) => r.left >= 0 && r.right <= width),
+					`All reader actions must fit at ${width}, text ${scale * 100}%`,
+				);
+				for (let i = 0; i < bounds.length; i++)
+					for (let j = i + 1; j < bounds.length; j++) {
+						const a = bounds[i];
+						const b = bounds[j];
+						assert(
+							Math.min(a.right, b.right) - Math.max(a.left, b.left) <= 1 ||
+								Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) <= 1,
+							"Reader controls must not overlap",
+						);
+					}
+			}
+		}
 	});
 
 	await check("two-tab-crash", async (page) => {

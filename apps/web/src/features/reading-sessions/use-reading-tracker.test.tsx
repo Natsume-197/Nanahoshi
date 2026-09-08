@@ -5,12 +5,14 @@ import type { ReactNode } from "react";
 import { SessionClock } from "./session-clock";
 
 const upload = mock(async () => ({ runId: crypto.randomUUID() }));
+const discard = mock(async () => undefined);
 const preferenceKey = ["reading-preferences"];
 mock.module("@/utils/orpc", () => ({
 	client: {
 		readingSessions: {
 			preferences: async () => ({ mode: "automatic", idleMinutes: 5 }),
 			sync: upload,
+			discard,
 		},
 	},
 	orpc: {
@@ -35,6 +37,8 @@ afterEach(async () => {
 	await Promise.resolve();
 	localStorage.clear();
 	upload.mockClear();
+	upload.mockImplementation(async () => ({ runId: crypto.randomUUID() }));
+	discard.mockClear();
 	mock.restore();
 	if (navigatorDescriptor)
 		Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
@@ -145,4 +149,52 @@ test("a browser without Web Locks can still save a reading session", async () =>
 	expect(hook.result.current.otherTab).toBe(false);
 	expect(hook.result.current.error).toBe(false);
 	expect(upload).toHaveBeenCalled();
+});
+
+test("discard waits for synchronization and never requeues the finished session", async () => {
+	const hook = mount(true, false);
+	await act(async () => {});
+	await act(async () => {
+		hook.result.current.act("start");
+	});
+	const id = hook.result.current.sessionId;
+	await act(async () => {
+		hook.result.current.act("finish");
+	});
+	await act(async () => {
+		await hook.result.current.discardSession();
+	});
+	expect(discard).toHaveBeenCalledWith({ bookUuid: "book", id });
+	expect(hook.result.current.sessionId).toBeNull();
+	expect(hook.result.current.state).toBe("idle");
+	hook.unmount();
+	await Promise.resolve();
+	expect(
+		localStorage.getItem(`nanahoshi:reading-outbox:alice:${id}`),
+	).toBeNull();
+});
+
+test("a failed sync prevents discard and retains the local session for retry", async () => {
+	const hook = mount(true, false);
+	await act(async () => {});
+	upload.mockImplementation(async () => {
+		throw new TypeError("Offline");
+	});
+	await act(async () => {
+		hook.result.current.act("start");
+	});
+	const id = hook.result.current.sessionId;
+	await act(async () => {
+		hook.result.current.act("finish");
+	});
+	await act(async () => {
+		await expect(hook.result.current.discardSession()).rejects.toThrow(
+			"Sync this session",
+		);
+	});
+	expect(discard).not.toHaveBeenCalled();
+	expect(hook.result.current.sessionId).toBe(id);
+	expect(
+		localStorage.getItem(`nanahoshi:reading-outbox:alice:${id}`),
+	).not.toBeNull();
 });

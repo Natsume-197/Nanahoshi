@@ -57,6 +57,7 @@ export function useReadingTracker(options: Options) {
 	);
 	const [otherTab, setOtherTab] = useState(false);
 	const [pending, setPending] = useState(false);
+	const [sessionId, setSessionId] = useState<string | null>(null);
 	const runtime = useRef<{
 		clock: SessionClock;
 		start: () => void;
@@ -65,6 +66,7 @@ export function useReadingTracker(options: Options) {
 		resume: () => void;
 		isOwner: () => boolean;
 		finishReading: () => Promise<void>;
+		discardSession: () => Promise<void>;
 	} | null>(null);
 	const jumpRef = useRef(false);
 	const reportPosition = useCallback((position: number) => {
@@ -119,7 +121,10 @@ export function useReadingTracker(options: Options) {
 			if (session) session.segments.push(segment);
 		});
 		const publish = () => {
-			if (!disposed) setSnapshot(clock.snapshot());
+			if (!disposed) {
+				setSnapshot(clock.snapshot());
+				setSessionId(session?.id ?? null);
+			}
 		};
 		const save = () => {
 			if (!session) return;
@@ -324,7 +329,7 @@ export function useReadingTracker(options: Options) {
 		};
 		const hide = () => {
 			if (document.visibilityState === "hidden") {
-				clock.pause(false);
+				clock.pause(false, true, "hidden");
 				save();
 				void sync();
 				release?.();
@@ -345,7 +350,7 @@ export function useReadingTracker(options: Options) {
 				settings.current?.mode === "off" ||
 				document.visibilityState === "hidden"
 			)
-				clock.pause(false);
+				clock.pause(false, true, "hidden");
 			else {
 				const pos = latest.current.getPosition();
 				if (pos !== null && pos !== clock.position) {
@@ -417,6 +422,33 @@ export function useReadingTracker(options: Options) {
 				clock.resume();
 				save();
 				void sync();
+			},
+			discardSession: async () => {
+				if (!session || clock.state !== "finished") return;
+				const discarded = session;
+				// Drain in-flight revisions before deleting; never drop an unsent local record.
+				save();
+				await sync(true);
+				await sync(true);
+				if (
+					pendingSessions(options.userId).some((row) => row.id === discarded.id)
+				)
+					throw new Error("Sync this session before discarding it.");
+				await client.readingSessions.discard({
+					bookUuid: options.bookUuid,
+					id: discarded.id,
+				});
+				if (session === discarded) {
+					session = null;
+					clock.state = "idle";
+					clock.seconds = 0;
+					clock.observedProgress = 0;
+					clock.startPosition = null;
+					publish();
+				}
+				void queryClient.invalidateQueries({
+					queryKey: orpc.readingSessions.history.key(),
+				});
 			},
 			finishReading: async () => {
 				clock.finish();
@@ -498,6 +530,13 @@ export function useReadingTracker(options: Options) {
 	}, []);
 	return {
 		...snapshot,
+		bookUuid: options.bookUuid,
+		sessionId,
+		storageError: error,
+		syncError,
+		discardSession: async () => {
+			await runtime.current?.discardSession();
+		},
 		characters:
 			options.bookCharCount && options.bookCharCount > 0
 				? Math.round(snapshot.observedProgress * options.bookCharCount)

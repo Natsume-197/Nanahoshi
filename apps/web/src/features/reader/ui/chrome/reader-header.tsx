@@ -41,7 +41,7 @@ interface ReaderHeaderProps {
 }
 
 const iconButtonClasses =
-	"flex size-11 shrink-0 touch-manipulation cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-[background-color,opacity,scale] duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 focus-visible:outline-offset-2 active:scale-[0.96] max-[22rem]:size-10 sm:size-10";
+	"flex size-[44px] shrink-0 touch-manipulation cursor-pointer select-none items-center justify-center rounded-md opacity-70 transition-[background-color,opacity,scale] duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 focus-visible:outline-offset-2 active:scale-[0.96] max-[22rem]:size-[40px] sm:size-[40px]";
 
 function IconButton({
 	title,
@@ -163,7 +163,7 @@ export function ReaderHeader({
 				}`}
 			>
 				<div
-					className="relative flex h-[calc(3.25rem+var(--safe-area-top))] items-center justify-between border-b pt-[var(--safe-area-top)] pr-[max(0.5rem,var(--safe-area-right))] pl-[max(0.5rem,var(--safe-area-left))] shadow-md sm:h-[calc(3rem+var(--safe-area-top))] md:pr-[max(1rem,var(--safe-area-right))] md:pl-[max(1rem,var(--safe-area-left))]"
+					className="relative flex min-h-[calc(3.25rem+var(--safe-area-top))] flex-wrap items-center justify-between border-b pt-[var(--safe-area-top)] pr-[max(0.5rem,var(--safe-area-right))] pl-[max(0.5rem,var(--safe-area-left))] shadow-md sm:min-h-[calc(3rem+var(--safe-area-top))] md:pr-[max(1rem,var(--safe-area-right))] md:pl-[max(1rem,var(--safe-area-left))]"
 					style={
 						{
 							color: theme.fontColor,
@@ -181,7 +181,7 @@ export function ReaderHeader({
 						)}
 						<div
 							data-reader-point-actions
-							className="flex shrink-0 items-center"
+							className="flex shrink-0 items-center [&_button]:size-[40px]"
 						/>
 						{searchAvailable && (
 							<IconButton title="Search this PDF" onClick={onSearchClick}>
@@ -192,7 +192,7 @@ export function ReaderHeader({
 
 					{/* Absolutely centered so it never shifts as side clusters change. */}
 					<div className="pointer-events-none absolute inset-x-0 hidden justify-center md:flex">
-						<span className="max-w-[38%] truncate font-medium text-sm opacity-80">
+						<span className="max-w-[min(38%,calc(100%-48rem))] truncate font-medium text-sm opacity-80">
 							{bookTitle}
 						</span>
 					</div>

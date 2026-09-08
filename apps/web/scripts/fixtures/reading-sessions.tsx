@@ -162,6 +162,7 @@ window.fetch = async (input, init) => {
 	return originalFetch(input, init);
 };
 function Preview() {
+	const fullToolbar = new URLSearchParams(location.search).has("toolbar");
 	const tracker = useReadingTracker({
 		userId: "preview",
 		bookUuid: "preview",
@@ -178,15 +179,15 @@ function Preview() {
 				theme={{ fontColor: "#eee", backgroundColor: "#171717" } as never}
 				bookTitle="El nombre del viento"
 				hasChapterData
-				hasImages={false}
-				searchAvailable={false}
+				hasImages={fullToolbar}
+				searchAvailable={fullToolbar}
 				onTocClick={() => {}}
 				onCompleteBook={() => {}}
 				onFullscreenClick={() => {}}
 				onImageGalleryClick={() => {}}
 				onSearchClick={() => {}}
 				onQuickSettingsClick={() => {}}
-				readListenAvailable={false}
+				readListenAvailable={fullToolbar}
 				readListenActive={false}
 				onReadListenClick={() => {}}
 				onExitClick={() => {}}

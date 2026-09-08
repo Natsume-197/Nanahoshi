@@ -1,20 +1,26 @@
 import { useId, useRef, useState } from "react";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
-import { readingDuration, sessionDuration } from "./reading-duration";
+import { readingDuration } from "./reading-duration";
 import type { ReadingHistoryData } from "./reading-history";
 
 export function ReadingHistoryChart({
 	days,
 	view,
+	selectedDay,
+	onSelectDay,
 }: {
 	days: ReadingHistoryData["days"];
 	view: "position" | "time";
+	selectedDay?: string;
+	onSelectDay: (day: string) => void;
 }) {
 	const gradientId = useId();
 	const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-	const [selectedDay, setSelectedDay] = useState<string>();
-	const selectedIndex = days.findIndex((day) => day.day === selectedDay);
+	const [previewDay, setPreviewDay] = useState<string>();
+	const selectedIndex = days.findIndex(
+		(day) => day.day === (previewDay ?? selectedDay),
+	);
 	const activeIndex = selectedIndex < 0 ? days.length - 1 : selectedIndex;
 	const active = days[activeIndex];
 	const formatDate = (ms: number, full = false) =>
@@ -69,22 +75,29 @@ export function ReadingHistoryChart({
 	return (
 		<div className="min-w-0" data-reading-chart>
 			<div
-				className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg bg-muted/25 px-3 py-3 text-xs"
+				className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 text-sm"
 				aria-live="polite"
 				aria-atomic="true"
 			>
-				<time className="font-medium" dateTime={active?.day}>
+				<time
+					className="font-medium text-base tracking-tight"
+					dateTime={active?.day}
+				>
 					{active ? formatDate(timestamp(active.day), true) : "—"}
 				</time>
 				<dl className="flex flex-wrap gap-x-6 gap-y-2">
-					<div className="flex flex-wrap items-baseline gap-2">
-						<dt className="text-muted-foreground">{m.reading_time()}</dt>
-						<dd className="font-medium tabular-nums">
-							{active ? sessionDuration(active.seconds) : "—"}
+					<div className="space-y-1">
+						<dt className="text-muted-foreground text-xs">
+							{m.reading_time()}
+						</dt>
+						<dd className="font-medium text-2xl text-primary tabular-nums tracking-tight">
+							{active ? readingDuration(active.seconds) : "—"}
 						</dd>
 					</div>
-					<div className="flex flex-wrap items-baseline gap-2">
-						<dt className="text-muted-foreground">{m.reading_position()}</dt>
+					<div className="space-y-1">
+						<dt className="text-muted-foreground text-xs">
+							{m.reading_position()}
+						</dt>
 						<dd className="font-medium tabular-nums">
 							{active ? position(active.endPosition) : "—"}
 						</dd>
@@ -96,7 +109,7 @@ export function ReadingHistoryChart({
 					aria-hidden="true"
 					className="relative w-12 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums"
 				>
-					{[1, 0.75, 0.5, 0.25, 0].map((step) => (
+					{[1, 0.5, 0].map((step) => (
 						<span
 							key={step}
 							className="absolute right-0 -translate-y-1/2"
@@ -113,19 +126,19 @@ export function ReadingHistoryChart({
 						aria-hidden="true"
 						viewBox="0 0 100 100"
 						preserveAspectRatio="none"
-						className="absolute inset-0 h-full w-full overflow-visible"
+						className="absolute inset-0 h-full w-full overflow-visible text-primary"
 					>
 						<defs>
 							<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-								<stop offset="0%" stopColor="currentColor" stopOpacity="0.65" />
+								<stop offset="0%" stopColor="currentColor" stopOpacity="0.9" />
 								<stop
 									offset="100%"
 									stopColor="currentColor"
-									stopOpacity="0.12"
+									stopOpacity="0.8"
 								/>
 							</linearGradient>
 						</defs>
-						{[1, 0.75, 0.5, 0.25, 0].map((step) => (
+						{[1, 0.5, 0].map((step) => (
 							<line
 								key={step}
 								x1="0"
@@ -133,7 +146,7 @@ export function ReadingHistoryChart({
 								y1={y(maximum * step)}
 								y2={y(maximum * step)}
 								stroke="currentColor"
-								strokeOpacity="0.09"
+								strokeOpacity="0.12"
 								vectorEffect="non-scaling-stroke"
 								strokeDasharray={step ? "2 5" : undefined}
 							/>
@@ -174,7 +187,6 @@ export function ReadingHistoryChart({
 											? "currentColor"
 											: `url(#${gradientId})`
 									}
-									opacity={active?.day === day.day ? 0.8 : 0.85}
 								/>
 							))
 						)}
@@ -195,9 +207,14 @@ export function ReadingHistoryChart({
 								tabIndex={activeIndex === index ? 0 : -1}
 								aria-label={`${formatDate(timestamp(day.day), true)}: ${view === "position" ? position(value) : readingDuration(day.seconds)}`}
 								aria-pressed={activeIndex === index}
-								onMouseEnter={() => setSelectedDay(day.day)}
-								onFocus={() => setSelectedDay(day.day)}
-								onClick={() => setSelectedDay(day.day)}
+								onMouseEnter={() => setPreviewDay(day.day)}
+								onMouseLeave={() => setPreviewDay(undefined)}
+								onBlur={() => setPreviewDay(undefined)}
+								onFocus={() => setPreviewDay(day.day)}
+								onClick={() => {
+									setPreviewDay(undefined);
+									onSelectDay(day.day);
+								}}
 								onKeyDown={(event) => {
 									const target =
 										event.key === "ArrowRight"
@@ -209,17 +226,18 @@ export function ReadingHistoryChart({
 													: event.key === "End"
 														? days.length - 1
 														: null;
+									if (event.key === "Escape") setPreviewDay(undefined);
 									if (target !== null) {
 										event.preventDefault();
 										buttons.current[target]?.focus();
 									}
 								}}
-								className="absolute top-0 bottom-0 rounded-sm hover:bg-foreground/[0.025] focus-visible:bg-foreground/[0.04] focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+								className="absolute top-0 bottom-0 rounded-sm transition-colors duration-150 hover:bg-primary/5 focus-visible:bg-primary/10 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
 								style={{ left: `${left}%`, width: `${right - left}%` }}
 							>
 								{view === "position" && value !== null && (
 									<span
-										className={`absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground ${activeIndex === index ? "ring-4 ring-foreground/15" : "ring-1 ring-foreground/20"}`}
+										className={`absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary ${activeIndex === index ? "ring-4 ring-primary/20" : "ring-1 ring-primary/25"}`}
 										style={{
 											left: `${((x(day.day) - left) / (right - left)) * 100}%`,
 											top: `${y(value)}%`,
@@ -251,9 +269,6 @@ export function ReadingHistoryChart({
 					</span>
 				))}
 			</div>
-			<p className="mt-1 text-muted-foreground text-xs">
-				{m.reading_chart_hint()}
-			</p>
 		</div>
 	);
 }
