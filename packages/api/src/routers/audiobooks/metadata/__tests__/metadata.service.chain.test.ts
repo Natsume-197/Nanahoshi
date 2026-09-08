@@ -625,6 +625,96 @@ describe("quickMatch provider chain", () => {
 		expect(mockReplaceChapters).toHaveBeenCalled();
 	});
 
+	test("Monogatari filename ASIN hydrates and saves the authoritative series", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			title: "業物語",
+			asin: "B08VRQHBJC",
+			series: { name: "＜物語＞シリーズ", position: 21 },
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title: "業物語",
+			filename: "業物語 [B08VRQHBJC].m4b",
+		});
+		expect(audibleSearchSpy).not.toHaveBeenCalled();
+		expect(audibleGetByIdSpy).toHaveBeenCalledWith(
+			"B08VRQHBJC",
+			expect.anything(),
+		);
+		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
+			"＜物語＞シリーズ",
+			"server-1",
+		);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 21);
+	});
+
+	test("an explicit filename sequence fills a provider series' missing position", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			title: "死物語 上",
+			asin: "B09DZXZ7F1",
+			series: { name: "＜物語＞シリーズ", position: null },
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title: "死物語 上",
+			filename: "[28] 死物語 上 [B09DZXZ7F1].m4b",
+		});
+		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
+			"＜物語＞シリーズ",
+			"server-1",
+		);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 28);
+	});
+
+	test("a reused Slime ASIN cannot apply another volume's metadata", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			title: "[18巻] 転生したらスライムだった件18",
+			asin: "B08ZSFGRM9",
+			series: { name: "転生したらスライムだった件", position: 18 },
+		}));
+		const result = await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title: "転生したらスライムだった件7",
+			asin: "B08ZSFGRM9",
+		});
+		expect(result).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+	});
+
+	test("a confirmed fallback replaces the rejected ASIN instead of keeping it", async () => {
+		const title = "転生したらスライムだった件7";
+		const correctAsin = "B0RIGHT007";
+		audibleSearchSpy.mockImplementation(async () => [
+			{
+				...AUDIBLE_CANDIDATE,
+				title,
+				asin: correctAsin,
+				providerId: correctAsin,
+			},
+		]);
+		audibleGetByIdSpy.mockImplementation(async (asin) => ({
+			...AUDIBLE_FULL,
+			asin,
+			title: asin === correctAsin ? title : "転生したらスライムだった件18",
+			series: {
+				name: "転生したらスライムだった件",
+				position: asin === correctAsin ? 7 : 18,
+			},
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title,
+			asin: "B08ZSFGRM9",
+		});
+		expect(mockUpsertMetadata).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({ asin: correctAsin }),
+		);
+	});
+
 	test("missing tag ASIN falls back to catalog discovery", async () => {
 		audibleSearchSpy.mockImplementation(async () => [AUDIBLE_CANDIDATE]);
 		audibleGetByIdSpy.mockImplementation(async (providerId) =>

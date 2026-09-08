@@ -64,6 +64,18 @@ export function isValidAsin(raw: string): boolean {
 	return /^B[0-9A-Z]{9}$/.test(s);
 }
 
+/** Audible filenames commonly retain [ASIN] when the embedded tags do not. */
+export function asinFromFilename(
+	filename: string | null | undefined,
+): string | null {
+	const asins = new Set(
+		[...(filename ?? "").matchAll(/\[(B[A-Z0-9]{9})\]/gi)].map((match) =>
+			match[1]?.toUpperCase(),
+		),
+	);
+	return asins.size === 1 ? ([...asins][0] ?? null) : null;
+}
+
 // Opaque OPF unique-identifier (publisher/store id). Unlike ISBN/ASIN there is
 // nothing to validate, so the guards only reject what is clearly NOT a stable
 // publisher id: uuids (per-copy), calibre ids (per-install), placeholders, and

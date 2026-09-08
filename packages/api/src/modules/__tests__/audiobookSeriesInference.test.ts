@@ -6,6 +6,12 @@ import {
 } from "../audiobookSeriesInference";
 
 describe("inferSeriesFromTitle", () => {
+	test("explicit filename sequence excludes its Audible identifier", () => {
+		expect(inferSeriesFromTitle("[28] 死物語 上 [B09DZXZ7F1]")).toEqual({
+			seriesName: "死物語 上",
+			position: 28,
+		});
+	});
 	test("Japanese bracketed volume marker", () => {
 		expect(
 			inferSeriesFromTitle("[1巻] ひげを剃る。そして女子高生を拾う。"),

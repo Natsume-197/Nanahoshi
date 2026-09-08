@@ -4,6 +4,7 @@ import {
 	bestAudiobookTextSimilarity,
 	cleanAudiobookTitle,
 } from "../audiobookMatch";
+import { inferSeriesFromTitle } from "../audiobookSeriesInference";
 import {
 	parseCatalogKanjiNumber,
 	parseCatalogRomanNumber,
@@ -649,6 +650,42 @@ function assessAudiobookIdentity(
 	left: CatalogIdentityEvidence,
 	right: CatalogIdentityEvidence,
 ): CatalogIdentityVerdict {
+	const la = analyzeTitles(left);
+	const ra = analyzeTitles(right);
+	// Explicit release evidence survives fuzzy title cleanup and even a reused
+	// ASIN. Local files can carry the identifier of another volume.
+	for (const analysis of [la, ra]) {
+		for (const title of analysis.titles) {
+			title.volume =
+				inferSeriesFromTitle(title.value.normalize("NFKC"))?.position ??
+				title.volume;
+		}
+	}
+	for (const [field, reason] of [
+		["volume", R.VOLUME_CONFLICT],
+		["numberedPart", R.PART_CONFLICT],
+		["part", R.PART_CONFLICT],
+	] as const) {
+		const l = unique(la.titles.map((t) => t[field]).filter((v) => v !== null));
+		const r = unique(ra.titles.map((t) => t[field]).filter((v) => v !== null));
+		if (l.length > 1 || r.length > 1) {
+			return {
+				status: "indeterminate",
+				reasons: [R.INTERNAL_DISCRIMINATOR_CONFLICT],
+			};
+		}
+		if (l.length && r.length && l[0] !== r[0]) {
+			return { status: "rejected", reasons: [reason] };
+		}
+	}
+	if (
+		la.titles.length &&
+		ra.titles.length &&
+		explicitValue(la.titles.map((t) => t.supplement)) !==
+			explicitValue(ra.titles.map((t) => t.supplement))
+	) {
+		return { status: "rejected", reasons: [R.SUPPLEMENT_CONFLICT] };
+	}
 	const leftAsins = new Set(
 		(identifiersOf(left) ?? [])
 			.filter(
@@ -666,8 +703,6 @@ function assessAudiobookIdentity(
 	if (setsOverlap(leftAsins, rightAsins)) {
 		return { status: "confirmed", reasons: [R.AUDIO_ASIN_MATCH] };
 	}
-	const la = analyzeTitles(left);
-	const ra = analyzeTitles(right);
 	if (la.titles.length === 0 || ra.titles.length === 0) {
 		return { status: "indeterminate", reasons: [R.TITLE_MISSING] };
 	}

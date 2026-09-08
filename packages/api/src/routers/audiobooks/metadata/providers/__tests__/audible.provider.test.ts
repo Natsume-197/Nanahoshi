@@ -50,6 +50,27 @@ beforeEach(() => {
 });
 
 describe("audible provider", () => {
+	test.each([
+		["第27巻", 27],
+		["オフシーズン : 21", 21],
+		["６．５", 6.5],
+		["短編集", null],
+		["死物語 : 下", null],
+		["1-3", null],
+	])("preserves series with position %s", async (position, expected) => {
+		fetchResponder = () =>
+			new Response(
+				JSON.stringify({
+					...AUDNEXUS_BOOK,
+					seriesPrimary: { name: "Series", position },
+				}),
+				{ status: 200 },
+			);
+		expect(
+			(await audibleProvider.getById("B0EXAMPLE1", { region: "jp" }))?.series,
+		).toEqual({ name: "Series", position: expected });
+	});
+
 	test("getById splits Audnexus genres into genres and tags by type", async () => {
 		const metadata = await audibleProvider.getById("B0EXAMPLE1", {
 			region: "us",

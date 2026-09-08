@@ -17,6 +17,7 @@ import {
 	isFfprobeAvailable,
 	probeAudioFile,
 } from "./audioProbe";
+import { asinFromFilename } from "./identifiers";
 
 const log = logger.child({ component: "audiobook-processor" });
 
@@ -330,7 +331,9 @@ function extractTagMetadata(
 	// ASIN: Audible rips carry it in tags (audiobookshelf convention: "asin";
 	// Audible's own files use CDEK). Enables direct Audnexus enrichment.
 	const asinRaw = tags.asin || tags.ASIN || tags.CDEK || tags.cdek || null;
-	const asin = isValidAsin(asinRaw) ? asinRaw.trim().toUpperCase() : null;
+	const asin = isValidAsin(asinRaw)
+		? asinRaw.trim().toUpperCase()
+		: asinFromFilename(directoryName);
 
 	// Series: some audiobooks store series info in tags
 	const seriesName =

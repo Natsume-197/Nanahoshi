@@ -94,8 +94,13 @@ function getTld(region: string): string {
 
 function parsePosition(pos: string | undefined): number | null {
 	if (!pos) return null;
-	const num = Number.parseFloat(pos);
-	return Number.isFinite(num) ? num : null;
+	// A provider sequence may be Japanese or season-prefixed. A range or a
+	// named special has no single numeric position; keep the membership anyway.
+	const normalized = pos.normalize("NFKC").trim();
+	const sequence = normalized.match(
+		/^(?:[^\d:]+:\s*)?(?:第\s*)?(\d+(?:\.\d+)?)(?:\s*巻)?$/u,
+	)?.[1];
+	return sequence === undefined ? null : Number(sequence);
 }
 
 // ─── Audible Catalog Search ──────────────────────────────

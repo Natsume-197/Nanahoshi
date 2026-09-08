@@ -510,6 +510,55 @@ describe("catalogIdentity: production regression corpus", () => {
 });
 
 describe("catalogIdentity: audiobook quick match", () => {
+	test.each([
+		[
+			"転生したらスライムだった件7",
+			"[18巻] 転生したらスライムだった件18",
+			R.VOLUME_CONFLICT,
+		],
+		[
+			"[10巻] 転生したらスライムだった件10",
+			"[1巻] 転生したらスライムだった件 1",
+			R.VOLUME_CONFLICT,
+		],
+		["Great Story Book 2", "Great Story Book 20", R.VOLUME_CONFLICT],
+		[
+			"オーバーロード1 不死者の王（前編）",
+			"オーバーロード1 不死者の王（後編）",
+			R.PART_CONFLICT,
+		],
+		[
+			"ティアムーン帝国物語 ドラマCD",
+			"ティアムーン帝国物語",
+			R.SUPPLEMENT_CONFLICT,
+		],
+	])(
+		"rejects conflicting audiobook releases: %s",
+		(title, candidate, reason) => {
+			for (const asin of [undefined, "B07RZLY87Q"]) {
+				const left = { kind: "audiobook" as const, title, asin };
+				const right = { kind: "audiobook" as const, title: candidate, asin };
+				expect(assessCatalogIdentity(left, right)).toEqual({
+					status: "rejected",
+					reasons: [reason],
+				});
+				expect(assessCatalogIdentity(right, left)).toEqual({
+					status: "rejected",
+					reasons: [reason],
+				});
+			}
+		},
+	);
+
+	test("keeps matching explicit volumes despite title formatting", () => {
+		expect(
+			assessCatalogIdentity(
+				{ kind: "audiobook", title: "転生したらスライムだった件７" },
+				{ kind: "audiobook", title: "[7巻] 転生したらスライムだった件7" },
+			).status,
+		).toBe("confirmed");
+	});
+
 	test("title alone can confirm and duration differences only annotate", () => {
 		const verdict = assessCatalogIdentity(
 			{ kind: "audiobook", title: "Great Story", duration: 3600 },

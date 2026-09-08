@@ -258,10 +258,10 @@ export class AudiobookMetadataService {
 		// Providers without series data (e.g. iTunes as primary) leave the
 		// volume-marker inference from the title/filename as last resort, with
 		// common-prefix resolution so multi-subtitle volumes share one series.
+		const inferred =
+			inferSeriesFromTitle(title) ??
+			inferSeriesFromTitle(input.filename?.replace(/\.[^.]+$/, ""));
 		if (this.isFieldMissing(acc.series)) {
-			const inferred =
-				inferSeriesFromTitle(title) ??
-				inferSeriesFromTitle(input.filename?.replace(/\.[^.]+$/, ""));
 			if (inferred) {
 				const serverId =
 					await audiobookMetadataRepository.getServerIdByBookId(bookId);
@@ -276,6 +276,10 @@ export class AudiobookMetadataService {
 					position: inferred.position,
 				};
 			}
+		} else if (acc.series && acc.series.position == null && inferred) {
+			// A named provider series stays authoritative even when its sequence
+			// is textual (e.g. 死物語 : 上). Only an explicit volume marker fills it.
+			acc.series = { ...acc.series, position: inferred.position };
 		}
 
 		const metadataToSave = { ...acc };

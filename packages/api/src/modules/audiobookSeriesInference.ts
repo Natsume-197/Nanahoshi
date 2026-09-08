@@ -13,6 +13,8 @@ function toAsciiDigits(value: string): string {
 
 // Explicit volume markers, tried in order. Each regex captures the number.
 const VOLUME_MARKERS: RegExp[] = [
+	// Explicit file sequence: [28] 死物語 上
+	/^\[([0-9０-９]{1,3}(?:\.[0-9０-９]+)?)\]/u,
 	// Japanese: 第3巻 / 3巻 / [3巻] / [3巻・後編]
 	/第?\s*([0-9０-９]{1,3}(?:\.[0-9０-９]+)?)\s*巻/u,
 	// Western: Vol. 3 / Volume 3 / Book 3 / Part 3 / Disc 3 / CD 3
@@ -25,8 +27,9 @@ const OPEN_BRACKETS = "([{【〈《［";
 const CLOSE_BRACKETS = ")\\]}】〉》］";
 
 export function inferSeriesFromTitle(
-	title: string | null | undefined,
+	rawTitle: string | null | undefined,
 ): { seriesName: string; position: number | null } | null {
+	const title = rawTitle?.replace(/\s*\[B[A-Z0-9]{9}\]\s*$/i, "");
 	if (!title) return null;
 
 	let marker: RegExp | null = null;

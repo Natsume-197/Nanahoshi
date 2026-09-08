@@ -11,6 +11,7 @@ import {
 	withProviderGate,
 } from "../../../modules/catalogEnrichment";
 import type { CatalogIdentityEvidence } from "../../../modules/catalogIdentity";
+import { asinFromFilename } from "../../../modules/identifiers";
 import {
 	type ProviderFieldPolicy,
 	providerAllowedForField,
@@ -78,6 +79,12 @@ function mergeAudiobookMetadata(
 	) as (keyof AudiobookEnrichmentMetadata)[]) {
 		const value = incoming[key];
 		if (!providerAllowedForField(routing, key, provider)) continue;
+		// Identity was confirmed before merging. A fallback may have corrected
+		// an embedded ASIN that actually pointed to another volume.
+		if (key === "asin" && primary && !isMissing(value)) {
+			merged.asin = incoming.asin;
+			continue;
+		}
 		if (key === "authors" || key === "narrators") {
 			if (!Array.isArray(value) || value.length === 0) continue;
 			if (primary || isMissing(merged[key])) {
@@ -223,6 +230,10 @@ export async function runAudiobookCatalogEnrichment({
 }): Promise<
 	CatalogEnrichmentResult<AudiobookProviderName, AudiobookEnrichmentMetadata>
 > {
+	if (!isValidAsin(metadata.asin) && !protectedFields.includes("asin")) {
+		const asin = asinFromFilename(metadata.filename);
+		if (asin) metadata = { ...metadata, asin };
+	}
 	const effectiveRouting: AudiobookRoutingPolicy = routing ?? {
 		order: providers.map(({ id }) => id),
 	};
