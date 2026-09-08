@@ -247,6 +247,22 @@ export class ScannedFileRepository {
 			);
 	}
 
+	/** Marks processed paths in bounded updates, always within one library path. */
+	async markDoneBatch(paths: string[], libraryPathId: number): Promise<void> {
+		const batchSize = 1_000;
+		for (let offset = 0; offset < paths.length; offset += batchSize) {
+			await db
+				.update(scannedFile)
+				.set({ status: "done", updatedAt: sql`now()` })
+				.where(
+					and(
+						inArray(scannedFile.path, paths.slice(offset, offset + batchSize)),
+						eq(scannedFile.libraryPathId, libraryPathId),
+					),
+				);
+		}
+	}
+
 	/** Marks the row at a path as "done" once the worker processed it. */
 	async markDone(path: string, libraryPathId: number): Promise<void> {
 		await db

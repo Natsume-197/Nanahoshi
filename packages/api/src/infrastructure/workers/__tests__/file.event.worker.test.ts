@@ -158,6 +158,7 @@ const { libraryRepository } = await import(
 );
 
 const markDone = mock(() => Promise.resolve());
+const markDoneBatch = mock(() => Promise.resolve());
 const markFailed = mock(() => Promise.resolve());
 
 // `existingBookResult` is what getByRelativePath finds at the job's path;
@@ -192,7 +193,7 @@ const needsExternalEnrichment = mock(() =>
 const fillMissingFromLocal = mock(() => Promise.resolve(null));
 
 const restorers = [
-	patchMethods(scannedFileRepository, { markDone, markFailed }),
+	patchMethods(scannedFileRepository, { markDone, markDoneBatch, markFailed }),
 	patchMethods(bookRepository, { getByRelativePath, updateFileInfo, getById }),
 	patchMethods(bookMetadataRepository, { findByBookId, isAmazonEnriched }),
 	patchMethods(bookMetadataService, {
@@ -278,6 +279,7 @@ describe("file.event.worker", () => {
 		amazonEnrichedResult = false;
 		needsEnrichmentResult = false;
 		markDone.mockClear();
+		markDoneBatch.mockClear();
 		markFailed.mockClear();
 		getByRelativePath.mockClear();
 		updateFileInfo.mockClear();
@@ -355,9 +357,25 @@ describe("file.event.worker", () => {
 			await processJob(audiobookJob());
 
 			expect(processAudiobook).toHaveBeenCalledTimes(1);
-			expect(markDone).toHaveBeenCalledTimes(2);
-			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/1.mp3", 100);
-			expect(markDone).toHaveBeenCalledWith("/audio/Author/Book/2.mp3", 100);
+			expect(markDoneBatch).toHaveBeenCalledTimes(1);
+			expect(markDoneBatch).toHaveBeenCalledWith(
+				["/audio/Author/Book/1.mp3", "/audio/Author/Book/2.mp3"],
+				100,
+			);
+			expect(markDone).not.toHaveBeenCalled();
+		});
+
+		test("failed audio processing does not mark any tracks done", async () => {
+			existingBookResult = { id: 9, uuid: "u9", filehash: "hash-1" };
+			processAudiobook.mockImplementationOnce(() =>
+				Promise.reject(new Error("extraction failed")),
+			);
+
+			await expect(processJob(audiobookJob())).rejects.toThrow(
+				"extraction failed",
+			);
+			expect(markDoneBatch).not.toHaveBeenCalled();
+			expect(markDone).not.toHaveBeenCalled();
 		});
 
 		test("a fully processed audiobook with unchanged content is skipped", async () => {
@@ -368,7 +386,11 @@ describe("file.event.worker", () => {
 
 			expect(result.skipped).toBe("already_exists");
 			expect(processAudiobook).not.toHaveBeenCalled();
-			expect(markDone).toHaveBeenCalledTimes(2);
+			expect(markDoneBatch).toHaveBeenCalledTimes(1);
+			expect(markDoneBatch).toHaveBeenCalledWith(
+				["/audio/Author/Book/1.mp3", "/audio/Author/Book/2.mp3"],
+				100,
+			);
 		});
 	});
 

@@ -281,11 +281,11 @@ async function handleFileEvent(job: Job) {
 		} else if (action === "add-audiobook") {
 			const audioData = job.data as AudiobookJobData;
 
-			const markAudioFilesDone = async () => {
-				for (const af of audioData.audioFiles) {
-					await scannedFileRepository.markDone(af.path, libraryPathId);
-				}
-			};
+			const markAudioFilesDone = () =>
+				scannedFileRepository.markDoneBatch(
+					audioData.audioFiles.map((af) => af.path),
+					libraryPathId,
+				);
 
 			// Same as ebooks: a modified audiobook updates the existing book, and
 			// a half-processed one (no metadata yet) gets repaired.
