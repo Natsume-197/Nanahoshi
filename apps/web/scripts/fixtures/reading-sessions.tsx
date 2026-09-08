@@ -84,17 +84,28 @@ const segments = sessions.map((s, i) => ({
 	kind: s.mode === "retrospective" ? "manual" : "reading",
 }));
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const runs = [
+	{
+		id: runId,
+		userId: "test",
+		bookId: 1,
+		startedAt: sessions[0]?.startedAt ?? new Date(now).toISOString(),
+		endedAt: null,
+		state: "reading",
+	},
+	...(scenario === "runs"
+		? [1, 2, 3].map((monthsAgo) => ({
+				id: crypto.randomUUID(),
+				userId: "test",
+				bookId: 1,
+				startedAt: new Date(now - monthsAgo * 30 * 86400000).toISOString(),
+				endedAt: new Date(now - (monthsAgo * 30 - 7) * 86400000).toISOString(),
+				state: "finished",
+			}))
+		: []),
+];
 const data = {
-	runs: [
-		{
-			id: runId,
-			userId: "test",
-			bookId: 1,
-			startedAt: sessions[0]?.startedAt ?? new Date(now).toISOString(),
-			endedAt: null,
-			state: "reading",
-		},
-	],
+	runs,
 	runId,
 	sessions,
 	segments,

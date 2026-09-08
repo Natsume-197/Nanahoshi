@@ -1,6 +1,7 @@
 import {
 	ArrowCounterClockwise,
 	Clock,
+	DotsThreeVertical,
 	PencilSimple,
 	Plus,
 	Trash,
@@ -8,6 +9,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -35,7 +42,7 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 	const [count, setCount] = useState(14);
 	const [form, setForm] = useState<string | null>(null);
 	const [confirm, setConfirm] = useState<{
-		type: "reread" | "discard";
+		type: "reread" | "discard" | "discardRun";
 		id: string;
 	} | null>(null);
 	const queryClient = useQueryClient();
@@ -50,11 +57,13 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 		});
 	const mutation = useMutation({
 		mutationFn: async (action: {
-			type: "reread" | "finish" | "leave" | "discard";
+			type: "reread" | "finish" | "leave" | "discard" | "discardRun";
 			id: string;
 		}) => {
 			if (action.type === "discard")
 				return client.readingSessions.discard({ bookUuid, id: action.id });
+			if (action.type === "discardRun")
+				return client.readingSessions.discardRun({ bookUuid, id: action.id });
 			const result = await client.readingSessions.mutateRun({
 				bookUuid,
 				id: action.id,
@@ -63,7 +72,8 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 			if (action.type === "reread") setRunId(result?.id);
 			return result;
 		},
-		onSuccess: () => {
+		onSuccess: (_result, action) => {
+			if (action.type === "discardRun") setRunId(undefined);
 			setConfirm(null);
 			void refresh();
 		},
@@ -124,8 +134,8 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 			<h2 className="font-medium text-xl tracking-tight">
 				{m.reading_title()}
 			</h2>
-			<div className="grid min-w-0 @min-[42rem]:grid-cols-[14rem_minmax(0,1fr)] items-start gap-4">
-				<aside className="min-w-0 space-y-4 rounded-xl border border-border/60 bg-card/30 p-4">
+			<div className="min-w-0 space-y-6">
+				<div className="min-w-0 space-y-4 rounded-xl border border-border/60 bg-card/30 p-4">
 					<div className="flex items-center gap-3">
 						<div className="relative grid size-14 shrink-0 place-items-center">
 							<svg
@@ -170,55 +180,85 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 							)}
 						</div>
 					</div>
-					<dl className="divide-y divide-border/40 text-xs">
+					<dl className="flex flex-wrap gap-x-8 gap-y-2 text-xs">
 						{[
 							{
 								label: m.reading_recorded(),
 								value: readingDuration(data.totalSeconds),
 							},
 							{ label: m.reading_sessions(), value: data.sessions.length },
-							{ label: m.reading_days(), value: data.days.length },
-							{
-								label: m.reading_longest(),
-								value: data.longestSession
-									? readingDuration(data.longestSession.seconds)
-									: "—",
-							},
-							{
-								label: m.reading_best_day(),
-								value: data.bestDay
-									? readingDuration(data.bestDay.seconds)
-									: "—",
-							},
 						].map(({ label, value }) => (
-							<div
-								key={label}
-								className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2"
-							>
+							<div key={label} className="flex items-baseline gap-2">
 								<dt className="text-muted-foreground">{label}</dt>
 								<dd className="font-medium tabular-nums">{value}</dd>
 							</div>
 						))}
 					</dl>
-					<Button
-						className="h-auto min-h-10 w-full whitespace-normal py-2"
-						onClick={() => setForm("new")}
-					>
-						<Plus aria-hidden="true" />
-						{m.reading_add()}
-					</Button>
-					{data.runs.length > 0 && (
-						<details className="border-border/60 border-t pt-3">
-							<summary className="cursor-pointer py-2 font-medium text-sm">
-								{m.reading_previous()}
-							</summary>
-							<div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-								{data.runs.map((run, i) => (
+					<div className="flex items-center gap-2 pt-1">
+						<Button onClick={() => setForm("new")}>
+							<Plus aria-hidden="true" /> {m.reading_add()}
+						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									size="icon"
+									variant="ghost"
+									disabled={mutation.isPending}
+									aria-label={m.reading_actions()}
+								>
+									<DotsThreeVertical aria-hidden="true" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="start">
+								{current?.state === "reading" ? (
+									<>
+										<DropdownMenuItem
+											onClick={() =>
+												mutation.mutate({ type: "finish", id: current.id })
+											}
+										>
+											{m.reading_complete_run()}
+										</DropdownMenuItem>
+										<DropdownMenuItem
+											onClick={() =>
+												mutation.mutate({ type: "leave", id: current.id })
+											}
+										>
+											{m.reading_leave_run()}
+										</DropdownMenuItem>
+									</>
+								) : (
+									<DropdownMenuItem
+										onClick={() =>
+											setConfirm({
+												type: "reread",
+												id: crypto.randomUUID(),
+											})
+										}
+									>
+										<ArrowCounterClockwise aria-hidden="true" />
+										{m.reading_reread()}
+									</DropdownMenuItem>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				</div>
+				{data.runs.length > 0 && (
+					<details className="border-border/60 border-y py-2">
+						<summary className="cursor-pointer py-2 font-medium text-sm">
+							{m.reading_previous()}
+						</summary>
+						<div className="max-h-64 divide-y divide-border/40 overflow-y-auto">
+							{data.runs.map((run, i) => (
+								<div
+									key={run.id}
+									className="flex min-h-14 items-center gap-2 py-1"
+								>
 									<button
 										type="button"
-										key={run.id}
 										aria-pressed={run.id === data.runId}
-										className={`flex min-h-12 w-full flex-wrap items-center justify-between gap-2 rounded-lg px-3 text-start text-sm ${run.id === data.runId ? "bg-muted" : "hover:bg-muted/50"}`}
+										className={`flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-3 text-start text-sm ${run.id === data.runId ? "bg-muted" : "hover:bg-muted/50"}`}
 										onClick={() => {
 											setRunId(run.id);
 											setCount(14);
@@ -228,52 +268,26 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 											{m.reading_run({ number: data.runs.length - i })} ·{" "}
 											{runState(run.state)}
 										</span>
-										<span className="text-muted-foreground">
+										<span className="shrink-0 text-muted-foreground">
 											{date(run.startedAt)}
 										</span>
 									</button>
-								))}
-							</div>
-						</details>
-					)}
-					<div className="flex flex-col gap-1 border-border/60 border-t pt-3">
-						<Button
-							className="h-auto min-h-11 max-w-full whitespace-normal py-2"
-							variant="outline"
-							disabled={mutation.isPending}
-							onClick={() =>
-								setConfirm({ type: "reread", id: crypto.randomUUID() })
-							}
-						>
-							<ArrowCounterClockwise aria-hidden="true" />
-							{m.reading_reread()}
-						</Button>
-						{current?.state === "reading" && (
-							<>
-								<Button
-									className="h-auto min-h-11 max-w-full whitespace-normal py-2"
-									variant="ghost"
-									disabled={mutation.isPending}
-									onClick={() =>
-										mutation.mutate({ type: "finish", id: current.id })
-									}
-								>
-									{m.reading_complete_run()}
-								</Button>
-								<Button
-									className="h-auto min-h-11 max-w-full whitespace-normal py-2"
-									variant="ghost"
-									disabled={mutation.isPending}
-									onClick={() =>
-										mutation.mutate({ type: "leave", id: current.id })
-									}
-								>
-									{m.reading_leave_run()}
-								</Button>
-							</>
-						)}
-					</div>
-				</aside>
+									<Button
+										size="icon"
+										variant="ghost"
+										className="size-10 shrink-0 text-muted-foreground hover:text-destructive"
+										aria-label={`${m.reading_delete_run()} ${data.runs.length - i}`}
+										onClick={() =>
+											setConfirm({ type: "discardRun", id: run.id })
+										}
+									>
+										<Trash aria-hidden="true" />
+									</Button>
+								</div>
+							))}
+						</div>
+					</details>
+				)}
 				<div className="min-w-0 overflow-hidden rounded-xl border border-border/60 bg-card/30">
 					<div className="flex flex-wrap items-center justify-between gap-3 p-4">
 						<h3 className="font-medium text-sm">{m.reading_sessions()}</h3>
@@ -506,9 +520,6 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 						</fieldset>
 					</div>
 					<ReadingHistoryChart days={days} view={view} />
-					<p className="text-muted-foreground text-xs">
-						{m.reading_range_hint()}
-					</p>
 				</div>
 			)}
 			{data.legacySeconds > 0 && (
@@ -545,12 +556,18 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 					if (!open) setConfirm(null);
 				}}
 				title={
-					confirm?.type === "reread" ? m.reading_reread() : m.reading_discard()
+					confirm?.type === "reread"
+						? m.reading_reread()
+						: confirm?.type === "discardRun"
+							? m.reading_delete_run()
+							: m.reading_discard()
 				}
 				description={
 					confirm?.type === "reread"
 						? m.reading_reread_hint()
-						: m.reading_discard_hint()
+						: confirm?.type === "discardRun"
+							? m.reading_delete_run_hint()
+							: m.reading_discard_hint()
 				}
 				footer={
 					<>
@@ -570,7 +587,9 @@ function BookReadingHistory({ bookUuid }: { bookUuid: string }) {
 						>
 							{confirm?.type === "reread"
 								? m.reading_reread()
-								: m.reading_discard()}
+								: confirm?.type === "discardRun"
+									? m.reading_delete_run()
+									: m.reading_discard()}
 						</Button>
 					</>
 				}

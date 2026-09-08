@@ -95,6 +95,7 @@ export const ReadingRunInput = ReadingBookInput.extend({
 	id: z.uuid(),
 	action: z.enum(["reread", "finish", "leave"]),
 });
+export const ReadingRunIdInput = ReadingBookInput.extend({ id: z.uuid() });
 export const CorrectReadingSessionInput = ReadingSessionIdInput.extend({
 	segment: ReadingSegmentInput,
 });

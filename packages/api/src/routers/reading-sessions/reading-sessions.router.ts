@@ -4,6 +4,7 @@ import {
 	CorrectReadingSessionInput,
 	ReadingHistoryInput,
 	ReadingPreferencesInput,
+	ReadingRunIdInput,
 	ReadingRunInput,
 	ReadingSessionIdInput,
 	SyncReadingSessionInput,
@@ -45,6 +46,17 @@ export const readingSessionsRouter = {
 		.input(ReadingRunInput)
 		.handler(async ({ input, context }) =>
 			service.mutateRun(
+				{
+					userId: context.session.user.id,
+					...(await resolveBookScope(context.session)),
+				},
+				input,
+			),
+		),
+	discardRun: protectedProcedure
+		.input(ReadingRunIdInput)
+		.handler(async ({ input, context }) =>
+			service.discardRun(
 				{
 					userId: context.session.user.id,
 					...(await resolveBookScope(context.session)),

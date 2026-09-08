@@ -25,10 +25,16 @@ describe("HTML ebook chapter structure", () => {
 					{ label: "Chapter two", target: { sectionId: "chapter-two" } },
 				],
 				async openSection(id) {
-					return { html: `<p>${id}</p>`, styles: [] };
+					return {
+						html: `<p>${id}</p>`,
+						styles: [
+							'.shared { background-image: url("ebook-resource:shared.png"); }',
+							`.${id} { color: red; }`,
+						],
+					};
 				},
 				async openResource() {
-					return undefined;
+					return { data: new Uint8Array([1, 2, 3]), mediaType: "image/png" };
 				},
 			};
 			const ebook: EbookDocument = {
@@ -73,6 +79,13 @@ describe("HTML ebook chapter structure", () => {
 					parentChapter: "nanahoshi-epub-chapter-two",
 				},
 			]);
+			expect(data.styleSheet.match(/\.shared\s*\{/g)).toHaveLength(1);
+			expect(data.styleSheet).toContain("nanahoshi:epub/resource-0.png");
+			expect(data.styleSheet).not.toContain("ebook-resource:");
+			expect(Object.keys(data.blobs)).toEqual(["epub/resource-0.png"]);
+			for (const section of content.sections) {
+				expect(data.styleSheet).toContain(`.${section.id}{`);
+			}
 		} finally {
 			globalThis.Node = previousNode;
 			globalThis.HTMLElement = previousHTMLElement;

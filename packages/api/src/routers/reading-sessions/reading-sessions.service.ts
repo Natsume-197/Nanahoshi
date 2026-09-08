@@ -6,6 +6,7 @@ import { readingProgressRepository } from "../reading-progress/reading-progress.
 import type {
 	CorrectReadingSessionInput,
 	ReadingHistoryInput,
+	ReadingRunIdInput,
 	ReadingRunInput,
 	ReadingSessionIdInput,
 	SessionUpload,
@@ -71,6 +72,16 @@ export async function mutateRun(
 		await bookId(access, input.bookUuid),
 		input.id,
 		input.action,
+	);
+}
+export async function discardRun(
+	access: ReadingAccess,
+	input: z.infer<typeof ReadingRunIdInput>,
+) {
+	return repository.discardRun(
+		access.userId,
+		await bookId(access, input.bookUuid),
+		input.id,
 	);
 }
 export async function discard(

@@ -306,6 +306,20 @@ export class ReadingSessionsRepository {
 			return run;
 		});
 	}
+	async discardRun(userId: string, bookId: number, id: string) {
+		const [run] = await db
+			.delete(readingRun)
+			.where(
+				and(
+					eq(readingRun.id, id),
+					eq(readingRun.userId, userId),
+					eq(readingRun.bookId, bookId),
+				),
+			)
+			.returning({ id: readingRun.id });
+		if (!run) throw new NotFoundError("Reading not found");
+		return { ok: true };
+	}
 	async editSession(
 		userId: string,
 		bookId: number,

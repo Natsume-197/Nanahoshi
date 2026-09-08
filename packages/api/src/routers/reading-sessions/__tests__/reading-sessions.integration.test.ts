@@ -124,6 +124,17 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		expect(h.runs).toHaveLength(2);
 		expect(h.rows.length).toBeGreaterThanOrEqual(2);
 	});
+	test("a reading can be discarded with all of its sessions", async () => {
+		const before = await repo.history(userId, bookId);
+		const run = before.runs[0]!;
+		await repo.discardRun(userId, bookId, run.id);
+		const after = await repo.history(userId, bookId);
+		expect(after.runs.some((row) => row.id === run.id)).toBe(false);
+		expect(after.rows.some((row) => row.session.runId === run.id)).toBe(false);
+		await expect(
+			repo.discardRun("someone-else", bookId, run.id),
+		).rejects.toThrow("Reading not found");
+	});
 	test("discard is durable against queued retries", async () => {
 		await repo.editSession(userId, bookId, input.id);
 		await repo.sync(userId, bookId, { ...input, revision: 100 });

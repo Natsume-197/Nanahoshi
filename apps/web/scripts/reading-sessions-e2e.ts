@@ -200,6 +200,16 @@ try {
 		assert.equal(await positions.last().getAttribute("aria-pressed"), "true");
 		await screenshot(page, "position-chart");
 	});
+	await check("history-runs", async (page) => {
+		await page.goto(`${url}?history=runs`, {
+			waitUntil: "domcontentloaded",
+			timeout: 60000,
+		});
+		await page.getByRole("heading", { name: "Historial de lectura" }).waitFor();
+		await page.getByText("Tus lecturas").click();
+		await action(page, "Eliminar lectura 4").click();
+		await page.getByRole("dialog", { name: "Eliminar lectura" }).waitFor();
+	});
 	await check("tracking", async (page) => {
 		await page.clock.install();
 		await open(page);

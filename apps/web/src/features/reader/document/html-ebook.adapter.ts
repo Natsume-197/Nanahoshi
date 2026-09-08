@@ -96,6 +96,20 @@ export async function adaptHtmlEbook(
 		const sections: Section[] = [];
 		const labels = tocLabelsBySection(content.toc);
 		const styles = new Set<string>();
+		// Share pending transformations too: chapters are prepared concurrently.
+		const styleBySource = new Map<string, Promise<string>>();
+		const resolveHref = async (href: string) => {
+			const key = await persistResource(href);
+			return key ? `nanahoshi:${key}` : href;
+		};
+		const prepareStyle = (css: string) => {
+			let pending = styleBySource.get(css);
+			if (!pending) {
+				pending = replaceResourceHrefs(css, resolveHref);
+				styleBySource.set(css, pending);
+			}
+			return pending;
+		};
 		let bodyTextLength = 0;
 		let imageCount = 0;
 		let currentChapterReference: string | undefined;
@@ -108,15 +122,9 @@ export async function adaptHtmlEbook(
 				const section = await content.openSection(sectionRef.id);
 				signal?.throwIfAborted();
 				if (!section) return undefined;
-				const resolveHref = async (href: string) => {
-					const key = await persistResource(href);
-					return key ? `nanahoshi:${key}` : href;
-				};
 				const [html, sectionStyles] = await Promise.all([
 					replaceResourceHrefs(section.html, resolveHref),
-					Promise.all(
-						section.styles.map((css) => replaceResourceHrefs(css, resolveHref)),
-					),
+					Promise.all(section.styles.map(prepareStyle)),
 				]);
 
 				const body = staging.createElement("div");
