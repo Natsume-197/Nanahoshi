@@ -137,12 +137,11 @@ async function enrichSingleAudiobook(
 
 		// Fetch audiobook metadata + authors from the DB
 		const row = await audiobookMetadataRepository.getEnrichRowByBookId(bookId);
-		const title = row?.title as string | null;
-
-		if (!title) {
-			log.warn({ uuid }, "Audiobook has no title, skipping enrichment");
+		if (!row) {
+			log.warn({ uuid }, "Audiobook metadata not found for enrichment");
 			return;
 		}
+		const title = row.title as string | null;
 
 		const authors = (row?.authors ?? []) as { name: string }[];
 		const asin = (row?.asin ?? null) as string | null;

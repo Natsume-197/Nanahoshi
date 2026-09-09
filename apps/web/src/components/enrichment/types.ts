@@ -1,3 +1,4 @@
+import type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/api/routers/enrichment/enrichment.model";
 import type { EnrichmentLifecycle as Lifecycle } from "./filters";
 import type { EnrichmentStatus } from "./lifecycle";
 import type { resolveRetryView } from "./retry-view";
@@ -9,12 +10,14 @@ export type MatchDecisionCandidate = {
 	reasons?: string[];
 };
 
-export type MatchDecision = {
-	kind: "ambiguous";
-	candidates: (Omit<MatchDecisionCandidate, "providerId"> & {
-		providerId: string | null;
-	})[];
-};
+export type MatchDecision =
+	| UnresolvedEnrichmentDecision
+	| {
+			kind: "ambiguous";
+			candidates: (Omit<MatchDecisionCandidate, "providerId"> & {
+				providerId: string | null;
+			})[];
+	  };
 
 /** One row of the match manager list, as the tray query returns it. */
 export type MatchRow = {

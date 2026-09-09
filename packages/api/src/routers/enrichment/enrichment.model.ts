@@ -84,3 +84,5 @@ export const ProviderStatusInput = z.object({
 export type EnrichmentBucket = z.infer<typeof EnrichmentBucketEnum>;
 export type ListEnrichmentFilters = z.infer<typeof ListEnrichmentInput>;
 export type TargetSelectionInput = z.infer<typeof TargetSelection>;
+
+export type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/db/schema/general";

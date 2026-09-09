@@ -105,3 +105,18 @@ export function rankAudiobookCandidate(
 				: undefined,
 	});
 }
+
+/** A local display/search title, never a numeric import index or embedded ASIN. */
+export function audiobookFilenameTitle(
+	filename: string | null | undefined,
+): string | null {
+	const title = filename
+		?.split(/[\\/]/u)
+		.at(-1)
+		?.normalize("NFKC")
+		.replace(/\.(?:m4b|m4a|mp3|mp4|flac|ogg|opus|aac|wav|wma)$/iu, "")
+		.replace(/\[B[A-Z0-9]{9}\]/giu, "")
+		.replace(/^\[\d+(?:\.\d+)?\]\s*/u, "")
+		.trim();
+	return title || null;
+}

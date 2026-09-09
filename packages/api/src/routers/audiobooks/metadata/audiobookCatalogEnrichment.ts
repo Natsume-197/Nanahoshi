@@ -1,7 +1,10 @@
+import type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/db/schema/general";
 import {
+	audiobookFilenameTitle,
 	cleanAudiobookTitle,
 	rankAudiobookCandidate,
 } from "../../../modules/audiobookMatch";
+import { inferSeriesFromTitle } from "../../../modules/audiobookSeriesInference";
 import {
 	type CatalogEnrichmentPolicy,
 	type CatalogEnrichmentResult,
@@ -41,10 +44,11 @@ function isMissing(value: unknown): boolean {
 }
 
 function identityEvidence(
-	metadata: Partial<AudiobookMetadata>,
+	metadata: Partial<AudiobookMetadata> & { filename?: string | null },
 ): CatalogIdentityEvidence {
 	return {
 		kind: "audiobook",
+		filename: metadata.filename,
 		title: metadata.title,
 		authors: metadata.authors?.map(({ name }) => ({ name })),
 		asin: metadata.asin,
@@ -53,18 +57,44 @@ function identityEvidence(
 	};
 }
 
-function discoveryQueries(
+export function discoveryQueries(
 	metadata: AudiobookEnrichmentMetadata,
 ): CatalogIdentityEvidence[] {
+	const evidence = identityEvidence(metadata);
 	const queries: CatalogIdentityEvidence[] = [];
-	if (isValidAsin(metadata.asin)) {
-		queries.push({ ...identityEvidence(metadata), asin: metadata.asin });
-	}
-	if (!metadata.title) return queries;
-	queries.push({ ...identityEvidence(metadata), asin: null });
-	const cleaned = cleanAudiobookTitle(metadata.title);
-	if (cleaned && cleaned !== metadata.title) {
-		queries.push({ ...identityEvidence(metadata), title: cleaned, asin: null });
+	const seen = new Set<string>();
+	const add = (
+		title: string | null | undefined,
+		authors = evidence.authors,
+	) => {
+		if (!title?.trim()) return;
+		const key = JSON.stringify([title.trim(), authors ?? []]);
+		if (seen.has(key)) return;
+		seen.add(key);
+		queries.push({ ...evidence, title: title.trim(), authors, asin: null });
+	};
+	if (isValidAsin(metadata.asin)) queries.push(evidence);
+	const filename = audiobookFilenameTitle(metadata.filename);
+	const title = metadata.title?.trim() || filename;
+	add(title);
+	add(title ? cleanAudiobookTitle(title) : null);
+	// Authors can contain publisher/role noise: omit them for discovery only.
+	add(title, null);
+	add(title ? cleanAudiobookTitle(title) : null, null);
+	if (filename && filename !== title) add(filename, null);
+	const inferred =
+		inferSeriesFromTitle(title) ?? inferSeriesFromTitle(filename);
+	const rawSeriesName = inferred?.seriesName ?? metadata.series?.name;
+	const seriesName = rawSeriesName ? cleanAudiobookTitle(rawSeriesName) : null;
+	if (seriesName) {
+		// Search the numbered series first so long series do not hide later volumes.
+		add(
+			inferred?.position != null
+				? `${seriesName} ${inferred.position}`
+				: seriesName,
+			null,
+		);
+		add(seriesName, null);
 	}
 	return queries;
 }
@@ -143,7 +173,12 @@ function queryAuthors(evidence: CatalogIdentityEvidence) {
 
 function audiobookAdapter(
 	provider: IAudiobookMetadataProvider,
-	context: { region: string; bookUuid?: string },
+	context: {
+		region: string;
+		bookUuid?: string;
+		diagnostics: UnresolvedEnrichmentDecision;
+		candidates: Set<string>;
+	},
 ): CatalogProviderAdapter<AudiobookProviderName, AudiobookEnrichmentMetadata> {
 	// Any failure that isn't already typed is treated as the provider being
 	// unavailable, so the gate opens its breaker.
@@ -164,6 +199,7 @@ function audiobookAdapter(
 			if (isValidAsin(query.asin)) {
 				if (provider.id !== "audible") return [];
 				const asin = query.asin.trim().toUpperCase();
+				context.candidates.add(`${provider.id}:${asin}`);
 				return [
 					{
 						providerId: asin,
@@ -174,11 +210,13 @@ function audiobookAdapter(
 			}
 			if (!query.title) return [];
 			try {
+				context.diagnostics.searches = (context.diagnostics.searches ?? 0) + 1;
 				const candidates = await provider.search(
 					{ title: query.title, authors: queryAuthors(query) },
 					{ region: context.region },
 				);
 				return candidates.map((candidate) => {
+					context.candidates.add(`${provider.id}:${candidate.providerId}`);
 					const {
 						provider: _provider,
 						providerId,
@@ -209,7 +247,10 @@ function audiobookAdapter(
 					title: metadata.title ?? candidate.metadata.title,
 					duration: metadata.duration ?? candidate.metadata.duration,
 				};
-				if (!combined.title?.trim()) return null;
+				if (!combined.title?.trim()) {
+					context.diagnostics.reasons.push("remote.title_missing");
+					return null;
+				}
 				const remoteSeries = metadata.series;
 				if (
 					remoteSeries?.position != null &&
@@ -223,7 +264,10 @@ function audiobookAdapter(
 						...identityEvidence(combined),
 						title: `[${remoteSeries.position}巻] ${remoteSeries.name}`,
 					});
-					if (verdict.status === "rejected") return null;
+					if (verdict.status === "rejected") {
+						context.diagnostics.reasons.push(...verdict.reasons);
+						return null;
+					}
 				}
 				return { metadata: combined, evidence: identityEvidence(combined) };
 			} catch (error) {
@@ -261,6 +305,21 @@ export async function runAudiobookCatalogEnrichment({
 		const asin = asinFromFilename(metadata.filename);
 		if (asin) metadata = { ...metadata, asin };
 	}
+	const filenameTitle = audiobookFilenameTitle(metadata.filename);
+	if (!metadata.title?.trim() && filenameTitle)
+		metadata = { ...metadata, title: filenameTitle };
+	const diagnostics: UnresolvedEnrichmentDecision = {
+		kind: "unresolved",
+		reason: "no_candidates",
+		searches: 0,
+		candidates: 0,
+		reasons: [],
+	};
+	const candidates = new Set<string>();
+	if (requiredPrimaryMatch)
+		candidates.add(
+			`${requiredPrimaryMatch.provider}:${requiredPrimaryMatch.providerId}`,
+		);
 	const effectiveRouting: AudiobookRoutingPolicy = {
 		...(routing ?? { order: providers.map(({ id }) => id) }),
 		...(requiredPrimaryMatch ? { primary: requiredPrimaryMatch.provider } : {}),
@@ -272,12 +331,14 @@ export async function runAudiobookCatalogEnrichment({
 					...providers.filter(({ id }) => id !== "audible"),
 				]
 			: providers;
-	return runCatalogEnrichment({
+	const result = await runCatalogEnrichment({
 		initialMetadata: metadata,
 		initialEvidence: identityEvidence(metadata),
 		providers: ordered.map((provider) =>
 			audiobookAdapter(provider, {
 				region,
+				diagnostics,
+				candidates,
 				bookUuid:
 					downloadCovers && isMissing(metadata.cover)
 						? metadata.uuid
@@ -289,5 +350,27 @@ export async function runAudiobookCatalogEnrichment({
 			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
 		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,
 		protectedFields,
+		onAssessment: (verdict) => {
+			if (verdict.status !== "confirmed")
+				diagnostics.reasons.push(...verdict.reasons);
+		},
 	});
+	diagnostics.candidates = candidates.size;
+	diagnostics.reasons = [...new Set(diagnostics.reasons)].slice(0, 20);
+	diagnostics.reason = !metadata.title?.trim()
+		? "missing_title"
+		: result.failures.some((f) => f.kind === "transient")
+			? "provider_unavailable"
+			: result.failures.some((f) => f.code === "candidate_budget_exhausted")
+				? "candidate_budget_exhausted"
+				: diagnostics.reasons.some(
+							(r) => r.includes("conflict") || r === "group.member_rejected",
+						)
+					? "identity_conflict"
+					: candidates.size
+						? "insufficient_evidence"
+						: "no_candidates";
+	if (result.status === "no_match" && !result.decision)
+		return { ...result, decision: diagnostics };
+	return result;
 }

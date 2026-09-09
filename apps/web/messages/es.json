@@ -2853,5 +2853,17 @@
 	"reading_preferences": "Preferencias de registro",
 	"reading_today_run": "Hoy en esta lectura · sincronizado",
 	"reading_today_unavailable": "No disponible",
-	"reading_one_session": "1 sesión"
+	"reading_one_session": "1 sesión",
+	"enrichment.unresolved_no_candidates": "No se encontraron candidatos en el catálogo.",
+	"enrichment.unresolved_identity_conflict": "Los candidatos contradicen el título, volumen o parte local.",
+	"enrichment.unresolved_insufficient_evidence": "Se encontraron candidatos, pero no hay evidencia suficiente para confirmar una coincidencia.",
+	"enrichment.unresolved_missing_title": "Se necesita un título o un nombre de archivo utilizable para buscar.",
+	"enrichment.unresolved_missing_series": "El producto identificado no tiene una identidad de serie verificada.",
+	"enrichment.unresolved_candidate_budget_exhausted": "Se alcanzó el límite de consultas de candidatos. Revisa o precisa la búsqueda.",
+	"enrichment.unresolved_provider_unavailable": "El proveedor del catálogo no está disponible temporalmente.",
+	"enrichment.unresolved_summary": "{searches} búsquedas · {candidates} candidatos distintos",
+	"enrichment.unresolved_title": "Por qué no se confirmó una coincidencia",
+	"enrichment.unresolved_volume": "El volumen no coincide.",
+	"enrichment.unresolved_part": "La parte del audio no coincide.",
+	"enrichment.unresolved_internal": "El título y el archivo contienen marcas de edición contradictorias."
 }

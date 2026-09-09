@@ -82,11 +82,17 @@ export async function runCatalogEnrichment<
 	requiredPrimaryProviderId,
 	protectedFields = [],
 	maxHydrationsPerProvider = DEFAULT_MAX_HYDRATIONS_PER_PROVIDER,
+	onAssessment,
 }: CatalogEnrichmentInput<TProvider, TMetadata>): Promise<
 	CatalogEnrichmentResult<TProvider, TMetadata>
 > {
 	let metadata = initialMetadata;
 	const acceptedEvidence = [initialEvidence];
+	const assess = (evidence: CatalogIdentityEvidence) => {
+		const verdict = assessGroupMembership(evidence, acceptedEvidence);
+		onAssessment?.(verdict);
+		return verdict;
+	};
 	const contributingProviders: TProvider[] = [];
 	const matches: CatalogEnrichmentMatch<TProvider>[] = [];
 	const fieldSources: Record<string, TProvider> = {};
@@ -187,10 +193,7 @@ export async function runCatalogEnrichment<
 				for (const candidate of candidates) {
 					if (seenPrimary.has(candidate.providerId)) continue;
 					seenPrimary.add(candidate.providerId);
-					const verdict = assessGroupMembership(
-						candidate.evidence,
-						acceptedEvidence,
-					);
+					const verdict = assess(candidate.evidence);
 					if (verdict.status !== "rejected") {
 						discovered.push({ candidate, query });
 						queryViable.push({
@@ -221,9 +224,7 @@ export async function runCatalogEnrichment<
 						failures.push(providerFailure(provider.id, "hydration", error));
 						continue providerLoop;
 					}
-					const verdict = hydrated
-						? assessGroupMembership(hydrated.evidence, acceptedEvidence)
-						: null;
+					const verdict = hydrated ? assess(hydrated.evidence) : null;
 					if (hydrated && verdict?.status === "confirmed") {
 						acceptHydrated(
 							provider,
@@ -264,10 +265,7 @@ export async function runCatalogEnrichment<
 					continue providerLoop;
 				}
 				if (!hydrated) continue;
-				const verdict = assessGroupMembership(
-					hydrated.evidence,
-					acceptedEvidence,
-				);
+				const verdict = assess(hydrated.evidence);
 				if (verdict.status !== "confirmed") continue;
 				const reasons = verdict.reasons.filter(
 					(reason) => reason !== "group.member_confirmed",
@@ -353,7 +351,7 @@ export async function runCatalogEnrichment<
 				})
 				.map((candidate) => ({
 					candidate,
-					verdict: assessGroupMembership(candidate.evidence, acceptedEvidence),
+					verdict: assess(candidate.evidence),
 				}))
 				.filter(({ verdict }) => verdict.status !== "rejected");
 			const viable = assessed
@@ -389,10 +387,7 @@ export async function runCatalogEnrichment<
 					}
 				}
 				if (!hydrated) continue;
-				const verdict = assessGroupMembership(
-					hydrated.evidence,
-					acceptedEvidence,
-				);
+				const verdict = assess(hydrated.evidence);
 				if (verdict.status !== "confirmed") continue;
 
 				acceptHydrated(provider, candidate, hydrated, verdict.reasons);

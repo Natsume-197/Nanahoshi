@@ -92,6 +92,24 @@ function compiledExecutedSql() {
 }
 
 describe("EnrichmentStateRepository retry invariants", () => {
+	test("persists an unresolved explanation without treating it as a provider failure", async () => {
+		const decision = {
+			kind: "unresolved" as const,
+			reason: "identity_conflict" as const,
+			searches: 3,
+			candidates: 2,
+			reasons: ["discriminator.volume_conflict"],
+		};
+		await enrichmentStateRepository.recordRun(1126, {
+			status: "no_match",
+			decision,
+			failures: [],
+		});
+		expect(insertedValues?.decision).toEqual(decision);
+		expect(conflictConfig?.set?.decision).toEqual(decision);
+		expect(insertedValues?.failures).toEqual([]);
+	});
+
 	test("persists an ambiguous decision separately from failures", async () => {
 		const decision = {
 			kind: "ambiguous" as const,

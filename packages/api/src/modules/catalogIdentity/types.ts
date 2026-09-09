@@ -44,6 +44,8 @@ export type CatalogIdentityEvidence = {
 	embeddedUid?: string | null;
 	embeddedUidOccurrenceCount?: number;
 	languageCode?: string | null;
+	/** Local audiobook filename: only explicit release markers are evidence. */
+	filename?: string | null;
 	/** Audiobook duration in seconds. */
 	duration?: number | null;
 };

@@ -2853,5 +2853,17 @@
 	"reading_preferences": "Tracking preferences",
 	"reading_today_run": "Today in this reading · synced",
 	"reading_today_unavailable": "Unavailable",
-	"reading_one_session": "1 session"
+	"reading_one_session": "1 session",
+	"enrichment.unresolved_no_candidates": "No catalog candidates were found.",
+	"enrichment.unresolved_identity_conflict": "Candidates conflict with the local title, volume or part.",
+	"enrichment.unresolved_insufficient_evidence": "Candidates were found, but there is not enough evidence to confirm a match.",
+	"enrichment.unresolved_missing_title": "A title or a usable filename is needed to search.",
+	"enrichment.unresolved_missing_series": "The matched product has no verified series identity.",
+	"enrichment.unresolved_candidate_budget_exhausted": "The candidate lookup limit was reached. Review or narrow the search.",
+	"enrichment.unresolved_provider_unavailable": "The catalog provider is temporarily unavailable.",
+	"enrichment.unresolved_summary": "{searches} searches · {candidates} distinct candidates",
+	"enrichment.unresolved_title": "Why no match was confirmed",
+	"enrichment.unresolved_volume": "The volume does not match.",
+	"enrichment.unresolved_part": "The audio part does not match.",
+	"enrichment.unresolved_internal": "The title and filename contain conflicting release markers."
 }

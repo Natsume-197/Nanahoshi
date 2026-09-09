@@ -107,7 +107,16 @@ export class AudiobookMetadataService {
 		if (result.status !== "matched" || !result.metadata.series?.identity) {
 			return {
 				status: "unresolved" as const,
-				decision: "decision" in result ? result.decision : undefined,
+				decision:
+					result.status === "matched"
+						? {
+								kind: "unresolved" as const,
+								reason: "missing_series" as const,
+								reasons: [],
+							}
+						: "decision" in result
+							? result.decision
+							: undefined,
 				failures: result.failures,
 			};
 		}
@@ -247,7 +256,6 @@ export class AudiobookMetadataService {
 		}
 
 		const title = input.title;
-		if (!title) return null;
 
 		const [routing, region, protectedFields, existingCover] = await Promise.all(
 			[

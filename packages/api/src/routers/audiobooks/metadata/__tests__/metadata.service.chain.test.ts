@@ -826,6 +826,7 @@ describe("quickMatch provider chain", () => {
 		expect(searches).toEqual([
 			"Great Story Vol. 3 (Unabridged)",
 			"Great Story",
+			"Great Story 3",
 		]);
 		expect(mockRecordRun).toHaveBeenCalledWith(
 			1,
@@ -1372,4 +1373,258 @@ describe("series-only refresh", () => {
 		).toBe("protected");
 		expect(audibleGetByIdSpy).not.toHaveBeenCalled();
 	});
+});
+
+const { runAudiobookCatalogEnrichment, discoveryQueries } = await import(
+	"../audiobookCatalogEnrichment"
+);
+describe("staged audiobook discovery and diagnostics", () => {
+	const run = (
+		metadata: Parameters<typeof runAudiobookCatalogEnrichment>[0]["metadata"],
+	) =>
+		runAudiobookCatalogEnrichment({
+			metadata,
+			providers: [audibleProvider],
+			region: "jp",
+			downloadCovers: false,
+		});
+	test("retries without noisy authors while keeping identity evidence", async () => {
+		const title = "[2巻] 無職転生 ～異世界行ったら本気だす～ 2";
+		audibleSearchSpy.mockImplementation(async (input) =>
+			input.authors?.length
+				? []
+				: [{ provider: "audible", providerId: "B01J9VAXFC", title }],
+		);
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title,
+			asin: "B01J9VAXFC",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title,
+			authors: [{ name: "Author / Publisher", role: "Author" }],
+		});
+		expect(result.status).toBe("matched");
+		expect(audibleSearchSpy.mock.calls[0]?.[0].authors).toHaveLength(1);
+		expect(
+			audibleSearchSpy.mock.calls.some(([input]) => !input.authors?.length),
+		).toBe(true);
+	});
+	test("series fallback finds a later volume and rejects its sibling using the filename", async () => {
+		audibleSearchSpy.mockImplementation(async (input) =>
+			input.title === "Chronicle"
+				? [
+						{
+							provider: "audible",
+							providerId: "B000000007",
+							title: "Chronicle Volume 7",
+						},
+						{
+							provider: "audible",
+							providerId: "B000000017",
+							title: "Chronicle Volume 17",
+						},
+					]
+				: [],
+		);
+		audibleGetByIdSpy.mockImplementation(async (id) => ({
+			title: "Chronicle Volume 17",
+			asin: id,
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "Chronicle",
+			filename: "Chronicle Volume 17.m4b",
+		});
+		expect(result.status === "matched" && result.primaryProviderId).toBe(
+			"B000000017",
+		);
+		expect(audibleGetByIdSpy).not.toHaveBeenCalledWith(
+			"B000000007",
+			expect.anything(),
+		);
+		expect(
+			discoveryQueries({
+				...BASE_INPUT,
+				title: "[17巻] Chronicle 17 Long subtitle",
+			}).map((q) => q.title),
+		).toContain("Chronicle 17");
+	});
+	test("conflicting filename volume defeats a reused ASIN and is persisted for review", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "Chronicle Volume 6",
+			asin: "B000000006",
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title: "Chronicle",
+			filename: "[11巻] Chronicle.m4b",
+			asin: "B000000006",
+		});
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockRecordRun).toHaveBeenCalledWith(
+			1,
+			expect.objectContaining({
+				status: "no_match",
+				decision: expect.objectContaining({
+					kind: "unresolved",
+					reason: "identity_conflict",
+					reasons: expect.arrayContaining(["discriminator.volume_conflict"]),
+				}),
+			}),
+		);
+	});
+	test("filename parts cannot be interchanged even with the same ASIN", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "幼女戦記 1 Deus lo vult（後編）",
+			asin: "B000000001",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "幼女戦記 1 Deus lo vult",
+			filename: "[1巻・前編] 幼女戦記 1 Deus lo vult.m4b",
+			asin: "B000000001",
+		});
+		expect(result.status).toBe("no_match");
+		expect(result.status === "no_match" && result.decision).toMatchObject({
+			reason: "identity_conflict",
+			reasons: expect.arrayContaining(["discriminator.part_conflict"]),
+		});
+	});
+
+	test("a filename part needs evidence of the same part, not just the whole volume", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "幼女戦記 1 Deus lo vult",
+			asin: "B000000001",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "幼女戦記 1 Deus lo vult",
+			filename: "[1巻・前編] 幼女戦記 1 Deus lo vult.m4b",
+			asin: "B000000001",
+		});
+		expect(result.status === "no_match" && result.decision).toMatchObject({
+			reason: "insufficient_evidence",
+			reasons: expect.arrayContaining(["discriminator.part_missing"]),
+		});
+	});
+	test("a special marked only in the filename cannot match the main volume", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "サイレント・ウィッチ",
+			asin: "B000000001",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "サイレント・ウィッチ",
+			filename: "[4巻・番外編] サイレント・ウィッチ.m4b",
+			asin: "B000000001",
+		});
+		expect(result.status === "no_match" && result.decision).toMatchObject({
+			reason: "identity_conflict",
+			reasons: expect.arrayContaining(["discriminator.supplement_conflict"]),
+		});
+	});
+	test("an import index is not a volume", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "Chronicle Volume 2",
+			asin: "B000000002",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "Chronicle",
+			filename: "[19] Chronicle [B000000002].m4b",
+		});
+		expect(result.status).toBe("matched");
+	});
+	test("a missing title can use the filename without its index, ASIN or extension", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "Chronicle Volume 2",
+			asin: "B000000002",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: null,
+			filename: "/library/[19] Chronicle Volume 2 [B000000002].m4b",
+		});
+		expect(result.status).toBe("matched");
+		expect(result.status === "matched" && result.metadata.title).toBe(
+			"Chronicle Volume 2",
+		);
+	});
+	test("reports empty discovery separately from insufficient remote evidence", async () => {
+		const empty = await run(BASE_INPUT);
+		expect(empty.status === "no_match" && empty.decision).toMatchObject({
+			kind: "unresolved",
+			reason: "no_candidates",
+			candidates: 0,
+		});
+		audibleGetByIdSpy.mockImplementation(async () => ({ asin: "B000000002" }));
+		const incomplete = await run({ ...BASE_INPUT, asin: "B000000002" });
+		expect(
+			incomplete.status === "no_match" && incomplete.decision,
+		).toMatchObject({
+			reason: "insufficient_evidence",
+			candidates: 1,
+			reasons: expect.arrayContaining(["remote.title_missing"]),
+		});
+	});
+	test("a title/filename disagreement stays unresolved", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: "Chronicle Volume 2",
+			asin: "B000000002",
+		}));
+		const result = await run({
+			...BASE_INPUT,
+			title: "Chronicle Volume 2",
+			filename: "Chronicle Volume 3.m4b",
+			asin: "B000000002",
+		});
+		expect(result.status === "no_match" && result.decision).toMatchObject({
+			reason: "identity_conflict",
+			reasons: expect.arrayContaining(["discriminator.internal_conflict"]),
+		});
+	});
+	test("query variants are bounded and deduplicated", () => {
+		const queries = discoveryQueries({
+			...BASE_INPUT,
+			title: "[17巻] Chronicle 17",
+			filename: "[17巻] Chronicle 17.m4b",
+			authors: [{ name: "A", role: "Author" }],
+		});
+		expect(queries.length).toBeLessThanOrEqual(7);
+		expect(
+			new Set(queries.map((q) => JSON.stringify([q.title, q.authors ?? []])))
+				.size,
+		).toBe(queries.length);
+	});
+});
+
+test("quickMatch can enrich missing tags from the filename and explains entirely missing titles", async () => {
+	audibleGetByIdSpy.mockImplementation(async () => ({
+		title: "Chronicle Volume 2",
+		asin: "B000000002",
+		authors: [{ name: "Writer", role: "Author" }],
+	}));
+	await audiobookMetadataService.quickMatch({
+		...BASE_INPUT,
+		title: null,
+		filename: "Chronicle Volume 2 [B000000002].m4b",
+	});
+	expect(mockUpsertMetadata).toHaveBeenCalledWith(
+		1,
+		expect.objectContaining({ title: "Chronicle Volume 2" }),
+	);
+	mockRecordRun.mockClear();
+	await audiobookMetadataService.quickMatch({
+		...BASE_INPUT,
+		title: null,
+		filename: "[19].m4b",
+	});
+	expect(mockRecordRun).toHaveBeenCalledWith(
+		1,
+		expect.objectContaining({
+			status: "no_match",
+			decision: expect.objectContaining({ reason: "missing_title" }),
+		}),
+	);
 });

@@ -24,3 +24,21 @@ describe("resolveAmbiguousCandidates", () => {
 		]);
 	});
 });
+
+test("an unresolved explanation replaces stale ambiguous candidates", () => {
+	expect(
+		resolveAmbiguousCandidates(
+			{
+				kind: "ambiguous",
+				candidates: [{ provider: "audible", providerId: "B000000001" }],
+			},
+			{
+				kind: "unresolved",
+				reason: "identity_conflict",
+				reasons: ["discriminator.part_conflict"],
+				searches: 2,
+				candidates: 1,
+			},
+		),
+	).toEqual([]);
+});

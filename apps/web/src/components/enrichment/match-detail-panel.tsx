@@ -202,6 +202,18 @@ export function MatchDetailPanel({
 		item.decision,
 		detail?.decision,
 	);
+	const decision = detail?.decision ?? item.decision;
+	const unresolved = decision?.kind === "unresolved" ? decision : null;
+	const unresolvedMessages = {
+		no_candidates: m["enrichment.unresolved_no_candidates"],
+		identity_conflict: m["enrichment.unresolved_identity_conflict"],
+		insufficient_evidence: m["enrichment.unresolved_insufficient_evidence"],
+		missing_title: m["enrichment.unresolved_missing_title"],
+		missing_series: m["enrichment.unresolved_missing_series"],
+		candidate_budget_exhausted:
+			m["enrichment.unresolved_candidate_budget_exhausted"],
+		provider_unavailable: m["enrichment.unresolved_provider_unavailable"],
+	};
 	const locked = new Set(detail?.lockedFields ?? []);
 	const coverFilename = getCoverFilename(item.cover);
 	const bookRoute =
@@ -422,6 +434,32 @@ export function MatchDetailPanel({
 							</section>
 						)}
 
+						{unresolved && (
+							<section className="flex flex-col gap-2 text-sm">
+								<SectionTitle>
+									{m["enrichment.unresolved_title"]()}
+								</SectionTitle>
+								<p>{unresolvedMessages[unresolved.reason]()}</p>
+								{unresolved.reasons.includes(
+									"discriminator.volume_conflict",
+								) && <p>{m["enrichment.unresolved_volume"]()}</p>}
+								{unresolved.reasons.includes("discriminator.part_conflict") && (
+									<p>{m["enrichment.unresolved_part"]()}</p>
+								)}
+								{unresolved.reasons.includes(
+									"discriminator.internal_conflict",
+								) && <p>{m["enrichment.unresolved_internal"]()}</p>}
+								{unresolved.searches != null &&
+									unresolved.candidates != null && (
+										<p className="text-muted-foreground text-xs">
+											{m["enrichment.unresolved_summary"]({
+												searches: unresolved.searches,
+												candidates: unresolved.candidates,
+											})}
+										</p>
+									)}
+							</section>
+						)}
 						{item.failures.length > 0 && (
 							<section className="flex flex-col gap-2">
 								<SectionTitle>{m["enrichment.failures_title"]()}</SectionTitle>

@@ -1074,11 +1074,28 @@ export type EnrichmentMatch = {
 	reasons?: string[];
 };
 
-export type EnrichmentDecision = {
-	kind: "ambiguous";
-	/** At most two viable candidates, bounded by Catalog Enrichment. */
-	candidates: EnrichmentMatch[];
+export type UnresolvedEnrichmentDecision = {
+	kind: "unresolved";
+	reason:
+		| "no_candidates"
+		| "identity_conflict"
+		| "insufficient_evidence"
+		| "missing_title"
+		| "missing_series"
+		| "candidate_budget_exhausted"
+		| "provider_unavailable";
+	reasons: string[];
+	searches?: number;
+	candidates?: number;
 };
+
+export type EnrichmentDecision =
+	| UnresolvedEnrichmentDecision
+	| {
+			kind: "ambiguous";
+			/** At most two viable candidates, bounded by Catalog Enrichment. */
+			candidates: EnrichmentMatch[];
+	  };
 
 export type EnrichmentFailure = {
 	provider: string;

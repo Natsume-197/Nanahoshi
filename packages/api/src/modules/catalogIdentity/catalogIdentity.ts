@@ -1,5 +1,6 @@
 import {
 	audiobookDurationSimilarity,
+	audiobookFilenameTitle,
 	audiobookMatchConfidence,
 	bestAudiobookTextSimilarity,
 	cleanAudiobookTitle,
@@ -661,18 +662,48 @@ function assessAudiobookIdentity(
 				title.volume;
 		}
 	}
+	const releaseTitles = (
+		evidence: CatalogIdentityEvidence,
+		analysis: RecordAnalysis,
+	) => {
+		const filename = audiobookFilenameTitle(evidence.filename);
+		if (!filename) return analysis.titles;
+		const fileTitles = analyzeTitles({ title: filename }).titles.map(
+			(title) => ({
+				...title,
+				// Bare indices, years and trailing numbers in filenames are not volumes.
+				volume: /\d\s*巻|\b(?:vol(?:ume)?|book)\.?\s*\d/iu.test(filename)
+					? (inferSeriesFromTitle(filename)?.position ?? null)
+					: null,
+			}),
+		);
+		return [...analysis.titles, ...fileTitles];
+	};
+	const leftRelease = releaseTitles(left, la);
+	const rightRelease = releaseTitles(right, ra);
 	for (const [field, reason] of [
 		["volume", R.VOLUME_CONFLICT],
 		["numberedPart", R.PART_CONFLICT],
 		["part", R.PART_CONFLICT],
 	] as const) {
-		const l = unique(la.titles.map((t) => t[field]).filter((v) => v !== null));
-		const r = unique(ra.titles.map((t) => t[field]).filter((v) => v !== null));
+		const l = unique(
+			leftRelease.map((t) => t[field]).filter((v) => v !== null),
+		);
+		const r = unique(
+			rightRelease.map((t) => t[field]).filter((v) => v !== null),
+		);
 		if (l.length > 1 || r.length > 1) {
 			return {
 				status: "indeterminate",
 				reasons: [R.INTERNAL_DISCRIMINATOR_CONFLICT],
 			};
+		}
+		if (
+			field !== "volume" &&
+			((left.filename && l.length && !r.length) ||
+				(right.filename && r.length && !l.length))
+		) {
+			return { status: "indeterminate", reasons: [R.PART_MISSING] };
 		}
 		if (l.length && r.length && l[0] !== r[0]) {
 			return { status: "rejected", reasons: [reason] };
@@ -681,8 +712,8 @@ function assessAudiobookIdentity(
 	if (
 		la.titles.length &&
 		ra.titles.length &&
-		explicitValue(la.titles.map((t) => t.supplement)) !==
-			explicitValue(ra.titles.map((t) => t.supplement))
+		explicitValue(leftRelease.map((t) => t.supplement)) !==
+			explicitValue(rightRelease.map((t) => t.supplement))
 	) {
 		return { status: "rejected", reasons: [R.SUPPLEMENT_CONFLICT] };
 	}
@@ -762,6 +793,7 @@ export function assessGroupMembership(
 	// gauge match strength (e.g. title-only vs. identifier-backed) — the group
 	// verdict alone would flatten that away.
 	const confirmingReasons = new Set<CatalogIdentityReason>();
+	const indeterminateReasons = new Set<CatalogIdentityReason>();
 	for (const member of members) {
 		const verdict = assessCatalogIdentity(candidate, member);
 		if (verdict.status === "rejected") {
@@ -769,6 +801,9 @@ export function assessGroupMembership(
 				status: "rejected",
 				reasons: [R.GROUP_MEMBER_REJECTED, ...verdict.reasons],
 			};
+		}
+		if (verdict.status === "indeterminate") {
+			for (const reason of verdict.reasons) indeterminateReasons.add(reason);
 		}
 		if (verdict.status === "confirmed") {
 			confirmed = true;
@@ -780,5 +815,8 @@ export function assessGroupMembership(
 				status: "confirmed",
 				reasons: [R.GROUP_MEMBER_CONFIRMED, ...confirmingReasons],
 			}
-		: { status: "indeterminate", reasons: [R.GROUP_ALL_INDETERMINATE] };
+		: {
+				status: "indeterminate",
+				reasons: [R.GROUP_ALL_INDETERMINATE, ...indeterminateReasons],
+			};
 }

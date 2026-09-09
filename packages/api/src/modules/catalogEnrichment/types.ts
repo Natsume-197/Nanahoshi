@@ -1,4 +1,8 @@
-import type { CatalogIdentityEvidence } from "../catalogIdentity";
+import type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/db/schema/general";
+import type {
+	CatalogIdentityEvidence,
+	CatalogIdentityVerdict,
+} from "../catalogIdentity";
 
 export type CatalogEnrichmentCandidate<TMetadata extends object> = {
 	providerId: string;
@@ -76,10 +80,12 @@ export type CatalogEnrichmentMatch<TProvider extends string> = {
 	reasons?: string[];
 };
 
-export type CatalogEnrichmentDecision<TProvider extends string> = {
-	kind: "ambiguous";
-	candidates: CatalogEnrichmentMatch<TProvider>[];
-};
+export type CatalogEnrichmentDecision<TProvider extends string> =
+	| UnresolvedEnrichmentDecision
+	| {
+			kind: "ambiguous";
+			candidates: CatalogEnrichmentMatch<TProvider>[];
+	  };
 
 export type CatalogEnrichmentResult<
 	TProvider extends string,
@@ -129,4 +135,6 @@ export type CatalogEnrichmentInput<
 	requiredPrimaryProviderId?: string;
 	protectedFields?: readonly (keyof TMetadata)[];
 	maxHydrationsPerProvider?: number;
+	/** Observe identity diagnostics without changing acceptance or retry policy. */
+	onAssessment?: (verdict: CatalogIdentityVerdict) => void;
 };

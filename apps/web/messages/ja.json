@@ -2795,5 +2795,17 @@
 	"reading_preferences": "記録設定",
 	"reading_today_run": "今回の読書・今日の同期済み記録",
 	"reading_today_unavailable": "取得できません",
-	"reading_one_session": "1 セッション"
+	"reading_one_session": "1 セッション",
+	"enrichment.unresolved_no_candidates": "カタログに候補が見つかりませんでした。",
+	"enrichment.unresolved_identity_conflict": "候補がローカルのタイトル、巻数、または前後編と一致しません。",
+	"enrichment.unresolved_insufficient_evidence": "候補は見つかりましたが、一致を確認する情報が不足しています。",
+	"enrichment.unresolved_missing_title": "検索にはタイトルまたは有効なファイル名が必要です。",
+	"enrichment.unresolved_missing_series": "一致した作品に確認済みのシリーズ識別情報がありません。",
+	"enrichment.unresolved_candidate_budget_exhausted": "候補の取得上限に達しました。検索条件を確認してください。",
+	"enrichment.unresolved_provider_unavailable": "カタログの提供元は一時的に利用できません。",
+	"enrichment.unresolved_summary": "検索 {searches} 件・候補 {candidates} 件",
+	"enrichment.unresolved_title": "一致を確認できなかった理由",
+	"enrichment.unresolved_volume": "巻数が一致しません。",
+	"enrichment.unresolved_part": "音声の前後編が一致しません。",
+	"enrichment.unresolved_internal": "タイトルとファイル名の巻数や前後編が矛盾しています。"
 }
