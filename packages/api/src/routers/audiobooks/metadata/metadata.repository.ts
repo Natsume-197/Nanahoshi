@@ -483,78 +483,14 @@ export class AudiobookMetadataRepository {
 		);
 	}
 
-	// ---------- Inferred series resolution ----------
-	// For a title-derived series name, reuse an existing series sharing a
-	// strong common prefix: light-novel volumes titled "<series><subtitle>"
-	// must converge on the prefix instead of one series per volume. Singleton
-	// series (inference artifacts) get renamed to the common prefix;
-	// established multi-book series are never disturbed.
+	// Explicit local volume markers can name a series, but a shared prefix is
+	// not evidence of membership (e.g. Bookworm and its Hannelore spinoff).
+	// Never rename or merge an existing series based on a title alone.
 	async resolveInferredSeries(
 		name: string,
 		serverId: string,
 	): Promise<{ id: number; name: string }> {
-		const { commonSeriesPrefix } = await import(
-			"../../../modules/audiobookSeriesInference"
-		);
-
-		const exact = await db
-			.select({ id: series.id })
-			.from(series)
-			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
-			.limit(1);
-		if (exact[0]) return { id: exact[0].id, name };
-
-		const { rows } = await db.execute(sql`
-			SELECT s.id, s.name, COUNT(abs.book_id)::int AS cnt
-			FROM series s
-			LEFT JOIN audiobook_series abs ON abs.series_id = s.id
-			WHERE s.server_id = ${serverId}
-				AND left(s.name, 4) = ${name.slice(0, 4)}
-				AND s.name != ${name}
-			GROUP BY s.id
-		`);
-		const candidates = rows as { id: number; name: string; cnt: number }[];
-
-		let best: { id: number; name: string; cnt: number } | null = null;
-		let bestPrefix: string | null = null;
-		for (const candidate of candidates) {
-			const prefix = commonSeriesPrefix(name, candidate.name);
-			if (!prefix) continue;
-			if (
-				!bestPrefix ||
-				prefix.length > bestPrefix.length ||
-				(prefix.length === bestPrefix.length && candidate.name === prefix)
-			) {
-				best = candidate;
-				bestPrefix = prefix;
-			}
-		}
-
-		if (best && bestPrefix) {
-			if (best.name === bestPrefix) return { id: best.id, name: best.name };
-			if (best.cnt <= 1) {
-				try {
-					await db
-						.update(series)
-						.set({ name: bestPrefix })
-						.where(eq(series.id, best.id));
-					return { id: best.id, name: bestPrefix };
-				} catch {
-					// Another series already holds the prefix name — use it.
-					const [existing] = await db
-						.select({ id: series.id })
-						.from(series)
-						.where(
-							and(eq(series.serverId, serverId), eq(series.name, bestPrefix)),
-						)
-						.limit(1);
-					if (existing) return { id: existing.id, name: bestPrefix };
-				}
-			}
-		}
-
-		const id = await this.upsertSeries(name, serverId);
-		return { id, name };
+		return { id: await this.upsertSeries(name, serverId), name };
 	}
 
 	// ---------- Library provider priority ----------

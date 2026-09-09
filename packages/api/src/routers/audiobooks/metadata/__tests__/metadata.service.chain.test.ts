@@ -649,7 +649,7 @@ describe("quickMatch provider chain", () => {
 		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 21);
 	});
 
-	test("an explicit filename sequence fills a provider series' missing position", async () => {
+	test("an import index does not fill a provider series' missing position", async () => {
 		audibleGetByIdSpy.mockImplementation(async () => ({
 			...AUDIBLE_FULL,
 			title: "死物語 上",
@@ -665,7 +665,7 @@ describe("quickMatch provider chain", () => {
 			"＜物語＞シリーズ",
 			"server-1",
 		);
-		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 28);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, null);
 	});
 
 	test("a reused Slime ASIN cannot apply another volume's metadata", async () => {

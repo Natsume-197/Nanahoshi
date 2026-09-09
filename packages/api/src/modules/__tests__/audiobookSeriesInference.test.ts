@@ -1,15 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import {
-	cleanSeriesPrefix,
-	commonSeriesPrefix,
-	inferSeriesFromTitle,
-} from "../audiobookSeriesInference";
+import { inferSeriesFromTitle } from "../audiobookSeriesInference";
 
 describe("inferSeriesFromTitle", () => {
-	test("explicit filename sequence excludes its Audible identifier", () => {
-		expect(inferSeriesFromTitle("[28] 死物語 上 [B09DZXZ7F1]")).toEqual({
-			seriesName: "死物語 上",
-			position: 28,
+	test.each([
+		"[28] 死物語 上 [B09DZXZ7F1]",
+		"[19] ティアムーン帝国物語18 [B0G12QKTSN]",
+		"[16] ティアムーン帝国物語短編集",
+		"[番外編2巻] 86 Alter.2",
+		"[1-3巻] Collection",
+	])("does not infer an index, extra or range: %s", (title) => {
+		expect(inferSeriesFromTitle(title)).toBeNull();
+	});
+	test("an explicit volume beats the import index", () => {
+		expect(inferSeriesFromTitle("[19] [18巻] ティアムーン帝国物語18")).toEqual({
+			seriesName: "ティアムーン帝国物語",
+			position: 18,
+		});
+	});
+	test("normalizes fullwidth decimal markers", () => {
+		expect(inferSeriesFromTitle("［６．５巻］ 弱キャラ友崎くん")).toEqual({
+			seriesName: "弱キャラ友崎くん",
+			position: 6.5,
 		});
 	});
 	test("Japanese bracketed volume marker", () => {
@@ -160,51 +171,5 @@ describe("inferSeriesFromTitle", () => {
 				"終末なにしてますか？　忙しいですか？　救ってもらっていいですか？",
 			position: 4,
 		});
-	});
-});
-
-describe("commonSeriesPrefix", () => {
-	test("multi-subtitle light novel volumes share the series prefix", () => {
-		expect(
-			commonSeriesPrefix(
-				"青春ブタ野郎はバニーガール先輩の夢を見ない",
-				"青春ブタ野郎はプチデビル後輩の夢を見ない",
-			),
-		).toBe("青春ブタ野郎");
-	});
-
-	test("identical names return the cleaned name", () => {
-		expect(commonSeriesPrefix("無職転生", "無職転生")).toBe("無職転生");
-	});
-
-	test("weak prefixes are rejected", () => {
-		expect(commonSeriesPrefix("The Martian", "The Hobbit")).toBeNull();
-		expect(commonSeriesPrefix("abc", "abd")).toBeNull();
-	});
-
-	test("coincidental shared Latin words never merge", () => {
-		expect(commonSeriesPrefix("Dark Tower", "Dark Matter")).toBeNull();
-		expect(commonSeriesPrefix("Project Hail Mary", "Project X")).toBeNull();
-	});
-
-	test("long Latin series prefixes still merge", () => {
-		expect(
-			commonSeriesPrefix(
-				"Harry Potter and the Chamber of Secrets",
-				"Harry Potter and the Goblet of Fire",
-			),
-		).toBe("Harry Potter and the");
-	});
-
-	test("short-vs-long ratio guard rejects coincidental overlap", () => {
-		expect(
-			commonSeriesPrefix("魔法科高校の劣等生", "魔法少女育成計画 限定 全部"),
-		).toBeNull();
-	});
-
-	test("cleanSeriesPrefix trims particles and separators", () => {
-		expect(cleanSeriesPrefix("青春ブタ野郎は")).toBe("青春ブタ野郎");
-		expect(cleanSeriesPrefix("Series Name - ")).toBe("Series Name");
-		expect(cleanSeriesPrefix("シリーズ（")).toBe("シリーズ");
 	});
 });

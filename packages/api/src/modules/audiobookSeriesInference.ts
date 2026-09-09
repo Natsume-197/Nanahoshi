@@ -13,8 +13,6 @@ function toAsciiDigits(value: string): string {
 
 // Explicit volume markers, tried in order. Each regex captures the number.
 const VOLUME_MARKERS: RegExp[] = [
-	// Explicit file sequence: [28] 死物語 上
-	/^\[([0-9０-９]{1,3}(?:\.[0-9０-９]+)?)\]/u,
 	// Japanese: 第3巻 / 3巻 / [3巻] / [3巻・後編]
 	/第?\s*([0-9０-９]{1,3}(?:\.[0-9０-９]+)?)\s*巻/u,
 	// Western: Vol. 3 / Volume 3 / Book 3 / Part 3 / Disc 3 / CD 3
@@ -29,8 +27,16 @@ const CLOSE_BRACKETS = ")\\]}】〉》］";
 export function inferSeriesFromTitle(
 	rawTitle: string | null | undefined,
 ): { seriesName: string; position: number | null } | null {
-	const title = rawTitle?.replace(/\s*\[B[A-Z0-9]{9}\]\s*$/i, "");
+	// Normalize numeric punctuation without changing the display name of a series.
+	const title = rawTitle
+		?.replace(/[０-９．［］]/gu, (char) => char.normalize("NFKC"))
+		.replace(/\s*\[B[A-Z0-9]{9}\]\s*$/i, "")
+		.replace(/^\[\d+(?:\.\d+)?\]\s*/u, "");
 	if (!title) return null;
+	// An import index is not a volume, and an extra's own numbering must not
+	// become the sequence of its parent series.
+	if (/^\[(?:番外編|短編集|外伝)/u.test(title)) return null;
+	if (/\d\s*[-–〜～~]\s*\d+(?:\.\d+)?\s*巻/u.test(title)) return null;
 
 	let marker: RegExp | null = null;
 	let markerText: string | null = null;
@@ -93,56 +99,4 @@ export function inferSeriesFromTitle(
 	if (base.length < 2) return null;
 
 	return { seriesName: base, position };
-}
-
-// ── Common-prefix grouping ───────────────────────────────────────────────
-// Light novels often title each volume "<series><per-volume subtitle>"
-// (青春ブタ野郎はバニーガール先輩の夢を見ない / …プチデビル後輩の夢を見ない),
-// so marker-based inference alone yields one "series" per volume. When two
-// inferred names share a strong common prefix, that prefix IS the series.
-
-// Japanese particles/copulas that shouldn't end a series name.
-const TRAILING_PARTICLES = /(?:は|が|を|に|で|と|の|へ|も|より|から)[\s　]*$/u;
-
-/** Trims separators/particles so a raw common prefix reads as a name. */
-export function cleanSeriesPrefix(prefix: string): string {
-	let cleaned = prefix
-		.replace(/[\s　]+$/gu, "")
-		.replace(/[-–—:：・,、#([{【〈《［（｛「『]+$/u, "")
-		.trim();
-	// Strip at most one trailing particle (青春ブタ野郎は → 青春ブタ野郎).
-	cleaned = cleaned.replace(TRAILING_PARTICLES, "").trim();
-	return cleaned;
-}
-
-const MIN_PREFIX_CHARS = 4;
-
-/**
- * Common series prefix of two volume titles, or null when too weak to be
- * meaningful. CJK prefixes are dense (青春ブタ野郎 is 6 of 20 chars), so 4+
- * chars covering 30% of the shorter name suffices; Latin titles share whole
- * words by coincidence ("Dark Tower"/"Dark Matter"), so ASCII prefixes must
- * be long (12+) or cover most (60%) of the shorter name.
- */
-export function commonSeriesPrefix(a: string, b: string): string | null {
-	const shorter = Math.min(a.length, b.length);
-	let i = 0;
-	while (i < shorter && a[i] === b[i]) i++;
-	if (i === 0) return null;
-
-	const cleaned = cleanSeriesPrefix(a.slice(0, i));
-	if (cleaned.length < MIN_PREFIX_CHARS) return null;
-
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: ASCII range test
-	if (/^[\x00-\x7F]+$/.test(cleaned)) {
-		// Single shared words ("Dark", "Project") only count when the names are
-		// outright identical; multi-word prefixes must still be substantial.
-		if (a !== b) {
-			if (!cleaned.includes(" ")) return null;
-			if (cleaned.length < 12 && cleaned.length < shorter * 0.6) return null;
-		}
-	} else if (cleaned.length < shorter * 0.3) {
-		return null;
-	}
-	return cleaned;
 }

@@ -54,6 +54,8 @@ describe("audible provider", () => {
 		["第27巻", 27],
 		["オフシーズン : 21", 21],
 		["６．５", 6.5],
+		["Lv.６．５", 6.5],
+		["結 1", null],
 		["短編集", null],
 		["死物語 : 下", null],
 		["1-3", null],
@@ -114,5 +116,90 @@ describe("audible provider", () => {
 		expect(metadata?.description).toBe("A tale of tests");
 		expect(metadata?.authors).toEqual([{ name: "Jane Doe", role: "Author" }]);
 		expect(metadata?.narrators).toEqual([{ name: "Nora Reader" }]);
+	});
+});
+
+describe("official Audible series fallback", () => {
+	const product = {
+		asin: "B0GSVCYC38",
+		title: "[3巻] DanMachi 3",
+		series: [{ title: "DanMachi", sequence: "3" }],
+		product_images: { "500": "https://example.com/cover.jpg" },
+	};
+	test("fills missing Audnexus series without replacing rich metadata", async () => {
+		fetchResponder = (url) =>
+			Response.json(
+				url.includes("audnex.us")
+					? { ...AUDNEXUS_BOOK, asin: product.asin }
+					: { product },
+			);
+		const result = await audibleProvider.getById(product.asin, {
+			region: "jp",
+		});
+		expect(result?.series).toEqual({ name: "DanMachi", position: 3 });
+		expect(result?.description).toBe("A tale of tests");
+		expect(fetchCalls[1]).toContain(
+			"api.audible.co.jp/1.0/catalog/products/B0GSVCYC38?",
+		);
+	});
+	test("hydrates an exact ASIN absent from Audnexus and retains the search preview", async () => {
+		fetchResponder = (url) =>
+			url.includes("audnex.us")
+				? new Response("", { status: 404 })
+				: Response.json({ product });
+		const [result] = await audibleProvider.search(
+			{ title: product.asin },
+			{ region: "jp" },
+		);
+		expect(result?.series).toEqual({ name: "DanMachi", position: 3 });
+		expect(result?.asin).toBe(product.asin);
+		expect(result?.previewCover).toBe("https://example.com/cover.jpg");
+	});
+	test("does not replace an existing primary series with a secondary catalog series", async () => {
+		fetchResponder = () =>
+			Response.json({
+				...AUDNEXUS_BOOK,
+				seriesPrimary: { name: "Umbrella", position: "27" },
+			});
+		expect((await audibleProvider.getById("B0EXAMPLE1"))?.series).toEqual({
+			name: "Umbrella",
+			position: 27,
+		});
+		expect(fetchCalls).toHaveLength(1);
+	});
+	test("rejects a substituted catalog ASIN", async () => {
+		fetchResponder = (url) =>
+			url.includes("audnex.us")
+				? new Response("", { status: 404 })
+				: Response.json({ product });
+		expect(await audibleProvider.getById("B09HC42L8K")).toBeNull();
+	});
+	test("keeps a textual sequence unknown while retaining its official membership", async () => {
+		fetchResponder = (url) =>
+			url.includes("audnex.us")
+				? Response.json(AUDNEXUS_BOOK)
+				: Response.json({
+						product: {
+							...product,
+							series: [{ title: "Oregairu", sequence: "結 1" }],
+						},
+					});
+		expect((await audibleProvider.getById(product.asin))?.series).toEqual({
+			name: "Oregairu",
+			position: null,
+		});
+	});
+	test("retains series in title search results", async () => {
+		fetchResponder = () => Response.json({ products: [product] });
+		expect(
+			(await audibleProvider.search({ title: "DanMachi" }))[0]?.series,
+		).toEqual({ name: "DanMachi", position: 3 });
+	});
+	test("preserves retryable failures instead of treating them as missing series", async () => {
+		fetchResponder = (url) =>
+			url.includes("audnex.us")
+				? Response.json(AUDNEXUS_BOOK)
+				: new Response("", { status: 429 });
+		await expect(audibleProvider.getById(product.asin)).rejects.toThrow();
 	});
 });

@@ -207,7 +207,7 @@ export async function processAudiobook(
 
 	if (resolvedSeriesName) {
 		// Explicit names (tags/folder) upsert as-is; inferred names go through
-		// common-prefix resolution so multi-subtitle volumes share one series.
+		// exact-name resolution; a shared prefix cannot establish membership.
 		const fromInference =
 			tagMetadata.seriesName == null && data.folderSeriesHint == null;
 		const seriesId = fromInference

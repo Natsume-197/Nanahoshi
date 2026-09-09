@@ -257,7 +257,7 @@ export class AudiobookMetadataService {
 
 		// Providers without series data (e.g. iTunes as primary) leave the
 		// volume-marker inference from the title/filename as last resort, with
-		// common-prefix resolution so multi-subtitle volumes share one series.
+		// exact-name resolution; a title prefix alone does not establish membership.
 		const inferred =
 			inferSeriesFromTitle(title) ??
 			inferSeriesFromTitle(input.filename?.replace(/\.[^.]+$/, ""));

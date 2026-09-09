@@ -50,6 +50,7 @@ type AudibleCatalogProduct = {
 	runtime_length_min?: number;
 	language?: string;
 	product_images?: Record<string, string>;
+	series?: { asin?: string; title: string; sequence?: string }[];
 };
 
 type AudnexusBook = {
@@ -98,7 +99,7 @@ function parsePosition(pos: string | undefined): number | null {
 	// named special has no single numeric position; keep the membership anyway.
 	const normalized = pos.normalize("NFKC").trim();
 	const sequence = normalized.match(
-		/^(?:[^\d:]+:\s*)?(?:第\s*)?(\d+(?:\.\d+)?)(?:\s*巻)?$/u,
+		/^(?:[^\d:]+:\s*)?(?:(?:第|Lv\.?|Vol\.?|Book)\s*)?(\d+(?:\.\d+)?)(?:\s*巻)?$/iu,
 	)?.[1];
 	return sequence === undefined ? null : Number(sequence);
 }
@@ -123,6 +124,15 @@ async function searchAudibleCatalog(
 	const url = `${AUDIBLE_CATALOG_BASE}${tld}/1.0/catalog/products?${params}`;
 	const data = await fetchJson<{ products?: AudibleCatalogProduct[] }>(url);
 	return data?.products ?? [];
+}
+
+async function getCatalogProduct(asin: string, region: string) {
+	const url = `${AUDIBLE_CATALOG_BASE}${getTld(region)}/1.0/catalog/products/${encodeURIComponent(asin)}?response_groups=product_attrs,contributors,series,media`;
+	const data = await fetchJson<{ product?: AudibleCatalogProduct }>(url);
+	// Never hydrate the requested book with a substituted or malformed result.
+	return data?.product?.asin?.toUpperCase() === asin.toUpperCase()
+		? data.product
+		: null;
 }
 
 // ─── Audnexus Enrichment ─────────────────────────────────
@@ -231,6 +241,14 @@ function mapCatalogProductToCandidate(
 			: undefined,
 	};
 
+	const primarySeries = product.series?.[0];
+	if (primarySeries?.title) {
+		result.series = {
+			name: primarySeries.title,
+			position: parsePosition(primarySeries.sequence),
+		};
+	}
+
 	const images = product.product_images;
 	if (images) {
 		const best = images["500"] ?? Object.values(images)[0];
@@ -255,19 +273,6 @@ function mapCatalogProductToCandidate(
 	return result;
 }
 
-function mapAudnexusToCandidate(
-	book: AudnexusBook,
-	region: string,
-): AudiobookSearchCandidate {
-	return {
-		...mapAudnexusToMetadata(book, null),
-		provider: "audible",
-		providerId: book.asin,
-		previewCover: book.image ? upgradeAmazonImageUrl(book.image) : undefined,
-		url: audibleProductUrl(book.asin, region),
-	};
-}
-
 // ─── Provider Implementation ─────────────────────────────
 
 class AudibleProvider implements IAudiobookMetadataProvider {
@@ -287,8 +292,21 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		const region = options?.region ?? "us";
 
 		if (isValidAsin(title)) {
-			const book = await getAudnexusBook(title.trim().toUpperCase(), region);
-			return book ? [mapAudnexusToCandidate(book, region)] : [];
+			const asin = title.trim().toUpperCase();
+			const result = await this.lookup(asin, region);
+			return result
+				? [
+						{
+							...result.metadata,
+							previewCover: result.image
+								? upgradeAmazonImageUrl(result.image)
+								: undefined,
+							provider: "audible",
+							providerId: asin,
+							url: audibleProductUrl(asin, region),
+						},
+					]
+				: [];
 		}
 
 		const authorName = input.authors?.[0]?.name;
@@ -305,20 +323,46 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		providerId: string,
 		options?: ProviderRequestOptions & { bookUuid?: string },
 	): Promise<Partial<AudiobookMetadata> | null> {
-		const region = options?.region ?? "us";
-		const book = await getAudnexusBook(providerId, region);
-		if (!book) return null;
-
-		let coverPath: string | null = null;
-		if (book.image && options?.bookUuid) {
-			coverPath = await downloadCover(
-				upgradeAmazonImageUrl(book.image),
+		const result = await this.lookup(providerId, options?.region ?? "us");
+		if (!result) return null;
+		if (result.image && options?.bookUuid) {
+			const cover = await downloadCover(
+				upgradeAmazonImageUrl(result.image),
 				options.bookUuid,
 				log,
 			);
+			if (cover) result.metadata.cover = cover;
 		}
+		return result.metadata;
+	}
 
-		return mapAudnexusToMetadata(book, coverPath);
+	private async lookup(providerId: string, region: string) {
+		const book = await getAudnexusBook(providerId, region);
+		const catalog = book?.seriesPrimary?.name
+			? null
+			: await getCatalogProduct(providerId, region);
+		if (!book && !catalog) return null;
+
+		const metadata = book ? mapAudnexusToMetadata(book, null) : {};
+		if (catalog) {
+			const {
+				provider: _provider,
+				providerId: _id,
+				url: _url,
+				previewCover: _preview,
+				...fields
+			} = mapCatalogProductToCandidate(catalog, region);
+			if (!book) Object.assign(metadata, fields);
+			else if (fields.series) metadata.series = fields.series;
+		}
+		if (!metadata.series && book?.seriesSecondary?.name) {
+			metadata.series = {
+				name: book.seriesSecondary.name,
+				position: parsePosition(book.seriesSecondary.position),
+			};
+		}
+		const image = book?.image ?? catalog?.product_images?.["500"];
+		return { metadata, image };
 	}
 
 	// Chapter data for an audiobook by ASIN.

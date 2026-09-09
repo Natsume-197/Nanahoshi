@@ -7,7 +7,7 @@ test("an import-date folder is neither an author, a series nor volume 2022", () 
 	).toEqual({ authorHint: null, seriesHint: null, seriesPositionHint: null });
 });
 
-test("numbered filenames retain the volume and ignore characters inside a series name", () => {
+test("file indices do not become series positions", () => {
 	expect(
 		extractFolderMetadata(
 			"本好きの下剋上/[27] 第五部 女神の化身6 [B09DFTVWQX].m4b",
@@ -17,7 +17,7 @@ test("numbered filenames retain the volume and ignore characters inside a series
 	).toEqual({
 		authorHint: null,
 		seriesHint: "本好きの下剋上",
-		seriesPositionHint: 27,
+		seriesPositionHint: null,
 	});
 	expect(
 		extractFolderMetadata("本好きの下剋上/特別編.m4b", true, 3)
@@ -39,4 +39,21 @@ test("preserves conventional author/series/volume paths and decimal positions", 
 	expect(
 		extractFolderMetadata("Series/死物語 上.m4b", true, 2).seriesPositionHint,
 	).toBe(1);
+});
+
+test("a labeled volume takes precedence over an import index", () => {
+	expect(
+		extractFolderMetadata("Series/[19] [１８巻] Title.m4b", true, 2)
+			.seriesPositionHint,
+	).toBe(18);
+	expect(
+		extractFolderMetadata("Series/[16] 特別編.m4b", true, 2).seriesPositionHint,
+	).toBeNull();
+});
+
+test("a collection range is not reduced to its final volume", () => {
+	expect(
+		extractFolderMetadata("Series/[1-3巻] Collection.m4b", true, 2)
+			.seriesPositionHint,
+	).toBeNull();
 });

@@ -1,3 +1,5 @@
+import { inferSeriesFromTitle } from "../audiobookSeriesInference";
+
 // Folder metadata hints from the directory hierarchy (Audiobookshelf
 // convention): folder depth relative to the library root maps to
 // author/series/title. Per-case mapping is documented in extractFolderMetadata.
@@ -86,9 +88,13 @@ function extractPositionFromName(rawName: string): number | null {
 		.trim();
 	if (IMPORT_DATE.test(name)) return null;
 	// Numbered patterns (checked first — more precise)
+	if (/\d\s*[-–〜～~]\s*\d+(?:\.\d+)?\s*巻/u.test(name)) return null;
+	const explicit = inferSeriesFromTitle(name);
+	if (explicit?.position != null) return explicit.position;
+	if (/^\[\d+(?:\.\d+)?\]/u.test(name)) return null;
+	if (/^\[(?:番外編|短編集|外伝)/u.test(name)) return null;
 	const numberedPatterns = [
-		/^\[(\d+(?:\.\d+)?)\]/, // [27] Title
-		/第?(\d+(?:\.\d+)?)巻/, // [1巻], 第5巻
+		/第?(\d+(?:\.\d+)?)巻/,
 		/\b(?:vol(?:ume)?\.?|book)\s*(\d+(?:\.\d+)?)/i,
 		/^(\d+(?:\.\d+)?)\s*[-–.]\s*/, // "1 - Title"
 		/\s(\d+(?:\.\d+)?)\s*$/, // "Title 2"
