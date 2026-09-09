@@ -488,7 +488,11 @@ export type EditableAudiobook = {
 	authors: { name: string; role?: string | null }[];
 	narrators: { name: string }[];
 	publisherName: string | null;
-	series: { name: string; position: number | null } | null;
+	series: {
+		name: string;
+		position: number | null;
+		sequence?: string | null;
+	} | null;
 	genres: { name: string }[];
 	tags: { name: string }[];
 	lockedFields?: string[] | null;
@@ -571,6 +575,12 @@ export function EditAudiobookMetadataDialog({
 			kind: "number",
 		},
 		{
+			key: "seriesSequence",
+			lockKey: "series",
+			label: m["audiobook.series_sequence"](),
+			kind: "text",
+		},
+		{
 			key: "publishedDate",
 			lockKey: "publishedDate",
 			label: m["book.meta_published_date"](),
@@ -605,6 +615,7 @@ export function EditAudiobookMetadataDialog({
 		publisher: audiobook.publisherName ?? "",
 		languageCode: audiobook.languageCode ?? "",
 		seriesName: audiobook.series?.name ?? "",
+		seriesSequence: audiobook.series?.sequence ?? "",
 		seriesPosition:
 			audiobook.series?.position != null
 				? String(audiobook.series.position)
@@ -653,11 +664,24 @@ export function EditAudiobookMetadataDialog({
 						name,
 					}));
 				}
-				if (dirty("seriesName") || dirty("seriesPosition")) {
+				if (
+					dirty("seriesName") ||
+					dirty("seriesPosition") ||
+					dirty("seriesSequence")
+				) {
 					const name = values.seriesName.trim();
-					const position = Number.parseFloat(values.seriesPosition);
+					const position = values.seriesPosition.trim()
+						? Number(values.seriesPosition.normalize("NFKC"))
+						: Number.NaN;
 					metadata.series = name
-						? { name, position: Number.isFinite(position) ? position : null }
+						? {
+								name,
+								position: Number.isFinite(position) ? position : null,
+								sequence:
+									dirty("seriesPosition") && !dirty("seriesSequence")
+										? null
+										: textOrNull(values.seriesSequence),
+							}
 						: null;
 				}
 				if (dirty("genres")) metadata.genres = splitList(values.genres);

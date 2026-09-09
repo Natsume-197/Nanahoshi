@@ -1910,6 +1910,7 @@
 		"publisher": "Editorial",
 		"series": "Serie",
 		"series_position": "Posición en la serie",
+		"series_sequence": "Etiqueta de secuencia en la serie",
 		"year": "Año",
 		"published": "Publicado",
 		"genres": "Géneros",

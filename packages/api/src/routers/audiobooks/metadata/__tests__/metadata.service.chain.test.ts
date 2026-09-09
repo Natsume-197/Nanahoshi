@@ -19,7 +19,9 @@ mock.module(
 
 const mockMergeFieldSources = mock(() => Promise.resolve());
 const mockGetLibraryProviderOrder = mock(() =>
-	Promise.resolve(null as string[] | null),
+	Promise.resolve(
+		null as import("../../../../modules/providerPolicy").RawProviderConfig,
+	),
 );
 const mockGetLibraryMetadataConfig = mock(() =>
 	Promise.resolve(
@@ -56,6 +58,17 @@ const repositoryMock = {
 	upsertPublisher: mock(() => Promise.resolve(1)),
 	upsertSeries: mock(() => Promise.resolve(1)),
 	getBookSeriesIds: mock(() => Promise.resolve([])),
+	getBookAuthorsWithRoles: mock(() => Promise.resolve([])),
+	getSeriesRefreshSnapshot: mock(() =>
+		Promise.resolve(
+			undefined as Awaited<
+				ReturnType<
+					import("../metadata.repository").AudiobookMetadataRepository["getSeriesRefreshSnapshot"]
+				>
+			>,
+		),
+	),
+	applySeriesRefresh: mock(() => Promise.resolve(true)),
 	clearBookSeries: mock(() => Promise.resolve()),
 	linkBookSeries: mock(() => Promise.resolve()),
 	deleteSeriesIfOrphaned: mock(() => Promise.resolve()),
@@ -213,6 +226,10 @@ beforeEach(() => {
 	mockGetOriginalMetadata.mockReset();
 	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
 	mockResetForRetry.mockClear();
+	repositoryMock.upsertSeries.mockClear();
+	repositoryMock.linkBookSeries.mockClear();
+	repositoryMock.applySeriesRefresh.mockClear();
+	repositoryMock.getSeriesRefreshSnapshot.mockReset();
 	repositoryMock.upsertNarrator.mockClear();
 	repositoryMock.clearBookNarrators.mockClear();
 	repositoryMock.clearBookAuthors.mockClear();
@@ -645,8 +662,14 @@ describe("quickMatch provider chain", () => {
 		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
 			"＜物語＞シリーズ",
 			"server-1",
+			undefined,
 		);
-		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 21);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(
+			1,
+			1,
+			21,
+			undefined,
+		);
 	});
 
 	test("an import index does not fill a provider series' missing position", async () => {
@@ -664,8 +687,14 @@ describe("quickMatch provider chain", () => {
 		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
 			"＜物語＞シリーズ",
 			"server-1",
+			undefined,
 		);
-		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, null);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(
+			1,
+			1,
+			null,
+			undefined,
+		);
 	});
 
 	test("a reused Slime ASIN cannot apply another volume's metadata", async () => {
@@ -767,8 +796,14 @@ describe("quickMatch provider chain", () => {
 		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
 			"ひげを剃る。そして女子高生を拾う。",
 			"server-1",
+			undefined,
 		);
-		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(1, 1, 1);
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(
+			1,
+			1,
+			1,
+			undefined,
+		);
 	});
 
 	test("retries with a cleaned title when the raw title finds no match", async () => {
@@ -1156,5 +1191,185 @@ describe("restoreOriginal", () => {
 			{ index: 0, title: "Chapter 1", startTime: 0, endTime: 60 },
 		]);
 		expect(mockResetForRetry).toHaveBeenCalledWith([1]);
+	});
+});
+
+describe("series precision", () => {
+	test("an arc number cannot fill an umbrella position", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			title: "[1巻] Arc B",
+			asin: "B012345678",
+			series: { name: "Saga", position: null },
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title: "[1巻] Arc B",
+			asin: "B012345678",
+		});
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(
+			1,
+			1,
+			null,
+			undefined,
+		);
+	});
+	test("Silent Witch retains its official textual sequence and series identity", async () => {
+		const title =
+			"[4巻・番外編] サイレント・ウィッチ IV -after- 沈黙の魔女の事件簿";
+		const identity = {
+			provider: "audible" as const,
+			providerId: "B0CN2NM74Z",
+			region: "jp",
+		};
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			...AUDIBLE_FULL,
+			title,
+			asin: "B0CMS95VL8",
+			series: {
+				name: "サイレント・ウィッチ",
+				position: null,
+				sequence: "4・番外編",
+				identity,
+			},
+		}));
+		await audiobookMetadataService.quickMatch({
+			...BASE_INPUT,
+			title,
+			asin: "B0CMS95VL8",
+		});
+		expect(repositoryMock.linkBookSeries).toHaveBeenCalledWith(
+			1,
+			1,
+			null,
+			"4・番外編",
+		);
+		expect(repositoryMock.upsertSeries).toHaveBeenCalledWith(
+			"サイレント・ウィッチ",
+			"server-1",
+			identity,
+		);
+	});
+	test("configured primary cannot be replaced by a supplemental match", async () => {
+		mockGetLibraryProviderOrder.mockImplementation(async () => ({
+			order: ["audible", "itunes"],
+			primary: "audible",
+		}));
+		itunesSearchSpy.mockImplementation(async () => [ITUNES_CANDIDATE]);
+		itunesGetByIdSpy.mockImplementation(async () => ({
+			...ITUNES_CANDIDATE,
+			authors: [{ name: "Author" }],
+		}));
+		expect(
+			await audiobookMetadataService.quickMatch({ ...BASE_INPUT }),
+		).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+	});
+	test("an ASIN with no remote title cannot borrow the local volume as evidence", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			asin: "B08GLQBM2Z",
+			series: { name: "俺、ツインテールになります。", position: 6 },
+		}));
+		expect(
+			await audiobookMetadataService.quickMatch({
+				...BASE_INPUT,
+				title: "[11巻] 俺、ツインテールになります。11",
+				asin: "B08GLQBM2Z",
+			}),
+		).toBeNull();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+	});
+	test("a generic remote series title cannot conceal an incompatible volume", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			asin: "B08GLQBM2Z",
+			title: "俺、ツインテールになります。",
+			series: { name: "俺、ツインテールになります。", position: 6 },
+		}));
+		expect(
+			await audiobookMetadataService.quickMatch({
+				...BASE_INPUT,
+				title: "[11巻] 俺、ツインテールになります。11",
+				asin: "B08GLQBM2Z",
+			}),
+		).toBeNull();
+	});
+});
+
+describe("series-only refresh", () => {
+	const snapshot = {
+		metadata: {
+			title: "[2巻] スレイヤーズ2",
+			asin: null,
+			duration: 100,
+			locked_fields: [],
+		},
+		uuid: "uuid-1",
+		filename: "[02] Slayers [B07BBHFJTX].m4b",
+		serverId: "server-1",
+		groupLocked: false,
+		duplicateOfBookId: null,
+		series: [{ name: "スレイヤーズ", position: null, sequence: null }],
+	};
+	const series = {
+		name: "スレイヤーズ",
+		position: 2,
+		sequence: "2",
+		identity: {
+			provider: "audible" as const,
+			providerId: "B07H7DVKM7",
+			region: "jp",
+		},
+	};
+	beforeEach(() => {
+		repositoryMock.getSeriesRefreshSnapshot.mockImplementation(async () =>
+			structuredClone(snapshot),
+		);
+		repositoryMock.applySeriesRefresh.mockImplementation(async () => true);
+		audibleGetByIdSpy.mockImplementation(async () => ({
+			title: snapshot.metadata.title,
+			asin: "B07BBHFJTX",
+			series,
+		}));
+	});
+	test("previews terminal records without writing or downloading a cover", async () => {
+		mockStateIsTerminal.mockImplementation(async () => true);
+		const result = await audiobookMetadataService.refreshSeries(1);
+		expect(result.status).toBe("ready");
+		expect(repositoryMock.applySeriesRefresh).not.toHaveBeenCalled();
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockReplaceChapters).not.toHaveBeenCalled();
+		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B07BBHFJTX", {
+			region: "us",
+			bookUuid: undefined,
+		});
+	});
+	test("applies only series and ASIN and preserves the old metadata snapshot", async () => {
+		expect(
+			(await audiobookMetadataService.refreshSeries(1, { apply: true })).status,
+		).toBe("applied");
+		expect(repositoryMock.applySeriesRefresh).toHaveBeenCalledWith(
+			1,
+			snapshot,
+			{ series, asin: "B07BBHFJTX" },
+		);
+		expect(mockSaveOriginalMetadata).toHaveBeenCalledWith(1);
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockReplaceChapters).not.toHaveBeenCalled();
+	});
+	test("reports concurrent edits without applying a stale result", async () => {
+		repositoryMock.applySeriesRefresh.mockImplementation(async () => false);
+		expect(
+			(await audiobookMetadataService.refreshSeries(1, { apply: true })).status,
+		).toBe("stale");
+	});
+	test("never refreshes a locked series", async () => {
+		repositoryMock.getSeriesRefreshSnapshot.mockImplementation(async () => ({
+			...snapshot,
+			metadata: { ...snapshot.metadata, locked_fields: ["series"] },
+		}));
+		expect(
+			(await audiobookMetadataService.refreshSeries(1, { apply: true })).status,
+		).toBe("protected");
+		expect(audibleGetByIdSpy).not.toHaveBeenCalled();
 	});
 });

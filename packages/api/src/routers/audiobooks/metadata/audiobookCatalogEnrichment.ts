@@ -10,7 +10,10 @@ import {
 	runCatalogEnrichment,
 	withProviderGate,
 } from "../../../modules/catalogEnrichment";
-import type { CatalogIdentityEvidence } from "../../../modules/catalogIdentity";
+import {
+	assessCatalogIdentity,
+	type CatalogIdentityEvidence,
+} from "../../../modules/catalogIdentity";
 import { asinFromFilename } from "../../../modules/identifiers";
 import {
 	type ProviderFieldPolicy,
@@ -79,10 +82,16 @@ function mergeAudiobookMetadata(
 	) as (keyof AudiobookEnrichmentMetadata)[]) {
 		const value = incoming[key];
 		if (!providerAllowedForField(routing, key, provider)) continue;
+		if (key === "series" && routing.primary && provider !== routing.primary)
+			continue;
 		// Identity was confirmed before merging. A fallback may have corrected
 		// an embedded ASIN that actually pointed to another volume.
 		if (key === "asin" && primary && !isMissing(value)) {
 			merged.asin = incoming.asin;
+			continue;
+		}
+		if (key === "series" && primary && !isMissing(value)) {
+			merged.series = incoming.series;
 			continue;
 		}
 		if (key === "authors" || key === "narrators") {
@@ -158,7 +167,7 @@ function audiobookAdapter(
 				return [
 					{
 						providerId: asin,
-						metadata: { title: metadata.title, asin },
+						metadata: { asin },
 						evidence: { ...identityEvidence(metadata), asin },
 					},
 				];
@@ -187,7 +196,7 @@ function audiobookAdapter(
 				return asTransient(error);
 			}
 		},
-		async hydrate(candidate) {
+		async hydrate(candidate, local) {
 			try {
 				const metadata = await provider.getById(candidate.providerId, {
 					region: context.region,
@@ -200,7 +209,23 @@ function audiobookAdapter(
 					title: metadata.title ?? candidate.metadata.title,
 					duration: metadata.duration ?? candidate.metadata.duration,
 				};
-				return { metadata, evidence: identityEvidence(combined) };
+				if (!combined.title?.trim()) return null;
+				const remoteSeries = metadata.series;
+				if (
+					remoteSeries?.position != null &&
+					combined.title.normalize("NFKC").trim() ===
+						remoteSeries.name.normalize("NFKC").trim()
+				) {
+					// A bare series title is insufficient to conceal a conflicting volume.
+					// Apply this only when the provider itself omitted the book title;
+					// never compare a named arc with an umbrella's global sequence.
+					const verdict = assessCatalogIdentity(identityEvidence(local), {
+						...identityEvidence(combined),
+						title: `[${remoteSeries.position}巻] ${remoteSeries.name}`,
+					});
+					if (verdict.status === "rejected") return null;
+				}
+				return { metadata: combined, evidence: identityEvidence(combined) };
 			} catch (error) {
 				return asTransient(error);
 			}
@@ -217,6 +242,7 @@ export async function runAudiobookCatalogEnrichment({
 	protectedFields = [],
 	routing,
 	requiredPrimaryMatch,
+	downloadCovers = true,
 }: {
 	metadata: AudiobookEnrichmentMetadata;
 	providers: readonly IAudiobookMetadataProvider[];
@@ -227,6 +253,7 @@ export async function runAudiobookCatalogEnrichment({
 		provider: AudiobookProviderName;
 		providerId: string;
 	};
+	downloadCovers?: boolean;
 }): Promise<
 	CatalogEnrichmentResult<AudiobookProviderName, AudiobookEnrichmentMetadata>
 > {
@@ -234,26 +261,32 @@ export async function runAudiobookCatalogEnrichment({
 		const asin = asinFromFilename(metadata.filename);
 		if (asin) metadata = { ...metadata, asin };
 	}
-	const effectiveRouting: AudiobookRoutingPolicy = routing ?? {
-		order: providers.map(({ id }) => id),
+	const effectiveRouting: AudiobookRoutingPolicy = {
+		...(routing ?? { order: providers.map(({ id }) => id) }),
+		...(requiredPrimaryMatch ? { primary: requiredPrimaryMatch.provider } : {}),
 	};
-	const ordered = isValidAsin(metadata.asin)
-		? [
-				...providers.filter(({ id }) => id === "audible"),
-				...providers.filter(({ id }) => id !== "audible"),
-			]
-		: providers;
+	const ordered =
+		!effectiveRouting.primary && isValidAsin(metadata.asin)
+			? [
+					...providers.filter(({ id }) => id === "audible"),
+					...providers.filter(({ id }) => id !== "audible"),
+				]
+			: providers;
 	return runCatalogEnrichment({
 		initialMetadata: metadata,
 		initialEvidence: identityEvidence(metadata),
 		providers: ordered.map((provider) =>
 			audiobookAdapter(provider, {
 				region,
-				bookUuid: isMissing(metadata.cover) ? metadata.uuid : undefined,
+				bookUuid:
+					downloadCovers && isMissing(metadata.cover)
+						? metadata.uuid
+						: undefined,
 			}),
 		),
 		policy: audiobookPolicy(effectiveRouting),
-		requiredPrimaryProvider: requiredPrimaryMatch?.provider,
+		requiredPrimaryProvider:
+			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
 		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,
 		protectedFields,
 	});

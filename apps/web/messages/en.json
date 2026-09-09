@@ -1969,6 +1969,7 @@
 		"library": "Library",
 		"series": "Series",
 		"series_position": "Series Position",
+		"series_sequence": "Series sequence label",
 		"year": "Year",
 		"published": "Published",
 		"codec": "Codec",

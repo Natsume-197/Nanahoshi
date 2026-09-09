@@ -92,7 +92,7 @@ function extractPositionFromName(rawName: string): number | null {
 	const explicit = inferSeriesFromTitle(name);
 	if (explicit?.position != null) return explicit.position;
 	if (/^\[\d+(?:\.\d+)?\]/u.test(name)) return null;
-	if (/^\[(?:番外編|短編集|外伝)/u.test(name)) return null;
+	if (/^\[[^\]]*(?:番外編|短編集|外伝)/u.test(name)) return null;
 	const numberedPatterns = [
 		/第?(\d+(?:\.\d+)?)巻/,
 		/\b(?:vol(?:ume)?\.?|book)\s*(\d+(?:\.\d+)?)/i,

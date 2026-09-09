@@ -51,6 +51,86 @@ type EnrichInput = Partial<AudiobookMetadata> & {
 };
 
 export class AudiobookMetadataService {
+	/** A fresh, series-only match, including terminal records. Preview is the default. */
+	async refreshSeries(
+		bookId: number,
+		options: { apply?: boolean; providerId?: string } = {},
+	) {
+		const before =
+			await audiobookMetadataRepository.getSeriesRefreshSnapshot(bookId);
+		if (!before) return { status: "not_found" as const };
+		if (
+			before.groupLocked ||
+			before.duplicateOfBookId !== null ||
+			before.series.length > 1 ||
+			before.metadata.locked_fields.includes("series")
+		) {
+			return { status: "protected" as const };
+		}
+		const [routing, region, authors, state] = await Promise.all([
+			this.resolveRoutingPolicy(bookId),
+			this.resolveRegion(bookId),
+			audiobookMetadataRepository.getBookAuthorsWithRoles(bookId),
+			enrichmentStateRepository.get(bookId),
+		]);
+		const manual = state?.matched.find(
+			(match) => match.manual && match.providerId,
+		);
+		const selected = options.providerId
+			? { provider: "audible" as const, providerId: options.providerId }
+			: manual && isAudiobookProviderName(manual.provider) && manual.providerId
+				? { provider: manual.provider, providerId: manual.providerId }
+				: undefined;
+		if (
+			(!options.providerId && manual && !selected) ||
+			(selected && !routing.order.includes(selected.provider))
+		)
+			return { status: "protected" as const };
+		const result = await runAudiobookCatalogEnrichment({
+			metadata: {
+				bookId,
+				uuid: before.uuid,
+				filename: before.filename,
+				title: before.metadata.title,
+				asin: before.metadata.asin,
+				duration: before.metadata.duration,
+				authors,
+			},
+			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
+			region,
+			routing,
+			protectedFields: before.metadata
+				.locked_fields as (keyof AudiobookMetadata)[],
+			requiredPrimaryMatch: selected,
+			downloadCovers: false,
+		});
+		if (result.status !== "matched" || !result.metadata.series?.identity) {
+			return {
+				status: "unresolved" as const,
+				decision: "decision" in result ? result.decision : undefined,
+				failures: result.failures,
+			};
+		}
+		const after = {
+			series: result.metadata.series,
+			asin: result.metadata.asin,
+		};
+		const previous = { series: before.series, asin: before.metadata.asin };
+		if (!options.apply)
+			return { status: "ready" as const, before: previous, after };
+		await audiobookMetadataRepository.saveOriginalMetadata(bookId);
+		const applied = await audiobookMetadataRepository.applySeriesRefresh(
+			bookId,
+			before,
+			after,
+		);
+		return {
+			status: applied ? ("applied" as const) : ("stale" as const),
+			before: previous,
+			after,
+		};
+	}
+
 	/** Restores the complete local snapshot, including every catalog relation. */
 	async restoreOriginal(bookId: number) {
 		const original =
@@ -60,7 +140,7 @@ export class AudiobookMetadataService {
 			metadata: Record<string, unknown>;
 			authors: AudiobookAuthor[];
 			narrators: { name: string }[];
-			series: { name: string; position: number | null } | null;
+			series: AudiobookMetadata["series"];
 			genres: string[];
 			tags: string[];
 			chapters: {
@@ -263,22 +343,21 @@ export class AudiobookMetadataService {
 			inferSeriesFromTitle(input.filename?.replace(/\.[^.]+$/, ""));
 		if (this.isFieldMissing(acc.series)) {
 			if (inferred) {
-				const serverId =
-					await audiobookMetadataRepository.getServerIdByBookId(bookId);
-				const resolved = serverId
-					? await audiobookMetadataRepository.resolveInferredSeries(
-							inferred.seriesName,
-							serverId,
-						)
-					: { name: inferred.seriesName };
 				acc.series = {
-					name: resolved.name,
+					name: inferred.seriesName,
 					position: inferred.position,
 				};
 			}
-		} else if (acc.series && acc.series.position == null && inferred) {
+		} else if (
+			acc.series &&
+			acc.series.position == null &&
+			!acc.series.sequence &&
+			inferred &&
+			inferred.seriesName.normalize("NFKC").trim() ===
+				acc.series.name.normalize("NFKC").trim()
+		) {
 			// A named provider series stays authoritative even when its sequence
-			// is textual (e.g. 死物語 : 上). Only an explicit volume marker fills it.
+			// is textual. Infer only a missing sequence for the same series name.
 			acc.series = { ...acc.series, position: inferred.position };
 		}
 
@@ -525,6 +604,7 @@ export class AudiobookMetadataService {
 					bookId,
 					seriesId,
 					series.position ?? null,
+					series.sequence ?? null,
 				);
 				for (const oldId of oldIds) {
 					await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);
@@ -660,6 +740,7 @@ export class AudiobookMetadataService {
 			seriesId = await audiobookMetadataRepository.upsertSeries(
 				metadata.series.name,
 				serverId,
+				metadata.series.identity,
 			);
 			const oldSeriesIds = previousSeriesIds.filter((id) => id !== seriesId);
 			if (oldSeriesIds.length > 0) {
@@ -669,6 +750,7 @@ export class AudiobookMetadataService {
 				bookId,
 				seriesId,
 				metadata.series.position ?? null,
+				metadata.series.sequence,
 			);
 			for (const oldId of oldSeriesIds) {
 				await audiobookMetadataRepository.deleteSeriesIfOrphaned(oldId);

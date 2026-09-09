@@ -20,7 +20,10 @@ import {
 	SearchAudiobooksInput,
 } from "./audiobook.model";
 import * as audiobookService from "./audiobook.service";
-import { UpdateAudiobookMetadataInput } from "./metadata/audiobook-metadata.model";
+import {
+	RefreshAudiobookSeriesInput,
+	UpdateAudiobookMetadataInput,
+} from "./metadata/audiobook-metadata.model";
 import { audiobookMetadataService } from "./metadata/metadata.service";
 
 function stripAudiobookId<T extends { id: unknown }>(audiobook: T) {
@@ -29,6 +32,27 @@ function stripAudiobookId<T extends { id: unknown }>(audiobook: T) {
 }
 
 export const audiobooksRouter = {
+	refreshSeries: protectedProcedure
+		.input(RefreshAudiobookSeriesInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return audiobookMetadataService.refreshSeries(details.id, input);
+		}),
 	/** Public only when the owning server opted in; never exposes audio files. */
 	getSharePreview: publicProcedure
 		.input(AudiobookSharePreviewInput)

@@ -11,6 +11,7 @@ import { libraryRepository } from "../routers/libraries/library.repository";
 import { narratorRepository } from "../routers/narrators/narrator.repository";
 import { seriesRepository } from "../routers/series/series.repository";
 import { inferSeriesFromTitle } from "./audiobookSeriesInference";
+import { parseSeriesNumber } from "./audiobookSeriesOrder";
 import {
 	type AudioChapter,
 	type AudioFileProbeResult,
@@ -200,10 +201,12 @@ export async function processAudiobook(
 		inferredSeries?.seriesName ??
 		null;
 	const resolvedSeriesPosition =
-		tagMetadata.seriesPosition ??
-		data.folderSeriesPositionHint ??
-		inferredSeries?.position ??
-		null;
+		tagMetadata.seriesSequence != null
+			? tagMetadata.seriesPosition
+			: (tagMetadata.seriesPosition ??
+				data.folderSeriesPositionHint ??
+				inferredSeries?.position ??
+				null);
 
 	if (resolvedSeriesName) {
 		// Explicit names (tags/folder) upsert as-is; inferred names go through
@@ -222,6 +225,7 @@ export async function processAudiobook(
 			bookId,
 			seriesId,
 			resolvedSeriesPosition,
+			tagMetadata.seriesSequence,
 		);
 	}
 
@@ -296,6 +300,7 @@ type TagMetadata = {
 	genres: string[];
 	seriesName: string | null;
 	seriesPosition: number | null;
+	seriesSequence: string | null;
 };
 
 function extractTagMetadata(
@@ -339,9 +344,7 @@ function extractTagMetadata(
 	const seriesName =
 		tags.series || tags["series-part"] ? (tags.series ?? null) : null;
 	const seriesPositionRaw = tags["series-part"] || tags.movement || null;
-	const seriesPosition = seriesPositionRaw
-		? Number.parseInt(seriesPositionRaw, 10) || null
-		: null;
+	const seriesPosition = parseSeriesNumber(seriesPositionRaw);
 
 	return {
 		title,
@@ -354,6 +357,7 @@ function extractTagMetadata(
 		genres,
 		seriesName,
 		seriesPosition,
+		seriesSequence: seriesPositionRaw?.trim() || null,
 	};
 }
 

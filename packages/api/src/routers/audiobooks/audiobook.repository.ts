@@ -18,6 +18,7 @@ import {
 	tag,
 } from "@nanahoshi-v2/db/schema/general";
 import { and, asc, eq, isNull, type SQL, sql } from "drizzle-orm";
+import { compareAudiobookSeriesEntries } from "../../modules/audiobookSeriesOrder";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -50,6 +51,7 @@ type SeriesByNameRow = {
 	mainColor: string | null;
 	duration: number | null;
 	position: number | null;
+	sequence: string | null;
 };
 
 type SeriesWithCountRow = {
@@ -191,6 +193,7 @@ export class AudiobookRepository {
 						uuid: series.uuid,
 						name: series.name,
 						position: audiobookSeries.position,
+						sequence: audiobookSeries.sequence,
 					})
 					.from(audiobookSeries)
 					.innerJoin(series, eq(series.id, audiobookSeries.seriesId))
@@ -454,7 +457,7 @@ export class AudiobookRepository {
 				b.uuid, b.filename,
 				am.title, am.cover, am.main_color AS "mainColor",
 				am.duration,
-				abs.position
+				abs.position, abs.sequence
 			FROM book b
 			INNER JOIN library l ON l.id = b.library_id
 			INNER JOIN audiobook_metadata am ON am.book_id = b.id
@@ -466,7 +469,9 @@ export class AudiobookRepository {
 			ORDER BY abs.position ASC NULLS LAST, am.title ASC
 		`);
 
-		const rows = result.rows as SeriesByNameRow[];
+		const rows = (result.rows as SeriesByNameRow[]).sort(
+			compareAudiobookSeriesEntries,
+		);
 		return rows.map((row) => ({
 			uuid: row.uuid,
 			filename: row.filename,
@@ -475,6 +480,7 @@ export class AudiobookRepository {
 			mainColor: row.mainColor,
 			duration: row.duration,
 			position: row.position,
+			sequence: row.sequence,
 		}));
 	}
 

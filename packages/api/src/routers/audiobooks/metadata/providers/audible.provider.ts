@@ -1,5 +1,6 @@
 import { upgradeAmazonImageUrl } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
+import { parseProviderSeriesPosition } from "../../../../modules/audiobookSeriesOrder";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
 import {
 	type AudiobookSearchCandidate,
@@ -89,19 +90,13 @@ type AudnexusChapters = {
 
 // ─── Helpers ─────────────────────────────────────────────
 
-function getTld(region: string): string {
-	return REGION_TLD_MAP[region] ?? ".com";
+function normalizeRegion(region = "us"): string {
+	const normalized = region.toLowerCase();
+	return Object.hasOwn(REGION_TLD_MAP, normalized) ? normalized : "us";
 }
 
-function parsePosition(pos: string | undefined): number | null {
-	if (!pos) return null;
-	// A provider sequence may be Japanese or season-prefixed. A range or a
-	// named special has no single numeric position; keep the membership anyway.
-	const normalized = pos.normalize("NFKC").trim();
-	const sequence = normalized.match(
-		/^(?:[^\d:]+:\s*)?(?:(?:第|Lv\.?|Vol\.?|Book)\s*)?(\d+(?:\.\d+)?)(?:\s*巻)?$/iu,
-	)?.[1];
-	return sequence === undefined ? null : Number(sequence);
+function getTld(region: string): string {
+	return REGION_TLD_MAP[region] ?? ".com";
 }
 
 // ─── Audible Catalog Search ──────────────────────────────
@@ -158,6 +153,7 @@ async function getAudnexusChapters(
 function mapAudnexusToMetadata(
 	book: AudnexusBook,
 	coverPath: string | null,
+	region: string,
 ): Partial<AudiobookMetadata> {
 	const result: Partial<AudiobookMetadata> = {
 		title: book.title || undefined,
@@ -197,7 +193,15 @@ function mapAudnexusToMetadata(
 	if (book.seriesPrimary?.name) {
 		result.series = {
 			name: book.seriesPrimary.name,
-			position: parsePosition(book.seriesPrimary.position),
+			position: parseProviderSeriesPosition(book.seriesPrimary.position),
+			sequence: book.seriesPrimary.position ?? null,
+			...(book.seriesPrimary.asin && {
+				identity: {
+					provider: "audible" as const,
+					providerId: book.seriesPrimary.asin,
+					region,
+				},
+			}),
 		};
 	}
 
@@ -245,7 +249,15 @@ function mapCatalogProductToCandidate(
 	if (primarySeries?.title) {
 		result.series = {
 			name: primarySeries.title,
-			position: parsePosition(primarySeries.sequence),
+			position: parseProviderSeriesPosition(primarySeries.sequence),
+			sequence: primarySeries.sequence ?? null,
+			...(primarySeries.asin && {
+				identity: {
+					provider: "audible" as const,
+					providerId: primarySeries.asin,
+					region,
+				},
+			}),
 		};
 	}
 
@@ -289,7 +301,7 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		const title = input.title;
 		if (!title) return [];
 
-		const region = options?.region ?? "us";
+		const region = normalizeRegion(options?.region);
 
 		if (isValidAsin(title)) {
 			const asin = title.trim().toUpperCase();
@@ -323,7 +335,10 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		providerId: string,
 		options?: ProviderRequestOptions & { bookUuid?: string },
 	): Promise<Partial<AudiobookMetadata> | null> {
-		const result = await this.lookup(providerId, options?.region ?? "us");
+		const result = await this.lookup(
+			providerId,
+			normalizeRegion(options?.region),
+		);
 		if (!result) return null;
 		if (result.image && options?.bookUuid) {
 			const cover = await downloadCover(
@@ -338,12 +353,14 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 
 	private async lookup(providerId: string, region: string) {
 		const book = await getAudnexusBook(providerId, region);
-		const catalog = book?.seriesPrimary?.name
-			? null
-			: await getCatalogProduct(providerId, region);
+		const primary = book?.seriesPrimary;
+		const catalog =
+			!primary?.name || !primary.position?.trim()
+				? await getCatalogProduct(providerId, region)
+				: null;
 		if (!book && !catalog) return null;
 
-		const metadata = book ? mapAudnexusToMetadata(book, null) : {};
+		const metadata = book ? mapAudnexusToMetadata(book, null, region) : {};
 		if (catalog) {
 			const {
 				provider: _provider,
@@ -353,12 +370,29 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 				...fields
 			} = mapCatalogProductToCandidate(catalog, region);
 			if (!book) Object.assign(metadata, fields);
-			else if (fields.series) metadata.series = fields.series;
+			else if (
+				fields.series &&
+				(!primary?.name ||
+					(primary.asin && primary.asin === fields.series.identity?.providerId))
+			) {
+				// A more complete sequence may fill only the same official series.
+				metadata.series = primary?.name
+					? { ...fields.series, name: primary.name }
+					: fields.series;
+			}
 		}
 		if (!metadata.series && book?.seriesSecondary?.name) {
 			metadata.series = {
 				name: book.seriesSecondary.name,
-				position: parsePosition(book.seriesSecondary.position),
+				position: parseProviderSeriesPosition(book.seriesSecondary.position),
+				sequence: book.seriesSecondary.position ?? null,
+				...(book.seriesSecondary.asin && {
+					identity: {
+						provider: "audible" as const,
+						providerId: book.seriesSecondary.asin,
+						region,
+					},
+				}),
 			};
 		}
 		const image = book?.image ?? catalog?.product_images?.["500"];
@@ -370,7 +404,10 @@ class AudibleProvider implements IAudiobookMetadataProvider {
 		providerId: string,
 		options?: ProviderRequestOptions,
 	): Promise<ProviderChapters | null> {
-		const data = await getAudnexusChapters(providerId, options?.region ?? "us");
+		const data = await getAudnexusChapters(
+			providerId,
+			normalizeRegion(options?.region),
+		);
 		if (!data?.chapters?.length) return null;
 		return {
 			chapters: data.chapters.map((ch) => ({

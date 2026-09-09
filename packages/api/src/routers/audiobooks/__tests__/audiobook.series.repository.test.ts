@@ -130,3 +130,31 @@ describe("AudiobookRepository.countSeries", () => {
 		expect(await repo.countSeries("org-1")).toBe(0);
 	});
 });
+
+test("series listing uses semantic parts instead of SQL's title tie-break", async () => {
+	const common = {
+		filename: "audio.m4b",
+		position: 1,
+		sequence: "1",
+		duration: 100,
+		cover: null,
+		mainColor: null,
+	};
+	executeQueue = [
+		{
+			rows: [
+				{
+					...common,
+					uuid: "second",
+					title: "幼女戦記 1 Deus lo vult （後編）",
+				},
+				{ ...common, uuid: "first", title: "幼女戦記 1 Deus lo vult（前編）" },
+			],
+		},
+	];
+	const result = await new AudiobookRepository().listBySeriesUuid(
+		"series-uuid",
+	);
+	expect(result.map((r) => r.uuid)).toEqual(["first", "second"]);
+	expect(result[0]?.sequence).toBe("1");
+});

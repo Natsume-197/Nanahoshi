@@ -13,6 +13,14 @@ export const AudiobookNarratorSchema = z.object({
 export const AudiobookSeriesSchema = z.object({
 	name: z.string(),
 	position: z.number().nullable().optional(),
+	sequence: z.string().trim().max(255).nullable().optional(),
+	identity: z
+		.object({
+			provider: z.literal("audible"),
+			providerId: z.string().regex(/^[A-Z0-9]{10}$/),
+			region: z.string().regex(/^[a-z]{2}$/),
+		})
+		.optional(),
 });
 
 export const AudiobookPublisherSchema = z.object({
@@ -84,7 +92,7 @@ export const ManualAudiobookMetadataSchema = z.object({
 	authors: z.array(AudiobookAuthorSchema).optional(),
 	narrators: z.array(AudiobookNarratorSchema).optional(),
 	publisher: z.string().trim().min(1).nullable().optional(),
-	series: AudiobookSeriesSchema.nullable().optional(),
+	series: AudiobookSeriesSchema.omit({ identity: true }).nullable().optional(),
 	genres: z.array(z.string().trim().min(1)).optional(),
 	tags: z.array(z.string().trim().min(1)).optional(),
 });
@@ -97,6 +105,16 @@ export const UpdateAudiobookMetadataInput = z.object({
 	uuid: z.string().uuid(),
 	metadata: ManualAudiobookMetadataSchema,
 	unlockFields: z.array(z.enum(LOCKABLE_AUDIOBOOK_FIELDS)).optional(),
+});
+
+export const RefreshAudiobookSeriesInput = z.object({
+	uuid: z.string().uuid(),
+	apply: z.boolean().default(false),
+	/** Optional explicitly selected identity, still checked against the local title. */
+	providerId: z
+		.string()
+		.regex(/^[A-Z0-9]{10}$/)
+		.optional(),
 });
 
 // ─── Types ───────────────────────────────────────────────

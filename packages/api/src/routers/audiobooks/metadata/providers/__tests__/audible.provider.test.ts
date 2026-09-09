@@ -70,7 +70,7 @@ describe("audible provider", () => {
 			);
 		expect(
 			(await audibleProvider.getById("B0EXAMPLE1", { region: "jp" }))?.series,
-		).toEqual({ name: "Series", position: expected });
+		).toEqual({ name: "Series", position: expected, sequence: position });
 	});
 
 	test("getById splits Audnexus genres into genres and tags by type", async () => {
@@ -136,7 +136,11 @@ describe("official Audible series fallback", () => {
 		const result = await audibleProvider.getById(product.asin, {
 			region: "jp",
 		});
-		expect(result?.series).toEqual({ name: "DanMachi", position: 3 });
+		expect(result?.series).toEqual({
+			name: "DanMachi",
+			position: 3,
+			sequence: "3",
+		});
 		expect(result?.description).toBe("A tale of tests");
 		expect(fetchCalls[1]).toContain(
 			"api.audible.co.jp/1.0/catalog/products/B0GSVCYC38?",
@@ -151,7 +155,11 @@ describe("official Audible series fallback", () => {
 			{ title: product.asin },
 			{ region: "jp" },
 		);
-		expect(result?.series).toEqual({ name: "DanMachi", position: 3 });
+		expect(result?.series).toEqual({
+			name: "DanMachi",
+			position: 3,
+			sequence: "3",
+		});
 		expect(result?.asin).toBe(product.asin);
 		expect(result?.previewCover).toBe("https://example.com/cover.jpg");
 	});
@@ -164,6 +172,7 @@ describe("official Audible series fallback", () => {
 		expect((await audibleProvider.getById("B0EXAMPLE1"))?.series).toEqual({
 			name: "Umbrella",
 			position: 27,
+			sequence: "27",
 		});
 		expect(fetchCalls).toHaveLength(1);
 	});
@@ -187,13 +196,14 @@ describe("official Audible series fallback", () => {
 		expect((await audibleProvider.getById(product.asin))?.series).toEqual({
 			name: "Oregairu",
 			position: null,
+			sequence: "結 1",
 		});
 	});
 	test("retains series in title search results", async () => {
 		fetchResponder = () => Response.json({ products: [product] });
 		expect(
 			(await audibleProvider.search({ title: "DanMachi" }))[0]?.series,
-		).toEqual({ name: "DanMachi", position: 3 });
+		).toEqual({ name: "DanMachi", position: 3, sequence: "3" });
 	});
 	test("preserves retryable failures instead of treating them as missing series", async () => {
 		fetchResponder = (url) =>
@@ -201,5 +211,79 @@ describe("official Audible series fallback", () => {
 				? Response.json(AUDNEXUS_BOOK)
 				: new Response("", { status: 429 });
 		await expect(audibleProvider.getById(product.asin)).rejects.toThrow();
+	});
+});
+
+describe("series identity and missing sequences", () => {
+	test("fills a missing sequence only from the same official series", async () => {
+		fetchResponder = (url) =>
+			Response.json(
+				url.includes("audnex.us")
+					? {
+							...AUDNEXUS_BOOK,
+							seriesPrimary: { name: "Existing name", asin: "B07H7GGCC7" },
+						}
+					: {
+							product: {
+								asin: "B0EXAMPLE1",
+								title: "Story",
+								series: [
+									{ asin: "B07H7GGCC7", title: "New name", sequence: "６．５" },
+								],
+							},
+						},
+			);
+		expect(
+			(await audibleProvider.getById("B0EXAMPLE1", { region: "JP" }))?.series,
+		).toEqual({
+			name: "Existing name",
+			position: 6.5,
+			sequence: "６．５",
+			identity: { provider: "audible", providerId: "B07H7GGCC7", region: "jp" },
+		});
+	});
+	test("a different series cannot supply a missing umbrella sequence", async () => {
+		fetchResponder = (url) =>
+			Response.json(
+				url.includes("audnex.us")
+					? {
+							...AUDNEXUS_BOOK,
+							seriesPrimary: { name: "Umbrella", asin: "B07H7GGCC7" },
+						}
+					: {
+							product: {
+								asin: "B0EXAMPLE1",
+								title: "Story",
+								series: [{ asin: "B09133NYFN", title: "Arc", sequence: "1" }],
+							},
+						},
+			);
+		expect(
+			(await audibleProvider.getById("B0EXAMPLE1", { region: "jp" }))?.series,
+		).toEqual({
+			name: "Umbrella",
+			position: null,
+			sequence: null,
+			identity: { provider: "audible", providerId: "B07H7GGCC7", region: "jp" },
+		});
+	});
+	test("preserves compound special sequences instead of coercing them to the anchor number", async () => {
+		fetchResponder = () =>
+			Response.json({
+				...AUDNEXUS_BOOK,
+				seriesPrimary: {
+					name: "Silent Witch",
+					asin: "B0CN2NM74Z",
+					position: "9・短編集",
+				},
+			});
+		expect(
+			(await audibleProvider.getById("B0EXAMPLE1", { region: "jp" }))?.series,
+		).toMatchObject({
+			position: null,
+			sequence: "9・短編集",
+			identity: { provider: "audible", providerId: "B0CN2NM74Z", region: "jp" },
+		});
+		expect(fetchCalls).toHaveLength(1);
 	});
 });

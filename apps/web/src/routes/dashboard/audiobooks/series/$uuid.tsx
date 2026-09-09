@@ -78,16 +78,23 @@ function AudiobookSeriesDetailPage() {
 					<div className={BOOK_GRID_CLASS}>
 						{audiobooks.map((ab) => (
 							<BookContextMenuTrigger key={ab.uuid} bookUuid={ab.uuid}>
-								<BookCard
-									uuid={ab.uuid}
-									title={ab.title}
-									filename={ab.filename}
-									cover={ab.cover}
-									tint={ab.mainColor}
-									contextMenuEnabled={false}
-									mediaType="audiobook"
-									coverFrameRatio="square"
-								/>
+								<div>
+									<BookCard
+										uuid={ab.uuid}
+										title={ab.title}
+										filename={ab.filename}
+										cover={ab.cover}
+										tint={ab.mainColor}
+										contextMenuEnabled={false}
+										mediaType="audiobook"
+										coverFrameRatio="square"
+									/>
+									{ab.sequence && (
+										<p className="mt-1 text-muted-foreground text-sm">
+											{ab.sequence}
+										</p>
+									)}
+								</div>
 							</BookContextMenuTrigger>
 						))}
 					</div>

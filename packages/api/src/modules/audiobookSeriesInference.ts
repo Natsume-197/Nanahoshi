@@ -35,7 +35,7 @@ export function inferSeriesFromTitle(
 	if (!title) return null;
 	// An import index is not a volume, and an extra's own numbering must not
 	// become the sequence of its parent series.
-	if (/^\[(?:番外編|短編集|外伝)/u.test(title)) return null;
+	if (/^\[[^\]]*(?:番外編|短編集|外伝)/u.test(title)) return null;
 	if (/\d\s*[-–〜～~]\s*\d+(?:\.\d+)?\s*巻/u.test(title)) return null;
 
 	let marker: RegExp | null = null;

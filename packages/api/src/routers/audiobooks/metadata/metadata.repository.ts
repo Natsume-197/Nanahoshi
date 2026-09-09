@@ -6,6 +6,7 @@ import {
 	audiobookMetadata,
 	audiobookMetadataOriginal,
 	audiobookSeries,
+	audiobookSeriesIdentity,
 	audiobookTag,
 	audioFile,
 	author,
@@ -21,12 +22,131 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { normalizePersonName } from "../../_shared/person-name";
+import type { AudiobookSeries } from "./audiobook-metadata.model";
 
 type AudiobookMetadataInsert = typeof audiobookMetadata.$inferInsert;
 type AudioFileInsert = typeof audioFile.$inferInsert;
 type AudiobookChapterInsert = typeof audiobookChapter.$inferInsert;
 
 export class AudiobookMetadataRepository {
+	/** Matching evidence and optimistic concurrency snapshot for series-only maintenance. */
+	async getSeriesRefreshSnapshot(bookId: number) {
+		const result = await db.execute(sql`
+			SELECT to_jsonb(am) AS metadata, b.uuid, b.filename, b.group_locked AS "groupLocked",
+				b.duplicate_of_book_id AS "duplicateOfBookId", l.server_id AS "serverId",
+				COALESCE((SELECT jsonb_agg(jsonb_build_object('name',s.name,'position',abs.position,'sequence',abs.sequence) ORDER BY s.id)
+					FROM audiobook_series abs JOIN series s ON s.id=abs.series_id WHERE abs.book_id=b.id), '[]') AS series
+			FROM audiobook_metadata am JOIN book b ON b.id=am.book_id JOIN library l ON l.id=b.library_id WHERE b.id=${bookId}
+		`);
+		return result.rows[0] as
+			| {
+					metadata: {
+						title: string;
+						asin: string | null;
+						duration: number | null;
+						locked_fields: string[];
+						[key: string]: unknown;
+					};
+					uuid: string;
+					filename: string;
+					groupLocked: boolean;
+					duplicateOfBookId: number | null;
+					serverId: string;
+					series: {
+						name: string;
+						position: number | null;
+						sequence: string | null;
+					}[];
+			  }
+			| undefined;
+	}
+
+	async applySeriesRefresh(
+		bookId: number,
+		expected: NonNullable<
+			Awaited<
+				ReturnType<AudiobookMetadataRepository["getSeriesRefreshSnapshot"]>
+			>
+		>,
+		next: { series: AudiobookSeries; asin?: string | null },
+	) {
+		return db.transaction(async (tx) => {
+			await tx.execute(sql`SELECT id FROM book WHERE id=${bookId} FOR UPDATE`);
+			const current = await tx.execute(
+				sql`SELECT to_jsonb(am) AS metadata FROM audiobook_metadata am WHERE book_id=${bookId} FOR UPDATE`,
+			);
+			const metadata = (
+				current.rows[0] as { metadata: typeof expected.metadata } | undefined
+			)?.metadata;
+			const state = await tx.execute(
+				sql`SELECT b.group_locked, b.duplicate_of_book_id, b.filename, l.server_id FROM book b JOIN library l ON l.id=b.library_id WHERE b.id=${bookId}`,
+			);
+			const bookState = state.rows[0] as
+				| {
+						group_locked: boolean;
+						duplicate_of_book_id: number | null;
+						filename: string;
+						server_id: string;
+				  }
+				| undefined;
+			if (
+				!metadata ||
+				JSON.stringify(metadata) !== JSON.stringify(expected.metadata) ||
+				!bookState ||
+				bookState.group_locked ||
+				bookState.server_id !== expected.serverId ||
+				bookState.filename !== expected.filename ||
+				expected.series.length > 1 ||
+				bookState.duplicate_of_book_id !== null ||
+				metadata.locked_fields.includes("series")
+			)
+				return false;
+			const memberships = await tx.execute(
+				sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('name',s.name,'position',abs.position,'sequence',abs.sequence) ORDER BY s.id), '[]') AS series FROM audiobook_series abs JOIN series s ON s.id=abs.series_id WHERE abs.book_id=${bookId}`,
+			);
+			if (
+				JSON.stringify((memberships.rows[0] as { series: unknown }).series) !==
+				JSON.stringify(expected.series)
+			)
+				return false;
+			if (!next.series.identity)
+				throw new Error("Series maintenance requires a provider identity");
+			const seriesId = await this.resolveProviderSeries(
+				tx,
+				next.series.name,
+				expected.serverId,
+				next.series.identity,
+			);
+			await tx
+				.delete(audiobookSeries)
+				.where(eq(audiobookSeries.bookId, bookId));
+			await tx.insert(audiobookSeries).values({
+				bookId,
+				seriesId,
+				position: next.series.position ?? null,
+				sequence: next.series.sequence ?? null,
+			});
+			const sources = {
+				series: {
+					p: next.series.identity.provider,
+					at: new Date().toISOString(),
+				},
+				...(next.asin && !metadata.locked_fields.includes("asin")
+					? {
+							asin: {
+								p: next.series.identity.provider,
+								at: new Date().toISOString(),
+							},
+						}
+					: {}),
+			};
+			await tx.execute(sql`UPDATE audiobook_metadata SET
+				asin=${metadata.locked_fields.includes("asin") ? metadata.asin : (next.asin ?? metadata.asin)},
+				field_sources=COALESCE(field_sources,'{}') || ${JSON.stringify(sources)}::jsonb WHERE book_id=${bookId}`);
+			return true;
+		});
+	}
+
 	/** Stores the local row before any provider can overwrite it. */
 	async saveOriginalMetadata(bookId: number) {
 		const [
@@ -244,7 +364,11 @@ export class AudiobookMetadataRepository {
 
 	async getBookSeries(bookId: number) {
 		return db
-			.select({ name: series.name, position: audiobookSeries.position })
+			.select({
+				name: series.name,
+				position: audiobookSeries.position,
+				sequence: audiobookSeries.sequence,
+			})
 			.from(audiobookSeries)
 			.innerJoin(series, eq(series.id, audiobookSeries.seriesId))
 			.where(eq(audiobookSeries.bookId, bookId));
@@ -255,17 +379,80 @@ export class AudiobookMetadataRepository {
 	}
 
 	// ---------- 7. UPSERT series ----------
-	async upsertSeries(name: string, serverId: string): Promise<number> {
-		const [row] = await db
+	async upsertSeries(
+		name: string,
+		serverId: string,
+		identity?: AudiobookSeries["identity"],
+	): Promise<number> {
+		if (!identity) {
+			const [row] = await db
+				.insert(series)
+				.values({ name, serverId })
+				.onConflictDoUpdate({
+					target: [series.serverId, series.name],
+					set: { name },
+				})
+				.returning({ id: series.id });
+			if (!row) throw new Error("Failed to upsert series");
+			return row.id;
+		}
+		return db.transaction((tx) =>
+			this.resolveProviderSeries(tx, name, serverId, identity),
+		);
+	}
+
+	private async resolveProviderSeries(
+		tx: Pick<typeof db, "select" | "insert" | "execute">,
+		name: string,
+		serverId: string,
+		identity: NonNullable<AudiobookSeries["identity"]>,
+	) {
+		// Serialize identity adoption within one server, including different
+		// names for the same identity and identical names for different ones.
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext(${`audiobook-series:${serverId}`}))`,
+		);
+		const [existing] = await tx
+			.select({ id: audiobookSeriesIdentity.seriesId })
+			.from(audiobookSeriesIdentity)
+			.where(
+				and(
+					eq(audiobookSeriesIdentity.serverId, serverId),
+					eq(audiobookSeriesIdentity.provider, identity.provider),
+					eq(audiobookSeriesIdentity.region, identity.region),
+					eq(audiobookSeriesIdentity.providerId, identity.providerId),
+				),
+			)
+			.limit(1);
+		if (existing) return existing.id;
+		const [named] = await tx
+			.select({ id: series.id })
+			.from(series)
+			.where(and(eq(series.serverId, serverId), eq(series.name, name)))
+			.limit(1);
+		const occupied = named
+			? await tx
+					.select({ id: audiobookSeriesIdentity.providerId })
+					.from(audiobookSeriesIdentity)
+					.where(eq(audiobookSeriesIdentity.seriesId, named.id))
+					.limit(1)
+			: [];
+		// Names alone cannot unify distinct provider identities or marketplaces.
+		const resolvedName = occupied.length
+			? `${name} (${identity.region}:${identity.providerId})`
+			: name;
+		const [row] = await tx
 			.insert(series)
-			.values({ name, serverId })
+			.values({ name: resolvedName, serverId })
 			.onConflictDoUpdate({
 				target: [series.serverId, series.name],
-				set: { name },
+				set: { name: resolvedName },
 			})
 			.returning({ id: series.id });
-
-		if (!row) throw new Error("Failed to upsert series");
+		if (!row) throw new Error("Failed to resolve audiobook series");
+		await tx
+			.insert(audiobookSeriesIdentity)
+			.values({ ...identity, serverId, seriesId: row.id });
 		return row.id;
 	}
 
@@ -274,13 +461,14 @@ export class AudiobookMetadataRepository {
 		bookId: number,
 		seriesId: number,
 		position: number | null,
+		sequence?: string | null,
 	) {
 		await db
 			.insert(audiobookSeries)
-			.values({ bookId, seriesId, position })
+			.values({ bookId, seriesId, position, sequence })
 			.onConflictDoUpdate({
 				target: [audiobookSeries.bookId, audiobookSeries.seriesId],
-				set: { position },
+				set: { position, sequence },
 			});
 	}
 
@@ -619,10 +807,15 @@ export class AudiobookMetadataRepository {
 			.onConflictDoNothing();
 	}
 
-	async linkSeries(bookId: number, seriesId: number, position: number | null) {
+	async linkSeries(
+		bookId: number,
+		seriesId: number,
+		position: number | null,
+		sequence?: string | null,
+	) {
 		await db
 			.insert(audiobookSeries)
-			.values({ bookId, seriesId, position })
+			.values({ bookId, seriesId, position, sequence })
 			.onConflictDoNothing();
 	}
 

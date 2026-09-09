@@ -7,6 +7,8 @@ describe("inferSeriesFromTitle", () => {
 		"[19] ティアムーン帝国物語18 [B0G12QKTSN]",
 		"[16] ティアムーン帝国物語短編集",
 		"[番外編2巻] 86 Alter.2",
+		"[4巻・番外編] サイレント・ウィッチ IV -after-",
+		"[9巻・短編集] サイレント・ウィッチ IX -extra-",
 		"[1-3巻] Collection",
 	])("does not infer an index, extra or range: %s", (title) => {
 		expect(inferSeriesFromTitle(title)).toBeNull();

@@ -1918,6 +1918,7 @@ export const audiobookSeries = pgTable(
 		seriesId: bigint("series_id", { mode: "number" }).notNull(),
 		bookId: bigint("book_id", { mode: "number" }).notNull(),
 		position: doublePrecision(),
+		sequence: text(),
 	},
 	(table) => [
 		foreignKey({
@@ -1937,6 +1938,32 @@ export const audiobookSeries = pgTable(
 			name: "audiobook_series_pkey",
 		}),
 		index("audiobook_series_book_id_idx").on(table.bookId),
+	],
+);
+
+/** Audiobook provider identities are independent of ebook series membership. */
+export const audiobookSeriesIdentity = pgTable(
+	"audiobook_series_identity",
+	{
+		serverId: text("server_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		provider: text().notNull(),
+		region: text().notNull(),
+		providerId: text("provider_id").notNull(),
+		seriesId: bigint("series_id", { mode: "number" })
+			.notNull()
+			.references(() => series.id, { onDelete: "cascade" }),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.serverId, table.provider, table.region, table.providerId],
+		}),
+		uniqueIndex("audiobook_series_identity_series_provider_region_key").on(
+			table.seriesId,
+			table.provider,
+			table.region,
+		),
 	],
 );
 

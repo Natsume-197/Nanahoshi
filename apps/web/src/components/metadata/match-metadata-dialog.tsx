@@ -498,9 +498,11 @@ function audiobookMeta(candidate: AudiobookCandidate): string[] {
 	const detail = [
 		candidate.series?.name
 			? `${candidate.series.name}${
-					candidate.series.position != null
-						? ` #${candidate.series.position}`
-						: ""
+					candidate.series.sequence
+						? ` · ${candidate.series.sequence}`
+						: candidate.series.position != null
+							? ` #${candidate.series.position}`
+							: ""
 				}`
 			: null,
 		candidate.duration ? formatReadingTime(candidate.duration) : null,

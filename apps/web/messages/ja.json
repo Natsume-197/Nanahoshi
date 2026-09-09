@@ -1873,6 +1873,7 @@
 		"publisher": "出版社",
 		"series": "シリーズ",
 		"series_position": "シリーズ内の順番",
+		"series_sequence": "シリーズの巻数表記",
 		"year": "年",
 		"published": "出版日",
 		"genres": "ジャンル",
