@@ -146,6 +146,104 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		expect(books.some((b) => b.title === "everyday cooking")).toBe(true);
 	});
 
+	test("compact media pages preserve matching, ranking, cursors and authors", async () => {
+		await db.execute(
+			sql`UPDATE audiobook_metadata SET description = ${`${token} audio description`} WHERE book_id = ${narratedId}`,
+		);
+		for (const searchMedia of [
+			provider.searchBooks.bind(provider),
+			provider.searchAudiobooks.bind(provider),
+		]) {
+			const input = {
+				query: token,
+				limit: 1,
+				serverId: orgId,
+				accessibleLibraryIds: "ALL" as const,
+			};
+			const full = await searchMedia(input);
+			const compact = await searchMedia({ ...input, compact: true });
+			const hits = (page: typeof full) =>
+				"books" in page ? page.books : page.audiobooks;
+			expect(hits(compact)).toEqual(
+				hits(full).map((hit) => ({
+					...hit,
+					description: null,
+					publisher: null,
+					series: null,
+				})),
+			);
+			expect(compact.pagination).toEqual(full.pagination);
+			if (full.pagination.cursor) {
+				const next = await searchMedia({
+					...input,
+					cursor: full.pagination.cursor,
+					compact: true,
+				});
+				expect(hits(next)[0]?.uuid).not.toBe(hits(compact)[0]?.uuid);
+			}
+			const hidden = await searchMedia({
+				...input,
+				compact: true,
+				accessibleLibraryIds: [],
+			});
+			expect(hits(hidden)).toEqual([]);
+		}
+		const described = await provider.searchBooks({
+			query: `${token} sorcery academy`,
+			compact: true,
+			serverId: orgId,
+		});
+		expect(described.books[0]?.title).toBe("everyday cooking");
+		expect(described.books[0]?.description).toBeNull();
+	});
+
+	test("series previews and author counts need no second hydration and respect library scope", async () => {
+		await db.execute(
+			sql`UPDATE book_metadata SET cover = 'first.avif' WHERE book_id = ${exactId}`,
+		);
+		await db.execute(
+			sql`UPDATE book_metadata SET cover = 'second.avif' WHERE book_id = ${titledId}`,
+		);
+		const { series } = await provider.searchSeries({
+			query: seriesAlias,
+			serverId: orgId,
+			accessibleLibraryIds: [libraryId],
+		});
+		expect(series[0]).toMatchObject({
+			aliases: [seriesAlias],
+			previewCovers: ["first.avif", "second.avif"],
+			bookCount: 2,
+		});
+		const { authors } = await provider.searchAuthors({
+			query: `${token} kuonji`,
+			serverId: orgId,
+			accessibleLibraryIds: [libraryId],
+		});
+		expect(authors[0]).toMatchObject({ name: `${token} kuonji`, bookCount: 1 });
+		expect(authors[0]?.id).toBeGreaterThan(0);
+		const otherLibrary = await db.execute(
+			sql`INSERT INTO library (name, server_id, media_type, created_at) VALUES ('hidden-search-test', ${orgId}, 'ebook', now()) RETURNING id`,
+		);
+		await db.execute(
+			sql`UPDATE book SET library_id = ${Number(otherLibrary.rows[0]?.id)} WHERE id = ${titledId}`,
+		);
+		try {
+			const restricted = await provider.searchSeries({
+				query: seriesAlias,
+				serverId: orgId,
+				accessibleLibraryIds: [libraryId],
+			});
+			expect(restricted.series[0]).toMatchObject({
+				previewCovers: ["first.avif"],
+				bookCount: 1,
+			});
+		} finally {
+			await db.execute(
+				sql`UPDATE book SET library_id = ${libraryId} WHERE id = ${titledId}`,
+			);
+		}
+	});
+
 	test("matches on author name only", async () => {
 		const { books } = await search(`${token} kuonji`);
 		expect(books.length).toBe(1);

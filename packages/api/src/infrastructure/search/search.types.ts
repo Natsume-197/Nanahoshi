@@ -11,14 +11,17 @@ export interface SearchSeriesRequest {
 }
 
 export interface SearchSeriesHit {
+	id: number;
 	uuid: string;
 	name: string;
+	aliases: string[];
 	bookCount: number;
 	cover: string | null;
-	/** Dominant color of the cover book; undefined for ES-backed search. */
-	coverColor?: string | null;
-	/** Most frequent author across the series' books; undefined for ES-backed search. */
-	author?: { uuid: string; name: string } | null;
+	previewCovers: string[];
+	/** Dominant color of the first visible cover. */
+	coverColor: string | null;
+	/** Most frequent author across the visible series books. */
+	author: { id: number; uuid: string; name: string } | null;
 }
 
 export interface SearchSeriesResponse {
@@ -35,6 +38,7 @@ export interface SearchAuthorsRequest {
 }
 
 export interface SearchAuthorHit {
+	id: number;
 	uuid: string;
 	name: string;
 	bookCount: number;
@@ -59,6 +63,8 @@ export interface SearchAuthorsResponse {
  * When both are provided, `offset` takes precedence.
  */
 export interface SearchBooksRequest {
+	/** List presentation: omit descriptions and publisher/series hydration. */
+	compact?: boolean;
 	query?: string;
 	exactMatch?: boolean;
 	filters?: SearchFilters;
@@ -86,6 +92,8 @@ export interface SearchFilters {
 // ── Audiobook search types ──
 
 export interface SearchAudiobooksRequest {
+	/** List presentation: omit descriptions and publisher/series hydration. */
+	compact?: boolean;
 	query?: string;
 	exactMatch?: boolean;
 	filters?: SearchAudiobookFilters;

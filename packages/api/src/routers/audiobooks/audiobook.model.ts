@@ -32,6 +32,7 @@ const searchAudiobookFiltersSchema = z
 	.optional();
 
 export const SearchAudiobooksInput = z.object({
+	compact: z.boolean().optional(),
 	query: z.string().optional(),
 	exactMatch: z.boolean().optional(),
 	filters: searchAudiobookFiltersSchema,

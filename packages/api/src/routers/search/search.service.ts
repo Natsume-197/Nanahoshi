@@ -2,12 +2,10 @@ import { hasGlobal, type PermissionContext } from "../../auth/access.service";
 import { search } from "../../infrastructure/search";
 import type { LibraryScope } from "../_shared/library-scope";
 import * as audiobookService from "../audiobooks/audiobook.service";
-import { authorRepository } from "../authors/author.repository";
 import * as bookService from "../books/book.service";
 import * as collectionsService from "../collections/collections.service";
 import { narratorRepository } from "../narrators/narrator.repository";
 import { readListenService } from "../read-listen/read-listen.service";
-import { seriesRepository } from "../series/series.repository";
 import { usersRepository } from "../users/users.repository";
 import type { TopSearchResults } from "./search.model";
 import { rankTopResults } from "./search.ranking";
@@ -48,6 +46,7 @@ export async function topResults(input: {
 			query,
 			limit: input.pageSize ?? BOOK_POOL,
 			sort: "relevance",
+			compact: true,
 			serverId,
 			accessibleLibraryIds,
 		}),
@@ -77,6 +76,7 @@ export async function topResults(input: {
 			query,
 			limit: input.pageSize ?? AUDIOBOOK_POOL,
 			sort: "relevance",
+			compact: true,
 			serverId,
 			accessibleLibraryIds,
 		}),
@@ -92,24 +92,16 @@ export async function topResults(input: {
 					serverId,
 					query,
 					COLLECTION_POOL,
+					accessibleLibraryIds,
 				)
 			: Promise.resolve([]),
 		usersRepository.search(query, serverId, userId, USER_POOL),
 	]);
-	const [bookSeries, authors] = await Promise.all([
-		seriesRepository.getVisibleHitsByUuids(
-			seriesRes.series.map((hit) => hit.uuid),
-			serverId,
-			accessibleLibraryIds,
-		),
-		authorRepository.getVisibleHitsByUuids(
-			authorsRes.authors.map((hit) => hit.uuid),
-			serverId,
-			accessibleLibraryIds,
-		),
-	]);
 	const series = [
-		...bookSeries.map((entry) => ({ ...entry, mediaType: "ebook" as const })),
+		...seriesRes.series.map((entry) => ({
+			...entry,
+			mediaType: "ebook" as const,
+		})),
 		...audiobookSeries.map((entry) => ({
 			...entry,
 			mediaType: "audiobook" as const,
@@ -121,7 +113,7 @@ export async function topResults(input: {
 	const pools = {
 		books: books.books.slice(0, BOOK_POOL),
 		series,
-		authors,
+		authors: authorsRes.authors,
 		narrators,
 		audiobooks: audiobooks.audiobooks.slice(0, AUDIOBOOK_POOL),
 		readListen,

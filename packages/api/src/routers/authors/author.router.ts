@@ -67,18 +67,7 @@ export const authorsRouter = {
 				accessibleLibraryIds: context.accessibleLibraryIds,
 				limit: input.limit ?? 5,
 			});
-			const scoped = await Promise.all(
-				result.authors.map((hit) =>
-					authorRepository.getVisibleHitByUuid(
-						hit.uuid,
-						context.serverId,
-						context.accessibleLibraryIds,
-					),
-				),
-			);
-			return scoped.filter(
-				(hit): hit is NonNullable<typeof hit> => hit != null,
-			);
+			return result.authors;
 		}),
 	update: protectedProcedure
 		.input(UpdateAuthorInput)

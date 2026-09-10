@@ -64,6 +64,7 @@ const searchFiltersSchema = z
 	.optional();
 
 export const SearchBooksInput = z.object({
+	compact: z.boolean().optional(),
 	query: z.string().optional(),
 	exactMatch: z.boolean().optional(),
 	filters: searchFiltersSchema,

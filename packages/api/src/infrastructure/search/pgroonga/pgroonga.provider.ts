@@ -29,6 +29,8 @@ type SeriesSearchRow = {
 	id: number;
 	uuid: string;
 	name: string;
+	aliases: string[];
+	previewCovers: string[];
 	bookCount: number;
 	coverInfo: { cover: string; color: string | null } | null;
 	author: { id: number; uuid: string; name: string } | null;
@@ -142,6 +144,7 @@ class PGroongaSearch {
 				s.id,
 				s.uuid,
 				s.name,
+				s.aliases,
 				COUNT(*)::int AS "bookCount",
 				(
 					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
@@ -157,8 +160,22 @@ class PGroongaSearch {
 					ORDER BY bs2.position ASC NULLS LAST
 					LIMIT 1
 				) AS "coverInfo",
+				ARRAY(
+					SELECT bm2.cover
+					FROM book_series bs2
+					INNER JOIN book b2 ON b2.id = bs2.book_id
+					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
+					INNER JOIN library l2 ON l2.id = b2.library_id
+					WHERE bs2.series_id = s.id
+						AND bm2.cover IS NOT NULL
+						AND ${visibleBookSql("b2")}
+						${coverOrgCondition}
+						${accessibleSql(request.accessibleLibraryIds, "b2")}
+					ORDER BY bs2.position ASC NULLS LAST, b2.id ASC
+					LIMIT 3
+				) AS "previewCovers",
 				(
-					SELECT jsonb_build_object('uuid', a.uuid, 'name', a.name)
+					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
 					FROM book_series bs3
 					INNER JOIN book b3 ON b3.id = bs3.book_id
 					INNER JOIN library l3 ON l3.id = b3.library_id
@@ -250,13 +267,16 @@ class PGroongaSearch {
 		) as SeriesSearchRow[];
 
 		const series: SearchSeriesHit[] = rows.map((row) => ({
+			id: Number(row.id),
 			uuid: row.uuid,
 			name: row.name,
+			aliases: row.aliases ?? [],
+			previewCovers: row.previewCovers ?? [],
 			bookCount: row.bookCount,
 			cover: row.coverInfo?.cover ?? null,
 			coverColor: row.coverInfo?.color ?? null,
 			author: row.author
-				? { uuid: row.author.uuid, name: row.author.name }
+				? { id: row.author.id, uuid: row.author.uuid, name: row.author.name }
 				: null,
 		}));
 
@@ -321,6 +341,7 @@ class PGroongaSearch {
 		) as AuthorSearchRow[];
 
 		const authors: SearchAuthorHit[] = rows.map((row) => ({
+			id: Number(row.id),
 			uuid: row.uuid,
 			name: row.name,
 			bookCount: row.bookCount,
@@ -390,24 +411,32 @@ class PGroongaSearch {
 		const hydrateColumns = sql`
 			b.id::text AS id, b.filename, b.filesize_kb AS "filesizeKb", b.uuid,
 			b.created_at AS "createdAt", b.last_modified AS "lastModified",
-			bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, bm.description,
+			bm.title, bm.title_romaji AS "titleRomaji", bm.subtitle, ${request.compact ? sql`NULL` : sql`bm.description`} AS description,
 			bm.published_date AS "publishedDate", bm.language_code AS "languageCode",
 			bm.page_count AS "pageCount", bm.isbn_10 AS "isbn10", bm.isbn_13 AS "isbn13",
 			bm.asin, bm.cover, bm.main_color AS "mainColor",
 			bm.rating AS "rating", bm.rating_count AS "ratingCount",
-			(
+			${
+				request.compact
+					? sql`NULL`
+					: sql`(
 				SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
 				FROM publisher p
 				WHERE p.id = bm.publisher_id
-			) AS publisher,
-			(
+			)`
+			} AS publisher,
+			${
+				request.compact
+					? sql`NULL`
+					: sql`(
 				SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				FROM book_series bs
 				INNER JOIN series s ON s.id = bs.series_id
 				WHERE bs.book_id = b.id
 				ORDER BY bs.position ASC NULLS LAST
 				LIMIT 1
-			) AS series,
+			)`
+			} AS series,
 			(
 				SELECT COALESCE(
 					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY a.name),
@@ -582,22 +611,30 @@ class PGroongaSearch {
 		const hydrateColumns = sql`
 			b.id::text AS id, b.filename, b.uuid,
 			b.created_at AS "createdAt", b.last_modified AS "lastModified",
-			am.title, am.subtitle, am.description,
+			am.title, am.subtitle, ${request.compact ? sql`NULL` : sql`am.description`} AS description,
 			am.published_date AS "publishedDate", am.language_code AS "languageCode",
 			am.duration, am.cover, am.main_color AS "mainColor",
-			(
+			${
+				request.compact
+					? sql`NULL`
+					: sql`(
 				SELECT jsonb_build_object('uuid', p.uuid, 'name', p.name)
 				FROM publisher p
 				WHERE p.id = am.publisher_id
-			) AS publisher,
-			(
+			)`
+			} AS publisher,
+			${
+				request.compact
+					? sql`NULL`
+					: sql`(
 				SELECT jsonb_build_object('uuid', s.uuid, 'name', s.name)
 				FROM audiobook_series abs
 				INNER JOIN series s ON s.id = abs.series_id
 				WHERE abs.book_id = b.id
 				ORDER BY abs.position ASC NULLS LAST
 				LIMIT 1
-			) AS series,
+			)`
+			} AS series,
 			(
 				SELECT COALESCE(
 					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider) ORDER BY a.name),

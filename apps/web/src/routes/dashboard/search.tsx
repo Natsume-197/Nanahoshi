@@ -22,14 +22,7 @@ import {
 	redirect,
 	useRouter,
 } from "@tanstack/react-router";
-import {
-	type FormEvent,
-	type ReactNode,
-	useCallback,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
@@ -69,6 +62,7 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import { SEARCH_PAGE_SIZE, searchPageQueryOptions } from "@/utils/top-search";
 
 type SearchTypeFilter =
 	| "all"
@@ -87,7 +81,7 @@ export const Route = createFileRoute("/dashboard/search")({
 		meta: [{ title: `${m["search.results"]()} · Nanahoshi` }],
 	}),
 	validateSearch: (search: Record<string, unknown>) => ({
-		q: (search.q as string) || "",
+		q: typeof search.q === "string" ? search.q : "",
 	}),
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
@@ -95,10 +89,17 @@ export const Route = createFileRoute("/dashboard/search")({
 		}
 		return { session: context.session };
 	},
+	loaderDeps: ({ search }) => ({ query: search.q.trim() }),
+	loader: ({ context, deps }) => {
+		if (typeof window === "undefined" || !deps.query) return;
+		// Start on navigation/intent while the route component is loading.
+		void context.queryClient.prefetchQuery(
+			searchPageQueryOptions(deps.query, context.orpc),
+		);
+	},
 });
 
 const SEARCH_MIN_QUERY_LENGTH = 1;
-const SEARCH_TOP_RESULTS_LIMIT = 20;
 const SKELETON_ROW_COUNT = 5;
 const ROW_SKELETON_KEYS = Array.from(
 	{ length: SKELETON_ROW_COUNT },
@@ -530,6 +531,8 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 	);
 }
 
+const renderRankedResult = (hit: TopHit) => <RankedResultRow hit={hit} />;
+
 function InfiniteResultsLoader({
 	hasNextPage,
 	isFetching,
@@ -695,6 +698,46 @@ function ReadListenResultRow({ pairing }: { pairing: ReadListenSearchResult }) {
 	);
 }
 
+function MobileSearchForm({
+	query,
+	onSearch,
+}: {
+	query: string;
+	onSearch: (query: string) => void;
+}) {
+	const [draftQuery, setDraftQuery] = useState(query);
+	return (
+		<search className="md:hidden">
+			<form
+				onSubmit={(event) => {
+					event.preventDefault();
+					onSearch(draftQuery.trim());
+				}}
+			>
+				<InputGroup className="h-11 rounded-2xl bg-control">
+					<InputGroupAddon
+						align="inline-start"
+						className="ps-3.5 pe-1 text-foreground"
+					>
+						<MagnifyingGlass aria-hidden="true" className="size-5" />
+					</InputGroupAddon>
+					<InputGroupInput
+						type="search"
+						name="q"
+						enterKeyHint="search"
+						autoComplete="off"
+						aria-label={m["common.search"]()}
+						placeholder={m["search.placeholder"]()}
+						value={draftQuery}
+						onChange={(event) => setDraftQuery(event.target.value)}
+						className="h-11 px-0 text-base placeholder:text-muted-foreground"
+					/>
+				</InputGroup>
+			</form>
+		</search>
+	);
+}
+
 function SearchPage() {
 	const queryClient = useQueryClient();
 	const { q } = Route.useSearch();
@@ -702,7 +745,6 @@ function SearchPage() {
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
 	const { recent: recentSearches, add: addRecentSearch } = useRecentSearches();
 	const router = useRouter();
-	const [draftQuery, setDraftQuery] = useState(q);
 	const [filterSnapshotKey] = useState(
 		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
 	);
@@ -713,12 +755,9 @@ function SearchPage() {
 	const prevQueryRef = useRef(normalizedQuery);
 	if (normalizedQuery !== prevQueryRef.current) {
 		prevQueryRef.current = normalizedQuery;
-		setDraftQuery(q);
 		setFilter("all");
 	}
-	const submitMobileSearch = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const nextQuery = draftQuery.trim();
+	const submitSearch = (nextQuery: string) => {
 		if (nextQuery) addRecentSearch(nextQuery);
 		void router.navigate({
 			to: "/dashboard/search",
@@ -726,14 +765,7 @@ function SearchPage() {
 		});
 	};
 	const isAll = filter === "all";
-	const topSearchOptions = orpc.search.top.queryOptions({
-		input: {
-			query: normalizedQuery,
-			limit: SEARCH_TOP_RESULTS_LIMIT,
-			pageSize: 30,
-		},
-		staleTime: 60_000,
-	});
+	const topSearchOptions = searchPageQueryOptions(normalizedQuery);
 	const { data: topSearch, isLoading: isTopLoading } = useQuery({
 		...topSearchOptions,
 		enabled: shouldSearch,
@@ -805,19 +837,23 @@ function SearchPage() {
 		isFetchingNextPage: booksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["books", "search", normalizedQuery],
-		queryFn: async ({ pageParam }) => {
+		queryFn: async ({ pageParam, signal }) => {
 			// Share the initial media page with the ranked search, including its
 			// cursor. fetchQuery joins in-flight work and refreshes invalidated pages.
 			if (!pageParam) {
 				const initial = await queryClient.fetchQuery(topSearchOptions);
 				if (initial.mediaPages) return initial.mediaPages.books;
 			}
-			return client.books.search({
-				query: normalizedQuery || undefined,
-				cursor: pageParam ?? undefined,
-				limit: 30,
-				sort: "relevance",
-			});
+			return client.books.search(
+				{
+					query: normalizedQuery || undefined,
+					cursor: pageParam ?? undefined,
+					limit: SEARCH_PAGE_SIZE,
+					sort: "relevance",
+					compact: true,
+				},
+				{ signal },
+			);
 		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
@@ -832,19 +868,23 @@ function SearchPage() {
 		isFetchingNextPage: audiobooksIsFetchingNextPage,
 	} = useInfiniteQuery({
 		queryKey: ["audiobooks", "search", normalizedQuery],
-		queryFn: async ({ pageParam }) => {
+		queryFn: async ({ pageParam, signal }) => {
 			// Share the initial media page with the ranked search, including its
 			// cursor. fetchQuery joins in-flight work and refreshes invalidated pages.
 			if (!pageParam) {
 				const initial = await queryClient.fetchQuery(topSearchOptions);
 				if (initial.mediaPages) return initial.mediaPages.audiobooks;
 			}
-			return client.audiobooks.search({
-				query: normalizedQuery || undefined,
-				cursor: pageParam ?? undefined,
-				limit: 30,
-				sort: "relevance",
-			});
+			return client.audiobooks.search(
+				{
+					query: normalizedQuery || undefined,
+					cursor: pageParam ?? undefined,
+					limit: SEARCH_PAGE_SIZE,
+					sort: "relevance",
+					compact: true,
+				},
+				{ signal },
+			);
 		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (lastPage) => lastPage.pagination.cursor,
@@ -1019,35 +1059,13 @@ function SearchPage() {
 	return (
 		<div className={cn(PAGE_GUTTER, "mx-auto w-full py-6 md:py-8")}>
 			<div className="space-y-8" aria-busy={isSearchLoading || undefined}>
-				<search className="md:hidden">
-					<form onSubmit={submitMobileSearch}>
-						<InputGroup className="h-11 rounded-2xl bg-control">
-							<InputGroupAddon
-								align="inline-start"
-								className="ps-3.5 pe-1 text-foreground"
-							>
-								<MagnifyingGlass aria-hidden="true" className="size-5" />
-							</InputGroupAddon>
-							<InputGroupInput
-								type="search"
-								name="q"
-								enterKeyHint="search"
-								autoComplete="off"
-								aria-label={m["common.search"]()}
-								placeholder={m["search.placeholder"]()}
-								value={draftQuery}
-								onChange={(event) => setDraftQuery(event.target.value)}
-								className="h-11 px-0 text-base placeholder:text-muted-foreground"
-							/>
-						</InputGroup>
-					</form>
-				</search>
+				<MobileSearchForm key={q} query={q} onSearch={submitSearch} />
 				<p role="status" className="sr-only">
 					{statusMessage}
 				</p>
 				<h1 className="sr-only">{m["search.results"]()}</h1>
 
-				{shouldSearch && isSearchLoading ? (
+				{shouldSearch && isTopLoading ? (
 					<FilterChipsSkeleton />
 				) : shouldSearch ? (
 					<CategorySelector
@@ -1079,7 +1097,7 @@ function SearchPage() {
 								key={normalizedQuery}
 								items={rankedResults}
 								getKey={searchResultKey}
-								renderItem={(hit) => <RankedResultRow hit={hit} />}
+								renderItem={renderRankedResult}
 							/>
 						</BookContextMenuRoot>
 					) : null)}

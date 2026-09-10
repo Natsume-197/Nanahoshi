@@ -52,8 +52,22 @@ mock.module("../../audiobooks/audiobook.service", () => ({
 }));
 mock.module("../../../infrastructure/search", () => ({
 	search: {
-		searchSeries: async () => ({ series: [{ uuid: "s1" }, { uuid: "s2" }] }),
-		searchAuthors: async () => ({ authors: [{ uuid: "a1" }] }),
+		searchSeries: async () => ({
+			series: [
+				{
+					uuid: "s1",
+					name: "Test series",
+					bookCount: 2,
+					aliases: ["Alias"],
+					cover: null,
+					previewCovers: ["first.avif", "second.avif"],
+					author: null,
+				},
+			],
+		}),
+		searchAuthors: async () => ({
+			authors: [{ uuid: "a1", name: "Test author", bookCount: 1 }],
+		}),
 	},
 }));
 mock.module("../../authors/author.repository", () => ({
@@ -74,7 +88,8 @@ mock.module("../../read-listen/read-listen.service", () => ({
 mock.module("../../users/users.repository", () => ({
 	usersRepository: { search: async () => [] },
 }));
-mock.module("../../../auth/access.service", () => ({ hasGlobal: () => false }));
+const hasGlobal = mock(() => false);
+mock.module("../../../auth/access.service", () => ({ hasGlobal }));
 const { topResults } = await import("../search.service");
 
 test("optional media pages reuse one search per format without changing suggestion ranking or scope", async () => {
@@ -90,11 +105,13 @@ test("optional media pages reuse one search per format without changing suggesti
 	expect(suggestions.mediaPages).toBeUndefined();
 	expect(searchBooks.mock.calls[0]?.[0]).toMatchObject({
 		limit: 8,
+		compact: true,
 		serverId: "server-a",
 		accessibleLibraryIds: [7],
 	});
 	expect(searchAudiobooks.mock.calls[0]?.[0]).toMatchObject({
 		limit: 6,
+		compact: true,
 		serverId: "server-a",
 		accessibleLibraryIds: [7],
 	});
@@ -109,8 +126,18 @@ test("optional media pages reuse one search per format without changing suggesti
 	expect(initial.mediaPages?.audiobooks.audiobooks).toHaveLength(30);
 	expect(initial.mediaPages?.books.pagination.cursor).toBe("books-next");
 	expect(initial.mediaPages?.audiobooks.pagination.cursor).toBe("audio-next");
-	expect(seriesBatch).toHaveBeenLastCalledWith(["s1", "s2"], "server-a", [7]);
-	expect(authorBatch).toHaveBeenLastCalledWith(["a1"], "server-a", [7]);
+	expect(seriesBatch).not.toHaveBeenCalled();
+	expect(authorBatch).not.toHaveBeenCalled();
+	expect(initial.hits).toContainEqual(
+		expect.objectContaining({
+			type: "series",
+			uuid: "s1",
+			previewCovers: ["first.avif", "second.avif"],
+		}),
+	);
+	expect(initial.hits).toContainEqual(
+		expect.objectContaining({ type: "author", uuid: "a1" }),
+	);
 	expect(collections).not.toHaveBeenCalled();
 });
 
@@ -144,5 +171,24 @@ test("top results include audiobook-only series and narrators", async () => {
 	);
 	expect(results.availableTypes).toEqual(
 		expect.arrayContaining(["series", "narrator"]),
+	);
+});
+
+test("collection previews retain the caller's library scope", async () => {
+	hasGlobal.mockReturnValueOnce(true);
+	await topResults({
+		query: "Test",
+		limit: 20,
+		userId: "user-a",
+		serverId: "server-a",
+		accessibleLibraryIds: [7],
+		pc: {} as never,
+	});
+	expect(collections).toHaveBeenLastCalledWith(
+		"user-a",
+		"server-a",
+		"Test",
+		4,
+		[7],
 	);
 });

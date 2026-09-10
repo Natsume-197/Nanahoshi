@@ -32,11 +32,7 @@ export const seriesRouter = {
 				accessibleLibraryIds: context.accessibleLibraryIds,
 				limit: input.limit ?? 5,
 			});
-			return seriesRepository.getVisibleHitsByUuids(
-				result.series.map((hit) => hit.uuid),
-				context.serverId,
-				context.accessibleLibraryIds,
-			);
+			return result.series;
 		}),
 	list: orgReadProcedure
 		.input(ListSeriesInput)
@@ -55,11 +51,7 @@ export const seriesRouter = {
 					limit,
 					offset,
 				});
-				return seriesRepository.getVisibleHitsByUuids(
-					result.series.map((hit) => hit.uuid),
-					context.serverId,
-					context.accessibleLibraryIds,
-				);
+				return result.series;
 			}
 
 			const rows = await seriesRepository.listWithBookCount(
