@@ -8,9 +8,11 @@ export function searchResultKey(hit: TopHit): string {
 	switch (hit.type) {
 		case "book":
 		case "audiobook":
-		case "series":
 		case "author":
+		case "narrator":
 			return `${hit.type}-${hit.uuid}`;
+		case "series":
+			return `${hit.type}-${hit.mediaType}-${hit.uuid}`;
 		case "read-listen":
 			return `read-listen-${hit.id}`;
 		case "collection":

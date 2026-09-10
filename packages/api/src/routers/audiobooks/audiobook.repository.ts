@@ -583,13 +583,18 @@ export class AudiobookRepository {
 			// for substring matches — mirrors the ebook series search.
 			rows = (
 				await db.execute(
-					sql`${selectClause} ${tail(sql`AND s.name &@~ ${trimmed}`)}`,
+					sql`${selectClause} ${tail(sql`AND (s.name &@~ ${trimmed} OR s.aliases &@~ ${trimmed})`)}`,
 				)
 			).rows as SeriesWithCountRow[];
 			if (rows.length === 0) {
+				const pattern = `%${trimmed}%`;
 				rows = (
 					await db.execute(
-						sql`${selectClause} ${tail(sql`AND s.name ILIKE ${`%${trimmed}%`}`)}`,
+						sql`${selectClause} ${tail(sql`AND (s.name ILIKE ${pattern} OR EXISTS (
+							SELECT 1
+							FROM unnest(COALESCE(s.aliases, '{}'::text[])) alias
+							WHERE alias ILIKE ${pattern}
+						))`)}`,
 					)
 				).rows as SeriesWithCountRow[];
 			}

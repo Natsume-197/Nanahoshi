@@ -30,11 +30,26 @@ const searchAudiobooks = mock(async ({ limit }: { limit: number }) => ({
 		totalHitsRelation: "eq",
 	},
 }));
+const listAudiobookSeries = mock(async () => [
+	{
+		uuid: "audio-series-1",
+		name: "Test audiobook series",
+		audiobookCount: 2,
+		cover: "audio-series.avif",
+		author: null,
+	},
+]);
 const seriesBatch = mock(async () => []);
 const authorBatch = mock(async () => []);
+const narrators = mock(async () => [
+	{ uuid: "narrator-1", name: "Test Narrator", audiobookCount: 3 },
+]);
 const collections = mock(async () => []);
 mock.module("../../books/book.service", () => ({ searchBooks }));
-mock.module("../../audiobooks/audiobook.service", () => ({ searchAudiobooks }));
+mock.module("../../audiobooks/audiobook.service", () => ({
+	searchAudiobooks,
+	listAudiobookSeries,
+}));
 mock.module("../../../infrastructure/search", () => ({
 	search: {
 		searchSeries: async () => ({ series: [{ uuid: "s1" }, { uuid: "s2" }] }),
@@ -43,6 +58,9 @@ mock.module("../../../infrastructure/search", () => ({
 }));
 mock.module("../../authors/author.repository", () => ({
 	authorRepository: { getVisibleHitsByUuids: authorBatch },
+}));
+mock.module("../../narrators/narrator.repository", () => ({
+	narratorRepository: { listWithAudiobookCount: narrators },
 }));
 mock.module("../../series/series.repository", () => ({
 	seriesRepository: { getVisibleHitsByUuids: seriesBatch },
@@ -94,4 +112,37 @@ test("optional media pages reuse one search per format without changing suggesti
 	expect(seriesBatch).toHaveBeenLastCalledWith(["s1", "s2"], "server-a", [7]);
 	expect(authorBatch).toHaveBeenLastCalledWith(["a1"], "server-a", [7]);
 	expect(collections).not.toHaveBeenCalled();
+});
+
+test("top results include audiobook-only series and narrators", async () => {
+	const results = await topResults({
+		query: "Test audiobook series",
+		limit: 20,
+		userId: "user-a",
+		serverId: "server-a",
+		accessibleLibraryIds: [7],
+		pc: {} as never,
+	});
+
+	expect(listAudiobookSeries).toHaveBeenCalledWith(
+		"server-a",
+		expect.objectContaining({ query: "Test audiobook series" }),
+		[7],
+	);
+	expect(results.hits).toContainEqual(
+		expect.objectContaining({
+			type: "series",
+			mediaType: "audiobook",
+			uuid: "audio-series-1",
+		}),
+	);
+	expect(results.hits).toContainEqual(
+		expect.objectContaining({
+			type: "narrator",
+			uuid: "narrator-1",
+		}),
+	);
+	expect(results.availableTypes).toEqual(
+		expect.arrayContaining(["series", "narrator"]),
+	);
 });

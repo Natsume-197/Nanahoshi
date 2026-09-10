@@ -77,6 +77,7 @@ type SearchTypeFilter =
 	| "read-listen"
 	| "series"
 	| "authors"
+	| "narrators"
 	| "collections"
 	| "users";
 
@@ -448,18 +449,41 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 
 	switch (hit.type) {
 		case "series":
-			artwork = <SeriesArtwork covers={hit.previewCovers} />;
+			artwork =
+				hit.mediaType === "audiobook" ? (
+					<CoverArtwork
+						cover={hit.cover}
+						square
+						fallback={
+							<Headphones
+								aria-hidden="true"
+								className="size-7 text-muted-foreground"
+							/>
+						}
+					/>
+				) : (
+					<SeriesArtwork covers={hit.previewCovers} />
+				);
 			title = hit.name;
 			subtitle = hit.author?.name;
-			meta = `${m["nav.series"]()} · ${m["media.book_count"]({
-				count: hit.bookCount,
-			})}`;
+			meta = `${m["nav.series"]()} · ${
+				hit.mediaType === "audiobook"
+					? m["media.audiobook_count"]({ count: hit.bookCount })
+					: m["media.book_count"]({ count: hit.bookCount })
+			}`;
 			break;
 		case "author":
 			artwork = <PortraitArtwork name={hit.name} />;
 			title = hit.name;
 			meta = `${m["common.author"]()} · ${m["media.book_count"]({
 				count: hit.bookCount,
+			})}`;
+			break;
+		case "narrator":
+			artwork = <PortraitArtwork name={hit.name} />;
+			title = hit.name;
+			meta = `${m["nav.narrators"]()} · ${m["media.audiobook_count"]({
+				count: hit.audiobookCount,
 			})}`;
 			break;
 		case "collection":
@@ -718,14 +742,37 @@ function SearchPage() {
 
 	const { data: seriesData, isLoading: isSeriesLoading } = useQuery({
 		queryKey: ["series", "search", normalizedQuery],
-		queryFn: () => client.series.search({ query: normalizedQuery }),
+		queryFn: () => client.series.search({ query: normalizedQuery, limit: 10 }),
 		enabled: shouldSearch && filter === "series",
 		staleTime: 60_000,
 	});
+	const { data: audiobookSeriesData, isLoading: isAudiobookSeriesLoading } =
+		useQuery({
+			queryKey: ["audiobook-series", "search", normalizedQuery],
+			queryFn: () =>
+				client.audiobooks.listSeries({
+					query: normalizedQuery,
+					limit: 50,
+					sort: "name",
+				}),
+			enabled: shouldSearch && (filter === "series" || filter === "audiobooks"),
+			staleTime: 60_000,
+		});
 	const { data: authorsData, isLoading: isAuthorsLoading } = useQuery({
 		queryKey: ["authors", "search", normalizedQuery],
 		queryFn: () => client.authors.search({ query: normalizedQuery }),
 		enabled: shouldSearch && filter === "authors",
+		staleTime: 60_000,
+	});
+	const { data: narratorsData, isLoading: isNarratorsLoading } = useQuery({
+		queryKey: ["narrators", "search", normalizedQuery],
+		queryFn: () =>
+			client.narrators.list({
+				query: normalizedQuery,
+				limit: 50,
+				sort: "name",
+			}),
+		enabled: shouldSearch && filter === "narrators",
 		staleTime: 60_000,
 	});
 	const { data: usersData, isLoading: isUsersLoading } = useQuery({
@@ -813,8 +860,21 @@ function SearchPage() {
 		() => audiobooksData?.pages.flatMap((page) => page.audiobooks) ?? [],
 		[audiobooksData],
 	);
-	const series = seriesData ?? [];
+	const bookSeries = (seriesData ?? []).map((entry) => ({
+		...entry,
+		type: "series" as const,
+		mediaType: "ebook" as const,
+	}));
+	const audiobookSeries = (audiobookSeriesData ?? []).map((entry) => ({
+		...entry,
+		type: "series" as const,
+		mediaType: "audiobook" as const,
+		bookCount: entry.audiobookCount,
+		previewCovers: entry.cover ? [entry.cover] : [],
+	}));
+	const series = [...bookSeries, ...audiobookSeries];
 	const authors = authorsData ?? [];
+	const narrators = narratorsData ?? [];
 	const users = usersData ?? [];
 	const collections = collectionsData ?? [];
 	const matchingReadListenPairings = useMemo(
@@ -830,10 +890,12 @@ function SearchPage() {
 	const isSearchLoading =
 		(filter === "all" && isTopLoading) ||
 		(filter === "books" && isBooksLoading) ||
-		(filter === "audiobooks" && isAudiobooksLoading) ||
+		(filter === "audiobooks" &&
+			(isAudiobooksLoading || isAudiobookSeriesLoading)) ||
 		(filter === "read-listen" && isReadListenLoading) ||
-		(filter === "series" && isSeriesLoading) ||
+		(filter === "series" && (isSeriesLoading || isAudiobookSeriesLoading)) ||
 		(filter === "authors" && isAuthorsLoading) ||
+		(filter === "narrators" && isNarratorsLoading) ||
 		(filter === "collections" && isCollectionsLoading) ||
 		(filter === "users" && isUsersLoading);
 	const fetchMoreBooks = useCallback(() => {
@@ -865,6 +927,7 @@ function SearchPage() {
 					audiobooks: [],
 					series: [],
 					authors: [],
+					narrators: [],
 					readListen: [],
 					collections: [],
 					users: [],
@@ -878,6 +941,7 @@ function SearchPage() {
 					audiobooks: audiobookPage.audiobooks,
 					series: [],
 					authors: [],
+					narrators: [],
 					readListen: [],
 					collections: [],
 					users: [],
@@ -894,10 +958,11 @@ function SearchPage() {
 	const resultCounts: Record<SearchTypeFilter, number> = {
 		all: rankedResults.length,
 		books: booksTotal,
-		audiobooks: audiobooksTotal,
+		audiobooks: audiobooksTotal + audiobookSeries.length,
 		"read-listen": matchingReadListenPairings.length,
 		series: series.length,
 		authors: authors.length,
+		narrators: narrators.length,
 		collections: collections.length,
 		users: users.length,
 	};
@@ -930,6 +995,11 @@ function SearchPage() {
 			},
 			{ key: "series", label: m["nav.series"](), resultType: "series" },
 			{ key: "authors", label: m["search.authors"](), resultType: "author" },
+			{
+				key: "narrators",
+				label: m["nav.narrators"](),
+				resultType: "narrator",
+			},
 			{
 				key: "collections",
 				label: m["search.collections"](),
@@ -1060,6 +1130,22 @@ function SearchPage() {
 				)}
 
 				{filter === "audiobooks" &&
+					(isAudiobookSeriesLoading ? (
+						<ResultListSkeleton title={m["home.audiobook_series"]()} />
+					) : audiobookSeries.length > 0 ? (
+						<ResultSection
+							id="search-audiobook-series"
+							title={m["home.audiobook_series"]()}
+						>
+							{audiobookSeries.map((entry) => (
+								<li key={searchResultKey(entry)}>
+									<RankedResultRow hit={entry} />
+								</li>
+							))}
+						</ResultSection>
+					) : null)}
+
+				{filter === "audiobooks" &&
 					(isAudiobooksLoading ? (
 						<ResultListSkeleton title={m["search.audiobooks"]()} />
 					) : audiobooks.length > 0 ? (
@@ -1115,27 +1201,13 @@ function SearchPage() {
 					) : null)}
 
 				{filter === "series" &&
-					(isSeriesLoading ? (
+					(isSeriesLoading || isAudiobookSeriesLoading ? (
 						<ResultListSkeleton title={m["nav.series"]()} />
 					) : series.length > 0 ? (
 						<ResultSection id="search-series" title={m["nav.series"]()}>
 							{series.map((entry) => (
-								<li key={entry.uuid}>
-									<Link
-										to="/dashboard/series/$uuid"
-										params={{ uuid: entry.uuid }}
-										preload="intent"
-										className={rowClassName}
-									>
-										<ResultRowContent
-											artwork={<SeriesArtwork covers={entry.previewCovers} />}
-											title={entry.name}
-											subtitle={entry.author?.name}
-											meta={m["media.book_count"]({
-												count: entry.bookCount,
-											})}
-										/>
-									</Link>
+								<li key={searchResultKey(entry)}>
+									<RankedResultRow hit={entry} />
 								</li>
 							))}
 						</ResultSection>
@@ -1162,6 +1234,30 @@ function SearchPage() {
 											})}
 										/>
 									</Link>
+								</li>
+							))}
+						</ResultSection>
+					) : null)}
+
+				{filter === "narrators" &&
+					(isNarratorsLoading ? (
+						<ResultListSkeleton title={m["nav.narrators"]()} />
+					) : narrators.length > 0 ? (
+						<ResultSection id="search-narrators" title={m["nav.narrators"]()}>
+							{narrators.map((narrator) => (
+								<li key={narrator.uuid}>
+									<HitLink
+										hit={{ type: "narrator", ...narrator }}
+										className={rowClassName}
+									>
+										<ResultRowContent
+											artwork={<PortraitArtwork name={narrator.name} />}
+											title={narrator.name}
+											meta={m["media.audiobook_count"]({
+												count: narrator.audiobookCount,
+											})}
+										/>
+									</HitLink>
 								</li>
 							))}
 						</ResultSection>

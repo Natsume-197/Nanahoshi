@@ -10,6 +10,7 @@ const emptyPools = (): TopResultPools => ({
 	books: [],
 	series: [],
 	authors: [],
+	narrators: [],
 	audiobooks: [],
 	readListen: [],
 	collections: [],
@@ -17,6 +18,23 @@ const emptyPools = (): TopResultPools => ({
 });
 
 describe("rankSearchResultBatches", () => {
+	test("keeps ebook and audiobook series distinct", () => {
+		const common = {
+			type: "series" as const,
+			uuid: "shared-uuid",
+			name: "Shared title",
+			cover: null,
+			previewCovers: [],
+			bookCount: 2,
+			author: null,
+		};
+		expect(
+			(["ebook", "audiobook"] as const).map((mediaType) =>
+				searchResultKey({ ...common, mediaType }),
+			),
+		).toEqual(["series-ebook-shared-uuid", "series-audiobook-shared-uuid"]);
+	});
+
 	test("appends later search pages without duplicates or reordering", () => {
 		const first = emptyPools();
 		first.books.push({

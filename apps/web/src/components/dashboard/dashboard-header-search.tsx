@@ -4,6 +4,7 @@ import {
 	Clock,
 	FolderOpen,
 	MagnifyingGlass,
+	Microphone,
 	User,
 	X,
 } from "@phosphor-icons/react";
@@ -51,7 +52,9 @@ function hitKey(hit: TopHit): string {
 		case "read-listen":
 			return `read-listen-${hit.id}`;
 		case "series":
+			return `${hit.type}-${hit.mediaType}-${hit.uuid}`;
 		case "author":
+		case "narrator":
 			return `${hit.type}-${hit.uuid}`;
 		case "collection":
 			return `${hit.type}-${hit.id}`;
@@ -243,8 +246,22 @@ export function DashboardHeaderSearch() {
 				break;
 			case "series":
 				resetAndClose();
+				if (hit.mediaType === "audiobook") {
+					navigate({
+						to: "/dashboard/audiobooks/series/$uuid",
+						params: { uuid: hit.uuid },
+					});
+				} else {
+					navigate({
+						to: "/dashboard/series/$uuid",
+						params: { uuid: hit.uuid },
+					});
+				}
+				break;
+			case "narrator":
+				resetAndClose();
 				navigate({
-					to: "/dashboard/series/$uuid",
+					to: "/dashboard/narrators/$uuid",
 					params: { uuid: hit.uuid },
 				});
 				break;
@@ -376,7 +393,17 @@ export function DashboardHeaderSearch() {
 			case "series":
 				return thumb(
 					hit.cover,
-					<Books className="size-4 text-muted-foreground/50" />,
+					hit.mediaType === "audiobook" ? (
+						<Microphone className="size-4 text-muted-foreground/50" />
+					) : (
+						<Books className="size-4 text-muted-foreground/50" />
+					),
+				);
+			case "narrator":
+				return (
+					<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+						<Microphone className="size-5 text-muted-foreground/50" />
+					</div>
 				);
 			case "author":
 				return (
@@ -425,9 +452,13 @@ export function DashboardHeaderSearch() {
 				return {
 					title: hit.name,
 					subtitle: hit.author
-						? `${m["nav.series"]()} · ${hit.author.name}`
-						: m["nav.series"](),
+						? `${hit.mediaType === "audiobook" ? m["home.audiobook_series"]() : m["home.book_series"]()} · ${hit.author.name}`
+						: hit.mediaType === "audiobook"
+							? m["home.audiobook_series"]()
+							: m["home.book_series"](),
 				};
+			case "narrator":
+				return { title: hit.name, subtitle: m["nav.narrators"]() };
 			case "author":
 				return { title: hit.name, subtitle: m["common.author"]() };
 			case "collection":

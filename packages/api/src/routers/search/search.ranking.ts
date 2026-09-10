@@ -13,6 +13,7 @@ const TYPE_WEIGHT: Record<TopHit["type"], number> = {
 	book: 1.0,
 	"read-listen": 0.95,
 	author: 0.95,
+	narrator: 0.95,
 	audiobook: 0.9,
 	collection: 0.75,
 	user: 0.7,
@@ -47,6 +48,7 @@ export type TopResultPools = {
 		ratingCount?: number | null;
 	}[];
 	series: {
+		mediaType: "ebook" | "audiobook";
 		uuid: string;
 		name: string;
 		aliases?: string[];
@@ -56,6 +58,7 @@ export type TopResultPools = {
 		author?: { uuid: string; name: string } | null;
 	}[];
 	authors: { uuid: string; name: string; bookCount: number }[];
+	narrators: { uuid: string; name: string; audiobookCount: number }[];
 	audiobooks: {
 		uuid: string;
 		title?: string | null;
@@ -111,6 +114,7 @@ export function rankTopResults(
 		...pools.series.map((s) => ({
 			hit: {
 				type: "series" as const,
+				mediaType: s.mediaType,
 				uuid: s.uuid,
 				name: s.name,
 				cover: s.cover,
@@ -130,6 +134,16 @@ export function rankTopResults(
 			},
 			names: [a.name],
 			popularity: a.bookCount,
+		})),
+		...pools.narrators.map((n) => ({
+			hit: {
+				type: "narrator" as const,
+				uuid: n.uuid,
+				name: n.name,
+				audiobookCount: n.audiobookCount,
+			},
+			names: [n.name],
+			popularity: n.audiobookCount,
 		})),
 		...pools.audiobooks.map((ab) => ({
 			hit: {

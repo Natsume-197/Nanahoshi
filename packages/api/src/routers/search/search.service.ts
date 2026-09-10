@@ -5,6 +5,7 @@ import * as audiobookService from "../audiobooks/audiobook.service";
 import { authorRepository } from "../authors/author.repository";
 import * as bookService from "../books/book.service";
 import * as collectionsService from "../collections/collections.service";
+import { narratorRepository } from "../narrators/narrator.repository";
 import { readListenService } from "../read-listen/read-listen.service";
 import { seriesRepository } from "../series/series.repository";
 import { usersRepository } from "../users/users.repository";
@@ -16,6 +17,7 @@ import { rankTopResults } from "./search.ranking";
 const BOOK_POOL = 8;
 const SERIES_POOL = 6;
 const AUTHOR_POOL = 6;
+const NARRATOR_POOL = 6;
 const AUDIOBOOK_POOL = 6;
 const READ_LISTEN_POOL = 6;
 const COLLECTION_POOL = 4;
@@ -34,7 +36,9 @@ export async function topResults(input: {
 	const [
 		books,
 		seriesRes,
+		audiobookSeries,
 		authorsRes,
+		narrators,
 		audiobooks,
 		readListen,
 		collections,
@@ -53,12 +57,22 @@ export async function topResults(input: {
 			accessibleLibraryIds,
 			limit: SERIES_POOL,
 		}),
+		audiobookService.listAudiobookSeries(
+			serverId,
+			{ query, limit: SERIES_POOL, sort: "name" },
+			accessibleLibraryIds,
+		),
 		search.searchAuthors({
 			query,
 			serverId,
 			accessibleLibraryIds,
 			limit: AUTHOR_POOL,
 		}),
+		narratorRepository.listWithAudiobookCount(
+			serverId,
+			{ query, limit: NARRATOR_POOL, sort: "name" },
+			accessibleLibraryIds,
+		),
 		audiobookService.searchAudiobooks({
 			query,
 			limit: input.pageSize ?? AUDIOBOOK_POOL,
@@ -82,7 +96,7 @@ export async function topResults(input: {
 			: Promise.resolve([]),
 		usersRepository.search(query, serverId, userId, USER_POOL),
 	]);
-	const [series, authors] = await Promise.all([
+	const [bookSeries, authors] = await Promise.all([
 		seriesRepository.getVisibleHitsByUuids(
 			seriesRes.series.map((hit) => hit.uuid),
 			serverId,
@@ -94,11 +108,21 @@ export async function topResults(input: {
 			accessibleLibraryIds,
 		),
 	]);
+	const series = [
+		...bookSeries.map((entry) => ({ ...entry, mediaType: "ebook" as const })),
+		...audiobookSeries.map((entry) => ({
+			...entry,
+			mediaType: "audiobook" as const,
+			bookCount: entry.audiobookCount,
+			previewCovers: entry.cover ? [entry.cover] : [],
+		})),
+	];
 
 	const pools = {
 		books: books.books.slice(0, BOOK_POOL),
 		series,
 		authors,
+		narrators,
 		audiobooks: audiobooks.audiobooks.slice(0, AUDIOBOOK_POOL),
 		readListen,
 		collections,
@@ -108,6 +132,7 @@ export async function topResults(input: {
 		...(pools.books.length ? ["book" as const] : []),
 		...(pools.series.length ? ["series" as const] : []),
 		...(pools.authors.length ? ["author" as const] : []),
+		...(pools.narrators.length ? ["narrator" as const] : []),
 		...(pools.audiobooks.length ? ["audiobook" as const] : []),
 		...(pools.readListen.length ? ["read-listen" as const] : []),
 		...(pools.collections.length ? ["collection" as const] : []),

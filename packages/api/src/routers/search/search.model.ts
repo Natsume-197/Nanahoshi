@@ -27,6 +27,7 @@ export type TopHit =
 	  }
 	| {
 			type: "series";
+			mediaType: "ebook" | "audiobook";
 			uuid: string;
 			name: string;
 			cover: string | null;
@@ -39,6 +40,12 @@ export type TopHit =
 			uuid: string;
 			name: string;
 			bookCount: number;
+	  }
+	| {
+			type: "narrator";
+			uuid: string;
+			name: string;
+			audiobookCount: number;
 	  }
 	| {
 			type: "collection";

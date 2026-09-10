@@ -43,9 +43,30 @@ export function HitLink({
 				</Link>
 			);
 		case "series":
+			if (hit.mediaType === "audiobook") {
+				return (
+					<Link
+						to="/dashboard/audiobooks/series/$uuid"
+						params={{ uuid: hit.uuid }}
+						{...shared}
+					>
+						{children}
+					</Link>
+				);
+			}
 			return (
 				<Link
 					to="/dashboard/series/$uuid"
+					params={{ uuid: hit.uuid }}
+					{...shared}
+				>
+					{children}
+				</Link>
+			);
+		case "narrator":
+			return (
+				<Link
+					to="/dashboard/narrators/$uuid"
 					params={{ uuid: hit.uuid }}
 					{...shared}
 				>

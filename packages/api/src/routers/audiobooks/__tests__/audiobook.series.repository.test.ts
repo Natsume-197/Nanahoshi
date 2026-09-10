@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 /**
  * Unit tests for AudiobookRepository series listing/count — the pagination,
@@ -29,6 +31,7 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 }));
 
 const { AudiobookRepository } = await import("../audiobook.repository");
+const dialect = new PgDialect();
 
 const seriesRow = {
 	id: 1,
@@ -79,6 +82,8 @@ describe("AudiobookRepository.listSeriesWithCount", () => {
 
 		expect(mockExecute).toHaveBeenCalledTimes(1);
 		expect(result).toHaveLength(1);
+		const query = dialect.sqlToQuery(mockExecute.mock.calls[0]?.[0] as SQL);
+		expect(query.sql).toContain("s.aliases &@~");
 	});
 
 	test("a search query with no PGroonga hits falls back to ILIKE", async () => {
@@ -94,6 +99,8 @@ describe("AudiobookRepository.listSeriesWithCount", () => {
 
 		expect(mockExecute).toHaveBeenCalledTimes(2);
 		expect(result).toHaveLength(1);
+		const fallback = dialect.sqlToQuery(mockExecute.mock.calls[1]?.[0] as SQL);
+		expect(fallback.sql).toContain("unnest(COALESCE(s.aliases");
 	});
 
 	test("a whitespace-only query does not trigger the search path", async () => {

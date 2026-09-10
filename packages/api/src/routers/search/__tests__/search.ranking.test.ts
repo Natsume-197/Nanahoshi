@@ -5,6 +5,7 @@ const emptyPools = (): TopResultPools => ({
 	books: [],
 	series: [],
 	authors: [],
+	narrators: [],
 	audiobooks: [],
 	readListen: [],
 	collections: [],
@@ -15,6 +16,7 @@ describe("rankTopResults", () => {
 	test("ranks an exact series alias while keeping the canonical display name", () => {
 		const pools = emptyPools();
 		pools.series.push({
+			mediaType: "ebook",
 			uuid: "series-1",
 			name: "やはり俺の青春ラブコメはまちがっている。",
 			aliases: ["Oregairu"],
@@ -47,6 +49,7 @@ describe("rankTopResults", () => {
 		// provider's volume order (vol 8 had more reviews than vol 2).
 		const pools = emptyPools();
 		pools.series.push({
+			mediaType: "ebook",
 			uuid: "series-1",
 			name: "この素晴らしい世界に祝福を!",
 			aliases: ["Konosuba"],
@@ -86,6 +89,7 @@ describe("rankTopResults", () => {
 		const pools = emptyPools();
 		pools.series.push(
 			{
+				mediaType: "ebook",
 				uuid: "small",
 				name: "Overlord",
 				aliases: [],
@@ -93,6 +97,7 @@ describe("rankTopResults", () => {
 				bookCount: 2,
 			},
 			{
+				mediaType: "ebook",
 				uuid: "big",
 				name: "Overlord",
 				aliases: [],
