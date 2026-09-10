@@ -35,6 +35,7 @@ import {
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
 import { useAutoHideHeader } from "@/hooks/use-auto-hide-header";
+import { useCardScrollActivity } from "@/hooks/use-card-scroll-activity";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -231,6 +232,7 @@ export function DashboardLayout() {
 	// persistent bottom navigation and should give its full height to content.
 	const showMobileHeader = renderedRoute.pathname === "/dashboard";
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
+	useCardScrollActivity(scrollContainerRef);
 	const headerRef = useRef<HTMLElement | null>(null);
 	// Remount epoch, NOT plain useLocation(): during a pending navigation the
 	// location already points at the target while the old page is still on

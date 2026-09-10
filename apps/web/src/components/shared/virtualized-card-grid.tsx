@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
 	createContext,
 	type Key,
+	memo,
 	type ReactNode,
 	useCallback,
 	useContext,
@@ -54,6 +55,22 @@ const VirtualizedCardGridContext = createContext(false);
 export function useInVirtualizedCardGrid(): boolean {
 	return useContext(VirtualizedCardGridContext);
 }
+
+function CardContent<T>({
+	item,
+	index,
+	renderItem,
+}: {
+	item: T;
+	index: number;
+	renderItem: (item: T, index: number) => ReactNode;
+}) {
+	return renderItem(item, index);
+}
+
+// Virtualizer updates move rows, but unchanged cards (including their context
+// menu triggers) need no React work. Keep data and renderer updates observable.
+const MemoizedCardContent = memo(CardContent) as typeof CardContent;
 
 /**
  * Windowed responsive card grid. Only the rows near the viewport are mounted,
@@ -211,7 +228,11 @@ export function VirtualizedCardGrid<T>({
 									const index = start + i;
 									return (
 										<div key={getKey(item, index)}>
-											{renderItem(item, index)}
+											<MemoizedCardContent
+												item={item}
+												index={index}
+												renderItem={renderItem}
+											/>
 										</div>
 									);
 								})}

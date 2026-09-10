@@ -1009,3 +1009,13 @@ html.theme-changing *::after {
 		border-radius: inherit;
 	}
 }
+
+/* Hover ornaments should not start animations as cards pass a stationary
+   pointer. Focused cards retain their keyboard controls throughout scrolling. */
+[data-card-scrolling]
+	[data-slot="book-card-shell"]:not(:focus-within)
+	:is([data-slot="book-card-hover"], [data-slot="book-card-action"]) {
+	opacity: 0;
+	transition: none;
+	pointer-events: none;
+}

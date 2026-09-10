@@ -200,9 +200,9 @@ export function BookCardShell({
 	const inVirtualizedGrid = useInVirtualizedCardGrid();
 	const inCarousel = useInSweepScroll();
 	const inSweepScroll = inVirtualizedGrid || inCarousel;
-	const coverRevealMotionClass = inCarousel
-		? "motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-out"
-		: "motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]";
+	// Scrolling collections reveal decoded images directly: recycling a card
+	// must not start another transition or synchronously mutate its classes.
+
 	const resolvedLinkProps =
 		inSweepScroll &&
 		(linkProps.preload === undefined || linkProps.preload === "intent")
@@ -259,9 +259,9 @@ export function BookCardShell({
 					sizes={coverPreset.sizes}
 					alt=""
 					className={cn(
-						"rounded-md opacity-0 outline outline-1 outline-[var(--image-outline)] -outline-offset-1",
-						!inCarousel && "scale-[0.985]",
-						coverRevealMotionClass,
+						"rounded-md outline outline-1 outline-[var(--image-outline)] -outline-offset-1",
+						!inSweepScroll &&
+							"scale-[0.985] opacity-0 motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-[var(--ease-smooth-out)]",
 						isHorizontal
 							? cn(
 									"h-full shadow-black/25 shadow-lg",
@@ -279,15 +279,25 @@ export function BookCardShell({
 					decoding="async"
 					width={160}
 					height={square ? 160 : 240}
-					onLoad={(e) => {
-						e.currentTarget.classList.remove("opacity-0", "scale-[0.985]");
-					}}
-					ref={(el) => {
-						// Already-cached covers (common as virtualized rows recycle) resolve
-						// synchronously — reveal them instantly, with no fade or scale, so
-						// fast scrolling never flashes a grid of re-animating tiles.
-						if (el?.complete) el.classList.remove("opacity-0", "scale-[0.985]");
-					}}
+					onLoad={
+						inSweepScroll
+							? undefined
+							: (e) => {
+									e.currentTarget.classList.remove(
+										"opacity-0",
+										"scale-[0.985]",
+									);
+								}
+					}
+					ref={
+						inSweepScroll
+							? undefined
+							: (el) => {
+									// Reveal cached covers outside scrolling collections immediately.
+									if (el?.complete)
+										el.classList.remove("opacity-0", "scale-[0.985]");
+								}
+					}
 				/>
 			) : (
 				(fallback ?? <DefaultNoCover />)
@@ -355,6 +365,7 @@ export function BookCardShell({
 			    style-recalc + paint every frame as cards sweep under the cursor.
 			    -z-10 (scoped by isolate) keeps it behind the static text content. */}
 			<div
+				data-slot="book-card-hover"
 				aria-hidden
 				style={isHorizontal ? undefined : getHoverTintStyle(tint)}
 				className={cn(

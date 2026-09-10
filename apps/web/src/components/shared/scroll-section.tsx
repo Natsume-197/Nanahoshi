@@ -41,24 +41,6 @@ interface ScrollState {
 	canScrollRight: boolean;
 }
 
-type HorizontalBounds = {
-	left: number;
-	right: number;
-};
-
-const EDGE_CARD_DIM_THRESHOLD = 0.35;
-
-export function shouldDimCarouselEdgeCard(
-	rail: HorizontalBounds,
-	card: HorizontalBounds,
-): boolean {
-	const width = card.right - card.left;
-	if (width <= 0) return false;
-	const clippedWidth =
-		Math.max(0, rail.left - card.left) + Math.max(0, card.right - rail.right);
-	return clippedWidth / width >= EDGE_CARD_DIM_THRESHOLD;
-}
-
 export function getCarouselScrollBehavior(
 	prefersReducedMotion: boolean,
 ): ScrollBehavior {
@@ -94,44 +76,27 @@ export function ScrollSection({
 		canScrollRight: false,
 	});
 	const isScrollable = scrollState.canScrollLeft || scrollState.canScrollRight;
-	const [isHovered, setIsHovered] = useState(false);
-	const arrowRevealClass = isHovered
-		? "md:opacity-100"
-		: "md:opacity-0 md:focus-visible:opacity-100";
+	const arrowRevealClass =
+		"md:opacity-0 md:group-hover/rail:opacity-100 md:focus-visible:opacity-100";
 
 	const lastGeometryRef = useRef({ scrollLeft: 0, clientWidth: 0 });
 
-	const updateEdgeCardDimming = useCallback((el: HTMLElement) => {
-		const rail = el.getBoundingClientRect();
-		for (const card of el.children) {
-			const cardBounds = card.getBoundingClientRect();
-			card.toggleAttribute(
-				"data-carousel-edge-card",
-				shouldDimCarouselEdgeCard(rail, cardBounds),
-			);
-		}
+	const updateScrollState = useCallback((el: HTMLElement) => {
+		const scrollLeft = el.scrollLeft;
+		const clientWidth = el.clientWidth;
+		const scrollWidth = el.scrollWidth;
+		lastGeometryRef.current = { scrollLeft, clientWidth };
+		const nextState = {
+			canScrollLeft: scrollLeft > 2,
+			canScrollRight: scrollLeft + clientWidth < scrollWidth - 2,
+		};
+		setScrollState((prev) =>
+			prev.canScrollLeft === nextState.canScrollLeft &&
+			prev.canScrollRight === nextState.canScrollRight
+				? prev
+				: nextState,
+		);
 	}, []);
-
-	const updateScrollState = useCallback(
-		(el: HTMLElement) => {
-			const scrollLeft = el.scrollLeft;
-			const clientWidth = el.clientWidth;
-			const scrollWidth = el.scrollWidth;
-			lastGeometryRef.current = { scrollLeft, clientWidth };
-			updateEdgeCardDimming(el);
-			const nextState = {
-				canScrollLeft: scrollLeft > 2,
-				canScrollRight: scrollLeft + clientWidth < scrollWidth - 2,
-			};
-			setScrollState((prev) =>
-				prev.canScrollLeft === nextState.canScrollLeft &&
-				prev.canScrollRight === nextState.canScrollRight
-					? prev
-					: nextState,
-			);
-		},
-		[updateEdgeCardDimming],
-	);
 
 	// Ref callback: setup observers on attach, cleanup on detach
 	const scrollRef = useCallback(
@@ -223,11 +188,7 @@ export function ScrollSection({
 	};
 
 	return (
-		<div
-			className={cn(PAGE_GUTTER_BLEED, "relative")}
-			onPointerEnter={() => setIsHovered(true)}
-			onPointerLeave={() => setIsHovered(false)}
-		>
+		<div className={cn(PAGE_GUTTER_BLEED, "group/rail relative")}>
 			{title != null && (
 				<div
 					className={cn(
@@ -288,7 +249,7 @@ export function ScrollSection({
 					onKeyDown={handleRailKeyDown}
 					className={cn(
 						PAGE_GUTTER,
-						"scrollbar-none overflow-x-auto overscroll-x-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:py-2 [&>[data-carousel-edge-card]]:brightness-[0.8] [&>[data-carousel-edge-card]]:transition-[filter] motion-safe:[&>[data-carousel-edge-card]]:duration-150",
+						"scrollbar-none overflow-x-auto overscroll-x-contain py-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y] focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2 md:py-2",
 						isResume
 							? // The next card peeks on narrow rails; wider containers
 								// add columns only when the square cover still leaves room

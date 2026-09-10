@@ -106,6 +106,7 @@ export const BookCard = memo(function BookCard({
 	const actionIconClass = isCompactAction ? "size-4" : "size-5";
 	const overlay = showOverlayAction ? (
 		<div
+			data-slot="book-card-action"
 			className={cn(
 				"pointer-events-none absolute z-10 translate-y-3 opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 motion-safe:transition-[opacity,translate] motion-safe:duration-[var(--duration-quick)] motion-safe:ease-[var(--ease-smooth-out)]",
 				isCompactAction ? "end-2.5 bottom-2.5" : "end-2 bottom-2",
