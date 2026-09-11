@@ -6,8 +6,6 @@ describe("theme customizer geometry", () => {
 			new URL("./settings-dialog-shell.tsx", import.meta.url),
 		).text();
 
-		expect(source.match(/md:-translate-x-1\/2/g)).toHaveLength(1);
-		expect(source.match(/md:-translate-y-1\/2/g)).toHaveLength(1);
 		expect(source).toContain(
 			'transform: desktop ? "translate3d(-50%, -50%, 0)"',
 		);

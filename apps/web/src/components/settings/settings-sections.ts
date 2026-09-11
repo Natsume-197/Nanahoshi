@@ -33,3 +33,25 @@ export type OrgSettingsSection =
 	| "roles"
 	| "invitations"
 	| "access";
+
+export const ORG_SETTINGS_SECTIONS = [
+	"general",
+	"stats",
+	"libraries",
+	"metadata",
+	"recommendations",
+	"opds",
+	"members",
+	"roles",
+	"invitations",
+	"access",
+] as const satisfies readonly OrgSettingsSection[];
+
+export function isOrgSettingsSection(
+	value: string,
+): value is OrgSettingsSection {
+	return (ORG_SETTINGS_SECTIONS as readonly string[]).includes(value);
+}
+
+/** Deep-link action to perform on open, beyond just landing on the section. */
+export type OrgSettingsIntent = "create-library";

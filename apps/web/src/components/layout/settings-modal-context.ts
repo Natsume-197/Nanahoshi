@@ -2,8 +2,8 @@ import { createContext, useContext } from "react";
 import type {
 	OrgSettingsIntent,
 	OrgSettingsSection,
-} from "@/components/settings/server-settings-modal";
-import type { SettingsSection } from "@/components/settings/settings-sections";
+	SettingsSection,
+} from "@/components/settings/settings-sections";
 
 type SettingsModalControls = {
 	openSettings: (section: SettingsSection) => void;

@@ -11,6 +11,14 @@ describe("dashboard standalone routes", () => {
 		).toBe(true);
 	});
 
+	test("server settings owns its navigation and hides the dashboard chrome", () => {
+		expect(isStandaloneDashboardRoute("/dashboard/server/general", {})).toBe(
+			true,
+		);
+		expect(isStandaloneDashboardRoute("/dashboard/server", {})).toBe(true);
+		expect(isStandaloneDashboardRoute("/dashboard", {})).toBe(false);
+	});
+
 	test("keeps chrome aligned with the route whose content is rendered", () => {
 		const dashboard = { pathname: "/dashboard", search: {} };
 		const settings = {

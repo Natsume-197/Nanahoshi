@@ -1,4 +1,5 @@
 import {
+	ArrowLeft,
 	Books,
 	Buildings,
 	ChartBar,
@@ -21,19 +22,20 @@ import { RecommendationsSettings } from "@/components/settings/sections/recommen
 import { RolesSettings } from "@/components/settings/sections/roles";
 import { StatsSettings } from "@/components/settings/sections/stats";
 import { resolveVisibleOrgSettingsSection } from "@/components/settings/server-settings-access";
-import { SettingsDialogShell } from "@/components/settings/settings-dialog-shell";
-import type { OrgSettingsSection } from "@/components/settings/settings-sections";
+import type {
+	OrgSettingsIntent,
+	OrgSettingsSection,
+} from "@/components/settings/settings-sections";
 import type {
 	SettingsNavGroup,
 	SettingsNavIcon,
 } from "@/components/settings/settings-sidebar-nav";
+import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
+import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
-
-export type { OrgSettingsSection } from "@/components/settings/settings-sections";
-/** Deep-link action to perform on open, beyond just showing the section. */
-export type OrgSettingsIntent = "create-library";
 
 const ICONS: Record<OrgSettingsSection, SettingsNavIcon> = {
 	general: Buildings,
@@ -61,16 +63,23 @@ const LABELS: Record<OrgSettingsSection, () => string> = {
 	access: m["settings.org.access"],
 };
 
-export function ServerSettingsModal({
+/**
+ * Dedicated server-settings page: the same sections the modal used to own
+ * (server profile, libraries, members, roles, …), in the full-page sidebar
+ * layout the instance settings use. Rendered at `/dashboard/server/$section`.
+ */
+export function ServerSettingsPage({
 	section,
 	intent,
 	onNavigate,
-	onClose,
+	onConsumeIntent,
+	onBack,
 }: {
 	section: OrgSettingsSection;
 	intent?: OrgSettingsIntent;
 	onNavigate: (section: OrgSettingsSection) => void;
-	onClose: () => void;
+	onConsumeIntent: () => void;
+	onBack: () => void;
 }) {
 	const { can, isOrgOwner } = useAbilities();
 	const { data: org } = authClient.useActiveOrganization();
@@ -100,43 +109,83 @@ export function ServerSettingsModal({
 		access: can("settings", "update"),
 	};
 
-	const categories: { label: string; keys: OrgSettingsSection[] }[] = [
+	const groups: SettingsNavGroup[] = [
 		{
 			label: org?.name?.trim() || m["settings.org.group_server"](),
-			keys: ["general", "stats"],
+			items: ["general", "stats"]
+				.filter((key) => canSee[key as OrgSettingsSection])
+				.map((key) => ({
+					key,
+					label: LABELS[key as OrgSettingsSection](),
+					icon: ICONS[key as OrgSettingsSection],
+				})),
 		},
 		{
 			label: m["settings.org.group_content"](),
-			keys: ["libraries", "metadata", "recommendations", "opds"],
+			items: ["libraries", "metadata", "recommendations", "opds"]
+				.filter((key) => canSee[key as OrgSettingsSection])
+				.map((key) => ({
+					key,
+					label: LABELS[key as OrgSettingsSection](),
+					icon: ICONS[key as OrgSettingsSection],
+				})),
 		},
 		{
 			label: m["settings.org.group_people_access"](),
-			keys: ["members", "roles", "invitations", "access"],
+			items: ["members", "roles", "invitations", "access"]
+				.filter((key) => canSee[key as OrgSettingsSection])
+				.map((key) => ({
+					key,
+					label: LABELS[key as OrgSettingsSection](),
+					icon: ICONS[key as OrgSettingsSection],
+				})),
 		},
-	];
+	].filter((group) => group.items.length > 0);
 
-	const groups: SettingsNavGroup[] = categories
-		.map((category) => ({
-			label: category.label,
-			items: category.keys
-				.filter((key) => canSee[key])
-				.map((key) => ({ key, label: LABELS[key](), icon: ICONS[key] })),
-		}))
-		.filter((group) => group.items.length > 0);
 	const visibleSection = resolveVisibleOrgSettingsSection(section, canSee);
+
+	// A deep-link intent fires its section action once: drop it from the URL so
+	// leaving and returning to the section doesn't re-fire it.
+	useMountEffect(() => {
+		if (intent) onConsumeIntent();
+	});
+
 	if (!visibleSection) return null;
 
 	return (
-		<SettingsDialogShell
-			title={LABELS[visibleSection]()}
-			closeLabel={m["settings.org.close"]()}
-			groups={groups}
-			activeKey={visibleSection}
-			onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
-			onClose={onClose}
-		>
-			<OrgSettingsContent section={visibleSection} intent={intent} />
-		</SettingsDialogShell>
+		<div className="min-h-full md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+			<aside className="theme-gradient-surface border-border border-b bg-sidebar px-3 py-4 text-sidebar-foreground md:sticky md:top-0 md:h-[calc(100dvh-var(--desktop-player-offset))] md:overflow-y-auto md:border-e md:border-b-0 md:px-4 md:py-6">
+				<div className="mb-5 flex items-center gap-2 px-1">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="shrink-0 rounded-full"
+						onClick={onBack}
+						aria-label={m["settings.back_to_dashboard"]()}
+					>
+						<ArrowLeft aria-hidden="true" />
+					</Button>
+					<h1 className="truncate font-semibold text-lg">
+						{org?.name?.trim() || m["settings.org.group_server"]()}
+					</h1>
+				</div>
+				<SettingsSidebarNav
+					groups={groups}
+					activeKey={visibleSection}
+					onNavigate={(key) => onNavigate(key as OrgSettingsSection)}
+				/>
+			</aside>
+
+			<div className="min-w-0 px-4 py-6 sm:px-6 md:px-8 md:py-8 lg:px-12 lg:py-10">
+				<header className="mx-auto mb-6 w-full max-w-5xl border-border border-b pb-4">
+					<h2 className="font-semibold text-2xl">{LABELS[visibleSection]()}</h2>
+				</header>
+				<div className="mx-auto w-full max-w-5xl">
+					<OrgSettingsContent section={visibleSection} intent={intent} />
+				</div>
+			</div>
+		</div>
 	);
 }
 

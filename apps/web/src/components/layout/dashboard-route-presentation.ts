@@ -25,6 +25,8 @@ export function isStandaloneDashboardRoute(
 		STANDALONE_ROUTES.has(pathname) ||
 		pathname === "/dashboard/settings" ||
 		pathname.startsWith("/dashboard/settings/") ||
+		pathname === "/dashboard/server" ||
+		pathname.startsWith("/dashboard/server/") ||
 		(pathname === "/dashboard/read-listen" && search.review === "matches")
 	);
 }

@@ -9,7 +9,7 @@ import {
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
-import { SettingsDialogShell } from "@/components/settings/settings-dialog-shell";
+import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
 import { CategorySelector } from "@/components/shared/category-selector";
 import {
 	DropdownMenu,
@@ -98,23 +98,27 @@ function Surfaces() {
 				Abrir ajustes
 			</button>
 			{settings && (
-				<SettingsDialogShell
-					title="Ajustes"
-					closeLabel="Cerrar ajustes"
-					groups={[
-						{
-							label: "Preferencias",
-							items: [
-								{ key: "appearance", label: "Apariencia", icon: Palette },
-							],
-						},
-					]}
-					activeKey="appearance"
-					onNavigate={() => {}}
-					onClose={() => setSettings(false)}
+				<div
+					role="dialog"
+					aria-label="Ajustes"
+					className="theme-gradient-surface grid min-h-64 grid-cols-[12rem_minmax(0,1fr)] overflow-hidden rounded-2xl bg-background"
 				>
-					<p>Contenido de ajustes</p>
-				</SettingsDialogShell>
+					<aside className="theme-gradient-surface bg-sidebar px-3 py-3">
+						<SettingsSidebarNav
+							groups={[
+								{
+									label: "Preferencias",
+									items: [
+										{ key: "appearance", label: "Apariencia", icon: Palette },
+									],
+								},
+							]}
+							activeKey="appearance"
+							onNavigate={() => {}}
+						/>
+					</aside>
+					<p className="p-4">Contenido de ajustes</p>
+				</div>
 			)}
 		</main>
 	);
