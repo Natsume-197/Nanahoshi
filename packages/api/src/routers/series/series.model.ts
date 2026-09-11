@@ -29,3 +29,11 @@ export const ListSeriesInput = z
 		query: z.string().optional(),
 	})
 	.optional();
+
+export const ReadListenSeriesInput = z.object({
+	limit: z.number().int().min(1).max(50).default(SERIES_PAGE_SIZE),
+	cursor: z.number().int().min(0).default(0),
+	sort: z.enum(["name", "books", "recent"]).default("name"),
+	query: z.string().optional(),
+	uuid: z.string().uuid().optional(),
+});

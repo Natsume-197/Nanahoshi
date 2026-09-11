@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { resolveServerForCatalogEdit } from "../../auth/access.repository";
+import {
+	getLibraryIdsForBookAction,
+	resolveServerForCatalogEdit,
+} from "../../auth/access.repository";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors";
 import {
 	orgReadProcedure,
@@ -9,6 +12,7 @@ import {
 import { search } from "../../infrastructure/search";
 import {
 	ListSeriesInput,
+	ReadListenSeriesInput,
 	RenameSeriesInput,
 	SERIES_PAGE_SIZE,
 	SearchSeriesInput,
@@ -18,6 +22,22 @@ import { seriesRepository } from "./series.repository";
 import * as seriesService from "./series.service";
 
 export const seriesRouter = {
+	listReadListen: orgReadProcedure
+		.input(ReadListenSeriesInput)
+		.handler(async ({ input, context }) => {
+			const scope = await getLibraryIdsForBookAction(
+				context.session.user.id,
+				context.serverId,
+				context.pc,
+				"read",
+			);
+			return seriesRepository.listReadListen(
+				context.serverId,
+				context.accessibleLibraryIds,
+				input,
+				scope,
+			);
+		}),
 	/** Public only when the owning server opted in; scoped to ebook/audio URLs. */
 	getSharePreview: publicProcedure
 		.input(SeriesSharePreviewInput)

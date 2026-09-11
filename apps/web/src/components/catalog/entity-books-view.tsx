@@ -57,6 +57,7 @@ type EntityBooksViewProps = {
 	isLoading?: boolean;
 	/** Full (unpaginated) book list; filtered and sorted client-side. */
 	rawBooks?: EntityBook[];
+	bookFooter?: (book: EntityBook) => ReactNode;
 	source?: { kind: "genre" | "tag" | "publisher"; uuid: string };
 	countLabel?: (total: number) => ReactNode;
 	searchAriaLabel: string;
@@ -89,6 +90,7 @@ export function EntityBooksView({
 	subtitle,
 	isLoading = false,
 	rawBooks,
+	bookFooter,
 	source,
 	countLabel,
 	searchAriaLabel,
@@ -237,21 +239,24 @@ export function EntityBooksView({
 				getKey={(book) => book.uuid}
 				gridRowEstimate={GRID_ROW_ESTIMATE}
 				renderGridItem={(book) => (
-					<BookContextMenuTrigger
-						bookUuid={book.uuid}
-						mediaType={book.mediaType ?? "ebook"}
-					>
-						<BookCard
-							uuid={book.uuid}
-							title={book.title}
-							filename={book.filename}
-							cover={book.cover ?? null}
-							tint={book.mainColor}
-							authors={book.authors}
+					<div>
+						<BookContextMenuTrigger
+							bookUuid={book.uuid}
 							mediaType={book.mediaType ?? "ebook"}
-							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
+						>
+							<BookCard
+								uuid={book.uuid}
+								title={book.title}
+								filename={book.filename}
+								cover={book.cover ?? null}
+								tint={book.mainColor}
+								authors={book.authors}
+								mediaType={book.mediaType ?? "ebook"}
+								contextMenuEnabled={false}
+							/>
+						</BookContextMenuTrigger>
+						{bookFooter?.(book)}
+					</div>
 				)}
 				emptyState={
 					<EmptyState

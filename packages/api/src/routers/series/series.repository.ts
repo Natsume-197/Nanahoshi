@@ -40,6 +40,72 @@ type SeriesSharePreviewRow = {
 type SeriesSharePreview = SeriesSharePreviewRow & { cover: string | null };
 
 export class SeriesRepository {
+	/** Ebook series remain the ordering authority; a pair is availability, not a format. */
+	async listReadListen(
+		serverId: string,
+		scope: LibraryScope,
+		input: {
+			limit?: number;
+			cursor?: number;
+			sort?: SeriesSort;
+			query?: string;
+			uuid?: string;
+		} = {},
+		readScope: LibraryScope = scope,
+	) {
+		const result = await db.execute(sql`
+			WITH volumes AS (
+				SELECT s.id, s.uuid, s.name, s.created_at, b.uuid AS book_uuid,
+					bs.position, bm.cover,
+					EXISTS (
+						SELECT 1 FROM read_listen_pair rp
+						INNER JOIN book audio ON audio.id = rp.audiobook_book_id
+						INNER JOIN library al ON al.id = audio.library_id
+						WHERE rp.ebook_book_id = b.id AND rp.server_id = ${serverId}
+							AND al.server_id = ${serverId} AND al.media_type = 'audiobook'
+							AND ${visibleBookSql("audio")}
+							${accessibleSql(scope, "audio")}
+							${accessibleSql(readScope, "audio")}
+							${accessibleSql(readScope, "b")}
+					) AS paired
+				FROM series s
+				INNER JOIN book_series bs ON bs.series_id = s.id
+				INNER JOIN book b ON b.id = bs.book_id
+				INNER JOIN library l ON l.id = b.library_id
+				LEFT JOIN book_metadata bm ON bm.book_id = b.id
+				WHERE s.server_id = ${serverId} AND l.server_id = ${serverId}
+					AND l.media_type = 'ebook' AND ${visibleBookSql("b")}
+					${accessibleSql(scope)}
+					${input.uuid ? sql`AND s.uuid = ${input.uuid}` : sql``}
+					${input.query?.trim() ? sql`AND strpos(lower(s.name), lower(${input.query.trim()})) > 0` : sql``}
+			), available AS (
+				SELECT id, uuid, name, created_at, COUNT(*)::int AS "bookCount",
+					COUNT(*) FILTER (WHERE paired)::int AS "pairedCount",
+					(array_agg(cover ORDER BY position NULLS LAST, book_uuid) FILTER (WHERE cover IS NOT NULL))[1] AS cover,
+					array_agg(book_uuid ORDER BY position NULLS LAST, book_uuid) FILTER (WHERE paired) AS "pairedBookUuids"
+				FROM volumes GROUP BY id, uuid, name, created_at
+				HAVING bool_or(paired)
+			), page AS (
+				SELECT * FROM available s
+				ORDER BY ${ORDER_BY[input.sort ?? "name"]}, s.uuid
+				LIMIT ${input.limit ?? 30} OFFSET ${input.cursor ?? 0}
+			)
+			SELECT (SELECT COUNT(*)::int FROM available) AS total,
+				COALESCE((SELECT jsonb_agg(page) FROM page), '[]'::jsonb) AS items
+		`);
+		return result.rows[0] as {
+			total: number;
+			items: Array<{
+				uuid: string;
+				name: string;
+				cover: string | null;
+				bookCount: number;
+				pairedCount: number;
+				pairedBookUuids: string[];
+			}>;
+		};
+	}
+
 	async getServerId(uuid: string): Promise<string | null> {
 		const [row] = await db
 			.select({ serverId: series.serverId })

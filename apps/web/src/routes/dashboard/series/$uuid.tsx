@@ -1,6 +1,6 @@
 import { CircleNotch, DownloadSimple, Pencil } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
@@ -16,6 +16,14 @@ import { client, orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/series/$uuid")({
 	component: SeriesDetailPage,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { readListen?: boolean } => ({
+		readListen:
+			search.readListen === true || search.readListen === "true"
+				? true
+				: undefined,
+	}),
 	beforeLoad: ({ context }) => {
 		if (!context.session) {
 			throw redirect({ to: "/login" });
@@ -38,6 +46,14 @@ export const Route = createFileRoute("/dashboard/series/$uuid")({
 
 function SeriesDetailPage() {
 	const { uuid } = Route.useParams();
+	const { readListen } = Route.useSearch();
+	const availability = useQuery({
+		...orpc.series.listReadListen.queryOptions({ input: { uuid, limit: 1 } }),
+		enabled: Boolean(readListen),
+	});
+	const pairedBookUuids = new Set(
+		availability.data?.items[0]?.pairedBookUuids ?? [],
+	);
 	const { can } = useAbilities();
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
@@ -98,6 +114,9 @@ function SeriesDetailPage() {
 		[
 			total ? m["entity_page.series_subtitle"]({ count: total }) : null,
 			formatAvgRating(ratingStats?.average),
+			readListen && availability.data
+				? `${pairedBookUuids.size} of ${total} volumes paired`
+				: null,
 		]
 			.filter(Boolean)
 			.join("  ·  ") || undefined;
@@ -109,8 +128,21 @@ function SeriesDetailPage() {
 			sortOptions={sortOptions}
 			title={entity?.name ?? m["entity_page.series_fallback"]()}
 			subtitle={subtitle}
-			isLoading={isLoading}
+			isLoading={isLoading || (Boolean(readListen) && availability.isLoading)}
 			rawBooks={rawBooks}
+			bookFooter={
+				readListen
+					? (book) =>
+							availability.isError ? (
+								<p>Could not load Read & Listen availability.</p>
+							) : (
+								<SeriesVolumePairings
+									uuid={book.uuid}
+									paired={pairedBookUuids.has(book.uuid)}
+								/>
+							)
+					: undefined
+			}
 			searchAriaLabel={m["entity_page.series_search_aria"]()}
 			emptyDescription={m["entity_page.series_empty_desc"]()}
 			searchNoMatches={(query) =>
@@ -164,5 +196,56 @@ function SeriesDetailPage() {
 				/>
 			)}
 		</EntityBooksView>
+	);
+}
+
+function SeriesVolumePairings({
+	uuid,
+	paired,
+}: {
+	uuid: string;
+	paired: boolean;
+}) {
+	const { data, isLoading, isError } = useQuery({
+		...orpc.readListen.getPairings.queryOptions({
+			input: { publicationUuid: uuid },
+		}),
+		enabled: paired,
+		staleTime: 30_000,
+	});
+	if (!paired)
+		return (
+			<p className="mt-2 text-muted-foreground text-sm">
+				No confirmed audio pair
+			</p>
+		);
+	if (isLoading)
+		return <p className="mt-2 text-muted-foreground text-sm">Loading audio…</p>;
+	if (isError)
+		return (
+			<p className="mt-2 text-muted-foreground text-sm">
+				Could not load audio pair
+			</p>
+		);
+	return (
+		<div className="mt-2 space-y-2">
+			{data?.pairings.map((pairing) => (
+				<Link
+					key={pairing.id}
+					to="/dashboard/audiobooks/$uuid"
+					params={{ uuid: pairing.audiobook.uuid }}
+					className="block rounded text-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+				>
+					<span className="block">{pairing.audiobook.title}</span>
+					<span className="text-muted-foreground">
+						{pairing.alignment.status === "ready"
+							? m["read_listen.status_ready"]()
+							: pairing.alignment.status === "stale"
+								? m["read_listen.status_stale"]()
+								: m["read_listen.status_not_imported"]()}
+					</span>
+				</Link>
+			))}
+		</div>
 	);
 }

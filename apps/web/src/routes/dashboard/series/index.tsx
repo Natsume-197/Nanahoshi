@@ -7,6 +7,7 @@ import {
 	BookCardShell,
 	createBookCardShellRowHeightEstimator,
 } from "@/components/books/book-card-shell";
+import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { SeriesContextMenu } from "@/components/series/series-context-menu";
 import { CollectionSearch } from "@/components/shared/collection-search";
 import { CollectionView } from "@/components/shared/collection-view";
@@ -32,19 +33,15 @@ const AUDIOBOOK_SERIES_ROW_ESTIMATE = createBookCardShellRowHeightEstimator({
 });
 
 type SortMode = "name" | "books" | "recent";
-type SeriesFormat = "books" | "audiobooks";
+type SeriesFormat = "books" | "audiobooks" | "read-listen";
 
-const FORMAT_OPTIONS: readonly FilterOption[] = [
-	{ value: "books", label: "Books" },
-	{ value: "audiobooks", label: "Audiobooks" },
-];
-
-/** Both formats mapped onto the shape the page renders. */
+/** Series views mapped onto the shape the page renders. */
 type SeriesItem = {
 	uuid: string;
 	name: string;
 	cover: string | null;
 	count: number;
+	pairedCount?: number;
 	author?: { id: number; name: string } | null;
 };
 
@@ -72,15 +69,17 @@ function SeriesPage() {
 	// Format is a local view facet (no URL param). Router state seeds a fresh
 	// visit from "Show all"; the history snapshot wins when navigating back.
 	const location = useLocation();
+	const requestedFormat = (location.state as { format?: SeriesFormat }).format;
 	const defaultFormat: SeriesFormat =
-		(location.state as { format?: SeriesFormat }).format === "audiobooks"
-			? "audiobooks"
+		requestedFormat === "audiobooks" || requestedFormat === "read-listen"
+			? requestedFormat
 			: "books";
 	const [format, setFormat] = useUiSnapshotState<SeriesFormat>(
 		"series-format",
 		defaultFormat,
 	);
 	const isAudiobook = format === "audiobooks";
+	const isReadListen = format === "read-listen";
 
 	// Both counts drive the subtitle and which format chips are offered.
 	const { data: bookSeriesCount } = useQuery({
@@ -97,19 +96,38 @@ function SeriesPage() {
 	// If the selected format has no series but the other does, switch to it.
 	// Render-phase adjustment (no useEffect): guarded by the format check so it
 	// runs at most once per count change.
-	if (isAudiobook && !hasAudiobooks && hasBooks) {
+	if (
+		isAudiobook &&
+		audiobookSeriesCount !== undefined &&
+		!hasAudiobooks &&
+		hasBooks
+	) {
 		setFormat("books");
-	} else if (!isAudiobook && !hasBooks && hasAudiobooks) {
+	} else if (
+		format === "books" &&
+		bookSeriesCount !== undefined &&
+		!hasBooks &&
+		hasAudiobooks
+	) {
 		setFormat("audiobooks");
 	}
 
 	const formatOptions = useMemo<FilterOption[]>(() => {
 		const opts: FilterOption[] = [];
-		if (hasBooks) opts.push({ value: "books", label: "Books" });
-		if (hasAudiobooks) opts.push({ value: "audiobooks", label: "Audiobooks" });
-		// Fallback to the full set before counts load so the control is never empty.
-		return opts.length > 0 ? opts : [...FORMAT_OPTIONS];
-	}, [hasBooks, hasAudiobooks]);
+		if (hasBooks || format === "books")
+			opts.push({ value: "books", label: "Books" });
+		if (hasAudiobooks || format === "audiobooks")
+			opts.push({ value: "audiobooks", label: "Audiobooks" });
+		opts.push({ value: "read-listen", label: "Read & Listen" });
+		// Keep Read & Listen available even when no pairs have been confirmed.
+		return hasBooks || hasAudiobooks
+			? opts
+			: [
+					{ value: "books", label: "Books" },
+					{ value: "audiobooks", label: "Audiobooks" },
+					{ value: "read-listen", label: "Read & Listen" },
+				];
+	}, [hasBooks, hasAudiobooks, format]);
 
 	const { sort, setSort, search, setSearch, query, isSearching } =
 		useCollectionView<SortMode>({
@@ -123,8 +141,7 @@ function SeriesPage() {
 		{ value: "recent", label: "Recently added" },
 	];
 
-	// Two separate queries (only the active format fetches) rather than one union
-	// of two differently-typed option objects, which TanStack can't type-check.
+	// Only the active format fetches its paginated listing.
 	const bookInput = (pageParam: number) => ({
 		limit: PAGE_SIZE,
 		cursor: pageParam,
@@ -144,7 +161,7 @@ function SeriesPage() {
 			initialPageParam: 0,
 			staleTime: 30_000,
 		}),
-		enabled: !isAudiobook,
+		enabled: format === "books",
 	});
 	const audiobooksQuery = useInfiniteQuery({
 		...orpc.audiobooks.listSeries.infiniteOptions({
@@ -156,23 +173,51 @@ function SeriesPage() {
 		enabled: isAudiobook,
 	});
 
+	const readListenQuery = useInfiniteQuery({
+		...orpc.series.listReadListen.infiniteOptions({
+			input: bookInput,
+			initialPageParam: 0,
+			getNextPageParam: (page, _pages, offset) =>
+				offset + page.items.length < page.total
+					? offset + PAGE_SIZE
+					: undefined,
+			staleTime: 30_000,
+		}),
+		enabled: isReadListen,
+	});
+
 	const {
 		data,
 		isLoading,
+		isError,
+		refetch,
 		isFetching,
 		hasNextPage,
 		fetchNextPage,
 		isFetchingNextPage,
-	} = isAudiobook ? audiobooksQuery : booksQuery;
+	} = isReadListen
+		? readListenQuery
+		: isAudiobook
+			? audiobooksQuery
+			: booksQuery;
 
-	const total = isAudiobook ? audiobookSeriesCount : bookSeriesCount;
+	const total = isReadListen
+		? readListenQuery.data?.pages[0]?.total
+		: isAudiobook
+			? audiobookSeriesCount
+			: bookSeriesCount;
 
 	const seriesList = useMemo<SeriesItem[]>(() => {
-		const rows = (data?.pages.flat() ?? []) as Array<{
+		const rows = (
+			isReadListen
+				? (readListenQuery.data?.pages.flatMap((page) => page.items) ?? [])
+				: (data?.pages.flat() ?? [])
+		) as Array<{
 			uuid: string;
 			name: string;
 			cover: string | null;
 			bookCount?: number;
+			pairedCount?: number;
 			audiobookCount?: number;
 			author?: { id: number; name: string } | null;
 		}>;
@@ -180,10 +225,11 @@ function SeriesPage() {
 			uuid: s.uuid,
 			name: s.name,
 			cover: s.cover,
+			pairedCount: s.pairedCount,
 			count: s.audiobookCount ?? s.bookCount ?? 0,
 			author: s.author ?? null,
 		}));
-	}, [data]);
+	}, [data, isReadListen, readListenQuery.data]);
 
 	const detailPath = isAudiobook
 		? ("/dashboard/audiobooks/series/$uuid" as const)
@@ -192,7 +238,9 @@ function SeriesPage() {
 	const renderSubtitle = (s: SeriesItem) => (
 		<>
 			<span className="line-clamp-1 block">
-				{seriesCount(s.count, isAudiobook)}
+				{isReadListen
+					? `${s.pairedCount ?? 0} of ${s.count} volumes paired`
+					: seriesCount(s.count, isAudiobook)}
 			</span>
 			{s.author ? (
 				<span className="pointer-events-auto line-clamp-1 block w-fit max-w-full">
@@ -242,6 +290,8 @@ function SeriesPage() {
 			title="Series"
 			subtitle={total ? `${total} series` : undefined}
 			isLoading={isLoading}
+			isError={isError}
+			errorState={<QueryErrorState onRetry={() => void refetch()} />}
 			isFetching={isFetching}
 			isFetchingNextPage={isFetchingNextPage}
 			search={search}
@@ -263,12 +313,15 @@ function SeriesPage() {
 				isAudiobook ? AUDIOBOOK_SERIES_ROW_ESTIMATE : BOOK_SERIES_ROW_ESTIMATE
 			}
 			renderGridItem={(s) => (
-				<SeriesContextMenu href={detailPath.replace("$uuid", s.uuid)}>
+				<SeriesContextMenu
+					href={`${detailPath.replace("$uuid", s.uuid)}${isReadListen ? "?readListen=true" : ""}`}
+				>
 					<div>
 						<BookCardShell
 							linkProps={{
 								to: detailPath,
 								params: { uuid: s.uuid },
+								search: isReadListen ? { readListen: true } : {},
 								preload: "intent",
 							}}
 							ariaLabel={s.name}
@@ -295,9 +348,11 @@ function SeriesPage() {
 				<EmptyState
 					title="No series found"
 					description={
-						isAudiobook
-							? "Series will appear here once your audiobooks are enriched with metadata."
-							: "Series will appear here once your books are enriched with metadata."
+						isReadListen
+							? "Series will appear here when a volume has a confirmed ebook and audiobook pair."
+							: isAudiobook
+								? "Series will appear here once your audiobooks are enriched with metadata."
+								: "Series will appear here once your books are enriched with metadata."
 					}
 				/>
 			}
