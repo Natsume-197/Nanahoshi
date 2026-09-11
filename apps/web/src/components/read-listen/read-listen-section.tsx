@@ -3,6 +3,7 @@ import {
 	BookOpen,
 	ChartBar,
 	CircleNotch,
+	DotsThree,
 	FileArrowUp,
 	FileMagnifyingGlass,
 	FileText,
@@ -16,8 +17,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ChangeEvent, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -1123,7 +1132,7 @@ export function ReadListenSection({
 
 	if (pairingsQuery.isLoading) {
 		return (
-			<section className="mt-8 flex flex-col gap-4" aria-labelledby={headingId}>
+			<section className="flex flex-col gap-4" aria-labelledby={headingId}>
 				<h2 id={headingId} className="font-bold text-xl">
 					{m["read_listen.title"]()}
 				</h2>
@@ -1135,18 +1144,11 @@ export function ReadListenSection({
 	if (pairings.length === 0 && !canManagePairings) return null;
 
 	return (
-		<section className="mt-8 flex flex-col gap-4" aria-labelledby={headingId}>
+		<section className="flex flex-col gap-4" aria-labelledby={headingId}>
 			<div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div className="flex min-w-0 flex-col gap-1">
-					<h2 id={headingId} className="font-bold text-xl">
-						{m["read_listen.title"]()}
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						{mediaType === "ebook"
-							? m["read_listen.ebook_description"]()
-							: m["read_listen.audiobook_description"]()}
-					</p>
-				</div>
+				<h2 id={headingId} className="font-bold text-xl">
+					{m["read_listen.title"]()}
+				</h2>
 				{canManagePairings && (
 					<div className="flex flex-wrap gap-2">
 						{mediaType === "audiobook" && (
@@ -1166,23 +1168,27 @@ export function ReadListenSection({
 								{m["read_listen.find_matches"]()}
 							</Button>
 						)}
-						<Button
-							variant="outline"
-							onClick={() => setIsPairingDialogOpen(true)}
-						>
-							<LinkSimple aria-hidden="true" data-icon="inline-start" />
-							{mediaType === "ebook"
-								? m["read_listen.associate_audiobook"]()
-								: m["read_listen.associate_ebook"]()}
-						</Button>
+						{pairings.length > 0 && (
+							<Button
+								variant="outline"
+								onClick={() => setIsPairingDialogOpen(true)}
+							>
+								<LinkSimple aria-hidden="true" data-icon="inline-start" />
+								{mediaType === "ebook"
+									? m["read_listen.associate_audiobook"]()
+									: m["read_listen.associate_ebook"]()}
+							</Button>
+						)}
 					</div>
 				)}
 			</div>
 
 			{pairings.length > 0 && (
-				<ul className="flex flex-col gap-3">
+				<ul className="flex flex-col gap-2">
 					{pairings.map((pairing) => {
 						const counterpart = getCounterpartPublication(pairing, mediaType);
+						const creators = formatNames(counterpart.authors);
+						const narrators = formatNames(counterpart.narrators);
 						const alignment = resolveReadListenAlignment(pairing.alignment);
 						const isGenerationRunning =
 							pairing.generation?.status === "queued" ||
@@ -1213,50 +1219,62 @@ export function ReadListenSection({
 						return (
 							<li
 								key={pairing.id}
-								className="flex flex-col gap-4 rounded-2xl bg-muted/45 p-4 sm:flex-row sm:items-center"
+								className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 rounded-xl px-4 py-4 odd:bg-muted/25 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
 							>
 								<Link
 									to={getPublicationRoute(counterpart.mediaType)}
 									params={{ uuid: counterpart.uuid }}
-									className="min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+									aria-label={counterpart.title ?? counterpart.filename}
+									className="rounded-md focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
 								>
-									<PublicationSummary publication={counterpart} />
+									<PublicationCover publication={counterpart} />
 								</Link>
-								<div className="flex shrink-0 flex-col items-start gap-2 sm:max-w-xs sm:items-end">
-									<div className="flex flex-wrap items-center gap-2 sm:justify-end">
-										<Badge
-											variant={
-												alignment.status === "ready"
-													? "success"
-													: alignment.status === "stale"
-														? "warning"
-														: "secondary"
-											}
-										>
-											{alignment.status === "ready"
-												? m["read_listen.status_ready"]()
-												: alignment.status === "stale"
-													? m["read_listen.status_stale"]()
-													: m["read_listen.status_not_imported"]()}
-										</Badge>
-										{alignment.status !== "not_imported" &&
-											alignment.artifact.origin && (
-												<Badge variant="secondary">
-													{alignment.artifact.origin === "external"
-														? m["read_listen.origin_external"]()
-														: m["read_listen.origin_honomiya"]()}
-												</Badge>
-											)}
-										{alignment.status !== "not_imported" && (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => setPairingForDiagnostics(pairing)}
-											>
-												<ChartBar aria-hidden="true" data-icon="inline-start" />
-												{m["read_listen.view_diagnostics"]()}
-											</Button>
+								<div className="flex min-w-0 flex-col gap-1 py-0.5">
+									<Link
+										to={getPublicationRoute(counterpart.mediaType)}
+										params={{ uuid: counterpart.uuid }}
+										className="w-fit max-w-full break-words font-medium text-foreground text-sm leading-snug underline decoration-muted-foreground/35 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+									>
+										{counterpart.title}
+									</Link>
+									{creators && (
+										<p className="break-words text-muted-foreground text-xs">
+											{creators}
+										</p>
+									)}
+									{narrators && (
+										<p className="break-words text-muted-foreground text-xs">
+											{m["audiobook.narrated_by"]()} {narrators}
+										</p>
+									)}
+									<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
+										{counterpart.libraryName && (
+											<span>
+												{m["read_listen.library"]({
+													name: counterpart.libraryName,
+												})}
+											</span>
 										)}
+										{counterpart.languageCode && (
+											<span className="uppercase">
+												{counterpart.languageCode}
+											</span>
+										)}
+										{counterpart.duration ? (
+											<span>{formatReadingTime(counterpart.duration)}</span>
+										) : null}
+										{counterpart.abridged && (
+											<Badge variant="secondary">
+												{m["read_listen.abridged"]()}
+											</Badge>
+										)}
+									</div>
+									<p className="break-all text-muted-foreground/80 text-xs">
+										{counterpart.filename}
+									</p>
+								</div>
+								<div className="col-start-2 flex min-w-0 flex-col items-start gap-2 sm:col-start-3 sm:max-w-xs sm:items-end sm:justify-center">
+									<div className="flex items-center gap-2 sm:justify-end">
 										{canManagePairings && (
 											<Button
 												size="sm"
@@ -1293,20 +1311,48 @@ export function ReadListenSection({
 																	: m["read_listen.add_alignment"]()}
 											</Button>
 										)}
-										{canManagePairings && (
-											<Button
-												variant="ghost"
-												size="icon-lg"
-												aria-label={m["read_listen.remove_named"]({
-													title: counterpart.title,
-												})}
-												onClick={() => setPairingToRemove(pairing)}
-											>
-												<LinkBreak aria-hidden="true" />
-											</Button>
+										{(alignment.status !== "not_imported" ||
+											canManagePairings) && (
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="size-11 shrink-0"
+														aria-label={m["aria.more_actions"]()}
+													>
+														<DotsThree aria-hidden="true" weight="bold" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end" sideOffset={6}>
+													{alignment.status !== "not_imported" && (
+														<DropdownMenuItem
+															className="min-h-10"
+															onClick={() => setPairingForDiagnostics(pairing)}
+														>
+															<ChartBar aria-hidden="true" />
+															{m["read_listen.view_diagnostics"]()}
+														</DropdownMenuItem>
+													)}
+													{canManagePairings && (
+														<>
+															{alignment.status !== "not_imported" && (
+																<DropdownMenuSeparator />
+															)}
+															<DropdownMenuItem
+																className="min-h-10"
+																onClick={() => setPairingToRemove(pairing)}
+															>
+																<LinkBreak aria-hidden="true" />
+																{m["read_listen.remove"]()}
+															</DropdownMenuItem>
+														</>
+													)}
+												</DropdownMenuContent>
+											</DropdownMenu>
 										)}
 									</div>
-									<p className="text-muted-foreground text-xs sm:text-end">
+									<p className="text-muted-foreground text-xs leading-relaxed sm:text-end">
 										{alignmentDescription}
 									</p>
 								</div>
@@ -1314,6 +1360,24 @@ export function ReadListenSection({
 						);
 					})}
 				</ul>
+			)}
+
+			{pairings.length === 0 && (
+				<EmptyState
+					title={m["read_listen.empty_title"]()}
+					description={
+						mediaType === "ebook"
+							? m["read_listen.ebook_description"]()
+							: m["read_listen.audiobook_description"]()
+					}
+				>
+					<Button onClick={() => setIsPairingDialogOpen(true)}>
+						<LinkSimple aria-hidden="true" data-icon="inline-start" />
+						{mediaType === "ebook"
+							? m["read_listen.associate_audiobook"]()
+							: m["read_listen.associate_ebook"]()}
+					</Button>
+				</EmptyState>
 			)}
 
 			{isPairingDialogOpen && (

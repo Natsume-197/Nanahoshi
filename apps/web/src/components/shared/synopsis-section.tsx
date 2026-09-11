@@ -138,9 +138,11 @@ export type DetailListRow = {
 export function DetailListSection({
 	title,
 	rows,
+	columns = 1,
 }: {
 	title: string;
 	rows: DetailListRow[];
+	columns?: 1 | 3;
 }) {
 	const headingId = useId();
 
@@ -148,7 +150,7 @@ export function DetailListSection({
 
 	return (
 		<section
-			className="border-border/70 border-t pt-8"
+			className={columns === 3 ? "min-w-0" : "border-border/70 border-t pt-8"}
 			aria-labelledby={headingId}
 		>
 			<h2
@@ -158,11 +160,21 @@ export function DetailListSection({
 				{title}
 			</h2>
 			{/* Spec sheet: fixed label column on sm+, stacked on mobile. */}
-			<dl className="divide-y divide-border/55">
+			<dl
+				className={
+					columns === 3
+						? "grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3"
+						: "divide-y divide-border/55"
+				}
+			>
 				{rows.map((row) => (
 					<div
 						key={row.key ?? row.label}
-						className="grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
+						className={
+							columns === 3
+								? "flex min-w-0 flex-col gap-1.5"
+								: "grid min-w-0 gap-1 py-3 first:pt-0 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6"
+						}
 					>
 						<dt className="font-medium text-muted-foreground text-sm">
 							{row.label}

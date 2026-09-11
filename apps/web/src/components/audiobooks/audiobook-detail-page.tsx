@@ -3,7 +3,6 @@ import {
 	BookmarkSimple,
 	CircleNotch,
 	DotsThree,
-	DotsThreeVertical,
 	DownloadSimple,
 	Headphones,
 	Heart,
@@ -29,7 +28,6 @@ import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
-	DETAIL_CORNER_BUTTON,
 	DetailBackButton,
 	GenreChips,
 	getHeroStyle,
@@ -145,6 +143,16 @@ export function AudiobookDetailPage() {
 	const accentColor = "var(--primary)";
 	const chapterCount = audiobook.chapters?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
+	// The read-listen tab only shows when there is something to display or manage.
+	const { can } = useAbilities();
+	const pairingsQuery = useQuery(
+		orpc.readListen.getPairings.queryOptions({
+			input: { publicationUuid: audiobook.uuid },
+		}),
+	);
+	const showReadListenTab =
+		can("book", "editMetadata") ||
+		(pairingsQuery.data?.pairings.length ?? 0) > 0;
 
 	return (
 		<div
@@ -157,17 +165,15 @@ export function AudiobookDetailPage() {
 				    cover starts under it rather than behind it. */}
 				<div className={cn(PAGE_GUTTER, "pt-16 pb-12 md:pt-10 lg:pb-16")}>
 					<div className="mx-auto max-w-[1400px]">
-						{/* `lg:grid-rows-[auto_1fr]`: the cover column spans both rows and
-						    outgrows them; without an explicit track the surplus is split
-						    between the rows, dropping the tabs far below the title. */}
+						{/* The cover spans the title and synopsis; details occupy a full-width third row. */}
 						<Tabs
 							defaultValue="overview"
-							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
+							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_1fr_auto] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
 						>
 							<header className="order-2 min-w-0 lg:order-none lg:col-start-2 lg:row-start-1">
 								<h1
 									id="audiobook-detail-title"
-									className="max-w-[28ch] text-balance break-words font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl"
+									className="text-balance break-words font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl"
 								>
 									{title}
 								</h1>
@@ -185,13 +191,12 @@ export function AudiobookDetailPage() {
 								)}
 							</header>
 
-							{/* `contents` below lg so the cover and the actions are grid items
-							    in their own right: the cover leads the page, the title block
-							    follows it, and the actions sit under both. */}
+							{/* `contents` below lg so the cover is a grid item in its own
+						    right: it leads the page and the title block follows it. */}
 							{/* Square artwork can use the remaining height directly. Reserve
-							    enough room for every action row, progress copy, page chrome,
-							    and the fixed player dock when it is present. */}
-							<aside className="contents lg:sticky lg:top-8 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc(100dvh-20.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))))] lg:justify-self-center">
+						    enough room for every action row, progress copy, page chrome,
+						    and the fixed player dock when it is present. */}
+							<aside className="contents lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc(100dvh-20.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))))] lg:justify-self-center">
 								{/* mb-2 buys the cover more separation than the grid's row gap,
 								    so it reads as its own zone rather than another stacked row. */}
 								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">
@@ -218,8 +223,18 @@ export function AudiobookDetailPage() {
 										}
 									/>
 								</div>
+							</aside>
 
-								<div className="order-3 lg:order-none lg:mt-6">
+							<div className="order-3 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
+								<SynopsisSection
+									description={audiobook.description}
+									title={m["book.meta_description"]()}
+									// The grid's row gap already separates this from the header
+									// above; the section's own top margin would double it.
+									className="mt-0"
+									descriptionClassName="text-foreground"
+								/>
+								<div className="mt-6 w-full">
 									<HeroActions
 										audiobook={audiobook}
 										bookUuid={audiobook.uuid}
@@ -228,25 +243,16 @@ export function AudiobookDetailPage() {
 										asin={audiobook.asin}
 									/>
 								</div>
-							</aside>
+							</div>
 
-							<div className="order-4 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
-								<SynopsisSection
-									description={audiobook.description}
-									title={m["book.meta_description"]()}
-									// The grid's row gap already separates this from the actions
-									// above; the section's own top margin would double it.
-									className="mt-0"
-									descriptionClassName="text-foreground"
-								/>
-
+							<div className="order-5 min-w-0 lg:order-none lg:col-span-2 lg:row-start-3">
 								<div
 									className={cn(
 										PAGE_GUTTER_BLEED,
 										PAGE_GUTTER,
 										// Pins to the very top: below md these routes drop the top bar,
 										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 mt-6 bg-background py-1 lg:mx-0 lg:px-0",
+										"sticky top-0 z-20 bg-background/85 py-1 backdrop-blur-xl lg:mx-0 lg:px-0",
 									)}
 								>
 									<TabsList
@@ -260,6 +266,14 @@ export function AudiobookDetailPage() {
 										>
 											{m["audiobook.tab_overview"]()}
 										</TabsTrigger>
+										{showReadListenTab && (
+											<TabsTrigger
+												value="read-listen"
+												className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
+											>
+												{m["read_listen.title"]()}
+											</TabsTrigger>
+										)}
 										<TabsTrigger
 											value="technical"
 											className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
@@ -282,12 +296,19 @@ export function AudiobookDetailPage() {
 									className="pt-8 data-[state=active]:animate-none"
 								>
 									<AudiobookDetailsSection audiobook={audiobook} />
-									<ReadListenSection
-										publicationUuid={audiobook.uuid}
-										publicationTitle={title}
-										mediaType="audiobook"
-									/>
 								</TabsContent>
+								{showReadListenTab && (
+									<TabsContent
+										value="read-listen"
+										className="pt-8 data-[state=active]:animate-none"
+									>
+										<ReadListenSection
+											publicationUuid={audiobook.uuid}
+											publicationTitle={title}
+											mediaType="audiobook"
+										/>
+									</TabsContent>
+								)}
 								<TabsContent
 									value="technical"
 									className="pt-8 data-[state=active]:animate-none"
@@ -502,98 +523,43 @@ function HeroActions({
 
 	return (
 		<>
-			{/* Opposite the back button, below md only. Rendered outside the action
-			    column so it positions against the page, not the stack. */}
-			{(canDownload || canEnrich) && (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							aria-label={m["nav.more"]()}
-							className={cn(DETAIL_CORNER_BUTTON, "end-3")}
-						>
-							<DotsThreeVertical
-								aria-hidden="true"
-								className="size-5"
-								weight="bold"
-							/>
-						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" sideOffset={6}>
-						{moreMenuItems}
-					</DropdownMenuContent>
-				</DropdownMenu>
-			)}
-
-			<div className="flex flex-col gap-2">
-				<div className="flex items-center gap-2">
-					<Button
-						onClick={() => playAudiobook(bookUuid)}
-						onPointerEnter={() => prefetchAudiobook(bookUuid)}
-						onFocus={() => prefetchAudiobook(bookUuid)}
-						disabled={isLoadingPlayback}
-						aria-busy={isLoadingPlayback}
-						className="h-11 flex-1 gap-1.5 font-semibold text-sm"
-					>
-						{isLoadingPlayback ? (
-							<CircleNotch
-								aria-hidden="true"
-								className="animate-spin motion-reduce:animate-none"
-							/>
-						) : (
-							<Headphones
-								aria-hidden="true"
-								data-icon="inline-start"
-								weight="bold"
-							/>
-						)}
-						<span className="truncate">
-							{isInProgress
-								? m["audiobook.continue_listening"]()
-								: m["audiobook.listen"]()}
+			{/* Action bar below the synopsis. Mobile stacks full-width rows:
+			    [primary | like], then [shelf], then [labeled more]. From sm:
+			    a single row with primary/shelf equal and fixed so labels
+			    never resize the buttons. No truncation anywhere: labels
+			    wrap instead. */}
+			<div className="flex flex-row flex-wrap items-center gap-2 sm:flex-nowrap">
+				<Button
+					onClick={() => playAudiobook(bookUuid)}
+					onPointerEnter={() => prefetchAudiobook(bookUuid)}
+					onFocus={() => prefetchAudiobook(bookUuid)}
+					disabled={isLoadingPlayback}
+					aria-busy={isLoadingPlayback}
+					className="order-1 h-auto min-h-11 min-w-0 flex-1 gap-1.5 whitespace-normal px-3 text-center font-semibold text-sm leading-tight sm:w-[14.75rem] sm:flex-none"
+				>
+					{isLoadingPlayback ? (
+						<CircleNotch
+							aria-hidden="true"
+							className="animate-spin motion-reduce:animate-none"
+						/>
+					) : (
+						<Headphones
+							aria-hidden="true"
+							data-icon="inline-start"
+							weight="bold"
+						/>
+					)}
+					<span>
+						{isInProgress
+							? m["audiobook.continue_listening"]()
+							: m["audiobook.listen"]()}
+					</span>
+					{isInProgress && (
+						<span className="shrink-0 tabular-nums opacity-80">
+							· {listenPct}%
 						</span>
-						{isInProgress && (
-							<span className="shrink-0 tabular-nums opacity-80">
-								· {listenPct}%
-							</span>
-						)}
-					</Button>
-
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant={isLiked ? "destructive" : "outline"}
-								size="icon"
-								aria-label={
-									isLiked
-										? m["aria.remove_from_likes"]()
-										: m["aria.add_to_likes"]()
-								}
-								aria-pressed={isLiked}
-								aria-busy={toggleLikeMutation.isPending}
-								onClick={() => {
-									if (!isLiked) popHeart();
-									toggleLikeMutation.mutate();
-								}}
-								disabled={
-									toggleLikeMutation.isPending || likeStatusQuery.isLoading
-								}
-								className="size-11"
-							>
-								<Heart
-									aria-hidden="true"
-									ref={heartRef}
-									weight={isLiked ? "fill" : "regular"}
-								/>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{isLiked
-								? m["aria.remove_from_likes"]()
-								: m["aria.add_to_likes"]()}
-						</TooltipContent>
-					</Tooltip>
-				</div>
+					)}
+				</Button>
 
 				{(() => {
 					const activeOption = currentShelf
@@ -603,24 +569,65 @@ function HeroActions({
 					return (
 						<Button
 							variant="outline"
-							className="h-11 w-full justify-center"
+							className="order-3 h-auto min-h-11 w-full justify-center whitespace-normal px-3 text-center leading-tight sm:order-2 sm:w-[14.75rem] sm:flex-none"
 							onClick={() => setIsAddToListOpen(true)}
 						>
-							<ActiveIcon aria-hidden="true" data-icon="inline-start" />
-							{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+							<ActiveIcon
+								aria-hidden="true"
+								data-icon="inline-start"
+								className="shrink-0"
+							/>
+							<span>
+								{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+							</span>
 						</Button>
 					);
 				})()}
+
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={isLiked ? "destructive" : "outline"}
+							size="icon"
+							aria-label={
+								isLiked
+									? m["aria.remove_from_likes"]()
+									: m["aria.add_to_likes"]()
+							}
+							aria-pressed={isLiked}
+							aria-busy={toggleLikeMutation.isPending}
+							onClick={() => {
+								if (!isLiked) popHeart();
+								toggleLikeMutation.mutate();
+							}}
+							disabled={
+								toggleLikeMutation.isPending || likeStatusQuery.isLoading
+							}
+							className="order-2 size-11 shrink-0 sm:order-3"
+						>
+							<Heart
+								aria-hidden="true"
+								ref={heartRef}
+								weight={isLiked ? "fill" : "regular"}
+							/>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()}
+					</TooltipContent>
+				</Tooltip>
 
 				{(canDownload || canEnrich) && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
 								variant="outline"
-								className="hidden h-11 w-full justify-center md:inline-flex"
+								size="icon"
+								aria-label={m["nav.more"]()}
+								className="order-4 h-auto min-h-11 w-full justify-center gap-1.5 whitespace-normal px-3 text-center leading-tight sm:size-11 sm:flex-none"
 							>
-								<DotsThree aria-hidden="true" data-icon="inline-start" />
-								{m["nav.more"]()}
+								<DotsThree aria-hidden="true" weight="bold" />
+								<span className="sm:hidden">{m["nav.more"]()}</span>
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" sideOffset={6}>
@@ -752,15 +759,17 @@ function AudiobookDetailsSection({ audiobook }: { audiobook: AudiobookData }) {
 	].filter(Boolean) as DetailListRow[];
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-10">
 			{detailRows.length > 0 && (
 				<DetailListSection
+					columns={3}
 					title={m["audiobook.section_details"]()}
 					rows={detailRows}
 				/>
 			)}
 			{identifierRows.length > 0 && (
 				<DetailListSection
+					columns={3}
 					title={m["audiobook.section_identifiers"]()}
 					rows={identifierRows}
 				/>
@@ -879,15 +888,17 @@ function TechnicalSection({ audiobook }: { audiobook: AudiobookData }) {
 	].filter(Boolean) as DetailListRow[];
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-10">
 			{technicalRows.length > 0 && (
 				<DetailListSection
+					columns={3}
 					title={m["audiobook.section_technical"]()}
 					rows={technicalRows}
 				/>
 			)}
 			{fileRows.length > 0 && (
 				<DetailListSection
+					columns={3}
 					title={m["book.section_file_info"]()}
 					rows={fileRows}
 				/>
@@ -923,21 +934,18 @@ function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
 	};
 
 	return (
-		<section
-			className="border-border/70 border-t pt-8"
-			aria-labelledby={headingId}
-		>
+		<section className="min-w-0" aria-labelledby={headingId}>
 			<h2
 				id={headingId}
 				className="mb-6 text-pretty font-bold text-xl leading-tight"
 			>
 				{m["audiobook.files"]()}
 			</h2>
-			<ol className="divide-y divide-border/55">
+			<ol className="space-y-2">
 				{files.map((file) => (
 					<li
 						key={file.index}
-						className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3 text-sm first:pt-0"
+						className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 text-sm odd:bg-muted/25"
 					>
 						<span className="w-6 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
 							{file.index + 1}

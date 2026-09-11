@@ -22,13 +22,6 @@ describe("Honomiya generation recovery", () => {
 		expect(sectionSource).toContain("verifyTimedText,");
 	});
 
-	test("labels known alignment provenance as External or Honomiya", () => {
-		expect(sectionSource).toContain("alignment.artifact.origin");
-		expect(sectionSource).toContain('alignment.artifact.origin === "external"');
-		expect(sectionSource).toContain('m["read_listen.origin_external"]()');
-		expect(sectionSource).toContain('m["read_listen.origin_honomiya"]()');
-	});
-
 	test("shows the persisted generation error when alignment fails", () => {
 		expect(sectionSource).toContain("pairing.generation.error");
 	});
