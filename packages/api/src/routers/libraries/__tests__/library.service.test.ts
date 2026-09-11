@@ -364,8 +364,32 @@ describe("library.service — org-scoped authorization", () => {
 
 			const [library] = await service.getLibraries("org-A", "ALL");
 
-			expect(library).toEqual({ id: 10, name: "Books" });
+			expect(library).toEqual({
+				id: 10,
+				name: "Books",
+				hasEnabledPath: true,
+			});
 			expect(library).not.toHaveProperty("paths");
+		});
+
+		test("reports hasEnabledPath false when every folder is disabled", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					{
+						id: 10,
+						name: "Books",
+						paths: [{ id: 1, path: "/srv/private", isEnabled: false }],
+					},
+				]),
+			);
+
+			const [library] = await service.getLibraries("org-A", "ALL");
+
+			expect(library).toEqual({
+				id: 10,
+				name: "Books",
+				hasEnabledPath: false,
+			});
 		});
 
 		test("returns all libraries when access is ALL", async () => {
@@ -382,6 +406,60 @@ describe("library.service — org-scoped authorization", () => {
 			);
 			const result = await service.getLibraries("org-A", [10, 30]);
 			expect(result.map((l) => l.id)).toEqual([10, 30]);
+		});
+	});
+
+	// ─── getUploadTargets ────────────────────────────────────────────────────
+
+	describe("getUploadTargets", () => {
+		test("only returns ebook libraries with an enabled folder", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					{
+						id: 10,
+						name: "Books",
+						mediaType: "ebook",
+						paths: [{ id: 1, path: "/srv/books", isEnabled: true }],
+					},
+					{
+						id: 20,
+						name: "No folders",
+						mediaType: "ebook",
+						paths: [{ id: 2, path: "/srv/empty", isEnabled: false }],
+					},
+					{
+						id: 30,
+						name: "Audio",
+						mediaType: "audiobook",
+						paths: [{ id: 3, path: "/srv/audio", isEnabled: true }],
+					},
+				]),
+			);
+
+			const result = await service.getUploadTargets("org-A", "ALL");
+
+			expect(result.map((l) => l.id)).toEqual([10]);
+		});
+
+		test("filters to the accessible subset", async () => {
+			mockFindByOrganization.mockImplementation(() =>
+				Promise.resolve([
+					{
+						id: 10,
+						mediaType: "ebook",
+						paths: [{ id: 1, path: "/srv/a" }],
+					},
+					{
+						id: 20,
+						mediaType: "ebook",
+						paths: [{ id: 2, path: "/srv/b" }],
+					},
+				]),
+			);
+
+			const result = await service.getUploadTargets("org-A", [20]);
+
+			expect(result.map((l) => l.id)).toEqual([20]);
 		});
 	});
 

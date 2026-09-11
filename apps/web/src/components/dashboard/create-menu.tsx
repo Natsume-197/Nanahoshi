@@ -1,7 +1,6 @@
 import { Books, FolderPlus, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
-import { getUploadableLibraries } from "@/components/libraries/library-ui-state";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -35,12 +34,14 @@ export function CreateMenu() {
 	const canUpload = can("library", "upload");
 
 	// Uploading needs somewhere to put the files, so the entry only appears once
-	// a library can actually receive them.
+	// the server reports an uploadable target. `getUploadTargets` is already
+	// scoped to ebook libraries with an enabled folder (and to holders of the
+	// upload permission), so no client-side filtering is needed.
 	const { data: libraries } = useQuery({
-		...orpc.libraries.getLibraries.queryOptions(),
+		...orpc.libraries.getUploadTargets.queryOptions(),
 		enabled: canUpload,
 	});
-	const uploadable = getUploadableLibraries(libraries ?? []);
+	const uploadable = libraries ?? [];
 	const canUploadHere = canUpload && uploadable.length > 0;
 
 	if (!canCreateLibrary && !canCreateCollection && !canUploadHere) return null;
@@ -64,11 +65,7 @@ export function CreateMenu() {
 						<Plus weight="bold" />
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent
-					align="end"
-					sideOffset={8}
-					className="w-auto min-w-52"
-				>
+				<DropdownMenuContent align="end" sideOffset={8} className="w-56">
 					{canCreateLibrary && (
 						<DropdownMenuItem
 							className="gap-2.5"

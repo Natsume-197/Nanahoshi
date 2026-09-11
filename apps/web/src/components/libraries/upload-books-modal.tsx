@@ -2,7 +2,6 @@ import {
 	EBOOK_EXTENSIONS,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import { env } from "@nanahoshi-v2/env/web";
 import {
 	ArrowClockwise,
@@ -146,6 +145,19 @@ function ItemIcon({
 	}
 }
 
+/**
+ * The only library fields the upload flow reads: identity for the picker and
+ * the POST URL, plus folder descriptors for the destination picker. Both the
+ * full manager rows (`LibraryComplete`) and the upload-scoped
+ * `getUploadTargets` rows satisfy this.
+ */
+export type UploadTargetLibrary = {
+	id: number;
+	uuid: string;
+	name?: string | null | undefined;
+	paths?: { id: number; path: string; isEnabled?: boolean | null }[] | null;
+};
+
 export function UploadBooksModal({
 	libraries,
 	open,
@@ -153,7 +165,7 @@ export function UploadBooksModal({
 	showLibraryPicker = libraries.length > 1,
 }: {
 	/** One entry from a library page, every uploadable one from the create menu. */
-	libraries: LibraryComplete[];
+	libraries: UploadTargetLibrary[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	/** Uploading from outside a library always names its destination, even with
@@ -465,10 +477,15 @@ export function UploadBooksModal({
 							<SelectTrigger id="upload-library" className="w-full">
 								<SelectValue />
 							</SelectTrigger>
-							<SelectContent>
+							<SelectContent position="popper" className="w-(--anchor-width)">
 								<SelectGroup>
 									{libraries.map((lib) => (
-										<SelectItem key={lib.id} value={String(lib.id)}>
+										<SelectItem
+											key={lib.id}
+											value={String(lib.id)}
+											title={lib.name ?? undefined}
+											className="[&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
+										>
 											{lib.name}
 										</SelectItem>
 									))}
@@ -495,10 +512,15 @@ export function UploadBooksModal({
 							<SelectTrigger id="upload-path" className="w-full">
 								<SelectValue />
 							</SelectTrigger>
-							<SelectContent>
+							<SelectContent position="popper" className="w-(--anchor-width)">
 								<SelectGroup>
 									{enabledPaths.map((p) => (
-										<SelectItem key={p.id} value={String(p.id)}>
+										<SelectItem
+											key={p.id}
+											value={String(p.id)}
+											title={p.path}
+											className="[&>span:last-child]:min-w-0 [&>span:last-child]:truncate"
+										>
 											{p.path}
 										</SelectItem>
 									))}

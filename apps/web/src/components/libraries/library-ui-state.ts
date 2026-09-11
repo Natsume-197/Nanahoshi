@@ -8,8 +8,15 @@ export function resolveUploadTargetPathId(
 
 export function hasEnabledLibraryPath(library: {
 	paths?: { isEnabled?: boolean | null }[] | null;
+	/** Reader-facing libraries strip `paths`; the server sends this flag instead. */
+	hasEnabledPath?: boolean;
 }): boolean {
-	return (library.paths ?? []).some((path) => path.isEnabled !== false);
+	// `getLibrariesWithPaths` (managers) carries full folder rows; the public
+	// `getLibraries` carries only the derived flag so host paths never leak.
+	if (library.paths !== undefined && library.paths !== null) {
+		return library.paths.some((path) => path.isEnabled !== false);
+	}
+	return library.hasEnabledPath ?? false;
 }
 
 /**
@@ -21,6 +28,7 @@ export function getUploadableLibraries<
 	T extends {
 		mediaType: string;
 		paths?: { id: number; isEnabled?: boolean | null }[] | null;
+		hasEnabledPath?: boolean;
 	},
 >(libraries: readonly T[]): T[] {
 	return libraries.filter(

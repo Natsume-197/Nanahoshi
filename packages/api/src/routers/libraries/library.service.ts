@@ -123,23 +123,50 @@ export const getLibraries = async (
 	accessibleLibraryIds: number[] | "ALL",
 ) => {
 	const libraries = await libraryRepository.findByOrganization(serverId);
-	const publicLibrary = ({
-		paths: _paths,
-		...library
-	}: (typeof libraries)[number]) => library;
-	if (accessibleLibraryIds === "ALL") return libraries.map(publicLibrary);
+	if (accessibleLibraryIds === "ALL") return libraries.map(toPublicLibrary);
 	const allowed = new Set(accessibleLibraryIds);
-	return libraries.filter((l) => allowed.has(l.id)).map(publicLibrary);
+	return libraries.filter((l) => allowed.has(l.id)).map(toPublicLibrary);
 };
 
-export const toPublicLibrary = <T extends { paths?: unknown }>({
-	paths: _paths,
+// Reader-facing shape: host folder paths stay server-side, but callers still
+// need to know whether an upload has anywhere to land (the "+" create menu
+// and the library upload button gate on it). Stripping `paths` without this
+// flag hid "Subir libros" for everyone, including admins.
+export const toPublicLibrary = <
+	T extends { paths?: { isEnabled?: boolean | null }[] | null },
+>({
+	paths,
 	...library
-}: T) => library;
+}: T) => ({
+	...library,
+	hasEnabledPath: (paths ?? []).some((p) => p.isEnabled !== false),
+});
 
 /** Operational library records, including host paths, for library managers. */
 export const getLibrariesWithPaths = async (serverId: string) =>
 	libraryRepository.findByOrganization(serverId);
+
+/**
+ * Upload destinations for the create-menu "+" entry and the upload modal:
+ * ebook libraries the caller may see that have at least one enabled folder.
+ * Host folder paths are only exposed here (never in `getLibraries`), gated by
+ * the same global `library:upload` permission as
+ * POST /api/libraries/:uuid/upload.
+ */
+export const getUploadTargets = async (
+	serverId: string,
+	accessibleLibraryIds: number[] | "ALL",
+) => {
+	const libraries = await libraryRepository.findByOrganization(serverId);
+	const allowed =
+		accessibleLibraryIds === "ALL" ? null : new Set(accessibleLibraryIds);
+	return libraries.filter(
+		(library) =>
+			(!allowed || allowed.has(library.id)) &&
+			library.mediaType !== "audiobook" &&
+			(library.paths ?? []).some((p) => p.isEnabled !== false),
+	);
+};
 
 export const getLibrariesOverview = async (
 	serverId: string,

@@ -1,3 +1,4 @@
+import { getReadContextCached } from "../../auth/access.repository";
 import { orgReadProcedure, requirePermission } from "../../index";
 import {
 	AddPathInput,
@@ -35,6 +36,20 @@ export const libraryRouter = {
 
 	getLibrariesWithPaths: requirePermission("library", "managePaths").handler(
 		async ({ context }) => service.getLibrariesWithPaths(context.serverId),
+	),
+
+	getUploadTargets: requirePermission("library", "upload").handler(
+		async ({ context }) => {
+			const { accessibleLibraryIds } = await getReadContextCached(
+				context.session.user.id,
+				context.serverId,
+				{ isAppOwner: context.session.user.role === "admin" },
+			);
+			return await service.getUploadTargets(
+				context.serverId,
+				accessibleLibraryIds,
+			);
+		},
 	),
 
 	getLibrariesOverview: orgReadProcedure.handler(async ({ context }) => {

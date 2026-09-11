@@ -1,9 +1,11 @@
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
 import {
 	type CreateLibraryData,
 	CreateLibraryWizard,
 } from "@/components/libraries/create-library-wizard";
-import { UploadBooksModal } from "@/components/libraries/upload-books-modal";
+import {
+	UploadBooksModal,
+	type UploadTargetLibrary,
+} from "@/components/libraries/upload-books-modal";
 import { CreateCollectionDialog } from "@/components/shared/create-collection-button";
 import { useCreateLibrary } from "@/hooks/use-create-library";
 
@@ -22,7 +24,7 @@ export function CreateMenuDialogs({
 	canCreateLibrary: boolean;
 	canCreateCollection: boolean;
 	canUpload: boolean;
-	libraries: LibraryComplete[];
+	libraries: UploadTargetLibrary[];
 	showLibraryWizard: boolean;
 	setShowLibraryWizard: (open: boolean) => void;
 	showCollectionDialog: boolean;
