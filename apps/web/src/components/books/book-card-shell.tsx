@@ -369,7 +369,7 @@ export function BookCardShell({
 				aria-hidden
 				style={isHorizontal ? undefined : getHoverTintStyle(tint)}
 				className={cn(
-					"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity",
+					"pointer-events-none absolute -z-10 rounded-2xl opacity-0 group-has-[:focus-visible]:opacity-100 group-hover:opacity-100 in-[[data-slot=context-menu-trigger][data-context-menu-active][data-popup-open]]:opacity-100 motion-safe:transition-opacity",
 					isHorizontal
 						? "inset-0 bg-white/10 duration-150"
 						: // The fill grows OUTWARD instead of the card gaining padding, so

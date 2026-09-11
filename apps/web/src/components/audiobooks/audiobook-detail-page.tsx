@@ -446,10 +446,6 @@ function HeroActions({
 				)
 			: null;
 	const isInProgress = listenPct != null && listenPct > 0 && listenPct < 100;
-	const remainingSeconds =
-		progress?.durationSeconds != null && progress.currentTimeSeconds != null
-			? Math.max(0, progress.durationSeconds - progress.currentTimeSeconds)
-			: null;
 
 	// One list, two triggers: the floating ⋯ below md and the labelled button in
 	// the column from md. Only one trigger is ever visible, and the content only
@@ -631,14 +627,6 @@ function HeroActions({
 							{moreMenuItems}
 						</DropdownMenuContent>
 					</DropdownMenu>
-				)}
-
-				{isInProgress && remainingSeconds != null && remainingSeconds > 0 && (
-					<p className="px-2 pt-1 pb-1 text-muted-foreground text-xs tabular-nums">
-						{m["audiobook.time_left"]({
-							time: formatReadingTime(remainingSeconds),
-						})}
-					</p>
 				)}
 			</div>
 
@@ -978,7 +966,7 @@ function AudioFilesSection({ audiobook }: { audiobook: AudiobookData }) {
 								onClick={() => {
 									void handleDownload(file.index);
 								}}
-								className="row-span-2 size-11 shrink-0 text-muted-foreground hover:text-foreground"
+								className="col-start-3 row-span-2 row-start-1 size-11 shrink-0 text-muted-foreground hover:text-foreground"
 							>
 								{downloadingIndex === file.index ? (
 									<CircleNotch

@@ -17,10 +17,13 @@ type PublishReadListenContext = (
 const PlayerHostContext = createContext<PublishReadListenContext | null>(null);
 
 export function PlayerHostProvider({ children }: { children: ReactNode }) {
-	const placement = useRouterState({
-		select: ({ location }) =>
-			location.pathname.startsWith("/reader/") ? "reader" : "dashboard",
+	const pathname = useRouterState({
+		select: ({ location }) => location.pathname,
 	});
+	const placement = pathname.startsWith("/reader/") ? "reader" : "dashboard";
+	const hidePlayer = /^\/(?:dashboard\/settings|login|sign-up)(?:\/|$)/.test(
+		pathname,
+	);
 	const [readListen, setReadListen] = useState<ReadListenPlayerContext>();
 	const publishReadListen = useCallback<PublishReadListenContext>((context) => {
 		setReadListen(context);
@@ -32,7 +35,9 @@ export function PlayerHostProvider({ children }: { children: ReactNode }) {
 	return (
 		<PlayerHostContext value={publishReadListen}>
 			{children}
-			<MiniPlayer placement={placement} readListen={readListen} />
+			{!hidePlayer && (
+				<MiniPlayer placement={placement} readListen={readListen} />
+			)}
 		</PlayerHostContext>
 	);
 }

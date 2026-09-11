@@ -6,13 +6,35 @@ import { cn } from "@/lib/utils";
 const contextMenuItemClassName =
 	"group/context-menu-item relative flex min-h-8 cursor-default select-none items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm outline-hidden transition-[background-color,color] duration-100 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 data-[variant=destructive]:data-highlighted:bg-destructive/10 data-[variant=destructive]:data-highlighted:text-dropdown-destructive data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-7 data-[variant=destructive]:text-dropdown-destructive data-highlighted:text-accent-foreground data-disabled:opacity-50 dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 data-[variant=destructive]:*:[svg]:text-dropdown-destructive data-highlighted:*:[svg]:text-accent-foreground";
 
+const ActiveContextMenuTrigger = React.createContext<string | null>(null);
+
 function ContextMenu({
+	onOpenChange,
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-	return <ContextMenuPrimitive.Root {...props} />;
+	const [activeTrigger, setActiveTrigger] = React.useState<string | null>(null);
+	return (
+		<ActiveContextMenuTrigger value={activeTrigger}>
+			<ContextMenuPrimitive.Root
+				{...props}
+				onOpenChange={(open, details) => {
+					onOpenChange?.(open, details);
+					if (details.isCanceled) return;
+					const target = details.event.target;
+					setActiveTrigger(
+						open && target instanceof Element
+							? (target.closest('[data-slot="context-menu-trigger"]')?.id ??
+									null)
+							: null,
+					);
+				}}
+			/>
+		</ActiveContextMenuTrigger>
+	);
 }
 
 function ContextMenuTrigger({
+	id,
 	className,
 	asChild,
 	children,
@@ -20,8 +42,13 @@ function ContextMenuTrigger({
 }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger> & {
 	asChild?: boolean;
 }) {
+	const generatedId = React.useId();
+	const triggerId = id ?? generatedId;
+	const activeTrigger = React.useContext(ActiveContextMenuTrigger);
 	return (
 		<ContextMenuPrimitive.Trigger
+			id={triggerId}
+			data-context-menu-active={activeTrigger === triggerId ? "" : undefined}
 			data-slot="context-menu-trigger"
 			className={className}
 			render={asChild && React.isValidElement(children) ? children : undefined}

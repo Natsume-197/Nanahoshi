@@ -1,4 +1,4 @@
-import { BookmarkSimple, MapPin } from "@phosphor-icons/react";
+import { ArrowUUpLeft, BookmarkSimple } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReaderPosition, Section } from "@/features/reader/document/types";
@@ -182,7 +182,7 @@ export function ReaderReadingPoint({
 							aria-keyshortcuts="r"
 							onClick={onGo}
 						>
-							<MapPin aria-hidden size={18} />
+							<ArrowUUpLeft aria-hidden size={18} />
 							<span className="sr-only">{m.reader_point_go()}</span>
 						</button>
 						{selection && (
