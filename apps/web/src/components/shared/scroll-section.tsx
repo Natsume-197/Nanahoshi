@@ -244,6 +244,8 @@ export function ScrollSection({
 				)}
 				<section
 					ref={scrollRef}
+					// Keep the rail's artwork in a composited layer while it scrolls.
+					style={{ willChange: "transform" }}
 					aria-labelledby={title != null ? headingId : undefined}
 					tabIndex={isScrollable ? 0 : undefined}
 					onKeyDown={handleRailKeyDown}

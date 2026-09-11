@@ -6,7 +6,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { createBookCardShellRowHeightEstimator } from "@/components/books/book-card-shell";
 import {
@@ -248,6 +248,9 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 	const fetchNextPage = isLibrary
 		? libraryListQuery.fetchNextPage
 		: allListQuery.fetchNextPage;
+	const loadNextPage = useCallback(() => {
+		if (!isPlaceholderData && !isFetching) void fetchNextPage();
+	}, [fetchNextPage, isPlaceholderData, isFetching]);
 
 	const countOptions = isLibrary
 		? orpc.books.countByLibrary.queryOptions({
@@ -276,28 +279,41 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 		...placeholderOptions,
 	});
 
-	// Mixed-catalog rows carry their own media type; library rows fall back to
-	// the page-level one so cards, links and context menus stay format-correct.
-	// Each list normalizes its own rows so both end up the same shape.
-	const libraryBooks = useMemo(
+	// Preserve query-cache row identities when another page arrives. Cloning all
+	// previous rows defeats the virtual grid's memoized card content.
+	const books = useMemo(
 		() =>
-			(libraryListQuery.data?.pages.flat() ?? []).map((book) => ({
-				...book,
-				mediaType,
-			})),
-		[libraryListQuery.data, mediaType],
+			(isLibrary
+				? libraryListQuery.data?.pages
+				: allListQuery.data?.pages
+			)?.flat() ?? [],
+		[isLibrary, libraryListQuery.data?.pages, allListQuery.data?.pages],
 	);
-	const allBooks = useMemo(
-		() =>
-			(allListQuery.data?.pages.flat() ?? []).map((book) => ({
-				...book,
-				mediaType: book.mediaType ?? mediaType,
-			})),
-		[allListQuery.data, mediaType],
+	const renderGridItem = useCallback(
+		(book: (typeof books)[number]) => {
+			const bookMediaType =
+				"mediaType" in book &&
+				(book.mediaType === "ebook" || book.mediaType === "audiobook")
+					? book.mediaType
+					: mediaType;
+			return (
+				<BookContextMenuTrigger bookUuid={book.uuid} mediaType={bookMediaType}>
+					<BookCard
+						uuid={book.uuid}
+						title={book.title}
+						filename={book.filename}
+						cover={book.cover}
+						authors={book.authors}
+						mediaType={bookMediaType}
+						coverFrameRatio={bookMediaType === "audiobook" ? "square" : "book"}
+						tint={book.mainColor}
+						contextMenuEnabled={false}
+					/>
+				</BookContextMenuTrigger>
+			);
+		},
+		[mediaType],
 	);
-	// Both lists normalize to the same row shape; anchoring the type keeps the
-	// literal mediaType union from widening to string via generic inference.
-	const books: typeof allBooks = isLibrary ? libraryBooks : allBooks;
 	const gridRowEstimate = useMemo(
 		() => createBookCardShellRowHeightEstimator({ square: isAudiobook }),
 		[isAudiobook],
@@ -563,29 +579,10 @@ export function CatalogView({ source }: { source: CatalogSource }) {
 				items={books}
 				getKey={(book) => book.uuid}
 				hasNextPage={hasNextPage && !isPlaceholderData}
-				fetchNextPage={() => {
-					if (!isPlaceholderData && !isFetching) void fetchNextPage();
-				}}
+				fetchNextPage={loadNextPage}
 				gridRowEstimate={gridRowEstimate}
 				squareArtwork={isAudiobook}
-				renderGridItem={(book) => (
-					<BookContextMenuTrigger
-						bookUuid={book.uuid}
-						mediaType={book.mediaType}
-					>
-						<BookCard
-							uuid={book.uuid}
-							title={book.title}
-							filename={book.filename}
-							cover={book.cover}
-							authors={book.authors}
-							mediaType={book.mediaType}
-							coverFrameRatio={isAudiobook ? "square" : "book"}
-							tint={book.mainColor}
-							contextMenuEnabled={false}
-						/>
-					</BookContextMenuTrigger>
-				)}
+				renderGridItem={renderGridItem}
 				emptyState={
 					<EmptyState
 						title={m["library_page.empty_title"]()}

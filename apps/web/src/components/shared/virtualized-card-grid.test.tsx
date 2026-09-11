@@ -79,6 +79,16 @@ test("scroll only renders newly visible cards and still applies item updates", a
 	});
 	await waitFor(() => expect(view.getByText("Book 20")).toBeTruthy());
 	expect(renders.get(8)).toBe(before);
+	// Pagination and unrelated toolbar updates must not rebuild visible cards.
+	const afterScroll = new Map(renders);
+	const nextPage = Array.from({ length: 30 }, (_, index) => ({
+		id: 1000 + index,
+		title: `Book ${1000 + index}`,
+	}));
+	view.rerender(grid([items, nextPage].flat()));
+	expect(renders).toEqual(afterScroll);
+	view.rerender(grid([items, nextPage].flat()));
+	expect(renders).toEqual(afterScroll);
 	view.rerender(
 		grid(
 			items.map((item) =>

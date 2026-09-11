@@ -40,42 +40,7 @@ const READ_LISTEN_TASK_TYPES: ReadonlySet<string> = new Set([
 
 let lastContentRefresh = 0;
 
-/**
- * While a scan/enrich task is running, refetch only the recently-added rows
- * (throttled) so new books show up without hammering every query on each
- * progress tick. Everything else refreshes once, when the task ends.
- */
-function refreshContentForTask(task: Task) {
-	if (!CONTENT_TASK_TYPES.has(task.type)) return;
-
-	if (task.status !== "running") {
-		lastContentRefresh = Date.now();
-		queryClient.invalidateQueries();
-		return;
-	}
-
-	const now = Date.now();
-	if (now - lastContentRefresh < CONTENT_REFRESH_THROTTLE_MS) return;
-	lastContentRefresh = now;
-	for (const queryKey of liveRefreshKeys) {
-		queryClient.invalidateQueries({ queryKey });
-	}
-}
-
-function refreshRecommendationsForTask(task: Task) {
-	if (!RECOMMENDATION_TASK_TYPES.has(task.type)) return;
-	if (task.status === "running") return;
-	queryClient.invalidateQueries({ queryKey: orpc.recommendations.key() });
-}
-
-function refreshReadListenForTask(task: Task) {
-	if (!READ_LISTEN_TASK_TYPES.has(task.type) || task.status === "running") {
-		return;
-	}
-	queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
-}
-
-function updateTasksInCache(tasks: Task[]) {
+export function updateTasksInCache(tasks: Task[]) {
 	// Update getActiveTasks cache
 	queryClient.setQueriesData<Task[]>({ queryKey: activeTasksKey }, (old) => {
 		if (!old) return old;
@@ -88,10 +53,43 @@ function updateTasksInCache(tasks: Task[]) {
 		return mergeAllTaskUpdates(old, tasks);
 	});
 
-	for (const task of tasks) {
-		refreshContentForTask(task);
-		refreshRecommendationsForTask(task);
-		refreshReadListenForTask(task);
+	// A full refresh already includes the targeted queries. Coalesce the whole
+	// gateway batch before invalidating: repeated completions otherwise restart
+	// refetches and scan the query cache once for every finished task.
+	const contentTasks = tasks.filter((task) =>
+		CONTENT_TASK_TYPES.has(task.type),
+	);
+	if (contentTasks.some((task) => task.status !== "running")) {
+		lastContentRefresh = Date.now();
+		queryClient.invalidateQueries();
+		return;
+	}
+
+	const now = Date.now();
+	if (
+		contentTasks.length > 0 &&
+		now - lastContentRefresh >= CONTENT_REFRESH_THROTTLE_MS
+	) {
+		lastContentRefresh = now;
+		for (const queryKey of liveRefreshKeys) {
+			queryClient.invalidateQueries({ queryKey });
+		}
+	}
+	if (
+		tasks.some(
+			(task) =>
+				task.status !== "running" && RECOMMENDATION_TASK_TYPES.has(task.type),
+		)
+	) {
+		queryClient.invalidateQueries({ queryKey: orpc.recommendations.key() });
+	}
+	if (
+		tasks.some(
+			(task) =>
+				task.status !== "running" && READ_LISTEN_TASK_TYPES.has(task.type),
+		)
+	) {
+		queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
 	}
 }
 
