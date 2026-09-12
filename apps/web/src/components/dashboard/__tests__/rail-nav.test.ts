@@ -4,6 +4,7 @@ import { resolveRailSection } from "../rail-nav";
 describe("resolveRailSection", () => {
 	test("home matches exactly, not as a prefix", () => {
 		expect(resolveRailSection("/dashboard")).toBe("home");
+		expect(resolveRailSection("/dashboard/")).toBe("home");
 		expect(resolveRailSection("/dashboard/series")).not.toBe("home");
 	});
 

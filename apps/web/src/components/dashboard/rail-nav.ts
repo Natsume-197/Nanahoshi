@@ -15,14 +15,16 @@ const MORE_PREFIXES = [
 ];
 
 export function resolveRailSection(pathname: string): RailSection {
-	if (pathname === "/dashboard") return "home";
-	if (pathname.startsWith("/dashboard/read-listen")) return "read-listen";
-	if (pathname.startsWith("/dashboard/audiobooks")) return "catalog";
-	if (pathname.startsWith("/dashboard/books")) return "catalog";
-	if (pathname.startsWith("/dashboard/collections")) return "collections";
-	if (pathname.startsWith("/dashboard/series")) return "series";
-	if (pathname.startsWith("/dashboard/genres")) return "genres";
-	if (MORE_PREFIXES.some((prefix) => pathname.startsWith(prefix)))
-		return "more";
+	// The dashboard index match can arrive with a trailing slash
+	// ("/dashboard/"); normalize it so Home still owns the route.
+	const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+	if (path === "/dashboard") return "home";
+	if (path.startsWith("/dashboard/read-listen")) return "read-listen";
+	if (path.startsWith("/dashboard/audiobooks")) return "catalog";
+	if (path.startsWith("/dashboard/books")) return "catalog";
+	if (path.startsWith("/dashboard/collections")) return "collections";
+	if (path.startsWith("/dashboard/series")) return "series";
+	if (path.startsWith("/dashboard/genres")) return "genres";
+	if (MORE_PREFIXES.some((prefix) => path.startsWith(prefix))) return "more";
 	return null;
 }

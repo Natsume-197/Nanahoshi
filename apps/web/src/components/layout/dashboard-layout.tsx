@@ -18,6 +18,7 @@ import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-s
 import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { getTabReselectScrollBehavior } from "@/components/dashboard/mobile-tab-navigation";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import { resolveRailSection } from "@/components/dashboard/rail-nav";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { ActivityRail } from "@/components/layout/activity-rail";
 import {
@@ -230,7 +231,8 @@ export function DashboardLayout() {
 	);
 	// The phone header is home chrome. Every other mobile route already has the
 	// persistent bottom navigation and should give its full height to content.
-	const showMobileHeader = renderedRoute.pathname === "/dashboard";
+	const showMobileHeader =
+		resolveRailSection(renderedRoute.pathname) === "home";
 	const scrollContainerRef = useRef<HTMLElement | null>(null);
 	useCardScrollActivity(scrollContainerRef);
 	const headerRef = useRef<HTMLElement | null>(null);
