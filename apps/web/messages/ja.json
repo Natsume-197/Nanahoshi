@@ -413,6 +413,11 @@
 			"cancel": "キャンセル"
 		},
 		"logs": {
+			"line_limit": "表示行数",
+			"lines": "{count} 行",
+			"follow": "自動更新",
+			"wrap": "行を折り返す",
+			"scroll_bottom": "末尾へ",
 			"title": "Nanahoshiログ",
 			"desc": "エラーやバックグラウンド処理を診断するため、Nanahoshiのサーバーとワーカーの最近のイベントを確認します。",
 			"search": "検索",

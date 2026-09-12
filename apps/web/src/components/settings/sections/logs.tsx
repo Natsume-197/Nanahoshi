@@ -1,540 +1,339 @@
-import type {
-	LogEntry,
-	LogLevel,
-	LogSource,
-} from "@nanahoshi-v2/api/lib/log-buffer";
+import type { LogLevel, LogSource } from "@nanahoshi-v2/api/lib/log-buffer";
 import {
+	ArrowDown,
+	ArrowElbowDownLeft,
 	ArrowsClockwise,
-	ArrowsLeftRight,
-	BracketsCurly,
-	DotsThree,
-	ListMagnifyingGlass,
+	DownloadSimple,
 	MagnifyingGlass,
-	WarningCircle,
+	TextAlignLeft,
+	X,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { createColumnHelper } from "@tanstack/react-table";
-import { useCallback, useMemo, useRef, useState } from "react";
-import {
-	DataTable,
-	DataTableColumnHeader,
-	type DataTableFeatures,
-	dataTableFeatures,
-} from "@/components/data-table";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { downloadFromUrl } from "@/utils/download";
 import { formatDetailedDate } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-
-type LevelFilter = "all" | LogLevel;
-type SourceFilter = "all" | LogSource;
+import {
+	filterLogEntries,
+	formatLogContext,
+	formatLogText,
+} from "./logs.utils";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
-
-const levelVariant = {
-	trace: "outline",
-	debug: "secondary",
-	info: "info",
-	warn: "warning",
-	error: "destructive",
-	fatal: "destructive",
-} as const;
-
-const levelLabels: Record<LogLevel, () => string> = {
-	trace: m["settings.logs.level_trace"],
-	debug: m["settings.logs.level_debug"],
-	info: m["settings.logs.level_info"],
-	warn: m["settings.logs.level_warn"],
-	error: m["settings.logs.level_error"],
-	fatal: m["settings.logs.level_fatal"],
+const levelColors: Record<LogLevel, string> = {
+	trace: "text-muted-foreground",
+	debug: "text-muted-foreground",
+	info: "text-foreground/80",
+	warn: "text-amber-600 dark:text-amber-400",
+	error: "text-red-600 dark:text-red-400",
+	fatal: "text-red-600 dark:text-red-400",
 };
-
-const sourceLabels: Record<LogSource, () => string> = {
-	server: m["settings.logs.source_server"],
-	worker: m["settings.logs.source_worker"],
+const sourceColors: Record<LogSource, string> = {
+	server: "text-sky-700 dark:text-sky-300",
+	worker: "text-violet-700 dark:text-violet-300",
 };
-
-export function normalizeLogSource(source: unknown): LogSource {
-	return source === "worker" ? "worker" : "server";
-}
-
-export function filterLogEntries(
-	entries: LogEntry[],
-	filters: { query: string; level: LevelFilter; source: SourceFilter },
-): LogEntry[] {
-	const normalizedQuery = filters.query.trim().toLocaleLowerCase();
-	return entries
-		.map((entry) => ({
-			...entry,
-			source: normalizeLogSource(entry.source),
-		}))
-		.filter((entry) => {
-			if (filters.level !== "all" && entry.level !== filters.level) {
-				return false;
-			}
-			if (filters.source !== "all" && entry.source !== filters.source) {
-				return false;
-			}
-			if (!normalizedQuery) return true;
-			return `${entry.message} ${JSON.stringify(entry.context)}`
-				.toLocaleLowerCase()
-				.includes(normalizedQuery);
-		});
-}
-
-function hasContext(entry: LogEntry): boolean {
-	return Object.keys(entry.context).length > 0;
-}
-
-export function LogSourceBadge({ source }: { source: unknown }) {
-	const normalizedSource = normalizeLogSource(source);
-	return (
-		<Badge variant={normalizedSource === "worker" ? "outline" : "secondary"}>
-			{sourceLabels[normalizedSource]()}
-		</Badge>
-	);
-}
-
-export function LogLevelBadge({ level }: { level: LogLevel }) {
-	return (
-		<Badge
-			variant={levelVariant[level]}
-			className={cn(
-				(level === "error" || level === "fatal") && "text-foreground",
-			)}
-		>
-			{levelLabels[level]()}
-		</Badge>
-	);
-}
-
-const helper = createColumnHelper<DataTableFeatures, LogEntry>();
-
-function logColumns({
-	onViewContext,
-}: {
-	onViewContext: (entry: LogEntry, returnFocus: () => void) => void;
-}) {
-	return helper.columns([
-		helper.accessor("timestamp", {
-			header: ({ column }) => (
-				<DataTableColumnHeader
-					column={column}
-					title={m["settings.logs.date"]()}
-				/>
-			),
-			cell: ({ row }) => (
-				<time
-					dateTime={row.original.timestamp}
-					className="text-muted-foreground text-xs tabular-nums"
-				>
-					{formatDetailedDate(new Date(row.original.timestamp))}
-				</time>
-			),
-		}),
-		helper.accessor("source", {
-			header: ({ column }) => (
-				<DataTableColumnHeader
-					column={column}
-					title={m["settings.logs.source"]()}
-				/>
-			),
-			cell: ({ row }) => <LogSourceBadge source={row.original.source} />,
-		}),
-		helper.accessor("level", {
-			header: ({ column }) => (
-				<DataTableColumnHeader
-					column={column}
-					title={m["settings.logs.level"]()}
-				/>
-			),
-			cell: ({ row }) => <LogLevelBadge level={row.original.level} />,
-		}),
-		helper.accessor("message", {
-			header: ({ column }) => (
-				<DataTableColumnHeader
-					column={column}
-					title={m["settings.logs.message"]()}
-				/>
-			),
-			cell: ({ row }) => (
-				<p className="min-w-56 max-w-xl whitespace-normal break-words font-mono text-[13px] leading-relaxed">
-					{row.original.message || m["settings.logs.no_message"]()}
-				</p>
-			),
-		}),
-		helper.display({
-			id: "actions",
-			header: () => (
-				<span className="sr-only">{m["settings.logs.actions"]()}</span>
-			),
-			cell: ({ row }) => (
-				<LogActionsMenu entry={row.original} onViewContext={onViewContext} />
-			),
-		}),
-	]);
-}
-
-function LogActionsMenu({
-	entry,
-	onViewContext,
-}: {
-	entry: LogEntry;
-	onViewContext: (entry: LogEntry, returnFocus: () => void) => void;
-}) {
-	const triggerRef = useRef<HTMLButtonElement>(null);
-
-	return (
-		<div className="flex justify-end">
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						ref={triggerRef}
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label={m["settings.logs.actions_for"]({
-							message: entry.message || m["settings.logs.no_message"](),
-						})}
-					>
-						<DotsThree aria-hidden="true" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuGroup>
-						<DropdownMenuItem
-							disabled={!hasContext(entry)}
-							onClick={() =>
-								onViewContext(entry, () => triggerRef.current?.focus())
-							}
-						>
-							<BracketsCurly aria-hidden="true" />
-							{m["settings.logs.view_context"]()}
-						</DropdownMenuItem>
-					</DropdownMenuGroup>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
-	);
-}
+const controlClass =
+	"h-9 shrink-0 rounded-md border border-border bg-control px-2 text-sm focus-visible:outline-ring";
 
 export function AdminLogs() {
 	const [query, setQuery] = useState("");
-	const [level, setLevel] = useState<LevelFilter>("all");
-	const [source, setSource] = useState<SourceFilter>("all");
-	const [contextEntry, setContextEntry] = useState<LogEntry | null>(null);
-	const [contextOpen, setContextOpen] = useState(false);
-	const contextReturnFocusRef = useRef<(() => void) | null>(null);
+	const [level, setLevel] = useState<"all" | LogLevel>("all");
+	const [source, setSource] = useState<"all" | LogSource>("all");
+	const [date, setDate] = useState("");
+	const [limit, setLimit] = useState("500");
+	const [follow, setFollow] = useState(true);
+	const [wrap, setWrap] = useState(false);
+	const viewportRef = useRef<HTMLElement>(null);
 	const listLogsOptions = orpc.settings.listLogs.queryOptions();
 	const logsQuery = useQuery({
 		...listLogsOptions,
 		queryKey: [...listLogsOptions.queryKey, { schemaVersion: 2 }],
-		staleTime: Number.POSITIVE_INFINITY,
+		refetchInterval: follow ? 3000 : false,
 	});
-
-	const filteredLogs = useMemo(() => {
-		return filterLogEntries(logsQuery.data ?? [], { query, level, source });
-	}, [level, logsQuery.data, query, source]);
-	const hasActiveFilters =
-		query.trim() !== "" || level !== "all" || source !== "all";
-	const clearFilters = useCallback(() => {
-		setQuery("");
-		setLevel("all");
-		setSource("all");
-	}, []);
-	const handleViewContext = useCallback(
-		(entry: LogEntry, returnFocus: () => void) => {
-			contextReturnFocusRef.current = returnFocus;
-			setContextEntry(entry);
-			setContextOpen(true);
-		},
-		[],
+	const filteredLogs = useMemo(
+		() =>
+			filterLogEntries(logsQuery.data ?? [], { query, level, source, date })
+				.slice(0, Number(limit))
+				.reverse(),
+		[logsQuery.data, query, level, source, date, limit],
 	);
-	const columns = useMemo(
-		() => logColumns({ onViewContext: handleViewContext }),
-		[handleViewContext],
-	);
+	const lastId = filteredLogs.at(-1)?.id;
+	useEffect(() => {
+		if (follow && lastId && filteredLogs.length > 0) {
+			const viewport = viewportRef.current;
+			if (viewport) viewport.scrollTop = viewport.scrollHeight;
+		}
+	}, [follow, lastId, filteredLogs.length]);
+	const hasFilters =
+		query.trim() !== "" || level !== "all" || source !== "all" || date !== "";
+	function exportLogs() {
+		const url = URL.createObjectURL(
+			new Blob([formatLogText(filteredLogs)], {
+				type: "text/plain;charset=utf-8",
+			}),
+		);
+		downloadFromUrl(url, "nanahoshi-logs.txt");
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
+	}
 
 	return (
-		<section className="flex flex-col gap-6" aria-labelledby="logs-title">
-			<div className="flex flex-col gap-1">
-				<h2
-					id="logs-title"
-					className="text-balance font-semibold text-foreground text-xl"
-				>
-					{m["settings.logs.title"]()}
-				</h2>
-				<p className="max-w-3xl text-pretty text-muted-foreground text-sm leading-relaxed">
-					{m["settings.logs.desc"]()}
-				</p>
-			</div>
-
-			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_minmax(10rem,auto)_minmax(10rem,auto)_auto] lg:items-end">
-				<div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
-					<Label htmlFor="log-search">{m["settings.logs.search"]()}</Label>
-					<div className="relative">
-						<MagnifyingGlass
-							aria-hidden="true"
-							className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-						/>
-						<Input
-							id="log-search"
-							type="search"
-							name="log-search"
-							autoComplete="off"
-							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder={m["settings.logs.search_placeholder"]()}
-							className="w-full ps-9"
-						/>
-					</div>
-				</div>
-
-				<div className="flex min-w-0 flex-col gap-2">
-					<Label id="log-level-label">
-						{m["settings.logs.filter_level"]()}
-					</Label>
-					<Select<LevelFilter> value={level} onValueChange={setLevel}>
-						<SelectTrigger
-							id="log-level"
-							aria-labelledby="log-level-label"
-							className="w-full"
-						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">
-								{m["settings.logs.all_levels"]()}
-							</SelectItem>
-							{LEVELS.map((value) => (
-								<SelectItem key={value} value={value}>
-									{levelLabels[value]()}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-
-				<div className="flex min-w-0 flex-col gap-2">
-					<Label id="log-source-label">
-						{m["settings.logs.filter_source"]()}
-					</Label>
-					<Select<SourceFilter> value={source} onValueChange={setSource}>
-						<SelectTrigger
-							id="log-source"
-							aria-labelledby="log-source-label"
-							className="w-full"
-						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">
-								{m["settings.logs.all_sources"]()}
-							</SelectItem>
-							<SelectItem value="server">{sourceLabels.server()}</SelectItem>
-							<SelectItem value="worker">{sourceLabels.worker()}</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-
-				<Button
-					type="button"
-					variant="outline"
-					className="w-full sm:w-fit"
-					onClick={() => logsQuery.refetch()}
-					disabled={logsQuery.isFetching}
-				>
-					<ArrowsClockwise
-						data-icon="inline-start"
-						className={cn(logsQuery.isFetching && "animate-spin")}
+		<section
+			className="flex min-w-0 flex-col gap-3"
+			aria-label={m["settings.logs.title"]()}
+		>
+			<div className="flex flex-wrap items-center gap-2">
+				<div className="relative min-w-48 flex-1">
+					<MagnifyingGlass
+						aria-hidden="true"
+						className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
 					/>
-					{m["settings.logs.refresh"]()}
-				</Button>
-			</div>
-
-			<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-				<p className="text-pretty text-muted-foreground text-xs leading-relaxed">
-					{m["settings.logs.retention_note"]()}
-				</p>
-				<div className="flex items-center gap-2">
-					<p
-						className="text-muted-foreground text-xs tabular-nums"
-						role="status"
-						aria-live="polite"
+					<Input
+						type="search"
+						aria-label={m["settings.logs.search"]()}
+						placeholder={m["settings.logs.search_placeholder"]()}
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						className="h-9 rounded-md border-border ps-9"
+					/>
+				</div>
+				<input
+					type="date"
+					aria-label={m["settings.logs.date"]()}
+					value={date}
+					onChange={(event) => setDate(event.target.value)}
+					className={cn(controlClass, "max-w-36")}
+				/>
+				<select
+					aria-label={m["settings.logs.filter_level"]()}
+					value={level}
+					onChange={(event) => setLevel(event.target.value as "all" | LogLevel)}
+					className={controlClass}
+				>
+					<option value="all">{m["settings.logs.all_levels"]()}</option>
+					{LEVELS.map((value) => (
+						<option key={value} value={value}>
+							{value.toUpperCase()}
+						</option>
+					))}
+				</select>
+				<select
+					aria-label={m["settings.logs.filter_source"]()}
+					value={source}
+					onChange={(event) =>
+						setSource(event.target.value as "all" | LogSource)
+					}
+					className={controlClass}
+				>
+					<option value="all">{m["settings.logs.all_sources"]()}</option>
+					<option value="server">{m["settings.logs.source_server"]()}</option>
+					<option value="worker">{m["settings.logs.source_worker"]()}</option>
+				</select>
+				<select
+					aria-label={m["settings.logs.line_limit"]()}
+					value={limit}
+					onChange={(event) => setLimit(event.target.value)}
+					className={controlClass}
+				>
+					{["100", "500", "1000"].map((value) => (
+						<option key={value} value={value}>
+							{m["settings.logs.lines"]({ count: Number(value) })}
+						</option>
+					))}
+				</select>
+				<div className="flex shrink-0 items-center gap-1">
+					<Button
+						variant={wrap ? "secondary" : "ghost"}
+						size="icon-sm"
+						aria-pressed={wrap}
+						aria-label={m["settings.logs.wrap"]()}
+						title={m["settings.logs.wrap"]()}
+						onClick={() => setWrap(!wrap)}
 					>
-						{logsQuery.isFetching
-							? m["settings.logs.refreshing"]()
-							: m["settings.logs.results"]({
-									visible: filteredLogs.length,
-									total: logsQuery.data?.length ?? 0,
-								})}
-					</p>
-					{hasActiveFilters && (
+						<ArrowElbowDownLeft />
+					</Button>
+					<Button
+						variant={follow ? "secondary" : "ghost"}
+						size="icon-sm"
+						aria-pressed={follow}
+						aria-label={m["settings.logs.follow"]()}
+						title={m["settings.logs.follow"]()}
+						onClick={() => setFollow(!follow)}
+					>
+						<TextAlignLeft />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m["settings.logs.refresh"]()}
+						title={m["settings.logs.refresh"]()}
+						onClick={() => logsQuery.refetch()}
+						disabled={logsQuery.isFetching}
+					>
+						<ArrowsClockwise
+							className={cn(logsQuery.isFetching && "animate-spin")}
+						/>
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						aria-label={m["common.download"]()}
+						title={m["common.download"]()}
+						onClick={exportLogs}
+						disabled={!filteredLogs.length}
+					>
+						<DownloadSimple />
+					</Button>
+					{hasFilters && (
 						<Button
-							type="button"
 							variant="ghost"
-							size="sm"
-							onClick={clearFilters}
+							size="icon-sm"
+							aria-label={m["settings.logs.clear_filters"]()}
+							title={m["settings.logs.clear_filters"]()}
+							onClick={() => {
+								setQuery("");
+								setLevel("all");
+								setSource("all");
+								setDate("");
+							}}
 						>
-							{m["settings.logs.clear_filters"]()}
+							<X />
 						</Button>
 					)}
 				</div>
 			</div>
-
-			<p className="flex items-center gap-1.5 text-muted-foreground text-xs sm:hidden">
-				<ArrowsLeftRight aria-hidden="true" className="size-4 shrink-0" />
-				{m["settings.logs.scroll_hint"]()}
-			</p>
-
-			<div aria-busy={logsQuery.isFetching}>
-				{logsQuery.isError ? (
-					<div
-						className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl bg-muted/40 px-6 text-center"
-						role="alert"
-					>
-						<WarningCircle
-							aria-hidden="true"
-							className="size-6 text-destructive"
-						/>
-						<div className="space-y-1">
-							<p className="font-medium text-foreground text-sm">
+			<div className="relative min-w-0">
+				<section
+					ref={viewportRef}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable console needs keyboard focus
+					tabIndex={0}
+					aria-label={m["settings.logs.table_label"]()}
+					aria-busy={logsQuery.isLoading}
+					onScroll={(event) => {
+						const viewport = event.currentTarget;
+						if (
+							follow &&
+							viewport.scrollHeight -
+								viewport.scrollTop -
+								viewport.clientHeight >
+								40
+						)
+							setFollow(false);
+					}}
+					className="h-[calc(100dvh-14rem-var(--desktop-player-offset,0px))] min-h-80 overflow-auto overscroll-contain rounded-xl border bg-muted/20 px-3 py-2 pb-12 font-mono text-[13px] leading-[1.8]"
+				>
+					{logsQuery.isError && (
+						<div role="alert" className="p-6 font-sans">
+							<p className="text-destructive">
 								{m["settings.logs.load_failed"]()}
 							</p>
-							<p className="text-muted-foreground text-sm">
-								{m["settings.logs.load_failed_desc"]()}
-							</p>
+							<Button variant="outline" onClick={() => logsQuery.refetch()}>
+								{m["settings.logs.retry"]()}
+							</Button>
 						</div>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => logsQuery.refetch()}
-						>
-							{m["settings.logs.retry"]()}
-						</Button>
-					</div>
-				) : (
-					<DataTable
-						features={dataTableFeatures}
-						tableLabel={m["settings.logs.table_label"]()}
-						columns={columns}
-						data={filteredLogs}
-						getRowId={(entry) => entry.id}
-						isLoading={logsQuery.isLoading}
-						pageSize={25}
-						paginationLabels={{
-							page: (page, pageCount) =>
-								m["settings.logs.page"]({ page, pageCount }),
-							previous: m["settings.logs.previous_page"](),
-							next: m["settings.logs.next_page"](),
-						}}
-						emptyState={{
-							icon: (
-								<ListMagnifyingGlass
-									aria-hidden="true"
-									className="size-5 text-muted-foreground"
-								/>
-							),
-							title: m["settings.logs.empty"](),
-							description: m["settings.logs.empty_desc"](),
-							action: (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={
-										hasActiveFilters ? clearFilters : () => logsQuery.refetch()
-									}
+					)}
+					{logsQuery.isLoading ? (
+						<p className="p-6">{m["settings.logs.refreshing"]()}</p>
+					) : !filteredLogs.length && !logsQuery.isError ? (
+						<div className="p-6 font-sans text-muted-foreground">
+							<p>{m["settings.logs.empty"]()}</p>
+							<p>{m["settings.logs.empty_desc"]()}</p>
+						</div>
+					) : null}
+					{filteredLogs.map((entry) => {
+						const context = formatLogContext(entry.context);
+						return (
+							<div
+								key={entry.id}
+								className={cn(
+									"min-w-full border-border/20 border-b",
+									wrap ? "w-full" : "w-max",
+									(entry.level === "error" || entry.level === "fatal") &&
+										"bg-red-500/10",
+									entry.level === "warn" && "bg-amber-500/10",
+								)}
+							>
+								<p
+									dir="ltr"
+									className={cn(
+										wrap
+											? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+											: "whitespace-pre",
+									)}
 								>
-									{hasActiveFilters
-										? m["settings.logs.clear_filters"]()
-										: m["settings.logs.refresh"]()}
-								</Button>
-							),
+									<time
+										dateTime={entry.timestamp}
+										title={formatDetailedDate(new Date(entry.timestamp))}
+										className="text-muted-foreground tabular-nums"
+									>
+										{new Date(entry.timestamp).toLocaleTimeString([], {
+											hour12: false,
+										})}
+									</time>
+									{"  "}
+									<span
+										className={cn(
+											"inline-block min-w-[5ch] text-right font-semibold uppercase",
+											levelColors[entry.level],
+										)}
+									>
+										{entry.level}
+									</span>{" "}
+									<span
+										className={cn("font-semibold", sourceColors[entry.source])}
+									>
+										[{entry.source}]
+									</span>{" "}
+									<span>
+										{entry.message || m["settings.logs.no_message"]()}
+									</span>
+								</p>
+								{context && (
+									<pre
+										dir="ltr"
+										translate="no"
+										className={cn(
+											"text-foreground/85",
+											wrap
+												? "whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+												: "whitespace-pre",
+										)}
+									>
+										{context}
+									</pre>
+								)}
+							</div>
+						);
+					})}
+				</section>
+				{!follow && (
+					<Button
+						variant="secondary"
+						size="sm"
+						className="absolute end-4 bottom-4 rounded-full shadow"
+						onClick={() => {
+							const viewport = viewportRef.current;
+							if (viewport) viewport.scrollTop = viewport.scrollHeight;
+							setFollow(true);
 						}}
-					/>
+					>
+						<ArrowDown />
+						{m["settings.logs.scroll_bottom"]()}
+					</Button>
 				)}
 			</div>
-
-			<Modal
-				open={contextOpen}
-				onOpenChange={setContextOpen}
-				onOpenChangeComplete={(open) => {
-					if (!open) {
-						setContextEntry(null);
-						contextReturnFocusRef.current?.();
-						contextReturnFocusRef.current = null;
-					}
-				}}
-				title={m["settings.logs.context_title"]()}
-				description={m["settings.logs.context_description"]()}
-				className="sm:max-w-2xl"
-			>
-				{contextEntry && (
-					<div className="mb-4 grid gap-3 rounded-xl bg-muted/50 p-4 sm:grid-cols-[auto_1fr]">
-						<dl className="contents text-sm">
-							<dt className="font-medium text-muted-foreground">
-								{m["settings.logs.date"]()}
-							</dt>
-							<dd>
-								<time
-									dateTime={contextEntry.timestamp}
-									className="tabular-nums"
-								>
-									{formatDetailedDate(new Date(contextEntry.timestamp))}
-								</time>
-							</dd>
-							<dt className="font-medium text-muted-foreground">
-								{m["settings.logs.source"]()}
-							</dt>
-							<dd>
-								<LogSourceBadge source={contextEntry.source} />
-							</dd>
-							<dt className="font-medium text-muted-foreground">
-								{m["settings.logs.level"]()}
-							</dt>
-							<dd>
-								<LogLevelBadge level={contextEntry.level} />
-							</dd>
-							<dt className="font-medium text-muted-foreground">
-								{m["settings.logs.message"]()}
-							</dt>
-							<dd className="min-w-0 break-words font-mono text-[13px] leading-relaxed">
-								{contextEntry.message || m["settings.logs.no_message"]()}
-							</dd>
-						</dl>
-					</div>
-				)}
-				<pre
-					dir="ltr"
-					translate="no"
-					className="max-h-[50dvh] overflow-auto overscroll-contain rounded-xl bg-muted p-4 text-[13px] tabular-nums leading-relaxed"
-				>
-					<code className="whitespace-pre-wrap break-all">
-						{JSON.stringify(contextEntry?.context ?? {}, null, 2)}
-					</code>
-				</pre>
-			</Modal>
+			<footer className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground text-xs">
+				<p>{m["settings.logs.retention_note"]()}</p>
+				<span role="status">
+					{m["settings.logs.results"]({
+						visible: filteredLogs.length,
+						total: logsQuery.data?.length ?? 0,
+					})}
+				</span>
+			</footer>
 		</section>
 	);
 }

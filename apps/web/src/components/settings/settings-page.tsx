@@ -187,13 +187,29 @@ export function SettingsPage({
 					/>
 				</aside>
 
-				<div className="min-w-0 px-4 py-6 sm:px-6 md:px-8 md:py-8 lg:px-12 lg:py-10">
-					<header className="mx-auto mb-6 w-full max-w-5xl border-border border-b pb-4">
+				<div
+					className={
+						visibleSection === "logs"
+							? "min-w-0 px-4 py-5 sm:px-6"
+							: "min-w-0 px-4 py-6 sm:px-6 md:px-8 md:py-8 lg:px-12 lg:py-10"
+					}
+				>
+					<header
+						className={
+							visibleSection === "logs"
+								? "mb-6"
+								: "mx-auto mb-6 w-full max-w-5xl border-border border-b pb-4"
+						}
+					>
 						<h2 className="font-semibold text-2xl">
 							{LABELS[visibleSection]()}
 						</h2>
 					</header>
-					<div className="mx-auto w-full max-w-5xl">
+					<div
+						className={
+							visibleSection === "logs" ? "w-full" : "mx-auto w-full max-w-5xl"
+						}
+					>
 						<SettingsContent
 							section={visibleSection}
 							onCustomizeTheme={() => setThemeCustomizerOpen(true)}

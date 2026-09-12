@@ -413,6 +413,11 @@
 			"cancel": "Cancel"
 		},
 		"logs": {
+			"line_limit": "Line limit",
+			"lines": "{count} lines",
+			"follow": "Follow live",
+			"wrap": "Wrap lines",
+			"scroll_bottom": "Scroll to bottom",
 			"title": "Nanahoshi logs",
 			"desc": "Inspect recent events from the Nanahoshi server and worker to diagnose errors and background activity.",
 			"search": "Search",
