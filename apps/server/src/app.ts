@@ -8,6 +8,7 @@ import { mountBullBoard } from "./admin/bull-board";
 import { mountGateway } from "./gateway/gateway";
 import { compressResponses } from "./lib/compress";
 import { posthog } from "./lib/posthog";
+import { mountBackups } from "./routes/backups";
 import { mountCovers } from "./routes/covers";
 import { mountDownloads } from "./routes/downloads";
 import { mountMediaStatic, mountMediaUploads } from "./routes/media";
@@ -76,6 +77,7 @@ export function buildApp(): Hono {
 	mountSeriesShareImages(app);
 	mountCovers(app);
 	mountDownloads(app);
+	mountBackups(app);
 	mountStream(app);
 
 	app.get("/", (c) => c.text("OK"));

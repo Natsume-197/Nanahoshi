@@ -1,8 +1,22 @@
+import { z } from "zod";
 import { BadRequestError } from "../../errors";
 import { adminProcedure, requirePermission } from "../../index";
 import { ranobedbImportQueue } from "../../infrastructure/queue/queues/ranobedb-import.queue";
 import { isRanobedbReady } from "../../infrastructure/ranobedb/ranobedb.client";
 import { listSharedLogs } from "../../lib/shared-log-history";
+import {
+	BackupConfigSchema,
+	BackupFilenameSchema,
+} from "../../modules/database-backup/backup.model";
+import {
+	backupQueue,
+	backupToolsAvailable,
+	deleteBackup,
+	enqueueBackup,
+	getBackupConfig,
+	listBackups,
+	updateBackupConfig,
+} from "../../modules/database-backup/backups";
 import {
 	checkPsqlAvailable,
 	syncRanobedbAutoUpdate,
@@ -66,6 +80,44 @@ const normalizeSecret = (value?: string) => {
 };
 
 export const settingsRouter = {
+	getBackups: adminProcedure
+		.input(z.object({ jobId: z.string().max(100).optional() }).default({}))
+		.handler(async ({ input }) => {
+			const [config, files, available, counts, recent] = await Promise.all([
+				getBackupConfig(),
+				listBackups(),
+				backupToolsAvailable(),
+				backupQueue.getJobCounts("active", "waiting"),
+				backupQueue.getJobs(["failed", "completed"], 0, 0),
+			]);
+			const job = input.jobId
+				? await backupQueue.getJob(input.jobId)
+				: undefined;
+			return {
+				config,
+				files,
+				available,
+				busy: (counts.active ?? 0) + (counts.waiting ?? 0) > 0,
+				lastError: recent[0]?.failedReason || null,
+				job: job
+					? {
+							state: await job.getState(),
+							filename:
+								(job.returnvalue as { filename?: string } | null)?.filename ??
+								null,
+							error: job.failedReason || null,
+						}
+					: null,
+			};
+		}),
+	createBackup: adminProcedure.handler(enqueueBackup),
+	deleteBackup: adminProcedure
+		.input(z.object({ filename: BackupFilenameSchema }))
+		.handler(async ({ input }) => deleteBackup(input.filename)),
+	updateBackups: adminProcedure
+		.input(BackupConfigSchema)
+		.handler(async ({ input }) => updateBackupConfig(input)),
+
 	listLogs: adminProcedure.handler(listSharedLogs),
 
 	// ── Book link previews (per-organization) ─────────────

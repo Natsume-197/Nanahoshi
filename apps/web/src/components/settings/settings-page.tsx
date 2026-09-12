@@ -19,6 +19,7 @@ import {
 import { useRef, useState } from "react";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
+import { DataBackupsSettings } from "@/components/settings/sections/data-backups";
 import { HonomiyaSettings } from "@/components/settings/sections/honomiya";
 import { InstanceActivitySettings } from "@/components/settings/sections/instance-activity";
 import { IntegrationsSettings } from "@/components/settings/sections/integrations";
@@ -57,6 +58,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	registration: UserPlus,
 	metadata: Database,
 	honomiya: Waveform,
+	"data-backups": HardDrives,
 	tasks: ListChecks,
 	logs: ListMagnifyingGlass,
 	activity: MonitorPlay,
@@ -75,6 +77,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	registration: m["settings.nav.registration"],
 	metadata: m["settings.nav.metadata_system"],
 	honomiya: m["settings.nav.honomiya"],
+	"data-backups": m["settings.backups.title"],
 	tasks: m["settings.nav.tasks"],
 	logs: m["settings.nav.logs"],
 	activity: m["settings.nav.activity"],
@@ -87,6 +90,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"registration",
 	"metadata",
 	"honomiya",
+	"data-backups",
 	"tasks",
 	"logs",
 	"activity",
@@ -131,6 +135,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 				items: [
 					item("metadata"),
 					item("honomiya"),
+					item("data-backups"),
 					item("tasks"),
 					item("logs"),
 					item("activity"),
@@ -250,6 +255,8 @@ function SettingsContent({
 			return <RegistrationSettings />;
 		case "metadata":
 			return <MetadataSourcesSettings />;
+		case "data-backups":
+			return <DataBackupsSettings />;
 		case "honomiya":
 			return <HonomiyaSettings />;
 		case "tasks":

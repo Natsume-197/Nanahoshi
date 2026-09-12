@@ -85,6 +85,16 @@ EOF
 
 # ── Shared runtime ───────────────────────────────────────────────────
 FROM oven/bun:${BUN_VERSION}-debian AS runtime
+# PostgreSQL 18 matches the compose database. See https://www.postgresql.org/download/linux/debian/
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl ca-certificates \
+	&& install -d /usr/share/postgresql-common/pgdg \
+	&& curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+	&& . /etc/os-release \
+	&& echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+	&& apt-get update \
+	&& apt-get install -y --no-install-recommends postgresql-client-18 \
+	&& rm -rf /var/lib/apt/lists/*
 RUN groupadd --system nanahoshi \
 	&& useradd --system --gid nanahoshi --create-home --home-dir /home/nanahoshi nanahoshi
 WORKDIR /app/apps/server
@@ -98,7 +108,7 @@ ENV ENVIRONMENT=production \
 FROM runtime AS worker
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		ffmpeg postgresql-client \
+		ffmpeg \
 		libglib2.0-0 libgl1 libegl1 libopengl0 libxkbcommon0 \
 		libfontconfig1 libfreetype6 libdbus-1-3 \
 	&& rm -rf /var/lib/apt/lists/*
@@ -118,9 +128,6 @@ CMD ["bun", "run", "dist/worker.mjs"]
 
 # ── API image (default target) ───────────────────────────────────────
 FROM runtime AS api
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends postgresql-client \
-	&& rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/package.json /app/package.json
 COPY --from=build /app/apps/server/package.json ./package.json

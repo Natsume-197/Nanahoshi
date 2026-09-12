@@ -15,6 +15,7 @@ export const workersInitializer: RuntimeInitializer = {
 	name: "workers",
 	initialize: async () => {
 		const [
+			databaseBackup,
 			fileEvent,
 			coverIngest,
 			metadataEnrich,
@@ -26,6 +27,7 @@ export const workersInitializer: RuntimeInitializer = {
 			readListenMatchAnalysis,
 			readListenGeneration,
 		] = await Promise.all([
+			import("@nanahoshi-v2/api/infrastructure/workers/database-backup.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/cover-ingest.worker"),
 			import("@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker"),
@@ -43,6 +45,7 @@ export const workersInitializer: RuntimeInitializer = {
 		]);
 
 		workers = [
+			databaseBackup.databaseBackupWorker,
 			fileEvent.fileEventWorker,
 			coverIngest.coverIngestWorker,
 			metadataEnrich.metadataEnrichWorker,
@@ -78,6 +81,13 @@ export const workersInitializer: RuntimeInitializer = {
 				readForegroundCounts: () =>
 					fileEventQueue.getJobCounts("active", "waiting", "prioritized"),
 			}),
+		);
+
+		const { getBackupConfig, syncBackupSchedule } = await import(
+			"@nanahoshi-v2/api/modules/database-backup/backups"
+		);
+		await syncBackupSchedule(await getBackupConfig()).catch((err) =>
+			logger.error({ err }, "Failed to reconcile backup schedule"),
 		);
 
 		// Seed/repair repeatable library scans from the DB.
