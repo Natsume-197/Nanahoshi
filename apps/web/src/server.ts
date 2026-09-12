@@ -13,6 +13,7 @@ async function catalogLinkPreviewResponse(request: Request) {
 	const requestUrl = new URL(request.url);
 	const target = getCatalogPreviewTarget(requestUrl.pathname);
 	if (!target) return null;
+	requestUrl.search = "";
 
 	try {
 		const client = createServerClient(request.headers.get("cookie") ?? "");
@@ -31,6 +32,10 @@ async function catalogLinkPreviewResponse(request: Request) {
 					return client.series.getSharePreview({
 						uuid: target.uuid,
 						mediaType: "audiobook",
+					});
+				case "collection":
+					return client.collections.getSharePreview({
+						collectionId: target.uuid,
 					});
 			}
 		})();
@@ -51,9 +56,12 @@ async function catalogLinkPreviewResponse(request: Request) {
 		).slice(0, 3);
 		const coverFilename = preview.cover?.split("/").pop();
 		const isSeries = target.kind.endsWith("series");
+		const isCollection = target.kind === "collection";
 		const coverUrl =
-			isSeries && coverFilenames.length > 1
-				? `${env.VITE_SERVER_URL}/api/share/series/${target.kind === "audiobook-series" ? "audiobook" : "ebook"}/${target.uuid}.jpg?v=${encodeURIComponent(coverFilenames.join(","))}`
+			(isSeries || isCollection) && coverFilenames.length > 1
+				? isCollection
+					? `${env.VITE_SERVER_URL}/api/share/collections/${target.uuid}.jpg?v=${encodeURIComponent(coverFilenames.join(","))}`
+					: `${env.VITE_SERVER_URL}/api/share/series/${target.kind === "audiobook-series" ? "audiobook" : "ebook"}/${target.uuid}.jpg?v=${encodeURIComponent(coverFilenames.join(","))}`
 				: coverFilename
 					? `${env.VITE_SERVER_URL}/api/data/covers/${encodeURIComponent(coverFilename)}?width=1200&quality=85&format=jpeg`
 					: null;

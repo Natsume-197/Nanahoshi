@@ -7,7 +7,12 @@ export interface CatalogLinkPreview {
 }
 
 export type CatalogPreviewTarget = {
-	kind: "book" | "audiobook" | "ebook-series" | "audiobook-series";
+	kind:
+		| "book"
+		| "audiobook"
+		| "ebook-series"
+		| "audiobook-series"
+		| "collection";
 	uuid: string;
 };
 
@@ -39,6 +44,10 @@ const CATALOG_ROUTES: Array<{
 	{
 		kind: "book",
 		pattern: new RegExp(`^/dashboard/books/${UUID_PATTERN}/?$`, "i"),
+	},
+	{
+		kind: "collection",
+		pattern: new RegExp(`^/dashboard/collections/${UUID_PATTERN}/?$`, "i"),
 	},
 ];
 
@@ -111,10 +120,11 @@ export function renderCatalogLinkPreviewHtml({
 	const safeTitle = escapeHtml(title);
 	const safeDescription = escapeHtml(description);
 	const safeUrl = escapeHtml(url);
-	const openGraphType = kind.endsWith("series") ? "website" : "book";
+	const openGraphType =
+		kind === "book" || kind === "audiobook" ? "book" : "website";
 	const imageTags = coverUrl
 		? `<meta property="og:image" content="${escapeHtml(coverUrl)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${escapeHtml(coverUrl)}">`
 		: '<meta name="twitter:card" content="summary">';
 
-	return `<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>${safeTitle}</title><meta name="description" content="${safeDescription}"><meta property="og:site_name" content="Nanahoshi"><meta property="og:type" content="${openGraphType}"><meta property="og:title" content="${safeTitle}"><meta property="og:description" content="${safeDescription}"><meta property="og:url" content="${safeUrl}"><meta name="twitter:title" content="${safeTitle}"><meta name="twitter:description" content="${safeDescription}">${imageTags}</head><body></body></html>`;
+	return `<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>${safeTitle}</title><link rel="canonical" href="${safeUrl}"><meta name="description" content="${safeDescription}"><meta property="og:site_name" content="Nanahoshi"><meta property="og:type" content="${openGraphType}"><meta property="og:title" content="${safeTitle}"><meta property="og:description" content="${safeDescription}"><meta property="og:url" content="${safeUrl}"><meta name="twitter:title" content="${safeTitle}"><meta name="twitter:description" content="${safeDescription}">${imageTags}</head><body></body></html>`;
 }

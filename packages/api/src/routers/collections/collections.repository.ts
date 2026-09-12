@@ -42,7 +42,68 @@ type CreateCollectionRecordInput = {
 	dynamicDefinition: unknown | null;
 };
 
+type CollectionSharePreviewRow = {
+	title: string;
+	description: string | null;
+	covers: string[];
+	authors: string[];
+};
+type CollectionSharePreview = CollectionSharePreviewRow & {
+	cover: string | null;
+};
+
 export class CollectionsRepository {
+	async getPublicServerId(collectionId: string): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: collection.serverId })
+			.from(collection)
+			.where(
+				and(eq(collection.id, collectionId), eq(collection.isPublic, true)),
+			)
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
+	/** The narrow metadata projection exposed for public collection previews. */
+	async getSharePreview(
+		collectionId: string,
+		serverId: string,
+	): Promise<CollectionSharePreview | null> {
+		const result = await db.execute(sql`
+			SELECT
+				c.name AS title,
+				c.description,
+				ARRAY(
+					SELECT COALESCE(bm.cover, am.cover)
+					FROM collection_book cb
+					INNER JOIN book b ON b.id = cb.book_id
+					LEFT JOIN book_metadata bm ON bm.book_id = b.id
+					LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+					WHERE cb.collection_id = c.id
+						AND COALESCE(bm.cover, am.cover) IS NOT NULL
+					ORDER BY cb.added_at DESC
+					LIMIT 3
+				) AS covers,
+				CASE
+					WHEN u.username IS NULL THEN ARRAY[]::text[]
+					ELSE ARRAY['@' || u.username]
+				END AS authors
+			FROM collection c
+			INNER JOIN "user" u ON u.id = c.user_id
+			WHERE c.id = ${collectionId}
+				AND c.server_id = ${serverId}
+				AND c.is_public = true
+			LIMIT 1
+		`);
+		const row = result.rows[0] as CollectionSharePreviewRow | undefined;
+		if (!row) return null;
+		return {
+			...row,
+			covers: row.covers ?? [],
+			cover: row.covers?.[0] ?? null,
+		};
+	}
+
 	async listRuleOptions(
 		field:
 			| "author"

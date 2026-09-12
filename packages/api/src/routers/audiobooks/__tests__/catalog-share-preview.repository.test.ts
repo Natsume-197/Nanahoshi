@@ -32,6 +32,9 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 
 const { AudiobookRepository } = await import("../audiobook.repository");
 const { SeriesRepository } = await import("../../series/series.repository");
+const { CollectionsRepository } = await import(
+	"../../collections/collections.repository"
+);
 
 const preview = {
 	title: "Catalog title",
@@ -107,5 +110,33 @@ describe("catalog share-preview repositories", () => {
 		expect(await repository.getServerId("series-uuid")).toBe("server-1");
 		selectRows = [];
 		expect(await repository.getServerId("missing")).toBeNull();
+	});
+
+	test("collection preview exposes public metadata only", async () => {
+		executeRows = [
+			{
+				title: "Public collection",
+				description: "A curated shelf",
+				covers: [preview.cover, "data/covers/catalog-2.jpg"],
+				authors: ["@reader"],
+			},
+		];
+		const result = await new CollectionsRepository().getSharePreview(
+			"506e5ff3-e86f-56b8-8a45-736b306b17ab",
+			"server-1",
+		);
+
+		expect(Object.keys(result ?? {}).sort()).toEqual([
+			"authors",
+			"cover",
+			"covers",
+			"description",
+			"title",
+		]);
+		expect(result?.covers).toHaveLength(2);
+		expect(result?.cover).toBe(preview.cover);
+		const query = new PgDialect().sqlToQuery(executedQuery as SQL);
+		expect(query.sql).toContain("is_public = true");
+		expect(query.sql).not.toContain("dynamic_definition");
 	});
 });

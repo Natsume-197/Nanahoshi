@@ -50,6 +50,10 @@ export const GetCollectionDetailsInput = z.object({
 	collectionId: z.string().uuid(),
 });
 
+export const CollectionSharePreviewInput = z.object({
+	collectionId: z.string().uuid(),
+});
+
 export const SearchCollectionsInput = z.object({
 	query: z.string().trim().min(1),
 	limit: z.number().int().min(1).max(20).optional(),

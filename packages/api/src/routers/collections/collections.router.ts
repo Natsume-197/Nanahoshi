@@ -1,7 +1,12 @@
 import { hasGlobal } from "../../auth/access.service";
 import { ForbiddenError } from "../../errors";
-import { orgReadProcedure, requirePermission } from "../../index";
 import {
+	orgReadProcedure,
+	publicProcedure,
+	requirePermission,
+} from "../../index";
+import {
+	CollectionSharePreviewInput,
 	CreateCollectionInput,
 	DeleteCollectionInput,
 	DiscoverCollectionsInput,
@@ -21,6 +26,13 @@ import {
 import * as collectionsService from "./collections.service";
 
 export const collectionsRouter = {
+	/** Public collections only; never exposes rules, membership, or file data. */
+	getSharePreview: publicProcedure
+		.input(CollectionSharePreviewInput)
+		.handler(({ input }) =>
+			collectionsService.getCollectionSharePreview(input.collectionId),
+		),
+
 	list: orgReadProcedure.handler(async ({ context }) => {
 		if (!hasGlobal(context.pc, "collection", "read")) {
 			throw new ForbiddenError("Missing permission: collection:read");

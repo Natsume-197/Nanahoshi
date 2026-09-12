@@ -7,6 +7,7 @@ import {
 } from "../../errors";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
+import { getBookLinkPreviewConfig } from "../settings/settings.service";
 import {
 	type DynamicCollectionDefinitionV1,
 	isPersonalizedCollectionDefinition,
@@ -14,6 +15,16 @@ import {
 	parseDynamicCollectionDefinition,
 } from "./collection-rules";
 import { collectionsRepository } from "./collections.repository";
+
+export const getCollectionSharePreview = async (collectionId: string) => {
+	const serverId = await collectionsRepository.getPublicServerId(collectionId);
+	if (!serverId) return null;
+
+	const config = await getBookLinkPreviewConfig(serverId);
+	if (!config.enabled) return null;
+
+	return collectionsRepository.getSharePreview(collectionId, serverId);
+};
 
 type CreateCollectionInput = {
 	name: string;

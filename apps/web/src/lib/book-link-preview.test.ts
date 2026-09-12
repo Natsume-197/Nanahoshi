@@ -24,6 +24,10 @@ describe("book link previews", () => {
 		expect(
 			getCatalogPreviewTarget(`/dashboard/audiobooks/series/${uuid}`),
 		).toEqual({ kind: "audiobook-series", uuid });
+		expect(getCatalogPreviewTarget(`/dashboard/collections/${uuid}`)).toEqual({
+			kind: "collection",
+			uuid,
+		});
 		expect(getCatalogPreviewTarget(`/reader/${uuid}`)).toBeNull();
 	});
 
@@ -64,6 +68,9 @@ describe("book link previews", () => {
 		expect(html).toContain("Ada Lovelace · A useful &amp; concise synopsis");
 		expect(html).toContain('property="og:image"');
 		expect(html).toContain('property="og:type" content="book"');
+		expect(html).toContain(
+			`rel="canonical" href="https://library.example/dashboard/books/${uuid}"`,
+		);
 	});
 
 	test("renders series as a website Open Graph object", () => {
@@ -80,5 +87,21 @@ describe("book link previews", () => {
 			coverUrl: null,
 		});
 		expect(html).toContain('property="og:type" content="website"');
+	});
+
+	test("renders a collection as a website Open Graph object", () => {
+		const html = renderCatalogLinkPreviewHtml({
+			preview: {
+				title: "Favorites",
+				authors: ["@reader"],
+				description: "A public collection",
+				cover: null,
+			},
+			kind: "collection",
+			url: `https://library.example/dashboard/collections/${uuid}`,
+			coverUrl: null,
+		});
+		expect(html).toContain('property="og:type" content="website"');
+		expect(html).toContain("@reader · A public collection");
 	});
 });
