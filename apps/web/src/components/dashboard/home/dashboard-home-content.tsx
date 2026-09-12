@@ -15,6 +15,7 @@ import { orpc } from "@/utils/orpc";
 import { AudiobookSeriesSection } from "./audiobook-series-section";
 import { BookSeriesSection } from "./book-series-section";
 import { ContinueSection } from "./continue-section";
+import { DiscoverCollectionsSection } from "./discover-collections-section";
 import { EmptyLibraryNotice } from "./empty-library-notice";
 import {
 	getHomeProgressiveSnapshot,
@@ -97,6 +98,9 @@ function HomeSection({
 			break;
 		case "popular":
 			section = <PopularSection format="all" />;
+			break;
+		case "discover-collections":
+			section = <DiscoverCollectionsSection />;
 			break;
 		case "your-collections":
 			section = <YourCollectionsSection />;

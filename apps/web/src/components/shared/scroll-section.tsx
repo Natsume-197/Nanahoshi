@@ -18,6 +18,7 @@ interface ScrollSectionProps {
 	/** Omit to render a headerless section (e.g. the top-of-home Continue grid). */
 	title?: ReactNode;
 	showAllHref?: string;
+	showAllSearch?: Record<string, string>;
 	/** History state for the "Show all" link (e.g. { format: "audiobooks" }). */
 	showAllState?: Record<string, unknown>;
 	headerAction?: ReactNode;
@@ -56,6 +57,7 @@ function getPreferredCarouselScrollBehavior(): ScrollBehavior {
 export function ScrollSection({
 	title,
 	showAllHref,
+	showAllSearch,
 	showAllState,
 	headerAction,
 	layout = "carousel",
@@ -207,6 +209,7 @@ export function ScrollSection({
 						{showAllHref && (
 							<Link
 								to={showAllHref}
+								search={showAllSearch}
 								state={showAllState}
 								className="relative inline-flex h-7 items-center whitespace-nowrap rounded-sm font-semibold text-foreground/80 text-sm transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
 							>

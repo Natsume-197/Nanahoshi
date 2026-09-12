@@ -24,6 +24,7 @@ import {
 	ilike,
 	inArray,
 	isNull,
+	ne,
 	or,
 	sql,
 } from "drizzle-orm";
@@ -461,6 +462,55 @@ export class CollectionsRepository {
 				),
 			)
 			.groupBy(collection.id, user.id)
+			.orderBy(desc(collection.updatedAt), asc(collection.name))
+			.limit(limit);
+	}
+
+	/** Recently active public collections owned by other users. */
+	async discover(serverId: string, viewerId: string, limit = 20) {
+		return db
+			.select({
+				id: collection.id,
+				name: collection.name,
+				description: collection.description,
+				isPublic: collection.isPublic,
+				kind: collection.kind,
+				dynamicDefinition: collection.dynamicDefinition,
+				updatedAt: collection.updatedAt,
+				isOwner: sql<boolean>`false`,
+				ownerUsername: user.username,
+				ownerName: user.name,
+				bookCount: sql<
+					number | null
+				>`CASE WHEN ${collection.kind} = 'dynamic' THEN NULL ELSE CAST(COUNT(${collectionBook.bookId}) AS int) END`,
+				previewCovers: sql<string[]>`COALESCE(
+					(SELECT json_agg(sub.cover) FROM (
+						SELECT COALESCE(bm.cover, am.cover) AS cover
+						FROM collection_book cb
+						JOIN book b2 ON b2.id = cb.book_id
+						LEFT JOIN book_metadata bm ON bm.book_id = cb.book_id
+						LEFT JOIN audiobook_metadata am ON am.book_id = cb.book_id
+						WHERE cb.collection_id = ${collection.id} AND COALESCE(bm.cover, am.cover) IS NOT NULL
+						ORDER BY cb.added_at DESC
+						LIMIT 5
+					) sub),
+					'[]'::json
+				)`,
+			})
+			.from(collection)
+			.innerJoin(user, eq(user.id, collection.userId))
+			.leftJoin(collectionBook, eq(collectionBook.collectionId, collection.id))
+			.where(
+				and(
+					eq(collection.serverId, serverId),
+					eq(collection.isPublic, true),
+					ne(collection.userId, viewerId),
+				),
+			)
+			.groupBy(collection.id, user.id)
+			.having(
+				sql`${collection.kind} = 'dynamic' OR COUNT(${collectionBook.bookId}) > 0`,
+			)
 			.orderBy(desc(collection.updatedAt), asc(collection.name))
 			.limit(limit);
 	}

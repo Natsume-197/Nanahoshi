@@ -45,6 +45,7 @@ const sectionLabels = {
 	"books-for-you": m["recs.books_for_you"],
 	"audiobooks-for-you": m["recs.audiobooks_for_you"],
 	popular: m["recs.mix_popular"],
+	"discover-collections": m["home.discover_collections"],
 	"your-collections": m["home.your_collections"],
 	"book-series": m["home.book_series"],
 	"audiobook-series": m["home.audiobook_series"],

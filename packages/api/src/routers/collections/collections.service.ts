@@ -143,6 +143,16 @@ export const searchCollections = async (
 	return rows.map((row) => scopeCollectionSummary(row, accessibleLibraryIds));
 };
 
+export const discoverCollections = async (
+	userId: string,
+	serverId: string,
+	limit = 20,
+	accessibleLibraryIds: number[] | "ALL" = "ALL",
+) => {
+	const rows = await collectionsRepository.discover(serverId, userId, limit);
+	return rows.map((row) => scopeCollectionSummary(row, accessibleLibraryIds));
+};
+
 function redactUnscopedSummary<T extends Record<string, unknown>>(row: T): T {
 	return {
 		...row,

@@ -136,6 +136,7 @@ export function useBookContextMenuActions(
 			);
 			await invalidateEverywhere(queryClient, [
 				orpc.collections.list.key(),
+				orpc.collections.discover.key(),
 				["collections", "search"],
 			]);
 			toast.success(m["toast.collection_created"]());
@@ -181,6 +182,7 @@ export function useBookContextMenuActions(
 					input: { collectionId: variables.collectionId },
 				}),
 				orpc.collections.list.key(),
+				orpc.collections.discover.key(),
 				["collections", "search"],
 			]);
 

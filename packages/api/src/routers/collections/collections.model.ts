@@ -55,6 +55,10 @@ export const SearchCollectionsInput = z.object({
 	limit: z.number().int().min(1).max(20).optional(),
 });
 
+export const DiscoverCollectionsInput = z.object({
+	limit: z.number().int().min(1).max(50).optional(),
+});
+
 export const ListPublicCollectionsInput = z.object({
 	username: z.string().trim().min(1),
 	limit: z.number().int().min(1).max(12).optional(),

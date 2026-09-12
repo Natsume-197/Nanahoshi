@@ -25,10 +25,47 @@ const collectionsService = await import("../collections.service");
 const COLLECTION_ID = "11111111-1111-4111-8111-111111111111";
 const originalGetByIdForUser = collectionsRepository.getByIdForUser;
 const originalSetVisibility = collectionsRepository.setVisibility;
+const originalDiscover = collectionsRepository.discover;
 
 afterEach(() => {
 	collectionsRepository.getByIdForUser = originalGetByIdForUser;
 	collectionsRepository.setVisibility = originalSetVisibility;
+	collectionsRepository.discover = originalDiscover;
+});
+
+describe("discoverCollections", () => {
+	test("keeps full summaries only when the viewer can access every library", async () => {
+		const discover = mock(async () => [
+			{
+				id: COLLECTION_ID,
+				name: "Shared picks",
+				kind: "manual" as const,
+				dynamicDefinition: null,
+				bookCount: 3,
+				previewCovers: ["cover.jpg"],
+			},
+		]);
+		collectionsRepository.discover = discover as never;
+
+		const full = await collectionsService.discoverCollections(
+			"viewer-1",
+			"server-1",
+			10,
+			"ALL",
+		);
+		const scoped = await collectionsService.discoverCollections(
+			"viewer-1",
+			"server-1",
+			10,
+			[7],
+		);
+
+		expect(discover).toHaveBeenCalledWith("server-1", "viewer-1", 10);
+		expect(full[0]?.bookCount).toBe(3);
+		expect(full[0]?.previewCovers).toEqual(["cover.jpg"]);
+		expect(scoped[0]?.bookCount).toBeNull();
+		expect(scoped[0]?.previewCovers).toEqual([]);
+	});
 });
 
 describe("updateCollectionVisibility", () => {

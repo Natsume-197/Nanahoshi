@@ -137,6 +137,7 @@ describe("getActiveHomeSectionCount", () => {
 		"books-for-you",
 		"audiobooks-for-you",
 		"popular",
+		"discover-collections",
 		"your-collections",
 		"book-series",
 		"audiobook-series",

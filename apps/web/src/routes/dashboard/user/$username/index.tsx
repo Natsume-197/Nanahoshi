@@ -266,7 +266,6 @@ function UserProfilePage() {
 									})}
 									readOnly
 									isDynamic={collection.kind === "dynamic"}
-									size="large"
 								/>
 							);
 						})}

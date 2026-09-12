@@ -7,6 +7,9 @@ describe("getHomeSectionPlaceholderKind", () => {
 		expect(getHomeSectionPlaceholderKind("your-collections")).toBe(
 			"collections",
 		);
+		expect(getHomeSectionPlaceholderKind("discover-collections")).toBe(
+			"collections",
+		);
 		expect(getHomeSectionPlaceholderKind("audiobooks-for-you")).toBe("square");
 		expect(getHomeSectionPlaceholderKind("audiobook-series")).toBe("square");
 		expect(getHomeSectionPlaceholderKind("random-audiobooks")).toBe("square");

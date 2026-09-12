@@ -81,7 +81,6 @@ export function CollectionCard({
 	readOnly = false,
 	isPublic,
 	isDynamic = false,
-	size = "default",
 }: {
 	id: string;
 	name: string;
@@ -91,7 +90,6 @@ export function CollectionCard({
 	readOnly?: boolean;
 	isPublic?: boolean;
 	isDynamic?: boolean;
-	size?: "default" | "large";
 }): JSX.Element {
 	const card = (
 		<Link
@@ -106,22 +104,14 @@ export function CollectionCard({
 			<div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-md ring-1 ring-black/10 dark:ring-white/10">
 				<CollectionArtwork covers={previewCovers} />
 			</div>
-			<div className="flex min-w-0 flex-col gap-1">
+			<div className="flex min-h-16 min-w-0 flex-col gap-1 px-0.5">
 				<p
 					title={name}
-					className={cn(
-						"truncate font-semibold",
-						size === "large" ? "text-base" : "text-sm",
-					)}
+					className="line-clamp-2 font-medium text-base leading-snug md:text-lg"
 				>
 					{name}
 				</p>
-				<p
-					className={cn(
-						"truncate text-muted-foreground tabular-nums",
-						size === "large" ? "text-sm" : "text-xs",
-					)}
-				>
+				<p className="line-clamp-1 text-muted-foreground text-sm leading-relaxed">
 					{subtitle}
 				</p>
 				{isDynamic && (
@@ -156,6 +146,7 @@ export function CollectionListItem({
 	subtitle,
 	isPublic,
 	isDynamic = false,
+	readOnly = false,
 }: {
 	id: string;
 	name: string;
@@ -163,6 +154,7 @@ export function CollectionListItem({
 	subtitle: string;
 	isPublic?: boolean;
 	isDynamic?: boolean;
+	readOnly?: boolean;
 }): JSX.Element {
 	const row = (
 		<Link
@@ -193,6 +185,8 @@ export function CollectionListItem({
 			</div>
 		</Link>
 	);
+
+	if (readOnly) return row;
 
 	return (
 		<CollectionContextMenu

@@ -59,6 +59,7 @@ export function CollectionContextMenu({
 		void invalidateEverywhere(queryClient, [
 			orpc.collections.list.key(),
 			orpc.collections.listPublic.key(),
+			orpc.collections.discover.key(),
 			["collections", "search"],
 			orpc.collections.getDetails.key({ input: { collectionId } }),
 		]);

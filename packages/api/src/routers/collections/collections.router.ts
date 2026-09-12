@@ -4,6 +4,7 @@ import { orgReadProcedure, requirePermission } from "../../index";
 import {
 	CreateCollectionInput,
 	DeleteCollectionInput,
+	DiscoverCollectionsInput,
 	GetCollectionDetailsInput,
 	ListBookMembershipsInput,
 	ListCollectionItemsInput,
@@ -56,6 +57,20 @@ export const collectionsRouter = {
 				context.session.user.id,
 				context.serverId,
 				input.query,
+				input.limit,
+				context.accessibleLibraryIds,
+			);
+		}),
+
+	discover: orgReadProcedure
+		.input(DiscoverCollectionsInput)
+		.handler(async ({ input, context }) => {
+			if (!hasGlobal(context.pc, "collection", "read")) {
+				throw new ForbiddenError("Missing permission: collection:read");
+			}
+			return collectionsService.discoverCollections(
+				context.session.user.id,
+				context.serverId,
 				input.limit,
 				context.accessibleLibraryIds,
 			);

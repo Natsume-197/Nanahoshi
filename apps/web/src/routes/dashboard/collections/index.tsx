@@ -28,9 +28,19 @@ const SKELETON_KEYS = Array.from(
 
 export const Route = createFileRoute("/dashboard/collections/")({
 	component: CollectionsPage,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { tab?: "audiobooks" | "discover" } => ({
+		tab:
+			search.tab === "audiobooks" || search.tab === "discover"
+				? search.tab
+				: undefined,
+	}),
 });
 
 function CollectionsPage() {
+	const { tab } = Route.useSearch();
+	const navigate = Route.useNavigate();
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const canRead = can("collection", "read");
 
@@ -39,6 +49,13 @@ function CollectionsPage() {
 		staleTime: 30_000,
 		enabled: canRead,
 	});
+	const { data: discoveredCollections, isLoading: discoveryLoading } = useQuery(
+		{
+			...orpc.collections.discover.queryOptions({ input: { limit: 50 } }),
+			staleTime: 60_000,
+			enabled: canRead && tab === "discover",
+		},
+	);
 
 	// Reading-status "system lists" (want/reading/backlog/completed), pinned ahead
 	// of custom collections.
@@ -48,7 +65,7 @@ function CollectionsPage() {
 		enabled: canRead,
 	});
 
-	const pageLoading = isLoading || shelvesLoading;
+	const pageLoading = tab !== "discover" && (isLoading || shelvesLoading);
 	const collectionIds =
 		collections
 			?.filter(
@@ -57,6 +74,25 @@ function CollectionsPage() {
 			)
 			.map((collection) => collection.id) ?? [];
 	const previews = useCollectionPreviews(collectionIds, canRead && !isLoading);
+	const discoveryIds = (discoveredCollections ?? [])
+		.filter(
+			(collection) =>
+				collection.kind === "dynamic" || collection.bookCount == null,
+		)
+		.map((collection) => collection.id);
+	const discoveryPreviews = useCollectionPreviews(
+		discoveryIds,
+		canRead && !discoveryLoading,
+	);
+	const visibleDiscoveredCollections = (discoveredCollections ?? []).filter(
+		(collection) => {
+			const { count } = resolveCollectionPreview(
+				collection,
+				discoveryPreviews.byId.get(collection.id),
+			);
+			return count != null && count > 0;
+		},
+	);
 	const matchesFormat = (
 		item: NonNullable<typeof collections>[number],
 		mediaType: "ebook" | "audiobook",
@@ -166,6 +202,55 @@ function CollectionsPage() {
 		);
 	};
 
+	const renderDiscovery = () => {
+		if (
+			discoveryLoading ||
+			(discoveryIds.length > 0 && discoveryPreviews.isLoading)
+		) {
+			return (
+				<ul className="flex flex-col gap-1">
+					{SKELETON_KEYS.map((key) => (
+						<li key={`discover-${key}`}>
+							<CollectionListItemSkeleton />
+						</li>
+					))}
+				</ul>
+			);
+		}
+
+		if (visibleDiscoveredCollections.length === 0) {
+			return (
+				<EmptyState
+					title={m["collection.no_discoverable_title"]()}
+					description={m["collection.no_discoverable_desc"]()}
+				/>
+			);
+		}
+
+		return (
+			<ul className="flex flex-col gap-1">
+				{visibleDiscoveredCollections.map((collection) => {
+					const { previewCovers } = resolveCollectionPreview(
+						collection,
+						discoveryPreviews.byId.get(collection.id),
+					);
+					return (
+						<li key={collection.id}>
+							<CollectionListItem
+								id={collection.id}
+								name={collection.name}
+								previewCovers={previewCovers}
+								subtitle={collection.ownerName ?? collection.ownerUsername}
+								isDynamic={collection.kind === "dynamic"}
+								readOnly
+							/>
+						</li>
+					);
+				})}
+			</ul>
+		);
+	};
+
 	if (!abilitiesLoading && !canRead) {
 		return (
 			<div className={PAGE_SHELL}>
@@ -200,10 +285,24 @@ function CollectionsPage() {
 
 			{!pageLoading && (
 				<>
-					<Tabs defaultValue="ebooks" className="gap-5">
+					<Tabs
+						value={tab ?? "ebooks"}
+						onValueChange={(value) =>
+							void navigate({
+								search: {
+									tab:
+										value === "ebooks"
+											? undefined
+											: (value as "audiobooks" | "discover"),
+								},
+								replace: true,
+							})
+						}
+						className="gap-5"
+					>
 						<TabsList
 							variant="line"
-							className="grid min-h-11 w-full grid-cols-2 p-0 sm:flex sm:w-fit"
+							className="grid min-h-11 w-full grid-cols-3 p-0 sm:flex sm:w-fit"
 						>
 							<TabsTrigger
 								value="ebooks"
@@ -217,11 +316,18 @@ function CollectionsPage() {
 							>
 								{m["collection.audiobook_lists"]()}
 							</TabsTrigger>
+							<TabsTrigger
+								value="discover"
+								className="min-h-11 min-w-0 whitespace-normal px-3 text-center leading-tight sm:flex-none sm:px-4"
+							>
+								{m["home.discover_collections"]()}
+							</TabsTrigger>
 						</TabsList>
 						<TabsContent value="ebooks">{renderLists("ebook")}</TabsContent>
 						<TabsContent value="audiobooks">
 							{renderLists("audiobook")}
 						</TabsContent>
+						<TabsContent value="discover">{renderDiscovery()}</TabsContent>
 					</Tabs>
 
 					<CreateCollectionButton

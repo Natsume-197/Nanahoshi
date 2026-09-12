@@ -65,6 +65,7 @@ function CollectionDetailPage() {
 		onSuccess: async () => {
 			await invalidateEverywhere(queryClient, [
 				orpc.collections.list.key(),
+				orpc.collections.discover.key(),
 				["collections", "search"],
 			]);
 			queryClient.invalidateQueries({

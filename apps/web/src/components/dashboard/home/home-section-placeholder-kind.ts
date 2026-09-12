@@ -13,6 +13,7 @@ export function getHomeSectionPlaceholderKind(
 		case "continue":
 			return "resume";
 		case "your-collections":
+		case "discover-collections":
 			return "collections";
 		case "audiobooks-for-you":
 		case "audiobook-series":

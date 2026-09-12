@@ -6,6 +6,7 @@ export const HOME_SECTION_IDS = [
 	"books-for-you",
 	"audiobooks-for-you",
 	"popular",
+	"discover-collections",
 	"your-collections",
 	"book-series",
 	"audiobook-series",
@@ -77,6 +78,20 @@ export function normalizeHomeLayout(value: unknown): HomeSectionPreference[] {
 						: true,
 			});
 		}
+	}
+
+	// Put the newly introduced discovery rail beside the existing collections
+	// rail without resetting a user's saved section order.
+	if (normalized.length > 0 && !seen.has("discover-collections")) {
+		const collectionsIndex = normalized.findIndex(
+			(item) => item.id === "your-collections",
+		);
+		normalized.splice(
+			collectionsIndex < 0 ? normalized.length : collectionsIndex,
+			0,
+			{ id: "discover-collections", visible: true },
+		);
+		seen.add("discover-collections");
 	}
 
 	for (const id of HOME_SECTION_IDS) {
