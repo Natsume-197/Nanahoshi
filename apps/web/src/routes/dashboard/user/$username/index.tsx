@@ -1,5 +1,9 @@
 import { PencilSimple } from "@phosphor-icons/react";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	useQuery,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useRef } from "react";
 import { AccountMenu } from "@/components/dashboard/account-menu";
@@ -36,6 +40,8 @@ import {
 	resolveCollectionPreview,
 	useCollectionPreviews,
 } from "@/hooks/use-collection-previews";
+import { PAGE_GUTTER } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { getHeaderImageSources } from "@/utils/profile-images";
@@ -95,6 +101,30 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 			: orpc.profile.getPublicProfile.queryOptions({ input: { username } });
 
 		context.queryClient.prefetchQuery(profileQuery);
+		// Calienta las pestañas para que el primer cambio no caiga en skeleton:
+		// son las mismas keys que usan los grids (limit 40, offset 0, sin filtro).
+		context.queryClient.prefetchQuery(
+			orpc.bookShelf.getPublicShelfPaginated.queryOptions({
+				input: { username, limit: 40, offset: 0 },
+			}),
+		);
+		context.queryClient.prefetchQuery(
+			orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
+				input: { username, limit: 40, offset: 0 },
+			}),
+		);
+		if (isOwnProfile) {
+			context.queryClient.prefetchQuery(
+				orpc.likedBooks.listLiked.queryOptions({
+					input: { limit: 40, cursor: 0, format: "books" },
+				}),
+			);
+			context.queryClient.prefetchQuery(
+				orpc.likedBooks.count.queryOptions({
+					input: { format: "books" },
+				}),
+			);
+		}
 	},
 	pendingComponent: ProfileSkeleton,
 });
@@ -104,6 +134,35 @@ function UserProfilePage() {
 	const { tab, shelf, audiobookShelf, likedFormat } = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const tabsNavRef = useRef<HTMLDivElement>(null);
+	const queryClient = useQueryClient();
+	// Prefetch al pasar el cursor / enfocar: si el loader no calentó esta
+	// combinación (p. ej. con filtro de estantería), el hover la deja en caché
+	// antes del clic y no se ve el skeleton.
+	const prefetchBooksTab = () => {
+		void queryClient.prefetchQuery(
+			orpc.bookShelf.getPublicShelfPaginated.queryOptions({
+				input: { username, status: shelf, limit: 40, offset: 0 },
+			}),
+		);
+	};
+	const prefetchAudiobooksTab = () => {
+		void queryClient.prefetchQuery(
+			orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
+				input: { username, status: audiobookShelf, limit: 40, offset: 0 },
+			}),
+		);
+	};
+	const prefetchLikesTab = () => {
+		const format = likedFormat ?? "books";
+		void queryClient.prefetchQuery(
+			orpc.likedBooks.listLiked.queryOptions({
+				input: { limit: 40, cursor: 0, format },
+			}),
+		);
+		void queryClient.prefetchQuery(
+			orpc.likedBooks.count.queryOptions({ input: { format } }),
+		);
+	};
 	const { openSettings } = useSettingsModal();
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const { session } = Route.useRouteContext();
@@ -217,191 +276,232 @@ function UserProfilePage() {
 		) : null;
 
 	return (
-		<div className="mx-auto w-full max-w-[1400px] px-4 pt-4 pb-12 sm:px-8 sm:pt-6 lg:px-10">
-			<header>
-				<div className="relative h-40 overflow-hidden rounded-t-2xl bg-muted [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:h-56 lg:h-64">
-					{headerImageSources ? (
-						<img
-							{...headerImageSources}
-							alt=""
-							className="h-full w-full object-cover"
-							decoding="async"
-						/>
-					) : (
-						<div
-							aria-hidden="true"
-							className="absolute inset-0 bg-gradient-to-br from-primary/15 via-muted to-primary/5"
-						>
-							<div className="absolute -top-36 -right-12 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
-							<div className="absolute -top-20 -right-28 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
-						</div>
-					)}
-				</div>
-				<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-4 gap-y-5 px-2 pb-7 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6 sm:px-6 sm:pb-8">
-					<UserAvatar
-						name={profileName}
-						image={profile?.image}
-						className="-mt-10 size-24 shrink-0 ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]"
-						fallbackClassName="bg-muted font-semibold text-3xl text-foreground sm:text-4xl"
-					/>
-					<div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:pb-2">
-						<h1 className="break-words font-semibold text-3xl leading-tight tracking-tight sm:text-4xl">
-							{profileName}
-						</h1>
-						<p className="mt-1.5 break-all text-muted-foreground text-sm sm:text-base">
-							@{displayUsername}
-						</p>
-					</div>
-					<div className="col-start-2 row-start-1 justify-self-end sm:col-start-3 sm:self-center">
-						{actionButton}
-					</div>
-				</div>
-			</header>
-
-			<Tabs
-				value={activeTab}
-				onValueChange={async (value) => {
-					await navigate({
-						search:
-							value === "books"
-								? { tab: "books", shelf }
-								: value === "audiobooks"
-									? { tab: "audiobooks", audiobookShelf }
-									: value === "likes"
-										? { tab: "likes", likedFormat }
-										: {},
-						replace: true,
-						resetScroll: false,
-					});
-					requestAnimationFrame(() => {
-						tabsNavRef.current?.scrollIntoView({ block: "start" });
-					});
-				}}
-				className="gap-0"
-			>
-				<div
-					ref={tabsNavRef}
-					className="w-full scroll-mt-4 border-border/70 border-b"
-				>
-					<TabsList
-						variant="line"
-						className="scrollbar-none w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-12"
-					>
-						<TabsTrigger value="overview" className={PROFILE_TAB_TRIGGER_CLASS}>
-							Overview
-						</TabsTrigger>
-						<TabsTrigger value="books" className={PROFILE_TAB_TRIGGER_CLASS}>
-							<span className="sm:hidden">Books</span>
-							<span className="hidden sm:inline">Book List</span>
-						</TabsTrigger>
-						<TabsTrigger
-							value="audiobooks"
-							className={PROFILE_TAB_TRIGGER_CLASS}
-						>
-							<span className="sm:hidden">Audiobooks</span>
-							<span className="hidden sm:inline">Audiobook List</span>
-						</TabsTrigger>
-						{/* Only you can see your likes, so nobody else gets the tab. */}
-						{isOwnProfile && (
-							<TabsTrigger value="likes" className={PROFILE_TAB_TRIGGER_CLASS}>
-								Likes
-							</TabsTrigger>
+		<div className={cn(PAGE_GUTTER, "pt-4 pb-12 sm:pt-6")}>
+			<div className="mx-auto max-w-[1400px]">
+				<header>
+					<div className="relative h-40 overflow-hidden rounded-2xl bg-muted sm:h-56 lg:h-64">
+						{headerImageSources ? (
+							<img
+								{...headerImageSources}
+								alt=""
+								className="h-full w-full object-cover"
+								decoding="async"
+							/>
+						) : (
+							<div
+								aria-hidden="true"
+								className="absolute inset-0 bg-gradient-to-br from-primary/15 via-muted to-primary/5"
+							>
+								<div className="absolute -top-36 -right-12 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
+								<div className="absolute -top-20 -right-28 size-96 rounded-full border border-foreground/5 sm:size-[32rem]" />
+							</div>
 						)}
-					</TabsList>
-				</div>
+					</div>
+					<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-4 gap-y-5 px-2 pb-7 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-6 sm:px-6 sm:pb-8">
+						<UserAvatar
+							name={profileName}
+							image={profile?.image}
+							className="-mt-10 size-24 shrink-0 ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]"
+							fallbackClassName="bg-muted font-semibold text-3xl text-foreground sm:text-4xl"
+						/>
+						<div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:pb-2">
+							<h1 className="break-words font-semibold text-3xl leading-tight tracking-tight sm:text-4xl">
+								{profileName}
+							</h1>
+							<p className="mt-1.5 break-all text-muted-foreground text-sm sm:text-base">
+								@{displayUsername}
+							</p>
+						</div>
+						<div className="col-start-2 row-start-1 justify-self-end sm:col-start-3 sm:self-center">
+							{actionButton}
+						</div>
+					</div>
+				</header>
 
-				<div className="mt-8 w-full sm:mt-10">
-					<main className="min-w-0 flex-1">
-						<TabsContent value="overview">
-							<div className="flex flex-col gap-10">
-								<BookShelfSections
-									shelves={shelves}
-									onViewMore={(status) =>
+				<Tabs
+					value={activeTab}
+					onValueChange={async (value) => {
+						await navigate({
+							search:
+								value === "books"
+									? { tab: "books", shelf }
+									: value === "audiobooks"
+										? { tab: "audiobooks", audiobookShelf }
+										: value === "likes"
+											? { tab: "likes", likedFormat }
+											: {},
+							replace: true,
+							resetScroll: false,
+						});
+						// Solo vuelve a las pestañas si quedaron por encima del viewport
+						// (p. ej. estabas abajo en el overview). El scroll incondicional
+						// es el que provocaba el salto en cada cambio.
+						requestAnimationFrame(() => {
+							const el = tabsNavRef.current;
+							if (el && el.getBoundingClientRect().top < 0) {
+								el.scrollIntoView({ block: "start" });
+							}
+						});
+					}}
+					className="gap-0"
+				>
+					<div
+						ref={tabsNavRef}
+						className="w-full scroll-mt-4 border-border/70 border-b"
+					>
+						<TabsList
+							variant="line"
+							className="scrollbar-none w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-12"
+						>
+							<TabsTrigger
+								value="overview"
+								className={PROFILE_TAB_TRIGGER_CLASS}
+							>
+								Overview
+							</TabsTrigger>
+							<TabsTrigger
+								value="books"
+								className={PROFILE_TAB_TRIGGER_CLASS}
+								onPointerEnter={prefetchBooksTab}
+								onFocus={prefetchBooksTab}
+							>
+								<span className="sm:hidden">Books</span>
+								<span className="hidden sm:inline">Book List</span>
+							</TabsTrigger>
+							<TabsTrigger
+								value="audiobooks"
+								className={PROFILE_TAB_TRIGGER_CLASS}
+								onPointerEnter={prefetchAudiobooksTab}
+								onFocus={prefetchAudiobooksTab}
+							>
+								<span className="sm:hidden">Audiobooks</span>
+								<span className="hidden sm:inline">Audiobook List</span>
+							</TabsTrigger>
+							{/* Only you can see your likes, so nobody else gets the tab. */}
+							{isOwnProfile && (
+								<TabsTrigger
+									value="likes"
+									className={PROFILE_TAB_TRIGGER_CLASS}
+									onPointerEnter={prefetchLikesTab}
+									onFocus={prefetchLikesTab}
+								>
+									Likes
+								</TabsTrigger>
+							)}
+						</TabsList>
+					</div>
+
+					<div className="mt-8 min-h-[50vh] w-full sm:mt-10">
+						<main className="min-w-0 flex-1">
+							<TabsContent
+								value="overview"
+								keepMounted
+								className="data-[state=active]:animate-none"
+							>
+								<div className="flex flex-col gap-10">
+									<BookShelfSections
+										shelves={shelves}
+										onViewMore={(status) =>
+											navigate({
+												search: { tab: "books", shelf: status },
+											})
+										}
+									/>
+									<AudiobookShelfSections
+										shelves={audiobookShelves}
+										onViewMore={(status) =>
+											navigate({
+												search: {
+													tab: "audiobooks",
+													audiobookShelf: status,
+												},
+											})
+										}
+									/>
+									{publicCollectionsSection}
+								</div>
+							</TabsContent>
+
+							<TabsContent
+								value="books"
+								keepMounted
+								className="data-[state=active]:animate-none"
+							>
+								<ProfileBooksGrid
+									username={username}
+									status={shelf}
+									onStatusChange={(status) =>
 										navigate({
 											search: { tab: "books", shelf: status },
-										})
-									}
-								/>
-								<AudiobookShelfSections
-									shelves={audiobookShelves}
-									onViewMore={(status) =>
-										navigate({
-											search: {
-												tab: "audiobooks",
-												audiobookShelf: status,
-											},
-										})
-									}
-								/>
-								{publicCollectionsSection}
-							</div>
-						</TabsContent>
-
-						<TabsContent value="books">
-							<ProfileBooksGrid
-								username={username}
-								status={shelf}
-								onStatusChange={(status) =>
-									navigate({
-										search: { tab: "books", shelf: status },
-										replace: true,
-									})
-								}
-							/>
-						</TabsContent>
-
-						<TabsContent value="audiobooks">
-							<ProfileAudiobooksGrid
-								username={username}
-								status={audiobookShelf}
-								onStatusChange={(status) =>
-									navigate({
-										search: { tab: "audiobooks", audiobookShelf: status },
-										replace: true,
-									})
-								}
-							/>
-						</TabsContent>
-
-						{isOwnProfile && (
-							<TabsContent value="likes">
-								<ProfileLikesGrid
-									format={likedFormat ?? "books"}
-									onFormatChange={(format) =>
-										navigate({
-											search: { tab: "likes", likedFormat: format },
 											replace: true,
 										})
 									}
 								/>
 							</TabsContent>
-						)}
-					</main>
-				</div>
-			</Tabs>
+
+							<TabsContent
+								value="audiobooks"
+								keepMounted
+								className="data-[state=active]:animate-none"
+							>
+								<ProfileAudiobooksGrid
+									username={username}
+									status={audiobookShelf}
+									onStatusChange={(status) =>
+										navigate({
+											search: { tab: "audiobooks", audiobookShelf: status },
+											replace: true,
+										})
+									}
+								/>
+							</TabsContent>
+
+							{isOwnProfile && (
+								<TabsContent
+									value="likes"
+									keepMounted
+									className="data-[state=active]:animate-none"
+								>
+									<ProfileLikesGrid
+										format={likedFormat ?? "books"}
+										onFormatChange={(format) =>
+											navigate({
+												search: { tab: "likes", likedFormat: format },
+												replace: true,
+											})
+										}
+									/>
+								</TabsContent>
+							)}
+						</main>
+					</div>
+				</Tabs>
+			</div>
 		</div>
 	);
 }
 
 function ProfileSkeleton() {
 	return (
-		<div className="mx-auto w-full max-w-[1400px] px-4 pt-4 pb-12 sm:px-8 sm:pt-6 lg:px-10">
-			<Skeleton className="h-40 w-full rounded-t-2xl [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:h-56 lg:h-64" />
-			<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-6 gap-y-5 px-2 pb-8 sm:px-6">
-				<Skeleton className="-mt-10 size-24 rounded-full ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]" />
-				<div className="col-span-2 sm:col-span-1 sm:pb-2">
-					<Skeleton className="h-10 w-48" />
-					<Skeleton className="mt-2 h-5 w-28" />
+		<div className={cn(PAGE_GUTTER, "pt-4 pb-12 sm:pt-6")}>
+			<div className="mx-auto max-w-[1400px]">
+				<Skeleton className="h-40 w-full rounded-2xl sm:h-56 lg:h-64" />
+				<div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-end gap-x-6 gap-y-5 px-2 pb-8 sm:px-6">
+					<Skeleton className="-mt-10 size-24 rounded-full ring-[5px] ring-background sm:-mt-12 sm:size-32 sm:ring-[6px]" />
+					<div className="col-span-2 sm:col-span-1 sm:pb-2">
+						<Skeleton className="h-10 w-48" />
+						<Skeleton className="mt-2 h-5 w-28" />
+					</div>
 				</div>
-			</div>
-			<div className="flex h-12 items-center gap-6 border-border/70 border-b">
-				<Skeleton className="h-4 w-20" />
-				<Skeleton className="h-4 w-16" />
-				<Skeleton className="h-4 w-24" />
-			</div>
-			<div className="mt-10 space-y-10">
-				<SectionSkeleton />
-				<SectionSkeleton />
+				<div className="flex h-12 items-center gap-6 border-border/70 border-b">
+					<Skeleton className="h-4 w-20" />
+					<Skeleton className="h-4 w-16" />
+					<Skeleton className="h-4 w-24" />
+				</div>
+				<div className="mt-10 space-y-10">
+					<SectionSkeleton />
+					<SectionSkeleton />
+				</div>
 			</div>
 		</div>
 	);
