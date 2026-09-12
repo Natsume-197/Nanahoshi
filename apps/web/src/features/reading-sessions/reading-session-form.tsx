@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 import type { ReadingHistoryData } from "./reading-history";
@@ -91,7 +92,12 @@ export function ReadingSessionForm({
 				segments: [segment],
 			});
 		},
-		onSuccess: onSaved,
+		onSuccess: () => {
+			posthog?.capture("reading_session_saved", {
+				entry_mode: session ? "corrected" : "manual",
+			});
+			onSaved();
+		},
 	});
 	const inputClass =
 		"min-h-11 w-full rounded-lg border bg-background px-3 text-base text-foreground";

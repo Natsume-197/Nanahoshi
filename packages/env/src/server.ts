@@ -14,6 +14,9 @@ export const env = createEnv({
 		SERVER_URL: z.string(),
 		// Exact socket peer IPs allowed to supply X-Forwarded-For. Empty by default.
 		TRUSTED_PROXY_IPS: z.string().default(""),
+		// Optional PostHog product analytics configuration (server SDK).
+		POSTHOG_PROJECT_TOKEN: z.string().optional(),
+		POSTHOG_HOST: z.url().optional(),
 
 		// Database
 		DB_HOST: z.string().default("localhost"),

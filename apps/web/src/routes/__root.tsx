@@ -13,6 +13,7 @@ import { LocaleContext } from "@/context/locale-context";
 import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { removeLegacyOfflineStorage } from "@/lib/offline";
+import { posthog } from "@/lib/posthog";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
 	applyPaletteVars,
@@ -166,6 +167,13 @@ function RootDocument() {
 		storePalette(palette);
 		refreshThemeColor();
 		removeLegacyOfflineStorage();
+
+		if (session) {
+			posthog?.identify(session.user.id, {
+				email: session.user.email,
+				name: session.user.name,
+			});
+		}
 	});
 
 	return (

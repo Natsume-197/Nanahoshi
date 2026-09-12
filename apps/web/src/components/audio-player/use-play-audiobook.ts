@@ -4,6 +4,7 @@ import {
 	toPlayerData,
 	useAudioPlayerActions,
 } from "@/context/audio-player-context";
+import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 
@@ -38,6 +39,9 @@ export function usePlayAudiobook() {
 				}
 				loadAudiobook(toPlayerData(details), {
 					startTime: progress?.currentTimeSeconds ?? 0,
+				});
+				posthog?.capture("audiobook_playback_started", {
+					resumed: (progress?.currentTimeSeconds ?? 0) > 0,
 				});
 			} catch {
 				signalPlayIntent(null);

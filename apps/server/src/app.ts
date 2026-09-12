@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import { mountBullBoard } from "./admin/bull-board";
 import { mountGateway } from "./gateway/gateway";
 import { compressResponses } from "./lib/compress";
+import { posthog } from "./lib/posthog";
 import { mountCovers } from "./routes/covers";
 import { mountDownloads } from "./routes/downloads";
 import { mountMediaStatic, mountMediaUploads } from "./routes/media";
@@ -44,7 +45,14 @@ export function buildApp(): Hono {
 		cors({
 			origin: env.CORS_ORIGIN,
 			allowMethods: ["GET", "HEAD", "POST", "OPTIONS"],
-			allowHeaders: ["Content-Type", "Authorization", "Range", "x-invite-code"],
+			allowHeaders: [
+				"Content-Type",
+				"Authorization",
+				"Range",
+				"x-invite-code",
+				"X-POSTHOG-DISTINCT-ID",
+				"X-POSTHOG-SESSION-ID",
+			],
 			exposeHeaders: [
 				"Accept-Ranges",
 				"Content-Length",
@@ -70,6 +78,11 @@ export function buildApp(): Hono {
 	mountStream(app);
 
 	app.get("/", (c) => c.text("OK"));
+
+	app.onError((error, c) => {
+		posthog?.captureException(error);
+		return c.text("Internal Server Error", 500);
+	});
 
 	return app;
 }

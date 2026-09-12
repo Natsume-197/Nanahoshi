@@ -10,6 +10,7 @@ import {
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
 import { websocket } from "./gateway/gateway";
+import { posthog } from "./lib/posthog";
 
 const app = buildApp();
 const context: RuntimeContext = { app };
@@ -32,6 +33,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 		);
 		try {
 			await runShutdownInitializers(context, serverInitializers);
+			await posthog?.shutdown();
 			logger.info("Shutdown complete");
 			process.exit(0);
 		} catch (err) {

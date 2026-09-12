@@ -5,6 +5,7 @@ import {
 	adjustLikedCount,
 	removeBookFromLikedLists,
 } from "@/lib/liked-books-cache";
+import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
@@ -39,6 +40,10 @@ export function useToggleLike(bookUuid: string, mediaType: MediaType) {
 			return { previous };
 		},
 		onSuccess: async (result) => {
+			posthog?.capture("book_like_toggled", {
+				media_type: mediaType,
+				liked: result.liked,
+			});
 			queryClient.setQueryData(likeStatusQueryOptions.queryKey, result);
 			if (result.liked) {
 				adjustLikedCount(queryClient, format, 1);

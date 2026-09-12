@@ -26,6 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { posthog } from "@/lib/posthog";
 import {
 	UploadRequestError,
 	uploadWithProgress,
@@ -269,6 +270,12 @@ export function UploadBooksModal({
 			setTransfer(null);
 		},
 		onSuccess: (result) => {
+			if (result.uploaded.length > 0) {
+				posthog?.capture("books_uploaded", {
+					uploaded_count: result.uploaded.length,
+					skipped_count: result.skipped.length,
+				});
+			}
 			const next = applyUploadResult(items, sentIdsRef.current, result);
 			setItems(next);
 			setErrorMessage(null);

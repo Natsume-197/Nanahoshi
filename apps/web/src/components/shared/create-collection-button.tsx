@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
+import { posthog } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -70,7 +71,10 @@ export function CreateCollectionDialog({
 
 	const createMutation = useMutation({
 		...orpc.collections.create.mutationOptions(),
-		onSuccess: () => {
+		onSuccess: (_data, variables) => {
+			posthog?.capture("collection_created", {
+				collection_type: variables.kind === "dynamic" ? "dynamic" : "manual",
+			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.collections.list.queryOptions().queryKey,
 			});

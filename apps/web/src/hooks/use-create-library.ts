@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
@@ -14,6 +15,7 @@ export function useCreateLibrary({
 	return useMutation({
 		...orpc.libraries.createLibrary.mutationOptions(),
 		onSuccess: () => {
+			posthog?.capture("library_created");
 			queryClient.invalidateQueries({
 				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
 			});

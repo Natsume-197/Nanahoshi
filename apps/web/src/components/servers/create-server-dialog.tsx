@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
@@ -58,6 +59,7 @@ export function CreateServerDialog({
 	const createMutation = useMutation({
 		...orpc.admin.createServer.mutationOptions(),
 		onSuccess: async (server) => {
+			posthog?.capture("server_created");
 			await queryClient.invalidateQueries({
 				queryKey: orpc.admin.listServers.queryOptions().queryKey,
 			});
