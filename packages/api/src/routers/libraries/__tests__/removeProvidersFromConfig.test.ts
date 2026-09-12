@@ -36,7 +36,7 @@ describe("removeProvidersFromConfig", () => {
 		});
 	});
 
-	test("drops a field override entirely when it becomes empty", () => {
+	test("keeps an exhausted field override disabled", () => {
 		const result = removeProvidersFromConfig(
 			{
 				order: ["ranobedb", "googlebooks"],
@@ -45,7 +45,10 @@ describe("removeProvidersFromConfig", () => {
 			["googlebooks"],
 			DEFAULT,
 		);
-		expect(result?.config).toEqual({ order: ["ranobedb"] });
+		expect(result?.config).toEqual({
+			order: ["ranobedb"],
+			fields: { cover: [] },
+		});
 	});
 
 	test("refuses to remove the only remaining provider", () => {
@@ -135,4 +138,22 @@ describe("removeProvidersFromConfig (multiple)", () => {
 		expect(result?.changed).toBe(false);
 		expect(result?.config).toEqual(["ranobedb", "amazon"]);
 	});
+});
+
+test("paused field priorities survive validation and provider removal", async () => {
+	const { MetadataProvidersSchema } = await import("../library.model");
+	const stored = {
+		order: ["googlebooks", "amazon", "ranobedb"],
+		fields: { description: [] },
+		pausedFields: { description: ["amazon", "googlebooks"] },
+		updates: { description: "if_provided" as const },
+	};
+	expect(MetadataProvidersSchema.parse(stored)).toEqual(stored);
+	const result = removeProvidersFromConfig(stored, ["googlebooks"], DEFAULT);
+	expect(result?.config).toMatchObject({
+		fields: { description: [] },
+		pausedFields: { description: ["amazon"] },
+		updates: { description: "if_provided" },
+	});
+	expect(result?.changed).toBe(true);
 });

@@ -21,6 +21,7 @@ import { asinFromFilename } from "../../../modules/identifiers";
 import {
 	type ProviderFieldPolicy,
 	providerAllowedForField,
+	providerFieldRank,
 } from "../../../modules/providerPolicy";
 import type { AudiobookMetadata } from "./audiobook-metadata.model";
 import {
@@ -105,6 +106,8 @@ function mergeAudiobookMetadata(
 	provider: AudiobookProviderName,
 	primary: boolean,
 	routing: AudiobookRoutingPolicy,
+	ranks: Record<string, number>,
+	initial: AudiobookEnrichmentMetadata,
 ): AudiobookEnrichmentMetadata {
 	const merged = { ...current };
 	for (const key of Object.keys(
@@ -114,6 +117,22 @@ function mergeAudiobookMetadata(
 		if (!providerAllowedForField(routing, key, provider)) continue;
 		if (key === "series" && routing.primary && provider !== routing.primary)
 			continue;
+		const mode = routing.updates?.[key];
+		if (mode !== undefined || routing.fields?.[key] !== undefined) {
+			if (isMissing(value)) continue;
+			if (mode === "fill_gaps" && !isMissing(initial[key])) continue;
+			if (
+				mode !== "if_provided" &&
+				mode !== "fill_gaps" &&
+				!isMissing(initial[key])
+			)
+				continue;
+			const rank = providerFieldRank(routing, key, provider);
+			if (rank >= (ranks[key] ?? Number.POSITIVE_INFINITY)) continue;
+			(merged as Record<string, unknown>)[key] = value;
+			ranks[key] = rank;
+			continue;
+		}
 		// Identity was confirmed before merging. A fallback may have corrected
 		// an embedded ASIN that actually pointed to another volume.
 		if (key === "asin" && primary && !isMissing(value)) {
@@ -140,7 +159,9 @@ function mergeAudiobookMetadata(
 
 function audiobookPolicy(
 	routing: AudiobookRoutingPolicy,
+	initial: AudiobookEnrichmentMetadata,
 ): CatalogEnrichmentPolicy<AudiobookEnrichmentMetadata, AudiobookProviderName> {
+	const ranks: Record<string, number> = {};
 	return {
 		discoveryQueries,
 		describe: (metadata) => metadata.title ?? undefined,
@@ -158,10 +179,25 @@ function audiobookPolicy(
 			AUDIOBOOK_PROVIDER_MANIFEST[provider].fields.some(
 				(field) =>
 					providerAllowedForField(routing, field, provider) &&
-					isMissing(metadata[field]),
+					(routing.updates?.[field] === "if_provided"
+						? providerFieldRank(routing, field, provider) <
+							(ranks[field] ?? Number.POSITIVE_INFINITY)
+						: isMissing(metadata[field]) ||
+							(routing.fields?.[field] !== undefined &&
+								isMissing(initial[field]) &&
+								providerFieldRank(routing, field, provider) <
+									(ranks[field] ?? Number.POSITIVE_INFINITY))),
 			),
 		merge: (metadata, incoming, { provider, primary }) =>
-			mergeAudiobookMetadata(metadata, incoming, provider, primary, routing),
+			mergeAudiobookMetadata(
+				metadata,
+				incoming,
+				provider,
+				primary,
+				routing,
+				ranks,
+				initial,
+			),
 	};
 }
 
@@ -340,12 +376,16 @@ export async function runAudiobookCatalogEnrichment({
 				diagnostics,
 				candidates,
 				bookUuid:
-					downloadCovers && isMissing(metadata.cover)
+					downloadCovers &&
+					!protectedFields.includes("cover") &&
+					providerAllowedForField(effectiveRouting, "cover", provider.id) &&
+					(isMissing(metadata.cover) ||
+						effectiveRouting.updates?.cover === "if_provided")
 						? metadata.uuid
 						: undefined,
 			}),
 		),
-		policy: audiobookPolicy(effectiveRouting),
+		policy: audiobookPolicy(effectiveRouting, metadata),
 		requiredPrimaryProvider:
 			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
 		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,

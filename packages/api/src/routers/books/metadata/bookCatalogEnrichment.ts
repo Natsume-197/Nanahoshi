@@ -81,7 +81,9 @@ function providerHasGap(
 	return BOOK_PROVIDER_MANIFEST[provider].fields.some(
 		(field) =>
 			providerFieldRank(routing, field, provider) !==
-				Number.POSITIVE_INFINITY && isMissing(metadata[field]),
+				Number.POSITIVE_INFINITY &&
+			(isMissing(metadata[field]) ||
+				routing.updates?.[field] === "if_provided"),
 	);
 }
 
@@ -189,6 +191,14 @@ function bookPolicy(
 	initialMetadata: BookEnrichmentMetadata,
 ): CatalogEnrichmentPolicy<BookEnrichmentMetadata, MetadataProviderName> {
 	const currentRank = seedFieldRanks(initialMetadata);
+	for (const [field, mode] of Object.entries(routing.updates ?? {})) {
+		if (
+			mode === "if_provided" ||
+			isMissing(initialMetadata[field as keyof BookMetadata])
+		)
+			delete currentRank[field];
+		else currentRank[field] = -1;
+	}
 
 	const accepts = (
 		provider: MetadataProviderName,
@@ -230,7 +240,13 @@ function bookPolicy(
 							}
 						: { ...incoming.series };
 					currentRank[key] = providerFieldRank(routing, key, provider);
-				} else if (merged.series && incoming.series.aliases?.length) {
+				} else if (
+					routing.updates?.series === undefined &&
+					providerFieldRank(routing, key, provider) !==
+						Number.POSITIVE_INFINITY &&
+					merged.series &&
+					incoming.series.aliases?.length
+				) {
 					merged.series = {
 						...merged.series,
 						aliases: normalizeSeriesAliases(
@@ -310,7 +326,12 @@ export async function runBookCatalogEnrichment({
 	if (refresh) {
 		const protectedSet = new Set<keyof BookMetadata>(protectedFields);
 		for (const field of REFRESH_FIELDS) {
-			if (!protectedSet.has(field)) delete initialMetadata[field];
+			if (
+				!protectedSet.has(field) &&
+				effectiveRouting.fields?.[field]?.length !== 0 &&
+				effectiveRouting.updates?.[field] === undefined
+			)
+				delete initialMetadata[field];
 		}
 	}
 	const result = await runCatalogEnrichment({
@@ -326,6 +347,18 @@ export async function runBookCatalogEnrichment({
 		protectedFields,
 	});
 	if (result.status !== "matched") return result;
+	// Identifier derivation must also respect disabled and manually locked fields.
+	for (const field of new Set([
+		...protectedFields,
+		...Object.entries(effectiveRouting.fields ?? {})
+			.filter(([, ids]) => ids?.length === 0)
+			.map(([field]) => field),
+	])) {
+		(result.metadata as Record<string, unknown>)[field] = (
+			metadata as Record<string, unknown>
+		)[field];
+		delete result.fieldSources[field];
+	}
 	return {
 		...result,
 		authorsProvider: (result.fieldSources.authors ??

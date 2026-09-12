@@ -4,18 +4,20 @@ import {
 	isBookMetadataProfileId,
 } from "@nanahoshi-v2/api/modules/metadataProfiles";
 import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
-import { CaretDown, CircleNotch, FloppyDisk } from "@phosphor-icons/react";
+import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	defaultFieldUpdates,
 	FieldRoutingEditor,
 	type FieldRules,
+	type FieldUpdates,
 } from "@/components/libraries/field-routing-editor";
 import {
 	type MetadataProviderId,
+	PROVIDER_INFO,
 	type ProviderEntry,
-	ProviderPriorityList,
 	toProviderEntries,
 	toProviderIds,
 } from "@/components/libraries/provider-priority-list";
@@ -31,8 +33,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
@@ -49,6 +53,15 @@ const orderOf = (config: ProvidersConfig): string[] =>
 	Array.isArray(config) ? config : config.order;
 const fieldRulesOf = (config: ProvidersConfig): FieldRules =>
 	Array.isArray(config) ? {} : ((config.fields ?? {}) as FieldRules);
+const pausedOf = (config: ProvidersConfig): FieldRules =>
+	Array.isArray(config) ? {} : ((config.pausedFields ?? {}) as FieldRules);
+const updatesOf = (
+	config: ProvidersConfig,
+	mediaType: LibraryComplete["mediaType"],
+): FieldUpdates => ({
+	...defaultFieldUpdates(mediaType),
+	...(Array.isArray(config) ? {} : (config.updates ?? {})),
+});
 const profileOf = (config: ProvidersConfig): ProfileChoice => {
 	if (Array.isArray(config)) return "custom";
 	const id = config.profile?.id;
@@ -88,9 +101,13 @@ export function MetadataSection({
 	const [profile, setProfile] = useState<ProfileChoice>(() =>
 		profileOf(library.metadataProviders),
 	);
-	const [showAdvanced, setShowAdvanced] = useState(
-		() => Object.keys(fieldRulesOf(library.metadataProviders)).length > 0,
+	const [fieldUpdates, setFieldUpdates] = useState<FieldUpdates>(() =>
+		updatesOf(library.metadataProviders, library.mediaType),
 	);
+	const [pausedFields, setPausedFields] = useState<FieldRules>(() =>
+		pausedOf(library.metadataProviders),
+	);
+	const [editorVersion, setEditorVersion] = useState(0);
 	const [amazonDomain, setAmazonDomain] = useState(savedDomain);
 	const [audibleRegion, setAudibleRegion] = useState(savedRegion);
 
@@ -102,7 +119,10 @@ export function MetadataSection({
 			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
 		);
 		setFieldRules(fieldRulesOf(library.metadataProviders));
+		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
 		setProfile(profileOf(library.metadataProviders));
+		setPausedFields(pausedOf(library.metadataProviders));
+		setEditorVersion((version) => version + 1);
 		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
 		setAudibleRegion(
 			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
@@ -147,6 +167,10 @@ export function MetadataSection({
 	const changed =
 		JSON.stringify(providers) !== JSON.stringify(savedEntries) ||
 		JSON.stringify(fieldRules) !== JSON.stringify(savedFieldRules) ||
+		JSON.stringify(fieldUpdates) !==
+			JSON.stringify(updatesOf(library.metadataProviders, library.mediaType)) ||
+		JSON.stringify(pausedFields) !==
+			JSON.stringify(pausedOf(library.metadataProviders)) ||
 		profile !== savedProfile ||
 		(isAudiobook
 			? audibleRegion !== savedRegion
@@ -183,10 +207,11 @@ export function MetadataSection({
 
 	const handleProfileChange = (value: ProfileChoice) => {
 		setProfile(value);
+		setEditorVersion((version) => version + 1);
 		if (value === "custom") {
-			setShowAdvanced(true);
 			return;
 		}
+		setPausedFields({});
 		const preset = bookMetadataProfile(value);
 		setProviders(toProviderEntries("ebook", [...preset.order]));
 		setFieldRules(
@@ -196,15 +221,16 @@ export function MetadataSection({
 				),
 			) as FieldRules,
 		);
-		setShowAdvanced(false);
+		setFieldUpdates(defaultFieldUpdates(library.mediaType));
 	};
 
-	// Drop empty rule arrays (a field toggled on then fully unchecked) so they
-	// don't persist as a "leave this field empty" instruction by accident.
-	const cleanedRules: FieldRules = Object.fromEntries(
-		Object.entries(fieldRules).filter(([, ids]) => ids.length > 0),
-	);
-	const hasRules = Object.keys(cleanedRules).length > 0;
+	const cleanedRules = fieldRules;
+	const hasRules =
+		Object.keys(fieldRules).length > 0 || Object.keys(fieldUpdates).length > 0;
+	const defaults =
+		!isAudiobook && profile !== "custom"
+			? (bookMetadataProfile(profile).fields as FieldRules)
+			: {};
 	const handleSave = () =>
 		updateMutation.mutate({
 			uuid: library.uuid,
@@ -213,6 +239,8 @@ export function MetadataSection({
 					? {
 							order: toProviderIds(providers),
 							...(hasRules && { fields: cleanedRules }),
+							updates: fieldUpdates,
+							pausedFields,
 							primary: primaryProvider,
 							profile: {
 								id: profile,
@@ -220,7 +248,12 @@ export function MetadataSection({
 							},
 						}
 					: hasRules
-						? { order: toProviderIds(providers), fields: cleanedRules }
+						? {
+								order: toProviderIds(providers),
+								fields: cleanedRules,
+								updates: fieldUpdates,
+								pausedFields,
+							}
 						: toProviderIds(providers),
 			metadataConfig: isAudiobook
 				? { audible: { region: audibleRegion } }
@@ -230,6 +263,37 @@ export function MetadataSection({
 		});
 
 	const disabled = !canManage || updateMutation.isPending;
+	const discard = () => {
+		setProviders(
+			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
+		);
+		setFieldRules(fieldRulesOf(library.metadataProviders));
+		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
+		setPausedFields(pausedOf(library.metadataProviders));
+		setProfile(savedProfile);
+		setAmazonDomain(savedDomain);
+		setAudibleRegion(savedRegion);
+		setEditorVersion((version) => version + 1);
+	};
+	const toggleProvider = (id: MetadataProviderId, enabled: boolean) => {
+		const active = toProviderIds(providers);
+		if (!enabled && (id === primaryProvider || active.length === 1)) return;
+		// Preserve displayed per-field priority before changing provider availability.
+		setFieldRules({
+			...fieldRules,
+			...(Object.fromEntries(
+				Object.keys(defaultFieldUpdates(library.mediaType)).map((field) => [
+					field,
+					[...(fieldRules[field] ?? active)],
+				]),
+			) as FieldRules),
+		});
+		setProviders(
+			providers.map((entry) =>
+				entry.id === id ? { ...entry, enabled } : entry,
+			),
+		);
+	};
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -277,50 +341,67 @@ export function MetadataSection({
 			<section className="flex flex-col gap-5">
 				<div className="flex min-w-0 flex-col gap-1">
 					<h3 className="font-medium text-base text-foreground">
-						{m["library.providers"]()}
+						{m["library.rules_available"]()}
 					</h3>
 					<p className="text-muted-foreground text-sm">
-						{m["library.providers_hint"]()}
+						{m["library.rules_available_help"]()}
 					</p>
 				</div>
-				<ProviderPriorityList
-					value={providers}
-					onChange={setProviders}
-					disabled={disabled}
-					requiredProviderId={primaryProvider}
-				/>
+				<div className="flex flex-wrap gap-2">
+					{providers.map((entry) => (
+						<label
+							htmlFor={`available-provider-${entry.id}`}
+							key={entry.id}
+							title={PROVIDER_INFO[entry.id].description()}
+							className={cn(
+								"flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
+								entry.enabled
+									? "border-primary/30 bg-primary/5"
+									: "border-border text-muted-foreground",
+							)}
+						>
+							<Switch
+								id={`available-provider-${entry.id}`}
+								checked={entry.enabled}
+								disabled={
+									disabled ||
+									entry.id === primaryProvider ||
+									(entry.enabled && toProviderIds(providers).length === 1)
+								}
+								aria-label={m["library.provider_enable"]({
+									name: PROVIDER_INFO[entry.id].label,
+								})}
+								onCheckedChange={(checked) => toggleProvider(entry.id, checked)}
+							/>
+							{PROVIDER_INFO[entry.id].label}
+						</label>
+					))}
+				</div>
 			</section>
 
 			<Separator className="bg-border/60" />
 			<section className="flex flex-col gap-4">
-				<button
-					type="button"
-					onClick={() => setShowAdvanced((v) => !v)}
-					className="flex items-center justify-between gap-2 text-left"
-				>
-					<div className="flex min-w-0 flex-col gap-1">
-						<h3 className="font-medium text-base text-foreground">
-							{m["library.field_routing_title"]()}
-						</h3>
-						<p className="text-muted-foreground text-sm">
-							{m["library.field_routing_hint"]()}
-						</p>
-					</div>
-					<CaretDown
-						className={`size-5 shrink-0 text-muted-foreground transition-transform ${
-							showAdvanced ? "rotate-180" : ""
-						}`}
-					/>
-				</button>
-				{showAdvanced && (
-					<FieldRoutingEditor
-						mediaType={library.mediaType}
-						order={toProviderIds(providers)}
-						value={fieldRules}
-						onChange={setFieldRules}
-						disabled={disabled}
-					/>
-				)}
+				<div className="flex flex-col gap-1">
+					<h3 className="font-medium text-base text-foreground">
+						{m["library.field_routing_title"]()}
+					</h3>
+					<p className="text-muted-foreground text-sm">
+						{m["library.field_routing_hint"]()}
+					</p>
+				</div>
+				<FieldRoutingEditor
+					key={editorVersion}
+					pausedFields={pausedFields}
+					onPausedFieldsChange={setPausedFields}
+					mediaType={library.mediaType}
+					order={toProviderIds(providers)}
+					value={fieldRules}
+					updates={fieldUpdates}
+					onChange={setFieldRules}
+					onUpdatesChange={setFieldUpdates}
+					defaults={defaults}
+					disabled={disabled}
+				/>
 			</section>
 
 			<Separator className="bg-border/60" />
@@ -407,11 +488,24 @@ export function MetadataSection({
 				</div>
 			</section>
 
-			{canManage && (
-				<div className="flex justify-end">
+			{canManage && changed && (
+				<section
+					className="motion-safe:fade-in motion-safe:slide-in-from-bottom-2 sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-xl motion-safe:animate-in"
+					aria-label={m["library.rules_unsaved"]()}
+				>
+					<p className="flex-1 font-medium text-sm" role="status">
+						{m["library.rules_unsaved"]()}
+					</p>
+					<Button variant="ghost" disabled={disabled} onClick={discard}>
+						{m["library.rules_discard"]()}
+					</Button>
 					<Button
 						size="sm"
-						disabled={!changed || updateMutation.isPending}
+						disabled={
+							!changed ||
+							updateMutation.isPending ||
+							toProviderIds(providers).length === 0
+						}
 						onClick={handleSave}
 					>
 						{updateMutation.isPending ? (
@@ -421,7 +515,7 @@ export function MetadataSection({
 						)}
 						{m["settings.profile.save_changes"]()}
 					</Button>
-				</div>
+				</section>
 			)}
 		</div>
 	);

@@ -272,6 +272,8 @@ export const libraryMediaTypeEnum = pgEnum("library_media_type", [
 export type MetadataProviderRouting = {
 	order: string[];
 	fields?: Record<string, string[]>;
+	pausedFields?: Record<string, string[]>;
+	updates?: Record<string, "fill_gaps" | "if_provided">;
 	primary?: string;
 	profile?: { id: string; version: number };
 };

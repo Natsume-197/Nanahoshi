@@ -10,6 +10,7 @@
 		"build": "vite build && bun run scripts/precompress-assets.ts",
 		"start": "bun run server.ts",
 		"test:production-ssr": "bun run scripts/verify-production-ssr.ts",
+		"test:dev-http-response": "node scripts/verify-dev-http-response.mjs",
 		"test:e2e:reading-sessions": "bun run scripts/reading-sessions-e2e.ts",
 		"test:e2e:reader": "bun run scripts/reader-e2e.ts",
 		"test:e2e:member-onboarding": "bun run scripts/member-onboarding-e2e.ts",

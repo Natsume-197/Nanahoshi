@@ -940,3 +940,116 @@ describe("Book Catalog Enrichment", () => {
 		});
 	});
 });
+
+describe("Field Rules updates", () => {
+	beforeEach(() => providerGate.clearAllInMemory());
+	test.each([
+		{
+			mode: "fill_gaps" as const,
+			refresh: true,
+			existing: "Saved",
+			expected: "Saved",
+		},
+		{
+			mode: "fill_gaps" as const,
+			refresh: false,
+			existing: undefined,
+			expected: "Preferred",
+		},
+		{
+			mode: "if_provided" as const,
+			refresh: false,
+			existing: "Saved",
+			expected: "Preferred",
+		},
+	])(
+		"$mode (refresh=$refresh) respects priority and existing data",
+		async ({ mode, refresh, existing, expected }) => {
+			const result = await runBookCatalogEnrichment({
+				metadata: {
+					bookId: 1,
+					uuid: "book-1",
+					title: "Great Story 1",
+					authors: [{ name: "Known Author", role: "Author" }],
+					description: existing,
+				},
+				providers: [
+					{ name: "amazon", provider: provider({ description: "Fallback" }) },
+					{
+						name: "googlebooks",
+						provider: provider({ description: "Preferred" }),
+					},
+				],
+				routing: {
+					order: ["amazon", "googlebooks"],
+					fields: { description: ["googlebooks", "amazon"] },
+					updates: { description: mode },
+				},
+				refresh,
+			});
+			expect(result.status).toBe("matched");
+			if (result.status === "matched")
+				expect(result.metadata.description).toBe(expected);
+		},
+	);
+	test.each([false, true])(
+		"disabled fields survive refresh=%s",
+		async (refresh) => {
+			const result = await runBookCatalogEnrichment({
+				metadata: {
+					bookId: 1,
+					uuid: "book-1",
+					title: "Great Story 1",
+					authors: [{ name: "Known Author", role: "Author" }],
+					description: "Saved",
+				},
+				providers: [
+					{
+						name: "amazon",
+						provider: provider({ description: "Replacement", rating: 4 }),
+					},
+				],
+				routing: { order: ["amazon"], fields: { description: [] } },
+				refresh,
+			});
+			expect(result.status).toBe("matched");
+			if (result.status === "matched") {
+				expect(result.metadata.description).toBe("Saved");
+				expect(result.fieldSources.description).toBeUndefined();
+			}
+		},
+	);
+	test.each([false, true])(
+		"missing incoming values and locked fields survive refresh=%s",
+		async (refresh) => {
+			const result = await runBookCatalogEnrichment({
+				metadata: {
+					bookId: 1,
+					uuid: "book-1",
+					title: "Great Story 1",
+					authors: [{ name: "Known Author", role: "Author" }],
+					description: "Saved",
+					publisher: "Manual",
+				},
+				providers: [
+					{
+						name: "amazon",
+						provider: provider({ publisher: "Provider", rating: 4 }),
+					},
+				],
+				routing: {
+					order: ["amazon"],
+					updates: { description: "if_provided", publisher: "if_provided" },
+				},
+				protectedFields: ["publisher"],
+				refresh,
+			});
+			expect(result.status).toBe("matched");
+			if (result.status === "matched")
+				expect(result.metadata).toMatchObject({
+					description: "Saved",
+					publisher: "Manual",
+				});
+		},
+	);
+});

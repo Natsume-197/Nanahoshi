@@ -14,6 +14,7 @@ import type { MetadataProviderRouting } from "@nanahoshi-v2/db/schema/general";
 export type ProviderFieldPolicy<P extends string> = {
 	order: readonly P[];
 	fields?: Readonly<Partial<Record<string, readonly P[]>>>;
+	updates?: MetadataProviderRouting["updates"];
 	primary?: P;
 	profile?: MetadataProviderRouting["profile"];
 };
@@ -61,8 +62,14 @@ export function normalizeProviderPolicy<P extends string>(
 		rawProfile.version > 0
 			? { id: rawProfile.id, version: rawProfile.version }
 			: undefined;
+	const updates = Object.fromEntries(
+		Object.entries(
+			(Array.isArray(raw) ? undefined : raw?.updates) ?? {},
+		).filter(([, mode]) => mode === "fill_gaps" || mode === "if_provided"),
+	);
 	return {
 		order: effectiveOrder,
+		...(Object.keys(updates).length > 0 && { updates }),
 		fields: Object.keys(fields).length > 0 ? fields : undefined,
 		...(primary && { primary }),
 		...(profile && { profile }),

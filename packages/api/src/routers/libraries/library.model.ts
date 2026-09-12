@@ -28,6 +28,10 @@ const routingSchema = <T extends z.ZodType<string>>(providerId: T) =>
 		z.object({
 			order: z.array(providerId),
 			fields: z.record(z.string(), z.array(providerId)).optional(),
+			pausedFields: z.record(z.string(), z.array(providerId)).optional(),
+			updates: z
+				.record(z.string(), z.enum(["fill_gaps", "if_provided"]))
+				.optional(),
 			primary: providerId.optional(),
 			profile: z
 				.object({ id: z.string(), version: z.number().int().positive() })
@@ -86,6 +90,7 @@ export function providersInConfig(
 		...config.order,
 		...(config.primary ? [config.primary] : []),
 		...Object.values(config.fields ?? {}).flat(),
+		...Object.values(config.pausedFields ?? {}).flat(),
 	];
 }
 
@@ -137,17 +142,31 @@ export function removeProvidersFromConfig(
 		};
 	}
 
-	const fieldEntries = Object.entries(raw.fields ?? {})
-		.map(([field, ids]) => [field, ids.filter((id) => !drop.has(id))] as const)
-		.filter(([, ids]) => ids.length > 0);
+	const fieldEntries = Object.entries(raw.fields ?? {}).map(
+		([field, ids]) => [field, ids.filter((id) => !drop.has(id))] as const,
+	);
 	const primaryRemoved = raw.primary != null && drop.has(raw.primary);
 	const fieldsChanged = Object.values(raw.fields ?? {}).some((ids) =>
 		ids.some((id) => drop.has(id)),
 	);
+	const pausedChanged = Object.values(raw.pausedFields ?? {}).some((ids) =>
+		ids.some((id) => drop.has(id)),
+	);
 	const changed =
-		nextOrder.length !== currentOrder.length || primaryRemoved || fieldsChanged;
+		pausedChanged ||
+		nextOrder.length !== currentOrder.length ||
+		primaryRemoved ||
+		fieldsChanged;
 
 	const next: MetadataProviderRouting = { order: nextOrder };
+	if (raw.updates) next.updates = raw.updates;
+	if (raw.pausedFields)
+		next.pausedFields = Object.fromEntries(
+			Object.entries(raw.pausedFields).map(([field, ids]) => [
+				field,
+				ids.filter((id) => !drop.has(id)),
+			]),
+		);
 	if (fieldEntries.length > 0) {
 		next.fields = Object.fromEntries(
 			fieldEntries.map(([field, ids]) => [field, [...ids]]),

@@ -67,7 +67,8 @@
 		"hono": "4.13.5",
 		"ioredis": "6.0.0",
 		"nanoid": "6.0.1",
-		"sharp": "0.35.4"
+		"sharp": "0.35.4",
+		"srvx": "0.11.22"
 	},
 	"packageManager": "bun@1.4.0",
 	"dependencies": {
