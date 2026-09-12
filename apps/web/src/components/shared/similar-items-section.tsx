@@ -9,9 +9,11 @@ import { orpc } from "@/utils/orpc";
 
 export function SimilarItemsSection({
 	bookUuid,
+	excludeBookUuids = [],
 	className,
 }: {
 	bookUuid: string;
+	excludeBookUuids?: string[];
 	className?: string;
 }): JSX.Element | null {
 	const { data, isLoading } = useQuery(
@@ -22,14 +24,17 @@ export function SimilarItemsSection({
 
 	if (isLoading) return null;
 	if (!data?.enabled || data.items.length === 0) return null;
-	const usesSquareCoverFrame = data.items.every(
+	const excluded = new Set(excludeBookUuids);
+	const items = data.items.filter((item) => !excluded.has(item.book.uuid));
+	if (items.length === 0) return null;
+	const usesSquareCoverFrame = items.every(
 		(item) => item.book.mediaType === "audiobook",
 	);
 
 	return (
 		<div className={cn(className)}>
 			<ScrollSection title={m["recs.similar_title"]()} restoreId="similar">
-				{data.items.map((item) => (
+				{items.map((item) => (
 					<div
 						key={item.book.uuid}
 						className="w-[120px] shrink-0 rounded-lg md:w-[140px]"

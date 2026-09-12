@@ -24,6 +24,7 @@ import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { AudiobookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import { ReadListenSection } from "@/components/read-listen/read-listen-section";
+import { DetailDiscoverySections } from "@/components/shared/detail-discovery-sections";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -33,7 +34,6 @@ import {
 	getHeroStyle,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
 	DetailListSection,
@@ -333,9 +333,10 @@ export function AudiobookDetailPage() {
 								currentAudiobookUuid={audiobook.uuid}
 							/>
 						)}
-						<SimilarItemsSection
+						<DetailDiscoverySections
 							bookUuid={audiobook.uuid}
-							className="mt-14 sm:mt-16"
+							authors={audiobook.authors}
+							seriesUuid={audiobook.series?.uuid}
 						/>
 					</div>
 				</div>

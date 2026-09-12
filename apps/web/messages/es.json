@@ -2283,6 +2283,8 @@
 	},
 	"recs": {
 		"similar_title": "Títulos similares",
+		"more_by_author": "Más de {author}",
+		"more_by_authors": "Más de estos autores",
 		"for_you": "Para ti",
 		"books_for_you": "Libros para ti",
 		"audiobooks_for_you": "Audiobooks para ti",

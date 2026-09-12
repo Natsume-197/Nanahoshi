@@ -25,6 +25,7 @@ import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
 import { ReadListenSection } from "@/components/read-listen/read-listen-section";
+import { DetailDiscoverySections } from "@/components/shared/detail-discovery-sections";
 import {
 	CoverImage,
 	CoverPreviewDialog,
@@ -35,7 +36,6 @@ import {
 	getHeroStyle,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { SimilarItemsSection } from "@/components/shared/similar-items-section";
 import {
 	type DetailListRow,
 	SynopsisSection,
@@ -362,9 +362,10 @@ export function BookDetailPage() {
 								currentBookUuid={book.uuid}
 							/>
 						)}
-						<SimilarItemsSection
+						<DetailDiscoverySections
 							bookUuid={book.uuid}
-							className="mt-14 sm:mt-16"
+							authors={book.authors}
+							seriesUuid={book.series?.uuid}
 						/>
 					</div>
 				</div>

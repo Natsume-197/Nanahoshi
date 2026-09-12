@@ -2246,6 +2246,8 @@
 	},
 	"recs": {
 		"similar_title": "似ている作品",
+		"more_by_author": "{author}のその他の作品",
+		"more_by_authors": "同じ著者のその他の作品",
 		"for_you": "あなたへのおすすめ",
 		"books_for_you": "おすすめの本",
 		"audiobooks_for_you": "おすすめのオーディオブック",
