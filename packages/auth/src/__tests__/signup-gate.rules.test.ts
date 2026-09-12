@@ -27,7 +27,6 @@ function gate(overrides: Partial<SignUpGateInput> = {}): SignUpGateInput {
 		methodEnabled: true,
 		method: "email",
 		inviteLink: null,
-		hasPendingInvitation: false,
 		now: NOW,
 		...overrides,
 	};
@@ -101,12 +100,6 @@ describe("evaluateSignUpGate", () => {
 		).toEqual({ allowed: false, reason: "invite_required" });
 	});
 
-	test("allows sign-up with a pending email invitation", () => {
-		expect(evaluateSignUpGate(gate({ hasPendingInvitation: true }))).toEqual({
-			allowed: true,
-		});
-	});
-
 	test("requires Discord OAuth for a Discord-gated invitation", () => {
 		expect(
 			evaluateSignUpGate(gate({ requiresDiscord: true, inviteLink: link() })),
@@ -129,7 +122,6 @@ describe("evaluateSignUpGate", () => {
 				gate({
 					policy: "closed",
 					inviteLink: link(),
-					hasPendingInvitation: true,
 				}),
 			),
 		).toEqual({ allowed: false, reason: "closed" });
@@ -141,7 +133,6 @@ describe("evaluateSignUpGate", () => {
 				gate({
 					methodEnabled: false,
 					inviteLink: link(),
-					hasPendingInvitation: true,
 				}),
 			),
 		).toEqual({ allowed: false, reason: "method_disabled" });

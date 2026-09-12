@@ -158,7 +158,7 @@ export function MobileBottomNav({
 		browseNavItems.some((item) => location.pathname.startsWith(item.href));
 
 	// The tab goes straight to the profile page — no intermediate sheet. Account
-	// actions (status, invitations, settings, sign out) live in that page's own
+	// actions (status, settings, sign out) live in that page's own
 	// menu. Without a username the /dashboard/profile route resolves one and
 	// redirects, so the tab still lands in the right place.
 	// Trimmed, so the href and the path the active/reselect check compares

@@ -17,7 +17,6 @@ import {
 } from "better-auth/plugins";
 import type { DiscordProfile } from "better-auth/social-providers";
 import { and, eq, or } from "drizzle-orm";
-import nodemailer from "nodemailer";
 import { authIpAddress, authRateLimit } from "./auth-security-options";
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
@@ -198,59 +197,6 @@ function recordAuthenticatedAuditEvent(
 	});
 }
 
-/** Escape user-controlled values before interpolating into the invitation HTML. */
-function escapeHtml(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
-}
-
-function buildInvitationEmail(raw: {
-	email: string;
-	inviterName: string;
-	inviterEmail: string;
-	organizationName: string;
-	inviteLink: string;
-}): string {
-	const email = escapeHtml(raw.email);
-	const inviterName = escapeHtml(raw.inviterName);
-	const inviterEmail = escapeHtml(raw.inviterEmail);
-	const organizationName = escapeHtml(raw.organizationName);
-	// inviteLink is app-constructed (CORS_ORIGIN + token); escape defensively too.
-	const inviteLink = escapeHtml(raw.inviteLink);
-	return `<!DOCTYPE html>
-<html lang="en">
-<body style="font-family: sans-serif; background: #f9f9f9; padding: 40px; margin: 0;">
-  <table align="center" width="600" style="background: white; border-radius: 8px; padding: 40px; border: 1px solid #e5e7eb;">
-    <tr>
-      <td>
-        <h1 style="margin-top: 0; color: #111827;">You're invited!</h1>
-        <p style="color: #374151;">
-          <strong>${inviterName}</strong> (${inviterEmail}) has invited you to join
-          <strong>${organizationName}</strong>.
-        </p>
-        <p>
-          <a href="${inviteLink}"
-             style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-            Accept Invitation
-          </a>
-        </p>
-        <p style="color: #6b7280; font-size: 14px;">
-          If the button above doesn't work, copy this link into your browser:<br />
-          <a href="${inviteLink}" style="color: #2563eb;">${inviteLink}</a>
-        </p>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-        <small style="color: #9ca3af;">This invitation was sent to ${email}</small>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
-
 /** The org a new session should activate: the user's last active org if they're
  *  still a member, otherwise their first membership (null if they belong to none). */
 async function resolveActiveOrgId(userId: string): Promise<string | null> {
@@ -340,8 +286,8 @@ const authConfig = {
 	databaseHooks: {
 		// Social/OAuth callbacks create users without passing through the
 		// /sign-up/email gate above. Gate them here: after first setup, a new
-		// Discord user needs a pending email invitation or the invite-link code
-		// carried in the protected OAuth state. OIDC (/callback)
+		// Discord user needs the invite-link code carried in the protected
+		// OAuth state. OIDC (/callback)
 		// is exempt — SSO provisioning is configured intentionally by the admin.
 		user: {
 			create: {
@@ -380,21 +326,24 @@ const authConfig = {
 	},
 	hooks: {
 		before: createAuthMiddleware(async (ctx) => {
-			// Email invitations need SMTP. Fail the request here — sendInvitationEmail
-			// runs as a background task, so throwing there still returns 200 and the
-			// UI would report success for an email that was never sent.
-			if (ctx.path === "/organization/invite-member") {
-				if (!env.SMTP_USER || !env.SMTP_PASS) {
-					throw new APIError("BAD_REQUEST", {
-						message:
-							"Email is not configured on this server. Create an invite link instead, or set the SMTP_USER and SMTP_PASS environment variables.",
-					});
-				}
-				return;
+			// Email invitations were removed (Discord-style invite links only).
+			// Block the Better Auth organization invitation endpoints so the
+			// old inbox flow (/dashboard/invitations?token=) cannot be used.
+			if (
+				ctx.path === "/organization/invite-member" ||
+				ctx.path === "/organization/accept-invitation" ||
+				ctx.path === "/organization/reject-invitation" ||
+				ctx.path === "/organization/cancel-invitation" ||
+				ctx.path === "/organization/list-invitations"
+			) {
+				throw new APIError("BAD_REQUEST", {
+					message:
+						"Email invitations are disabled. Create an invite link instead.",
+				});
 			}
 			// Sign-up is open only until first setup; afterwards the instance
 			// registration policy decides, with an invite link code (sent by the
-			// client as a header) or a pending email invitation.
+			// client as a header).
 			if (ctx.path !== "/sign-up/email") return;
 			const email =
 				typeof ctx.body?.email === "string" ? ctx.body.email : undefined;
@@ -532,38 +481,14 @@ const authConfig = {
 			// capacity belongs to the deployment/database rather than an implicit
 			// authentication-library limit.
 			membershipLimit: Number.MAX_SAFE_INTEGER,
-			invitationExpiresIn: 60 * 60 * 48, // 48 hours in seconds
 			allowUserToCreateOrganization: false,
-			async sendInvitationEmail(data) {
-				if (!env.SMTP_USER || !env.SMTP_PASS) {
-					throw new APIError("BAD_REQUEST", {
-						message:
-							"Email is not configured on this server. Create an invite link instead, or set the SMTP_USER and SMTP_PASS environment variables.",
-					});
-				}
-				const transporter = nodemailer.createTransport({
-					host: env.SMTP_HOST,
-					port: Number(env.SMTP_PORT),
-					secure: env.SMTP_SECURE === true,
-					auth: {
-						user: env.SMTP_USER,
-						pass: env.SMTP_PASS,
-					},
-				});
-
-				const inviteLink = `${env.CORS_ORIGIN}/dashboard/invitations?token=${data.invitation.id}`;
-
-				await transporter.sendMail({
-					from: `"Nanahoshi" <${env.SMTP_USER}>`,
-					to: data.email,
-					subject: `You've been invited to join ${data.organization.name}`,
-					html: buildInvitationEmail({
-						email: data.email,
-						inviterName: data.inviter.user.name,
-						inviterEmail: data.inviter.user.email,
-						organizationName: data.organization.name,
-						inviteLink,
-					}),
+			async sendInvitationEmail() {
+				// Email invitations were removed in favor of Discord-style
+				// invite links (/invite/:code). Kept as a guard in case the
+				// organization plugin triggers it internally.
+				throw new APIError("BAD_REQUEST", {
+					message:
+						"Email invitations are disabled. Create an invite link instead.",
 				});
 			},
 		}),

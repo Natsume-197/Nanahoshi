@@ -10,7 +10,6 @@ import { enrichmentRouter } from "./enrichment/enrichment.router";
 import { filesRouter } from "./files";
 import { genresRouter } from "./genres";
 import { instanceActivityRouter } from "./instance-activity";
-import { invitationsRouter } from "./invitations";
 import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
@@ -75,7 +74,6 @@ export const appRouter: {
 	likedBooks: typeof likedBooksRouter;
 	profile: typeof profileRouter;
 	tasks: typeof tasksRouter;
-	invitations: typeof invitationsRouter;
 	inviteLinks: typeof inviteLinksRouter;
 	instanceActivity: typeof instanceActivityRouter;
 	users: typeof usersRouter;
@@ -121,7 +119,6 @@ export const appRouter: {
 	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,
-	invitations: invitationsRouter,
 	inviteLinks: inviteLinksRouter,
 	instanceActivity: instanceActivityRouter,
 	users: usersRouter,

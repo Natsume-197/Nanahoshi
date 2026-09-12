@@ -77,7 +77,7 @@ export const env = createEnv({
 			.transform((v) => v === "true")
 			.default(true),
 
-		// Email (optional — only needed for email invitations and Send to Kindle)
+		// Email (optional — only needed for Send to Kindle)
 		SMTP_HOST: z.string().default("smtp.gmail.com"),
 		SMTP_PORT: z.coerce.number().default(465),
 		SMTP_SECURE: z

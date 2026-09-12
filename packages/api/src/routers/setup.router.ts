@@ -29,8 +29,8 @@ export const setupRouter = {
 			providerId: env.OIDC_PROVIDER_ID,
 			label: env.OIDC_PROVIDER_LABEL,
 			discord: discordConfigured,
-			// Email invitations / Send to Kindle need SMTP; the invitations UI
-			// disables the email path when this is false.
+			// Send to Kindle needs SMTP. Kept for Kindle UI; invite links
+			// don't need mailer (email invitations were removed).
 			mailer: !!env.SMTP_USER && !!env.SMTP_PASS,
 			// Which registration paths the instance currently offers. Sign-in for
 			// existing accounts is never affected by these.

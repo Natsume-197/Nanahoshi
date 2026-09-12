@@ -2,7 +2,7 @@ import { env } from "@nanahoshi-v2/env/server";
 import nodemailer from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
 
-/** SMTP is optional: only email invitations and Send to Kindle need it. */
+/** SMTP is optional: only Send to Kindle needs it (email invitations were removed). */
 export function isMailerConfigured(): boolean {
 	return Boolean(env.SMTP_USER && env.SMTP_PASS);
 }

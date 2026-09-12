@@ -64,8 +64,6 @@ export type SignUpGateInput = {
 	requiresDiscord?: boolean;
 	/** The invite link matching the code the client presented, if any. */
 	inviteLink: InviteLinkState | null;
-	/** Does a pending (unexpired) email invitation exist for this email? */
-	hasPendingInvitation: boolean;
 	now?: Date;
 };
 
@@ -81,19 +79,14 @@ export function isInviteLinkUsable(
 
 /**
  * Sign-up is open before first setup; afterwards the instance policy and the
- * method toggle gate it, and invite-only requires an invitation of some kind.
+ * method toggle gate it, and invite-only requires a usable invite link
+ * (Discord-style, via /invite/:code). Email invitations were removed.
  */
 export function evaluateSignUpGate(input: SignUpGateInput): SignUpVerdict {
 	if (!input.configured) return { allowed: true };
 	if (input.policy === "closed") return { allowed: false, reason: "closed" };
 	if (!input.methodEnabled) {
 		return { allowed: false, reason: "method_disabled" };
-	}
-	if (input.hasPendingInvitation) {
-		if (input.requiresDiscord && input.method !== "discord") {
-			return { allowed: false, reason: "discord_required" };
-		}
-		return { allowed: true };
 	}
 	if (input.inviteLink && isInviteLinkUsable(input.inviteLink, input.now)) {
 		if (input.requiresDiscord && input.method !== "discord") {

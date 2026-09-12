@@ -1,11 +1,10 @@
 import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
 import { Books, CircleNotch } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { LibraryTaskProgress } from "@/components/libraries/library-task-progress";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "@/hooks/use-session";
 import { m } from "@/paraglide/messages";
@@ -117,7 +116,8 @@ function GettingStartedNotice(): JSX.Element {
 }
 
 /** Members and not-yet-joined visitors can't add content — tell them why the
- * library is empty and where to go next. */
+ * library is empty. Joining happens via an invite link (/invite/:code),
+ * there is no invitations inbox. */
 function PassiveEmptyNotice({ hasOrg }: { hasOrg: boolean }): JSX.Element {
 	return (
 		<NoticeShell>
@@ -132,14 +132,6 @@ function PassiveEmptyNotice({ hasOrg }: { hasOrg: boolean }): JSX.Element {
 					{hasOrg ? m["home.empty_member"]() : m["home.empty_no_server"]()}
 				</p>
 			</div>
-			{!hasOrg && (
-				<Link
-					to="/dashboard/invitations"
-					className={buttonVariants({ variant: "outline" })}
-				>
-					{m["home.view_invitations"]()}
-				</Link>
-			)}
 		</NoticeShell>
 	);
 }

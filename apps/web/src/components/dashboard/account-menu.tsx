@@ -1,13 +1,11 @@
 import {
 	ArrowsCounterClockwise,
 	DotsThree,
-	EnvelopeOpen,
 	GearSix,
 	SignOut,
 	User,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { preloadSettingsPage } from "@/components/layout/settings-modal-host";
@@ -106,16 +104,6 @@ export function AccountMenuItems({
 
 			<DropdownMenuSeparator />
 			<DropdownMenuGroup>
-				<DropdownMenuItem asChild>
-					<Link to="/dashboard/invitations">
-						<EnvelopeOpen />
-						{m["nav.invitations"]()}
-					</Link>
-				</DropdownMenuItem>
-			</DropdownMenuGroup>
-
-			<DropdownMenuSeparator />
-			<DropdownMenuGroup>
 				{session?.session.impersonatedBy && (
 					<DropdownMenuItem
 						disabled={stopImpersonatingMutation.isPending}
@@ -137,7 +125,7 @@ export function AccountMenuItems({
 /**
  * The own-profile page's account menu. On mobile the profile IS the account tab
  * — there's no navbar avatar down there — so this is the only way to reach
- * status, invitations, settings and sign out.
+ * status, settings and sign out.
  */
 export function AccountMenu() {
 	return (

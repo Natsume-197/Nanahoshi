@@ -2,10 +2,8 @@ import {
 	Check,
 	CircleNotch,
 	Copy,
-	EnvelopeSimple,
 	LinkSimple,
 	Trash,
-	X,
 } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -25,8 +23,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
-import { useSession } from "@/hooks/use-session";
-import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { formatDate } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
@@ -38,28 +34,19 @@ function invitationRoleLabel(role: "member" | "admin" | string | null) {
 	return role;
 }
 
+/**
+ * Discord-style invites: shareable links only, no email invitations.
+ * Joining happens via /invite/:code with preview + Join.
+ */
 export function InvitationsSettings() {
 	const qc = useQueryClient();
-	const { data: org } = authClient.useActiveOrganization();
-	const { data: session } = useSession();
-
 	const { can } = useAbilities();
 	const canManage = can("member", "invite");
 
-	const { data: pendingInvitations, isLoading: isInvitationsLoading } =
-		useQuery({
-			...orpc.invitations.listPending.queryOptions(),
-			enabled: !!org,
-		});
-
 	const { data: inviteLinks, isLoading: isLinksLoading } = useQuery({
 		...orpc.inviteLinks.list.queryOptions(),
-		enabled: !!org,
+		enabled: canManage,
 	});
-
-	// Email invitations only work when the server has SMTP configured.
-	const { data: providers } = useQuery(orpc.setup.ssoStatus.queryOptions());
-	const mailerReady = providers?.mailer ?? true;
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -68,99 +55,11 @@ export function InvitationsSettings() {
 					<p className="text-muted-foreground text-sm">
 						{m["settings.invitations.desc"]()}
 					</p>
-					{canManage && mailerReady && (
-						<InviteMemberDialog
-							orgId={org?.id ?? ""}
-							currentUserEmail={session?.user.email ?? ""}
-							onSuccess={() => qc.invalidateQueries()}
-						/>
-					)}
 				</div>
-
-				{canManage && !mailerReady && (
-					<p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-						{m["settings.invitations.no_mailer"]()}
-					</p>
-				)}
-
-				{!org && (
-					<p className="text-muted-foreground text-sm">
-						{m["settings.org.none_selected"]()}
-					</p>
-				)}
 			</div>
 
-			{/* ── Pending Invitations ───────────────────────────────────── */}
-			{canManage && org && (
-				<section className="flex flex-col gap-6">
-					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-foreground text-xl">
-							{m["settings.invitations.pending"]()}
-						</h2>
-						<p className="text-muted-foreground text-sm">
-							{m["settings.invitations.pending_desc"]()}
-						</p>
-					</div>
-
-					{isInvitationsLoading && <InvitationRowsSkeleton />}
-
-					{!isInvitationsLoading &&
-						(!pendingInvitations ||
-							(Array.isArray(pendingInvitations) &&
-								pendingInvitations.length === 0)) && (
-							<p className="text-muted-foreground text-sm">
-								{m["settings.invitations.none_pending"]()}
-							</p>
-						)}
-
-					{Array.isArray(pendingInvitations) &&
-						pendingInvitations.length > 0 && (
-							<SettingRows>
-								{pendingInvitations.map((inv) => (
-									<div
-										key={inv.id}
-										className="flex items-center justify-between gap-4 py-3"
-									>
-										<div>
-											<p className="font-medium text-sm">{inv.email}</p>
-											<p className="text-muted-foreground text-xs">
-												{m["settings.invitations.role_expires"]({
-													role: invitationRoleLabel(inv.role),
-													date: formatDate(inv.expiresAt),
-												})}
-											</p>
-										</div>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={async () => {
-												try {
-													await client.invitations.cancel({
-														invitationId: inv.id,
-													});
-													toast.success(m["settings.invitations.cancelled"]());
-													qc.invalidateQueries(
-														orpc.invitations.listPending.queryOptions(),
-													);
-												} catch {
-													toast.error(
-														m["settings.invitations.cancel_failed"](),
-													);
-												}
-											}}
-											aria-label={m["settings.invitations.cancelled"]()}
-										>
-											<X className="size-4" />
-										</Button>
-									</div>
-								))}
-							</SettingRows>
-						)}
-				</section>
-			)}
-
 			{/* ── Invite Links ──────────────────────────────────────────── */}
-			{canManage && org && (
+			{canManage && (
 				<section className="flex flex-col gap-6">
 					<div className="flex items-center justify-between gap-4">
 						<div>
@@ -285,128 +184,6 @@ function CopyButton({ text }: { text: string }) {
 		>
 			{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
 		</Button>
-	);
-}
-
-function InviteMemberDialog({
-	orgId,
-	onSuccess,
-	currentUserEmail,
-}: {
-	orgId: string;
-	onSuccess: () => void;
-	currentUserEmail: string;
-}) {
-	const [open, setOpen] = useState(false);
-	const [email, setEmail] = useState("");
-	const [role, setRole] = useState<"member" | "admin">("member");
-	const [isPending, setIsPending] = useState(false);
-	const [emailError, setEmailError] = useState("");
-
-	const handleEmailChange = (v: string) => {
-		setEmail(v);
-		setEmailError(
-			v.trim().toLowerCase() === currentUserEmail.toLowerCase()
-				? m["settings.invitations.self_invite"]()
-				: "",
-		);
-	};
-
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
-		if (email.trim().toLowerCase() === currentUserEmail.toLowerCase()) {
-			setEmailError(m["settings.invitations.self_invite"]());
-			return;
-		}
-		setIsPending(true);
-		const { error } = await authClient.organization.inviteMember({
-			email,
-			role,
-			organizationId: orgId,
-		});
-		setIsPending(false);
-		if (error) {
-			toast.error(error.message ?? m["settings.invitations.send_failed"]());
-			return;
-		}
-		toast.success(m["settings.invitations.sent_to"]({ email }));
-		setEmail("");
-		setEmailError("");
-		setOpen(false);
-		onSuccess();
-	};
-
-	return (
-		<>
-			<Button size="sm" onClick={() => setOpen(true)}>
-				<EnvelopeSimple className="mr-2 size-4" />
-				{m["settings.invitations.invite_member"]()}
-			</Button>
-
-			<Modal
-				open={open}
-				onOpenChange={setOpen}
-				title={m["settings.invitations.invite_member"]()}
-				description={m["settings.invitations.invite_member_desc"]()}
-				className="sm:max-w-md"
-				onSubmit={handleSubmit}
-				footer={
-					<>
-						<Button variant="outline" onClick={() => setOpen(false)}>
-							{m["common.cancel"]()}
-						</Button>
-						<Button type="submit" disabled={isPending || !!emailError}>
-							{isPending && (
-								<CircleNotch className="mr-2 size-4 animate-spin" />
-							)}
-							{m["settings.invitations.send"]()}
-						</Button>
-					</>
-				}
-			>
-				<div className="space-y-4">
-					<div className="space-y-1.5">
-						<Label htmlFor="invite-email">
-							{m["settings.invitations.email_address"]()}
-						</Label>
-						<Input
-							id="invite-email"
-							type="email"
-							placeholder={m["settings.invitations.email_placeholder"]()}
-							value={email}
-							onChange={(e) => handleEmailChange(e.target.value)}
-							required
-						/>
-						{emailError && (
-							<p className="text-destructive text-xs">{emailError}</p>
-						)}
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="invite-role">
-							{m["settings.invitations.role"]()}
-						</Label>
-						<Select
-							value={role}
-							onValueChange={(v) => setRole(v as "member" | "admin")}
-						>
-							<SelectTrigger id="invite-role">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectGroup>
-									<SelectItem value="member">
-										{m["settings.invitations.member_option"]()}
-									</SelectItem>
-									<SelectItem value="admin">
-										{m["settings.invitations.admin_option"]()}
-									</SelectItem>
-								</SelectGroup>
-							</SelectContent>
-						</Select>
-					</div>
-				</div>
-			</Modal>
-		</>
 	);
 }
 
