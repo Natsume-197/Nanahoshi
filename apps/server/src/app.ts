@@ -52,6 +52,7 @@ export function buildApp(): Hono {
 				"x-invite-code",
 				"X-POSTHOG-DISTINCT-ID",
 				"X-POSTHOG-SESSION-ID",
+				"X-POSTHOG-WINDOW-ID",
 			],
 			exposeHeaders: [
 				"Accept-Ranges",
