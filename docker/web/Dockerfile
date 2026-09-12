@@ -28,6 +28,10 @@ COPY packages/ packages/
 # Baked into the client bundle; kept below the install to not bust its cache
 ARG VITE_SERVER_URL
 ENV VITE_SERVER_URL=${VITE_SERVER_URL}
+ARG VITE_POSTHOG_PROJECT_TOKEN
+ENV VITE_POSTHOG_PROJECT_TOKEN=${VITE_POSTHOG_PROJECT_TOKEN}
+ARG VITE_POSTHOG_HOST
+ENV VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST}
 
 WORKDIR /app/apps/web
 RUN bun run build

@@ -30,6 +30,9 @@ x-app-environment: &app-environment
   SMTP_SECURE: ${SMTP_SECURE:-true}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASS: ${SMTP_PASS:-}
+  # Product analytics (optional — both SDKs stay disabled when empty)
+  POSTHOG_PROJECT_TOKEN: ${POSTHOG_PROJECT_TOKEN:-}
+  POSTHOG_HOST: ${POSTHOG_HOST:-}
   # Scan queue backpressure
   SCAN_QUEUE_HIGH_WATERMARK: ${SCAN_QUEUE_HIGH_WATERMARK:-2000}
   SCAN_QUEUE_LOW_WATERMARK: ${SCAN_QUEUE_LOW_WATERMARK:-1000}
@@ -97,6 +100,8 @@ services:
       dockerfile: docker/web/Dockerfile
       args:
         VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost:3000}
+        VITE_POSTHOG_PROJECT_TOKEN: ${VITE_POSTHOG_PROJECT_TOKEN:-}
+        VITE_POSTHOG_HOST: ${VITE_POSTHOG_HOST:-}
     container_name: nanahoshi-v2-web
     ports:
       - "${WEB_PORT:-3001}:3000"
