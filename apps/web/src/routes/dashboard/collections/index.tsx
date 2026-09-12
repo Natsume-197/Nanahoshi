@@ -65,7 +65,6 @@ function CollectionsPage() {
 		enabled: canRead,
 	});
 
-	const pageLoading = tab !== "discover" && (isLoading || shelvesLoading);
 	const collectionIds =
 		collections
 			?.filter(
@@ -74,6 +73,9 @@ function CollectionsPage() {
 			)
 			.map((collection) => collection.id) ?? [];
 	const previews = useCollectionPreviews(collectionIds, canRead && !isLoading);
+	const pageLoading =
+		abilitiesLoading ||
+		(tab !== "discover" && (isLoading || shelvesLoading || previews.isLoading));
 	const discoveryIds = (discoveredCollections ?? [])
 		.filter(
 			(collection) =>

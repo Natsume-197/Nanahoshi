@@ -165,7 +165,9 @@ function CollectionDetailPage() {
 									.join(" · ")
 							: undefined
 					}
-					isLoading={detailsQuery.isLoading || itemsQuery.isLoading}
+					isLoading={
+						abilitiesLoading || detailsQuery.isLoading || itemsQuery.isLoading
+					}
 					isError={detailsQuery.isError || itemsQuery.isError}
 					errorState={
 						<QueryErrorState

@@ -11,6 +11,13 @@ import { paraglideMiddleware } from "@/paraglide/server";
 async function catalogLinkPreviewResponse(request: Request) {
 	if (!isLinkPreviewRequest(request)) return null;
 	const requestUrl = new URL(request.url);
+	// TLS may terminate at the proxy while Bun receives an internal HTTP request.
+	const forwardedProto = request.headers
+		.get("x-forwarded-proto")
+		?.split(",")[0]
+		?.trim()
+		.toLowerCase();
+	if (forwardedProto === "https") requestUrl.protocol = "https:";
 	const target = getCatalogPreviewTarget(requestUrl.pathname);
 	if (!target) return null;
 	requestUrl.search = "";
