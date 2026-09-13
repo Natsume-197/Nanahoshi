@@ -1,6 +1,6 @@
 import path from "node:path";
-import { env } from "@nanahoshi-v2/env/server";
 import { logger } from "../../lib/logger";
+import { scanQueueBudget } from "../../lib/worker-budget";
 import { planJobs, throwIfTaskCancelled } from "../taskManager";
 import { enqueueScanJobs } from "./scan-queue-producer";
 import { scannedFileRepository } from "./scannedFile.repository";
@@ -14,6 +14,7 @@ export async function createEbookJobs(opts: {
 	taskId?: string;
 }): Promise<number> {
 	const { rootDir, libraryId, libraryPathId, taskId } = opts;
+	const { batchSize } = scanQueueBudget();
 	let jobsCreated = 0;
 	let lastId = 0;
 
@@ -27,7 +28,7 @@ export async function createEbookJobs(opts: {
 		const files = await scannedFileRepository.listVerifiedAfter(
 			libraryPathId,
 			lastId,
-			env.SCAN_QUEUE_BATCH_SIZE ?? 250,
+			batchSize,
 		);
 
 		const lastFile = files.at(-1);

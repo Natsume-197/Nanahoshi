@@ -8,6 +8,7 @@ import { mountBullBoard } from "./admin/bull-board";
 import { mountGateway } from "./gateway/gateway";
 import { compressResponses } from "./lib/compress";
 import { posthog } from "./lib/posthog";
+import { mountWebApp, type WebHandler } from "./lib/web-app";
 import { mountBackups } from "./routes/backups";
 import { mountCovers } from "./routes/covers";
 import { mountDownloads } from "./routes/downloads";
@@ -21,7 +22,7 @@ import { mountUploads } from "./routes/uploads";
 // Mount order is significant: Hono matches in registration order, so Bull Board,
 // static media and OPDS must precede CORS, and the oRPC catch-all must precede
 // the file routes it falls through to.
-export function buildApp(): Hono {
+export function buildApp(fetchWeb?: WebHandler): Hono {
 	const app = new Hono();
 
 	// Baseline security headers on every response. Intentionally omits
@@ -80,7 +81,9 @@ export function buildApp(): Hono {
 	mountBackups(app);
 	mountStream(app);
 
-	app.get("/", (c) => c.text("OK"));
+	app.get("/health", (c) => c.text("OK"));
+	if (fetchWeb) mountWebApp(app, fetchWeb);
+	else app.get("/", (c) => c.text("OK"));
 
 	app.onError((error, c) => {
 		posthog?.captureException(error);

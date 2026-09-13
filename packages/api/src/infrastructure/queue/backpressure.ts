@@ -1,5 +1,5 @@
-import { env } from "@nanahoshi-v2/env/server";
 import type { Queue } from "bullmq";
+import { scanQueueBudget } from "../../lib/worker-budget";
 
 const PENDING_JOB_TYPES = [
 	"wait",
@@ -15,9 +15,8 @@ export type QueueBackpressureConfig = {
 };
 
 const defaultConfig: QueueBackpressureConfig = {
-	highWatermark: env.SCAN_QUEUE_HIGH_WATERMARK ?? 2000,
-	lowWatermark: env.SCAN_QUEUE_LOW_WATERMARK ?? 1000,
-	pollMs: env.SCAN_QUEUE_POLL_MS ?? 250,
+	...scanQueueBudget(),
+	pollMs: 250,
 };
 
 type QueueDepthProbe = Pick<Queue, "getJobCountByTypes">;
@@ -38,6 +37,9 @@ export async function waitForQueueCapacity(
 	if (!Number.isInteger(incomingJobs) || incomingJobs < 1) {
 		throw new Error("incomingJobs must be a positive integer");
 	}
+	if (incomingJobs > config.highWatermark) {
+		throw new Error("incomingJobs must fit within the queue high watermark");
+	}
 	const sleep = hooks.sleep ?? Bun.sleep;
 	await hooks.checkCancelled?.();
 	let pending = await pendingJobCount(queue);
@@ -49,7 +51,10 @@ export async function waitForQueueCapacity(
 		await hooks.checkCancelled?.();
 		await sleep(config.pollMs);
 		pending = await pendingJobCount(queue);
-	} while (pending > config.lowWatermark);
+	} while (
+		pending > config.lowWatermark ||
+		pending + incomingJobs > config.highWatermark
+	);
 
 	return { pending, throttled: true };
 }

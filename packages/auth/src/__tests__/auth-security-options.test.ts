@@ -1,7 +1,34 @@
 import { describe, expect, test } from "bun:test";
-import { authIpAddress, authRateLimit } from "../auth-security-options";
+import {
+	authCookieOptions,
+	authIpAddress,
+	authRateLimit,
+} from "../auth-security-options";
 
 describe("auth security options", () => {
+	test("supports HTTP LAN cookies and preserves HTTPS security", () => {
+		expect(
+			authCookieOptions("http://192.168.1.20:3000", "http://192.168.1.20:3000"),
+		).toEqual({
+			secure: false,
+			httpOnly: true,
+			sameSite: "lax",
+		});
+		expect(
+			authCookieOptions("https://books.example", "https://books.example"),
+		).toEqual({
+			secure: true,
+			httpOnly: true,
+			sameSite: "lax",
+		});
+		expect(
+			authCookieOptions("https://api.example", "https://web.example"),
+		).toEqual({
+			secure: true,
+			httpOnly: true,
+			sameSite: "none",
+		});
+	});
 	test("uses the server-sanitized client IP for per-client rate limits", () => {
 		expect(authIpAddress).toEqual({
 			ipAddressHeaders: ["x-nanahoshi-client-ip"],

@@ -2,6 +2,8 @@ import "@/test-utils/setup-dom";
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
 
+mock.module("@/lib/posthog", () => ({ posthog: null }));
+
 const { cleanup, fireEvent, render, screen, within } = await import(
 	"@testing-library/react"
 );

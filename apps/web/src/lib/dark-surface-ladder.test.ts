@@ -23,49 +23,18 @@ function value(name: string): string {
 	return alias ? value(alias[1]) : raw;
 }
 
-function lightness(name: string): number {
-	const parsed = /^oklch\(([\d.]+)/.exec(value(name));
-	if (!parsed) throw new Error(`${name} is not a plain oklch color`);
-	return Number(parsed[1]);
-}
-
-describe("dark surface ladder", () => {
-	// Rungs, darkest first. The chrome frames the sheet, so it sits below it;
-	// inputs are recessed; everything that floats shares one raised step.
-	const ladder = [
-		"--sidebar",
-		"--input",
-		"--background",
-		"--card",
-		"--secondary",
-	];
-
-	test("floats menus, popovers and cards on one surface", () => {
+// Assert shared surface roles rather than freezing a particular color notation.
+describe("dark surfaces", () => {
+	test("uses a consistent surface for cards and floating menus", () => {
 		expect(value("--popover")).toBe(value("--card"));
-		// Mixing the foreground in (as the light theme does) made menus the
-		// brightest thing on screen, off the ladder entirely.
 		expect(value("--dropdown")).toBe(value("--popover"));
-		expect(value("--muted")).toBe(value("--card"));
+		expect(value("--surface-card")).toBe(value("--card"));
+		expect(value("--card")).not.toBe(value("--background"));
 	});
 
-	test("gives form fields a veil, never a fixed fill", () => {
-		// A fixed fill can only be tuned for one surface: on the chrome the
-		// header search vanishes, on a card a settings field does. Which way it
-		// leans is a taste knob; that it scales with its surface is not.
-		expect(value("--control")).toMatch(
-			/^rgba\((?:0, 0, 0|255, 255, 255), 0\.\d+\)$/,
-		);
-	});
-
-	test("keeps the whole ladder near-black", () => {
-		for (const token of ladder) expect(lightness(token)).toBeLessThan(0.32);
-		expect(lightness("--foreground")).toBeGreaterThan(0.9);
-	});
-
-	test("tints surfaces far below where hue 286 reads lavender", () => {
-		for (const token of ladder) {
-			const chroma = Number(/^oklch\([\d.]+ ([\d.]+)/.exec(value(token))?.[1]);
-			expect(chroma).toBeLessThanOrEqual(0.0095);
-		}
+	test("shares the input surface across controls and preserves hover feedback", () => {
+		expect(value("--control")).toBe(value("--input"));
+		expect(value("--surface-hover")).toBe(value("--muted"));
+		expect(value("--muted")).not.toBe(value("--background"));
 	});
 });

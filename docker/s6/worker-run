@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+set -eu
+cd /app/apps/server
+export PROCESS_ROLE=worker
+exec bun run dist/worker.mjs

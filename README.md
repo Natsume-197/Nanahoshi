@@ -4,52 +4,94 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 
 <img width="2560" height="1290" alt="image" src="https://github.com/user-attachments/assets/5906821d-bd13-4e7f-b56a-b2e6e441b02a" />
 
-## Local setup
+## Installation with Docker
+
+1. Create a folder:
+
+   ```sh
+   mkdir nanahoshi && cd nanahoshi
+   ```
+
+2. Inside create `docker-compose.yml` with this content:
+
+   ```yml
+   name: nanahoshi-v2
+
+   services:
+     server:
+       stop_grace_period: 40s
+       image: ghcr.io/natsume-197/nanahoshi:latest
+       restart: unless-stopped
+       env_file: .env
+       ports: ["3000:3000"]
+       volumes:
+         - server_data:/app/apps/server/data
+         - ./books:/books:ro
+       depends_on:
+         postgres: { condition: service_healthy }
+         redis: { condition: service_healthy }
+
+     postgres:
+       image: groonga/pgroonga:4.0.8-alpine-18
+       restart: unless-stopped
+       shm_size: 256mb
+       command: ["postgres", "-c", "shared_buffers=256MB", "-c", "jit=off"]
+       environment:
+         POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
+         POSTGRES_USER: ${DB_USER:-postgres}
+         POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+       volumes: ["postgres_data:/var/lib/postgresql"]
+       healthcheck:
+         test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+         interval: 5s
+         timeout: 5s
+         retries: 5
+
+     redis:
+       image: redis:8.10.1-alpine
+       restart: unless-stopped
+       command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
+       environment:
+         REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+       volumes: ["redis_data:/data"]
+       healthcheck:
+         test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+         interval: 5s
+         timeout: 3s
+         retries: 5
+
+   volumes:
+     postgres_data:
+     server_data:
+     redis_data:
+   ```
+
+3. Save [`.env.example`](.env.example) as `.env`, fill in your URL and required secrets, then start:
+
+   ```sh
+   docker compose up -d
+   ```
+
+Open your configured URL (default `http://localhost:3000`), create your account and add a library.
+
+## Local development
 
 Requirements: Bun 1.4.0, Docker and Docker Compose.
 
 ```bash
 cp .env.example apps/server/.env
-# Fill every REQUIRED value in apps/server/.env
+# Fill every REQUIRED value in apps/server/.env and set:
+# ENVIRONMENT=development, DB_HOST=127.0.0.1, REDIS_HOST=127.0.0.1
+# CORS_ORIGIN=http://localhost:3001
 bun install --frozen-lockfile
 bun run infra:up
 bun run db:migrate
-bun run dev
+VITE_SERVER_URL=http://localhost:3000 bun run dev
 ```
 
 The web application is available at `http://localhost:3001` and the API at
 `http://localhost:3000` with the example defaults. The first account created on
-a fresh installation becomes the instance administrator. Later registrations
-require an invitation according to the configured policy.
-
-Before upgrading, create and verify a backup with `bun run backup`.
-
-### Integration tests
-
-`bun run test:integration` runs five database and queue suites against real
-PostgreSQL/PGroonga and Redis services. The suites mutate their configured
-database and queues, so only point them at disposable test containers—never a
-personal or production database.
-
-For example, start fresh containers and run the suite with test-only settings:
-
-```bash
-docker run --rm -d --name nanahoshi-it-postgres -p 5432:5432 \
-  -e POSTGRES_PASSWORD=integration-only-password \
-  -e POSTGRES_DB=nanahoshi_integration groonga/pgroonga:4.0.8-alpine-18
-docker run --rm -d --name nanahoshi-it-redis -p 6379:6379 redis:8.10.1-alpine
-
-DB_HOST=127.0.0.1 DB_PORT=5432 DB_USER=postgres \
-DB_PASSWORD=integration-only-password DB_NAME=nanahoshi_integration \
-REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
-CORS_ORIGIN=http://localhost:3001 SERVER_URL=http://localhost:3000 \
-NAMESPACE_UUID=6ba7b810-9dad-11d1-80b4-00c04fd430c8 \
-DOWNLOAD_SECRET=9b2c1f80-5d3e-4a7b-8c1d-2e3f4a5b6c7d \
-BETTER_AUTH_SECRET=local-integration-secret-000000000000000 \
-BETTER_AUTH_URL=http://localhost:3000 bun run test:integration
-
-docker stop nanahoshi-it-postgres nanahoshi-it-redis
-```
+a fresh installation becomes the instance administrator.
 
 ## Contribution and attribution
 

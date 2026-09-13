@@ -1,3 +1,5 @@
+import { env } from "@nanahoshi-v2/env/web";
+
 type ApiOriginOptions = {
 	isSsr: boolean;
 	publicOrigin: string | undefined;
@@ -38,7 +40,9 @@ export function resolveApiOrigin({
 export function getApiOrigin(): string {
 	return resolveApiOrigin({
 		isSsr: import.meta.env.SSR,
-		publicOrigin: import.meta.env.VITE_SERVER_URL,
-		serverOrigin: import.meta.env.SSR ? process.env.SERVER_URL : undefined,
+		publicOrigin: env.VITE_SERVER_URL,
+		serverOrigin: import.meta.env.SSR
+			? process.env.INTERNAL_API_URL || process.env.SERVER_URL
+			: undefined,
 	});
 }

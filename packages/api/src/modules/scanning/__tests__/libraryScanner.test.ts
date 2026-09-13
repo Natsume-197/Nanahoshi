@@ -438,9 +438,8 @@ mock.module("../../../lib/logger", () => ({ logger: loggerMock }));
 // ─── Import module under test (after all mocks are registered) ───────────────
 
 const { scanPathLibrary } = await import("../libraryScanner");
-const { scanHashConcurrency, scanStatConcurrency } = await import(
-	"../../../lib/worker-budget"
-);
+const { scanHashConcurrency, scanStatConcurrency, scanQueueBudget } =
+	await import("../../../lib/worker-budget");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1383,9 +1382,15 @@ describe("libraryScanner", () => {
 
 			await scanPathLibrary("/library", 1, 100);
 
-			expect(mockAddBulk.mock.calls.length).toBe(2);
-			expect(mockAddBulk.mock.calls[0][0].length).toBe(250);
-			expect(mockAddBulk.mock.calls[1][0].length).toBe(1);
+			const batches = mockAddBulk.mock.calls.map(([jobs]) => jobs);
+			expect(batches.length).toBeGreaterThan(1);
+			for (const batch of batches) {
+				expect(batch.length).toBeLessThanOrEqual(scanQueueBudget().batchSize);
+			}
+			const paths = batches.flat().map((job) => job.data.path);
+			expect(paths).toEqual(
+				Array.from({ length: 251 }, (_, i) => `/library/book${i}.epub`),
+			);
 		});
 
 		test("jobs are created with the scanned libraryPathId, not a default", async () => {

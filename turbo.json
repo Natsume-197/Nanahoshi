@@ -46,5 +46,11 @@
 		"db:down": {
 			"cache": false
 		}
-	}
+	},
+	"globalPassThroughEnv": [
+		"APP_URL",
+		"INTERNAL_API_URL",
+		"WEB_APP_PATH",
+		"INSTALLATION_E2E_*"
+	]
 }

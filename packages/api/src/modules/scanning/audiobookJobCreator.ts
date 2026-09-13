@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
-import { env } from "@nanahoshi-v2/env/server";
+import { scanQueueBudget } from "../../lib/worker-budget";
 import { planJobs, throwIfTaskCancelled } from "../taskManager";
 import {
 	compareAudiobookSources,
@@ -18,6 +18,7 @@ export async function createAudiobookJobs(opts: {
 	taskId?: string;
 }): Promise<number> {
 	const { rootDir, libraryId, libraryPathId, taskId } = opts;
+	const { batchSize } = scanQueueBudget();
 
 	// Fetch all verified files for this library path
 	const allVerifiedFiles: (typeof scannedFile.$inferSelect)[] = [];
@@ -27,7 +28,7 @@ export async function createAudiobookJobs(opts: {
 		const files = await scannedFileRepository.listVerifiedAfter(
 			libraryPathId,
 			lastId,
-			env.SCAN_QUEUE_BATCH_SIZE ?? 250,
+			batchSize,
 		);
 
 		const lastFile = files.at(-1);

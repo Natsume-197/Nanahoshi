@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+for service in api worker; do
+	[ "$(/command/s6-svstat -o up "/run/service/$service")" = true ]
+done
+exec curl --fail --silent --show-error --max-time 4 http://127.0.0.1:3000/health

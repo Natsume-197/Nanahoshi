@@ -33,6 +33,17 @@ export function fileEventConcurrency(
 	return clampToCpuBudget(memorySlots, budget);
 }
 
+/** Bounded prefetch sized for the same CPU/memory budget as file processing. */
+export function scanQueueBudget(concurrency = fileEventConcurrency()) {
+	// ponytail: cap prefetch at 2,000 jobs; increase only if measured queue starvation warrants it.
+	const batchSize = Math.min(250, Math.max(16, Math.floor(concurrency) * 16));
+	return {
+		batchSize,
+		highWatermark: batchSize * 8,
+		lowWatermark: batchSize * 4,
+	};
+}
+
 /**
  * Reduce quickly near the cgroup ceiling, hold steady in the middle, and
  * recover one slot at a time once memory is comfortably available again.

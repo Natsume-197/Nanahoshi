@@ -1,0 +1,66 @@
+name: Release Docker image
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Publish only the architecture exercised by the packaged-stack smoke test.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      PRERELEASE: ${{ github.event.release.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Validate release version
+        shell: bash
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          install-dependencies: true
+      - name: Build application image
+        run: docker build -t nanahoshi:ci .
+      - name: Test packaged application
+        run: bash scripts/ci-container-smoke.sh
+        env:
+          INSTALLATION_E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        shell: bash
+        run: |
+          docker tag nanahoshi:ci "$IMAGE:$RELEASE_TAG"
+          docker push "$IMAGE:$RELEASE_TAG"
+          if [[ "$PRERELEASE" != true ]]; then
+            docker tag nanahoshi:ci "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
+      - name: Check anonymous image access
+        shell: bash
+        run: |
+          anonymous_config=$(mktemp -d)
+          trap 'rm -rf "$anonymous_config"' EXIT
+          DOCKER_CONFIG="$anonymous_config" docker manifest inspect "$IMAGE:$RELEASE_TAG" > /dev/null
+          # On the first release, packages must be public in GitHub package settings.

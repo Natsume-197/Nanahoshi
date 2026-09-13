@@ -1,8 +1,8 @@
 import path from "node:path";
 
 const PORT = Number(process.env.PORT ?? 3000);
-const CLIENT_DIR = "./dist/client";
-const SERVER_ENTRY = "./dist/server/server.js";
+const CLIENT_DIR = path.join(import.meta.dir, "dist/client");
+const SERVER_ENTRY = path.join(import.meta.dir, "dist/server/server.js");
 
 // Bun.serve does not compress responses, so static text assets are served from
 // .br/.gz siblings written by scripts/precompress-assets.ts, and dynamic (SSR)
@@ -99,7 +99,7 @@ function compressDynamicResponse(
 	);
 }
 
-async function main() {
+export async function createWebHandler() {
 	const [{ default: handler }, staticRoutes] = await Promise.all([
 		import(SERVER_ENTRY) as Promise<{
 			default: { fetch: (request: Request) => Response | Promise<Response> };
@@ -107,21 +107,21 @@ async function main() {
 		createStaticRoutes(),
 	]);
 
-	Bun.serve({
-		port: PORT,
-		routes: {
-			...staticRoutes,
-			"/*": async (request: Request) =>
-				compressDynamicResponse(request, await handler.fetch(request)),
-		},
-		error(error) {
-			console.error(error);
-			return new Response("Internal Server Error", { status: 500 });
-		},
-	});
+	return async (request: Request): Promise<Response> => {
+		const staticRoute = staticRoutes[new URL(request.url).pathname];
+		if (
+			staticRoute &&
+			(request.method === "GET" || request.method === "HEAD")
+		) {
+			const response = staticRoute(request);
+			return request.method === "HEAD"
+				? new Response(null, { headers: response.headers })
+				: response;
+		}
+		return compressDynamicResponse(request, await handler.fetch(request));
+	};
 }
 
-main().catch((error) => {
-	console.error(error);
-	process.exit(1);
-});
+if (import.meta.main) {
+	Bun.serve({ port: PORT, fetch: await createWebHandler() });
+}

@@ -11,6 +11,7 @@ import {
 	fileEventConcurrency,
 	nextConcurrencyForMemoryPressure,
 	scanHashConcurrency,
+	scanQueueBudget,
 	scanStatConcurrency,
 	workerConcurrency,
 } from "../worker-budget";
@@ -53,6 +54,25 @@ describe("worker resource budget", () => {
 		expect(fileEventConcurrency(6, 2 * gib)).toBe(2);
 		expect(fileEventConcurrency(6, 4 * gib)).toBe(4);
 		expect(fileEventConcurrency(1, 4 * gib)).toBe(1);
+	});
+
+	test("keeps scan prefetch bounded and smaller on CPU- or RAM-limited hosts", () => {
+		const gib = 1024 ** 3;
+		const small = scanQueueBudget(fileEventConcurrency(1, gib));
+		const large = scanQueueBudget(fileEventConcurrency(16, 16 * gib));
+		expect(small.highWatermark).toBeLessThan(large.highWatermark);
+		expect(small.batchSize).toBeLessThan(large.batchSize);
+		expect(scanQueueBudget(fileEventConcurrency(16, gib))).toEqual(small);
+		expect(scanQueueBudget(fileEventConcurrency(1, 16 * gib))).toEqual(small);
+		for (const slots of [1, 2, 8, 16, 128]) {
+			const budget = scanQueueBudget(slots);
+			expect(budget.batchSize).toBeGreaterThan(0);
+			expect(budget.batchSize).toBeLessThanOrEqual(250);
+			expect(budget.highWatermark).toBeLessThanOrEqual(2000);
+			expect(budget.lowWatermark + budget.batchSize).toBeLessThanOrEqual(
+				budget.highWatermark,
+			);
+		}
 	});
 
 	test("resolves memory capacity from host and cgroup ceilings", () => {

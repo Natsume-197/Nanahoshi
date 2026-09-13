@@ -396,11 +396,9 @@ describe("reader layout", () => {
 		expect(quickSettings).toContain('"min(36rem, calc(100vw - 2rem))"');
 		expect(quickSettings).toContain("hidden={!open}");
 		expect(quickSettings).toContain('role="dialog"');
-		expect(quickSettings).toContain("beginDesktopDialogDrag");
-		expect(quickSettings).toContain("setPointerCapture(event.pointerId)");
-		expect(quickSettings).toContain("desktopDialogOffsetRef.current.x");
-		expect(quickSettings).toContain("applyDesktopDialogOffset");
-		expect(quickSettings).toContain('willChange: "transform"');
+		// Drag behavior is covered by use-floating-window-drag.test.ts.
+		expect(quickSettings).toContain("useFloatingWindowDrag<HTMLElement>");
+		expect(quickSettings).toContain("{...desktopDialogDragHandleProps}");
 		expect(quickSettings).toContain("border-b px-2");
 		expect(quickSettings).toContain('className="size-3.5"');
 		expect(quickSettings).not.toContain("DotsSixVertical");
@@ -408,8 +406,8 @@ describe("reader layout", () => {
 			'aria-label={m["reader_settings.move_window"]()}',
 		);
 		expect(quickSettings).toContain("toggleDesktopDialogCollapsed");
-		expect(quickSettings).toContain("beginDesktopDialogResize");
-		expect(quickSettings).toContain("resizeDesktopDialogWithKeyboard");
+		expect(quickSettings).toContain("useFloatingWindowResize({");
+		expect(quickSettings).toContain("{...desktopDialogResizeHandleProps}");
 		expect(quickSettings).not.toContain("translate-x-full");
 		expect(globalStyles).toContain(
 			".reader-quick-settings-sheet[data-ending-style]",

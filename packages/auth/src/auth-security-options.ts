@@ -2,6 +2,19 @@ import type { BetterAuthOptions } from "better-auth";
 
 type AuthAdvancedOptions = NonNullable<BetterAuthOptions["advanced"]>;
 
+export function authCookieOptions(publicUrl: string, frontendUrl: string) {
+	const secure = new URL(publicUrl).protocol === "https:";
+	return {
+		secure,
+		httpOnly: true,
+		// Separate HTTPS origins remain supported for existing installations.
+		sameSite:
+			secure && new URL(publicUrl).origin !== new URL(frontendUrl).origin
+				? ("none" as const)
+				: ("lax" as const),
+	};
+}
+
 /**
  * The HTTP server overwrites this header from the socket peer and only honors
  * forwarded addresses from configured trusted proxies. Better Auth must use

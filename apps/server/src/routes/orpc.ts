@@ -22,6 +22,9 @@ export const rpcHandler = new RPCHandler(appRouter, {
 
 export function mountOrpc(app: Hono) {
 	app.use("/*", async (c, next) => {
+		if (!/^\/(?:rpc|api-reference)(?:\/|$)/.test(c.req.path)) {
+			return next();
+		}
 		const context = await createContext({ context: c });
 
 		const rpcResult = await rpcHandler.handle(c.req.raw, {

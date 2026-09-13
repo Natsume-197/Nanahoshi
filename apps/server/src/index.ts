@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { logger } from "@nanahoshi-v2/api/lib/logger";
 import { env } from "@nanahoshi-v2/env/server";
 import { buildApp } from "./app";
@@ -11,8 +13,17 @@ import {
 import type { RuntimeContext } from "./config/initializers/types";
 import { websocket } from "./gateway/gateway";
 import { posthog } from "./lib/posthog";
+import type { WebHandler } from "./lib/web-app";
 
-const app = buildApp();
+// Import the packaged SSR runtime without starting a second HTTP listener.
+const webModule = env.WEB_APP_PATH
+	? ((await import(
+			pathToFileURL(resolve(env.WEB_APP_PATH, "server.ts")).href
+		)) as {
+			createWebHandler: () => Promise<WebHandler>;
+		})
+	: undefined;
+const app = buildApp(await webModule?.createWebHandler());
 const context: RuntimeContext = { app };
 const trustedProxyIps = new Set(
 	env.TRUSTED_PROXY_IPS.split(",")

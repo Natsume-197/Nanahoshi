@@ -1,22 +1,5 @@
 name: nanahoshi-ci
 
-x-app-environment: &app-environment
-  ENVIRONMENT: production
-  CORS_ORIGIN: http://127.0.0.1:${CI_WEB_PORT:?CI_WEB_PORT is required}
-  SERVER_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
-  NAMESPACE_UUID: "${NAMESPACE_UUID:?NAMESPACE_UUID is required}"
-  DOWNLOAD_SECRET: "${DOWNLOAD_SECRET:?DOWNLOAD_SECRET is required}"
-  DB_HOST: postgres
-  DB_PORT: 5432
-  DB_USER: "${DB_USER:?DB_USER is required}"
-  DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
-  DB_NAME: "${DB_NAME:?DB_NAME is required}"
-  REDIS_HOST: redis
-  REDIS_PORT: 6379
-  REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
-  BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}"
-  BETTER_AUTH_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
-
 services:
   postgres:
     image: groonga/pgroonga:4.0.8-alpine-18
@@ -44,46 +27,34 @@ services:
       retries: 30
 
   server:
-    image: nanahoshi-api:ci
+    stop_grace_period: 40s
+    image: nanahoshi:ci
     ports:
       - "127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}:3000"
     environment:
-      <<: *app-environment
-      PROCESS_ROLE: api
-    volumes: &app-volumes
-      - app-data:/app/apps/server/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  worker:
-    image: nanahoshi-worker:ci
-    environment:
-      <<: *app-environment
-      PROCESS_ROLE: worker
-    volumes: *app-volumes
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      # The API mounts app-data first. Docker populates a new named volume from
-      # the image at container creation, so this prevents both images from
-      # concurrently copying data/converted into the shared volume.
-      server:
-        condition: service_started
-
-  web:
-    image: nanahoshi-web:ci
-    ports:
-      - "127.0.0.1:${CI_WEB_PORT:?CI_WEB_PORT is required}:3000"
-    environment:
       ENVIRONMENT: production
-      SERVER_URL: http://server:3000
+      APP_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
+      CORS_ORIGIN: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
+      SERVER_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
+      NAMESPACE_UUID: "${NAMESPACE_UUID:?NAMESPACE_UUID is required}"
+      DOWNLOAD_SECRET: "${DOWNLOAD_SECRET:?DOWNLOAD_SECRET is required}"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: "${DB_USER:?DB_USER is required}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+      DB_NAME: "${DB_NAME:?DB_NAME is required}"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}"
+      BETTER_AUTH_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
+    volumes:
+      - app-data:/app/apps/server/data
+      - ./scripts/fixtures/installation.epub:/books/installation.epub:ro
     depends_on:
-      server:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

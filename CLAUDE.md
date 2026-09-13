@@ -50,7 +50,7 @@ bun test packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts  # s
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 
 # Production (Docker Compose)
-docker compose up -d --build
+docker compose up -d
 ```
 
 ## Architecture
@@ -73,7 +73,7 @@ Context (`packages/api/src/context.ts`) extracts the better-auth session from re
 
 ### Server (`apps/server`)
 
-The backend runs as **two processes** (see `apps/server/src/config/initializers/index.ts`): the API process (`src/index.ts`) and the worker process (`src/worker.ts`). Both run migrations/seed on startup (serialized via a Postgres advisory lock, `withStartupLock`). They communicate only through Postgres and Redis (BullMQ queues + pub/sub), so heavy background jobs never block the API event loop. The worker process lowers its own CPU priority (`os.setPriority(10)`) so the OS favors the API/DB under contention. In production it's the `worker` compose service (`PROCESS_ROLE=worker`, low `cpu_shares`); in dev, the `dev:worker` script.
+The backend runs as **two processes** (see `apps/server/src/config/initializers/index.ts`): the API process (`src/index.ts`) and the worker process (`src/worker.ts`). Both run migrations/seed on startup (serialized via a Postgres advisory lock, `withStartupLock`). They communicate only through Postgres and Redis (BullMQ queues + pub/sub), so heavy background jobs never block the API event loop. The worker process lowers its own CPU priority (`os.setPriority(10)`) so the OS favors the API/DB under contention. In Docker, s6-overlay supervises API and worker inside the single `server` service; the API also serves the built frontend. In dev, `dev:worker` starts the separate worker process. The root `Dockerfile` keeps frontend and API/worker builds in separate stages.
 
 The **API process** mounts the Hono app:
 - `/rpc/*` — oRPC RPC handler (used by the frontend)
@@ -118,9 +118,9 @@ Drizzle ORM with PostgreSQL (groonga/pgroonga image for full-text search support
 
 ### Environment Variables
 
-Server env is validated in `packages/env/src/server.ts`. Configuration includes database, Redis, authentication, optional SMTP and optional OIDC settings. Place it in `apps/server/.env`.
+Server env is validated in `packages/env/src/server.ts`. Configuration includes database, Redis, authentication, optional SMTP and optional OIDC settings. For Docker installations use the root `.env`, copied from `.env.example`. Local development uses `apps/server/.env` (see README).
 
-Web env uses `VITE_SERVER_URL` to point at the backend.
+Published browser bundles use their own origin; local development sets `VITE_SERVER_URL` to the separate API. Read `docs/installation.md` for deployment and `docs/releasing.md` for publishing.
 
 ## Testing
 

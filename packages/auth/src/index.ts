@@ -17,7 +17,11 @@ import {
 } from "better-auth/plugins";
 import type { DiscordProfile } from "better-auth/social-providers";
 import { and, eq, or } from "drizzle-orm";
-import { authIpAddress, authRateLimit } from "./auth-security-options";
+import {
+	authCookieOptions,
+	authIpAddress,
+	authRateLimit,
+} from "./auth-security-options";
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
@@ -66,11 +70,7 @@ const crossSubDomainCookies =
 		? { enabled: true, domain: env.COOKIE_DOMAIN }
 		: { enabled: false };
 
-const cookieConfig = {
-	sameSite: (isProd ? "none" : "lax") as "none" | "lax",
-	secure: true,
-	httpOnly: true,
-};
+const cookieConfig = authCookieOptions(env.BETTER_AUTH_URL, env.CORS_ORIGIN);
 
 type AuthenticatedAuditSession = {
 	user: { id: string; name: string; email: string };
@@ -279,6 +279,7 @@ const authConfig = {
 		},
 	},
 	advanced: {
+		useSecureCookies: cookieConfig.secure,
 		defaultCookieAttributes: cookieConfig,
 		crossSubDomainCookies: crossSubDomainCookies,
 		ipAddress: authIpAddress,
