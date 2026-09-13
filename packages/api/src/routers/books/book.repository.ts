@@ -27,6 +27,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { logger } from "../../lib/logger";
+import { generateDeterministicUUID } from "../../utils/misc";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -150,6 +151,10 @@ export class BookRepository {
 
 	// Updates a book's file-derived fields after its file changed on disk. Returns
 	// false if the book is gone or the new filehash collides (became a duplicate).
+	// The uuid is deterministic over (libraryId, filename, filehash), so it is
+	// regenerated together with the hash — a stale uuid could otherwise collide
+	// with a future insert of the old content and crash on book_uuid_idx (which
+	// ON CONFLICT (library_id, filehash) doesn't cover).
 	async updateFileInfo(
 		id: number,
 		input: {
@@ -159,7 +164,22 @@ export class BookRepository {
 		},
 	): Promise<boolean> {
 		try {
-			const updated = await db.update(book).set(input).where(eq(book.id, id));
+			const [existing] = await db
+				.select({ filename: book.filename, libraryId: book.libraryId })
+				.from(book)
+				.where(eq(book.id, id));
+			if (!existing || existing.libraryId == null) return false;
+			const updated = await db
+				.update(book)
+				.set({
+					...input,
+					uuid: generateDeterministicUUID(
+						existing.libraryId,
+						existing.filename,
+						input.filehash,
+					),
+				})
+				.where(eq(book.id, id));
 			return (updated.rowCount ?? 0) > 0;
 		} catch (error) {
 			log.error({ err: error, id }, "Error updating file info for book");

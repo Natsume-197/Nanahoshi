@@ -1232,6 +1232,13 @@
 		"no_status_audiobooks": "この状態のオーディオブックはまだありません。"
 	},
 	"library": {
+		"wizard_step_scanning": "スキャン",
+		"wizard_step_review": "確認",
+		"wizard_intro": "ライブラリとメタデータの取得元を設定し、最初の取り込み前に内容を確認しましょう。",
+		"wizard_review_hint": "設定を確認してください。作成前に前のステップに戻って変更できます。",
+		"wizard_enabled": "有効",
+		"wizard_disabled": "無効",
+
 		"sheet_desc": "ライブラリとカタログのセクション",
 		"untitled": "名称未設定のライブラリ",
 		"none": "ライブラリはまだありません",

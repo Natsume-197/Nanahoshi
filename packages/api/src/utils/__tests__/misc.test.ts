@@ -26,6 +26,7 @@ mock.module("@nanahoshi/env/server", () => ({
 
 const { hashContentBytes, calculateContentHash, isCurrentHashFormat } =
 	await import("../misc");
+const { generateDeterministicUUID } = await import("../misc");
 
 const tmpFiles: string[] = [];
 async function writeTemp(bytes: Uint8Array): Promise<string> {
@@ -72,6 +73,29 @@ describe("hashContentBytes", () => {
 		const filePath = await writeTemp(bytes);
 		expect(await hashContentBytes(bytes)).toBe(
 			await calculateContentHash(filePath, size),
+		);
+	});
+});
+
+describe("generateDeterministicUUID", () => {
+	test("is stable for identical inputs", () => {
+		expect(generateDeterministicUUID(55, "book.epub", "s2:abc")).toBe(
+			generateDeterministicUUID(55, "book.epub", "s2:abc"),
+		);
+	});
+
+	// REGRESSION: the uuid used to derive only from (filename, hash), so the
+	// same file in two libraries computed the same uuid and the insert crashed
+	// on book_uuid_idx (which ON CONFLICT (library_id, filehash) doesn't cover).
+	test("differs across libraries for the same file", () => {
+		expect(generateDeterministicUUID(1, "book.epub", "s2:abc")).not.toBe(
+			generateDeterministicUUID(2, "book.epub", "s2:abc"),
+		);
+	});
+
+	test("differs for different content in the same library", () => {
+		expect(generateDeterministicUUID(1, "book.epub", "s2:abc")).not.toBe(
+			generateDeterministicUUID(1, "book.epub", "s2:def"),
 		);
 	});
 });

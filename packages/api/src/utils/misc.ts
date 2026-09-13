@@ -90,10 +90,16 @@ export async function calculateContentHash(
 	}
 }
 
+// Deterministic book uuid over (libraryId, filename, hash). The libraryId is
+// part of the input because `book.uuid` is globally unique (book_uuid_idx)
+// while the insert dedupes on (library_id, filehash) — without it, the same
+// file in two libraries would compute the same uuid and crash the insert with
+// a unique violation that ON CONFLICT (library_id, filehash) doesn't cover.
 export const generateDeterministicUUID = (
+	libraryId: number,
 	filename: string,
 	hash: string,
 ): string => {
-	const input = `${filename}|${hash}`;
+	const input = `${libraryId}|${filename}|${hash}`;
 	return uuidv5(input, env.NAMESPACE_UUID);
 };

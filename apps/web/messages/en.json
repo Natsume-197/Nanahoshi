@@ -1247,6 +1247,13 @@
 		"no_status_audiobooks": "No audiobooks with this status yet."
 	},
 	"library": {
+		"wizard_step_scanning": "Scanning",
+		"wizard_step_review": "Review",
+		"wizard_intro": "Set up your library, choose metadata sources, and review everything before the first import.",
+		"wizard_review_hint": "Check your choices. You can go back to adjust any step before creating the library.",
+		"wizard_enabled": "Enabled",
+		"wizard_disabled": "Disabled",
+
 		"sheet_desc": "Your libraries and catalog sections",
 		"untitled": "Untitled library",
 		"none": "No libraries yet",

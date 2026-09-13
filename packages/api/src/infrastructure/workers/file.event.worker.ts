@@ -167,7 +167,7 @@ async function handleFileEvent(job: Job) {
 				return { path, action, updated: !sameContent, repaired: sameContent };
 			}
 
-			const uuid = generateDeterministicUUID(filename, fileHash);
+			const uuid = generateDeterministicUUID(libraryId, filename, fileHash);
 
 			const bookInserted = await bookRepository.create({
 				uuid,
@@ -318,7 +318,7 @@ async function handleFileEvent(job: Job) {
 				return { path: relativePath, action, updated };
 			}
 
-			const uuid = generateDeterministicUUID(filename, fileHash);
+			const uuid = generateDeterministicUUID(libraryId, filename, fileHash);
 
 			const bookInserted = await bookRepository.create({
 				uuid,

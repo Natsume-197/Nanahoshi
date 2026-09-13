@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { type JSX, useState } from "react";
 import { DashboardHomeContent } from "@/components/dashboard/home/dashboard-home-content";
 import { CategorySelector } from "@/components/shared/category-selector";
 import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 import { MediaCategoryContent } from "./media-category-content";
 
 type DashboardCategory = "home" | "books" | "audiobooks";
@@ -18,19 +20,38 @@ const categories = [
 export function DashboardCategoryContent(): JSX.Element {
 	const [category, setCategory] = useState<DashboardCategory>("home");
 
+	const { data: libraries } = useQuery(
+		orpc.libraries.getLibraries.queryOptions(),
+	);
+	const availableCategories = categories.filter(
+		({ value }) =>
+			value === "home" ||
+			libraries?.some(
+				(library) =>
+					library.mediaType === (value === "books" ? "ebook" : "audiobook"),
+			),
+	);
+	const activeCategory = availableCategories.some(
+		({ value }) => value === category,
+	)
+		? category
+		: "home";
+
 	return (
 		<>
-			<CategorySelector
-				value={category}
-				items={categories}
-				onValueChange={setCategory}
-				ariaLabel={m["nav.library"]()}
-			/>
+			{availableCategories.length > 1 && (
+				<CategorySelector
+					value={activeCategory}
+					items={availableCategories}
+					onValueChange={setCategory}
+					ariaLabel={m["nav.library"]()}
+				/>
+			)}
 
-			{category === "home" ? (
-				<DashboardHomeContent compactTop />
+			{activeCategory === "home" ? (
+				<DashboardHomeContent compactTop={availableCategories.length > 1} />
 			) : (
-				<MediaCategoryContent category={category} />
+				<MediaCategoryContent category={activeCategory} />
 			)}
 		</>
 	);

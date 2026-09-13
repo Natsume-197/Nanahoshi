@@ -3,10 +3,14 @@ import {
 	bookMetadataProfile,
 	isBookMetadataProfileId,
 } from "@nanahoshi/api/modules/metadataProfiles";
-import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
+import type {
+	LibraryComplete,
+	MetadataConfig,
+	MetadataProvidersConfig,
+} from "@nanahoshi/api/routers/libraries/library.model";
 import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	defaultFieldUpdates,
@@ -78,14 +82,24 @@ const primaryOf = (
 	return bookMetadataProfile(profile).primary;
 };
 
+export type MetadataDraft = {
+	metadataProviders: MetadataProvidersConfig;
+	metadataConfig: MetadataConfig;
+};
+
 export function MetadataSection({
 	library,
 	canManage,
 	onDirtyChange,
+	onDraftChange,
 }: {
-	library: LibraryComplete;
+	library: Pick<
+		LibraryComplete,
+		"mediaType" | "metadataProviders" | "metadataConfig"
+	> & { uuid?: string };
 	canManage: boolean;
 	onDirtyChange?: (dirty: boolean) => void;
+	onDraftChange?: (draft: MetadataDraft) => void;
 }) {
 	const isAudiobook = library.mediaType === "audiobook";
 	const savedDomain = library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT;
@@ -231,9 +245,8 @@ export function MetadataSection({
 		!isAudiobook && profile !== "custom"
 			? (bookMetadataProfile(profile).fields as FieldRules)
 			: {};
-	const handleSave = () =>
-		updateMutation.mutate({
-			uuid: library.uuid,
+	const draft = useMemo<MetadataDraft>(
+		() => ({
 			metadataProviders:
 				!isAudiobook && profile !== "custom" && primaryProvider
 					? {
@@ -260,7 +273,26 @@ export function MetadataSection({
 				: amazonDomain !== ORG_DEFAULT
 					? { amazon: { domain: amazonDomain } }
 					: {},
-		});
+		}),
+		[
+			isAudiobook,
+			profile,
+			primaryProvider,
+			providers,
+			hasRules,
+			cleanedRules,
+			fieldUpdates,
+			pausedFields,
+			audibleRegion,
+			amazonDomain,
+		],
+	);
+	useEffect(() => {
+		onDraftChange?.(draft);
+	}, [draft, onDraftChange]);
+	const handleSave = () => {
+		if (library.uuid) updateMutation.mutate({ uuid: library.uuid, ...draft });
+	};
 
 	const disabled = !canManage || updateMutation.isPending;
 	const discard = () => {
@@ -488,7 +520,7 @@ export function MetadataSection({
 				</div>
 			</section>
 
-			{canManage && changed && (
+			{!onDraftChange && canManage && changed && (
 				<section
 					className="motion-safe:fade-in motion-safe:slide-in-from-bottom-2 sticky bottom-4 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-xl motion-safe:animate-in"
 					aria-label={m["library.rules_unsaved"]()}

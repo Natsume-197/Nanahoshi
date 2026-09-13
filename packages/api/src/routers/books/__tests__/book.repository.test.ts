@@ -66,6 +66,25 @@ function createDeleteChain() {
 	return chain;
 }
 
+/** Values passed to `update().set()` (used by updateFileInfo). */
+let updateSetValues: Record<string, unknown> | null = null;
+/** What `update().set().where()` resolves to as `rowCount`. */
+let updateRowCount = 1;
+
+function createUpdateChain() {
+	const chain = {} as {
+		set: ReturnType<typeof mock>;
+		where: ReturnType<typeof mock>;
+	};
+	chain.set = mock((v: unknown) => {
+		updateSetValues =
+			v && typeof v === "object" ? (v as Record<string, unknown>) : null;
+		return chain;
+	});
+	chain.where = mock(() => Promise.resolve({ rowCount: updateRowCount }));
+	return chain;
+}
+
 function createSelectChain() {
 	// A thenable chain: every builder method returns `this`, and awaiting it
 	// resolves to `selectResult`, so `.from().where().limit()` then `await` works.
@@ -96,6 +115,7 @@ let executedQuery: SQL | null = null;
 const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
 const mockDelete = mock(() => createDeleteChain());
+const mockUpdate = mock(() => createUpdateChain());
 const mockExecute = mock((query: SQL) => {
 	executedQuery = query;
 	return Promise.resolve({ rows: executeResult });
@@ -106,6 +126,7 @@ mock.module("@nanahoshi/db", () => ({
 		insert: mockInsert,
 		select: mockSelect,
 		delete: mockDelete,
+		update: mockUpdate,
 		execute: mockExecute,
 	},
 }));
@@ -177,11 +198,14 @@ describe("BookRepository", () => {
 		onConflictConfig = null;
 		insertedValues = null;
 		deleteRowCount = 1;
+		updateSetValues = null;
+		updateRowCount = 1;
 		selectResult = [];
 		executeResult = [];
 		mockInsert.mockClear();
 		mockSelect.mockClear();
 		mockDelete.mockClear();
+		mockUpdate.mockClear();
 		mockExecute.mockClear();
 	});
 
@@ -386,6 +410,38 @@ describe("BookRepository", () => {
 		expect(result).toBe(false);
 	});
 
+	test("updateFileInfo() regenerates the uuid from (libraryId, filename, new hash)", async () => {
+		// REGRESSION: the uuid is deterministic over (libraryId, filename,
+		// filehash). Updating filehash without the uuid left a stale uuid that
+		// could collide with a future insert of the old content and crash on
+		// book_uuid_idx.
+		selectResult = [{ filename: "test.epub", libraryId: 1 }];
+		updateRowCount = 1;
+
+		const ok = await repo.updateFileInfo(7, {
+			filehash: "newhash",
+			filesizeKb: 2048,
+			lastModified: null,
+		});
+
+		expect(ok).toBe(true);
+		const { generateDeterministicUUID } = await import("../../../utils/misc");
+		expect(updateSetValues).toMatchObject({
+			filehash: "newhash",
+			filesizeKb: 2048,
+			uuid: generateDeterministicUUID(1, "test.epub", "newhash"),
+		});
+	});
+
+	test("updateFileInfo() returns false when the book is gone", async () => {
+		selectResult = [];
+		const ok = await repo.updateFileInfo(999, {
+			filehash: "x",
+			filesizeKb: 1,
+			lastModified: null,
+		});
+		expect(ok).toBe(false);
+	});
 	test("getSharePreview() returns only the public metadata projection", async () => {
 		executeResult = [
 			{

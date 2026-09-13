@@ -317,7 +317,8 @@ mock.module("../../../utils/misc", () => ({
 	// Test rows use "content-*" hashes (current) and "legacy-*" (old format).
 	isCurrentHashFormat: mock((hash: string) => !hash.startsWith("legacy-")),
 	generateDeterministicUUID: mock(
-		(filename: string, hash: string) => `uuid-${filename}-${hash}`,
+		(libraryId: number, filename: string, hash: string) =>
+			`uuid-${libraryId}-${filename}-${hash}`,
 	),
 }));
 

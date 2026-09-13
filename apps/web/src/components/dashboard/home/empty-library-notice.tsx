@@ -1,11 +1,13 @@
 import type { Task } from "@nanahoshi/api/modules/taskManager";
 import { Books, CircleNotch } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import type { JSX } from "react";
+import { type JSX, useState } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { CreateLibraryWizard } from "@/components/libraries/create-library-wizard";
 import { LibraryTaskProgress } from "@/components/libraries/library-task-progress";
 import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
+import { useCreateLibrary } from "@/hooks/use-create-library";
 import { useSession } from "@/hooks/use-session";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -70,7 +72,20 @@ const STEPS = [
 /** New-admin onboarding: what happens, in order, with one clear next action
  * that deep-links straight into the create-library wizard. */
 function GettingStartedNotice(): JSX.Element {
-	const { openOrgSettings } = useSettingsModal();
+	const [creating, setCreating] = useState(false);
+	const createLibrary = useCreateLibrary({
+		onCreated: () => setCreating(false),
+	});
+	if (creating)
+		return (
+			<CreateLibraryWizard
+				inline
+				open
+				onOpenChange={setCreating}
+				onSubmit={(data) => createLibrary.mutate(data)}
+				isPending={createLibrary.isPending}
+			/>
+		);
 
 	return (
 		<NoticeShell>
@@ -105,10 +120,7 @@ function GettingStartedNotice(): JSX.Element {
 					</li>
 				))}
 			</ol>
-			<Button
-				variant="default"
-				onClick={() => openOrgSettings("libraries", "create-library")}
-			>
+			<Button variant="default" onClick={() => setCreating(true)}>
 				{m["home.add_first_library"]()}
 			</Button>
 		</NoticeShell>
@@ -146,12 +158,31 @@ export function EmptyLibraryNotice(): JSX.Element {
 	const hasOrg = !!session?.session.activeOrganizationId;
 	const canManageLibraries = can("library", "create");
 	const activeImport = useActiveImport(hasOrg);
+	const { openOrgSettings } = useSettingsModal();
+	const { data: libraries } = useQuery({
+		...orpc.libraries.getLibraries.queryOptions(),
+		enabled: hasOrg,
+	});
 
 	if (activeImport) {
 		return <ImportingNotice task={activeImport} />;
 	}
 
-	if (canManageLibraries) {
+	if (canManageLibraries && libraries?.length) {
+		return (
+			<NoticeShell>
+				<h2 className="font-semibold text-xl">{m["home.no_books_title"]()}</h2>
+				<p className="max-w-md text-muted-foreground text-sm">
+					{m["library.status_needs_folder_desc"]()}
+				</p>
+				<Button onClick={() => openOrgSettings("libraries")}>
+					{m["library.section_folders"]()}
+				</Button>
+			</NoticeShell>
+		);
+	}
+
+	if (canManageLibraries && libraries) {
 		return <GettingStartedNotice />;
 	}
 

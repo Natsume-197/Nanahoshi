@@ -1247,6 +1247,13 @@
 		"no_status_audiobooks": "Aún no hay audiolibros con este estado."
 	},
 	"library": {
+		"wizard_step_scanning": "Escaneo",
+		"wizard_step_review": "Revisión",
+		"wizard_intro": "Configura tu biblioteca, elige las fuentes de metadatos y revisa todo antes de la primera importación.",
+		"wizard_review_hint": "Revisa tus elecciones. Puedes volver a cualquier paso antes de crear la biblioteca.",
+		"wizard_enabled": "Activado",
+		"wizard_disabled": "Desactivado",
+
 		"sheet_desc": "Tus bibliotecas y secciones del catálogo",
 		"untitled": "Biblioteca sin título",
 		"none": "Aún no hay bibliotecas",
