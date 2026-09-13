@@ -1,10 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
-import {
-	book,
-	library,
-	readingProgress,
-} from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { user } from "@nanahoshi/db/schema/auth";
+import { book, library, readingProgress } from "@nanahoshi/db/schema/general";
 import { and, count, eq, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import {

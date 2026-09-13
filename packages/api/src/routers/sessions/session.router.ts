@@ -1,4 +1,4 @@
-import { auth } from "@nanahoshi-v2/auth";
+import { auth } from "@nanahoshi/auth";
 import { protectedProcedure } from "../../index";
 import { publishSessionsRevoked } from "./session.events";
 

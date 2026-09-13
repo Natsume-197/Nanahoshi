@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getUserPermissionContext } from "@nanahoshi-v2/api/auth/access.repository";
-import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { auth } from "@nanahoshi-v2/auth";
-import { env } from "@nanahoshi-v2/env/server";
+import { getUserPermissionContext } from "@nanahoshi/api/auth/access.repository";
+import { hasGlobal } from "@nanahoshi/api/auth/access.service";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { auth } from "@nanahoshi/auth";
+import { env } from "@nanahoshi/env/server";
 import type { Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import sharp, { type Sharp } from "sharp";

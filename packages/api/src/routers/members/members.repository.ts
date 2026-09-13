@@ -1,6 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, user } from "@nanahoshi-v2/db/schema/auth";
-import { memberRole } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member, user } from "@nanahoshi/db/schema/auth";
+import { memberRole } from "@nanahoshi/db/schema/general";
 import { and, asc, eq } from "drizzle-orm";
 
 export class MembersRepository {

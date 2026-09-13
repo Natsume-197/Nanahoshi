@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/web";
+import { env } from "@nanahoshi/env/web";
 import posthogJs from "posthog-js";
 
 const projectToken = import.meta.env.VITE_POSTHOG_PROJECT_TOKEN;

@@ -1,6 +1,6 @@
 import "@/test-utils/setup-dom";
 import { expect, mock, test } from "bun:test";
-import type { EbookDocument } from "@nanahoshi-v2/ebook-parser";
+import type { EbookDocument } from "@nanahoshi/ebook-parser";
 import { adaptPagedEbook } from "./paged-ebook.adapter";
 
 test("abandoning a comic stops unpacking subsequent pages and closes its owned archive", async () => {

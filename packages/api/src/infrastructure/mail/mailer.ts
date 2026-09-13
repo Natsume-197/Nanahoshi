@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import nodemailer from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
 

@@ -13,7 +13,7 @@ const client = {
 	}),
 };
 const database = drizzle({ client: client as never });
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		select: database.select.bind(database),
 		execute: mock(async (query: SQL) => {

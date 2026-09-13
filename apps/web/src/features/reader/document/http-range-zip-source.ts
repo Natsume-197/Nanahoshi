@@ -1,4 +1,4 @@
-import type { ZipSource } from "@nanahoshi-v2/ebook-parser";
+import type { ZipSource } from "@nanahoshi/ebook-parser";
 
 const CONTENT_RANGE = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i;
 

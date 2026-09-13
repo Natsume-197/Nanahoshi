@@ -3,7 +3,7 @@ import { chmod, open, rename, rm, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
-const developmentContainer = "nanahoshi-v2-postgres";
+const developmentContainer = "nanahoshi-dev-postgres-1";
 
 // A port is supplied only for local development. Production uses its installed clients.
 export async function resolveBackupTools(developmentPort?: number) {

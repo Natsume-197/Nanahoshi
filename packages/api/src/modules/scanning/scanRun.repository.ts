@@ -1,9 +1,9 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	type ScanRunMode,
 	type ScanRunPhase,
 	scanRun,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 
 export type ScanRunRecord = typeof scanRun.$inferSelect;

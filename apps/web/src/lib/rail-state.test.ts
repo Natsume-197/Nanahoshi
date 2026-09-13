@@ -92,7 +92,11 @@ describe("open/close motion budget", () => {
 				Number(m[1]),
 			);
 			expect(times.length).toBe(2);
-			expect(times[0]! + times[1]!).toBeLessThanOrEqual(RAIL_ANIM_MS);
+			const [start, duration] = times;
+			if (start === undefined || duration === undefined) {
+				throw new Error("Rail animation must define start and duration");
+			}
+			expect(start + duration).toBeLessThanOrEqual(RAIL_ANIM_MS);
 		}
 	});
 

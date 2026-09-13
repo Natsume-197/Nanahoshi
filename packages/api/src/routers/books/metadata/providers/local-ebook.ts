@@ -1,10 +1,10 @@
-import { openEbookFile } from "@nanahoshi-v2/ebook-parser/node";
+import { openEbookFile } from "@nanahoshi/ebook-parser/node";
 import type {
 	EbookContent,
 	EbookMetadata,
 	EbookResource,
 	HtmlContent,
-} from "@nanahoshi-v2/ebook-parser/types";
+} from "@nanahoshi/ebook-parser/types";
 import { load } from "cheerio";
 import sharp from "sharp";
 import {

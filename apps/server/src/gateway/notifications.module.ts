@@ -1,4 +1,4 @@
-import { subscribeToNotifications } from "@nanahoshi-v2/api/routers/notifications/notification.events";
+import { subscribeToNotifications } from "@nanahoshi/api/routers/notifications/notification.events";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 // Live notification pushes (new/read/read_all/delete/refresh). Routing is per

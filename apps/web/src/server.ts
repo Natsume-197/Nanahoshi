@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/web";
+import { env } from "@nanahoshi/env/web";
 import handler from "@tanstack/react-start/server-entry";
 import {
 	getCatalogPreviewTarget,

@@ -1,10 +1,10 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	book,
 	bookMetadata,
 	library,
 	readingProgress,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { READING_STATUSES } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { env } from "@nanahoshi-v2/env/server";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { env } from "@nanahoshi/env/server";
 import { buildApp } from "./app";
 import { prepareClientIpRequest } from "./config/client-ip-request";
 import { withHttpRequestLimits } from "./config/http-options";

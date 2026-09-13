@@ -1,4 +1,4 @@
-import { openEbook } from "@nanahoshi-v2/ebook-parser";
+import { openEbook } from "@nanahoshi/ebook-parser";
 import type { ReaderBookData } from "@/features/reader/document/types";
 import { adaptHtmlEbook } from "./html-ebook.adapter";
 import { adaptPagedEbook } from "./paged-ebook.adapter";

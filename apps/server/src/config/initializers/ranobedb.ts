@@ -1,6 +1,6 @@
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { syncRanobedbAutoUpdate } from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
-import { getRanobedbDumpConfig } from "@nanahoshi-v2/api/routers/settings/settings.service";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { syncRanobedbAutoUpdate } from "@nanahoshi/api/modules/ranobedb/ranobedb.import";
+import { getRanobedbDumpConfig } from "@nanahoshi/api/routers/settings/settings.service";
 import type { RuntimeInitializer } from "./types";
 
 export const ranobedbInitializer: RuntimeInitializer = {

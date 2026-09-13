@@ -1,9 +1,9 @@
-import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
-import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
-import { startTaskProgressListeners } from "@nanahoshi-v2/api/infrastructure/queue/task-progress.listener";
-import { startForegroundQueuePriorityController } from "@nanahoshi-v2/api/lib/foreground-queue-priority";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { startMemoryPressureController } from "@nanahoshi-v2/api/lib/memory-pressure-controller";
+import { coverIngestQueue } from "@nanahoshi/api/infrastructure/queue/queues/cover-ingest.queue";
+import { fileEventQueue } from "@nanahoshi/api/infrastructure/queue/queues/file-event.queue";
+import { startTaskProgressListeners } from "@nanahoshi/api/infrastructure/queue/task-progress.listener";
+import { startForegroundQueuePriorityController } from "@nanahoshi/api/lib/foreground-queue-priority";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { startMemoryPressureController } from "@nanahoshi/api/lib/memory-pressure-controller";
 import type { RuntimeInitializer } from "./types";
 
 // Only close() is needed; avoids a direct bullmq dependency in this package.
@@ -27,20 +27,20 @@ export const workersInitializer: RuntimeInitializer = {
 			readListenMatchAnalysis,
 			readListenGeneration,
 		] = await Promise.all([
-			import("@nanahoshi-v2/api/infrastructure/workers/database-backup.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/file.event.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/cover-ingest.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/metadata-enrich.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/ranobedb-import.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/send-to-kindle.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/scheduled-scan.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/recommendations.worker"),
-			import("@nanahoshi-v2/api/infrastructure/workers/bookmeter-sync.worker"),
+			import("@nanahoshi/api/infrastructure/workers/database-backup.worker"),
+			import("@nanahoshi/api/infrastructure/workers/file.event.worker"),
+			import("@nanahoshi/api/infrastructure/workers/cover-ingest.worker"),
+			import("@nanahoshi/api/infrastructure/workers/metadata-enrich.worker"),
+			import("@nanahoshi/api/infrastructure/workers/ranobedb-import.worker"),
+			import("@nanahoshi/api/infrastructure/workers/send-to-kindle.worker"),
+			import("@nanahoshi/api/infrastructure/workers/scheduled-scan.worker"),
+			import("@nanahoshi/api/infrastructure/workers/recommendations.worker"),
+			import("@nanahoshi/api/infrastructure/workers/bookmeter-sync.worker"),
 			import(
-				"@nanahoshi-v2/api/infrastructure/workers/read-listen-match-analysis.worker"
+				"@nanahoshi/api/infrastructure/workers/read-listen-match-analysis.worker"
 			),
 			import(
-				"@nanahoshi-v2/api/infrastructure/workers/read-listen-generation.worker"
+				"@nanahoshi/api/infrastructure/workers/read-listen-generation.worker"
 			),
 		]);
 
@@ -84,7 +84,7 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 
 		const { getBackupConfig, syncBackupSchedule } = await import(
-			"@nanahoshi-v2/api/modules/database-backup/backups"
+			"@nanahoshi/api/modules/database-backup/backups"
 		);
 		await syncBackupSchedule(await getBackupConfig()).catch((err) =>
 			logger.error({ err }, "Failed to reconcile backup schedule"),
@@ -92,14 +92,14 @@ export const workersInitializer: RuntimeInitializer = {
 
 		// Seed/repair repeatable library scans from the DB.
 		const { reconcileSchedules } = await import(
-			"@nanahoshi-v2/api/modules/scanning/scheduled-scan.scheduler"
+			"@nanahoshi/api/modules/scanning/scheduled-scan.scheduler"
 		);
 		await reconcileSchedules().catch((err) =>
 			logger.error({ err }, "[Workers] Failed to reconcile scan schedules"),
 		);
 
 		const { startLibraryWatchers } = await import(
-			"@nanahoshi-v2/api/modules/scanning/library-watcher"
+			"@nanahoshi/api/modules/scanning/library-watcher"
 		);
 		workers.push(
 			await startLibraryWatchers().catch((err) => {
@@ -109,14 +109,14 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 
 		const { registerBookmeterSchedule } = await import(
-			"@nanahoshi-v2/api/modules/bookmeter/bookmeter.scheduler"
+			"@nanahoshi/api/modules/bookmeter/bookmeter.scheduler"
 		);
 		await registerBookmeterSchedule().catch((err) =>
 			logger.error({ err }, "[Workers] Failed to register bookmeter schedule"),
 		);
 
 		const { reconcileRecommendationSchedules } = await import(
-			"@nanahoshi-v2/api/modules/recommendations/recommendation.scheduler"
+			"@nanahoshi/api/modules/recommendations/recommendation.scheduler"
 		);
 		await reconcileRecommendationSchedules().catch((err) =>
 			logger.error(
@@ -126,7 +126,7 @@ export const workersInitializer: RuntimeInitializer = {
 		);
 
 		const { registerMetadataRetrySchedule } = await import(
-			"@nanahoshi-v2/api/modules/metadataRetry/metadata-retry.scheduler"
+			"@nanahoshi/api/modules/metadataRetry/metadata-retry.scheduler"
 		);
 		await registerMetadataRetrySchedule().catch((err) =>
 			logger.error(
@@ -137,7 +137,7 @@ export const workersInitializer: RuntimeInitializer = {
 
 		workers.push(await startTaskProgressListeners());
 		const { startInstanceActivityRetention } = await import(
-			"@nanahoshi-v2/api/routers/instance-activity/instance-activity.service"
+			"@nanahoshi/api/routers/instance-activity/instance-activity.service"
 		);
 		workers.push(startInstanceActivityRetention());
 	},

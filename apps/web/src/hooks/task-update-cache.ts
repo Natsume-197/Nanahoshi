@@ -1,4 +1,4 @@
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 
 export const MAX_VISIBLE_ACTIVE_TASKS = 20;
 

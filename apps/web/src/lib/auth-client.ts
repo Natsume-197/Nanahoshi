@@ -1,10 +1,10 @@
-import type { auth } from "@nanahoshi-v2/auth";
+import type { auth } from "@nanahoshi/auth";
 import {
 	ac,
 	admin as adminRole,
 	member as memberRole,
 	owner as ownerRole,
-} from "@nanahoshi-v2/auth/permissions";
+} from "@nanahoshi/auth/permissions";
 import {
 	adminClient,
 	inferAdditionalFields,

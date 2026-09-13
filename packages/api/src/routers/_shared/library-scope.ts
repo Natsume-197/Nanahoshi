@@ -1,4 +1,4 @@
-import { book } from "@nanahoshi-v2/db/schema/general";
+import { book } from "@nanahoshi/db/schema/general";
 import { inArray, type SQL, sql } from "drizzle-orm";
 
 /** Libraries a caller may view: explicit ids, or "ALL" (no restriction). */

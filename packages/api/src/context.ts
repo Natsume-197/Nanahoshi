@@ -1,4 +1,4 @@
-import { auth } from "@nanahoshi-v2/auth";
+import { auth } from "@nanahoshi/auth";
 import type { Context as HonoContext } from "hono";
 
 type CreateContextOptions = {

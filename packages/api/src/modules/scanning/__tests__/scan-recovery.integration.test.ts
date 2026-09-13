@@ -13,8 +13,8 @@ import path from "node:path";
 const enabled = process.env.SCAN_RECOVERY_INTEGRATION === "1";
 
 describe.skipIf(!enabled)("scan crash recovery integration", () => {
-	let db: typeof import("@nanahoshi-v2/db").db;
-	let pool: typeof import("@nanahoshi-v2/db").pool;
+	let db: typeof import("@nanahoshi/db").db;
+	let pool: typeof import("@nanahoshi/db").pool;
 	let sql: typeof import("drizzle-orm").sql;
 	let createTask: typeof import("../../taskManager").createTask;
 	let deleteTask: typeof import("../../taskManager").deleteTask;
@@ -28,11 +28,11 @@ describe.skipIf(!enabled)("scan crash recovery integration", () => {
 	const directoryCount = 200;
 
 	beforeAll(async () => {
-		({ db, pool } = await import("@nanahoshi-v2/db"));
+		({ db, pool } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ createTask, deleteTask } = await import("../../taskManager"));
 		({ redis } = await import("../../../infrastructure/queue/redis"));
-		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
+		const { runMigrations } = await import("@nanahoshi/db/migrate");
 		await runMigrations();
 
 		root = await mkdtemp(path.join(tmpdir(), "nanahoshi-scan-recovery-"));

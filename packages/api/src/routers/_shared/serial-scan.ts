@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import { sql } from "drizzle-orm";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

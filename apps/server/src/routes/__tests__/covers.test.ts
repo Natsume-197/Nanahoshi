@@ -20,7 +20,7 @@ mock.module("../../lib/paths", () => ({
 
 const enqueued: { name: string; data: unknown; opts: unknown }[] = [];
 mock.module(
-	"@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue",
+	"@nanahoshi/api/infrastructure/queue/queues/cover-ingest.queue",
 	() => ({
 		coverIngestQueue: {
 			add: async (name: string, data: unknown, opts: unknown) => {
@@ -32,7 +32,7 @@ mock.module(
 );
 
 const { mountCovers } = await import("../covers");
-const { warmCoverVariants } = await import("@nanahoshi-v2/api/lib/cover-cache");
+const { warmCoverVariants } = await import("@nanahoshi/api/lib/cover-cache");
 
 const app = new Hono();
 mountCovers(app);

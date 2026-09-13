@@ -1,8 +1,8 @@
-import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
+import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
 import {
 	rankTopResults,
 	type TopResultPools,
-} from "@nanahoshi-v2/api/routers/search/search.ranking";
+} from "@nanahoshi/api/routers/search/search.ranking";
 
 export function searchResultKey(hit: TopHit): string {
 	switch (hit.type) {

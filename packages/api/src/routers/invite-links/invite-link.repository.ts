@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@nanahoshi-v2/db";
-import { member, organization } from "@nanahoshi-v2/db/schema/auth";
-import { book, invitationLink, library } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member, organization } from "@nanahoshi/db/schema/auth";
+import { book, invitationLink, library } from "@nanahoshi/db/schema/general";
 import {
 	and,
 	count,

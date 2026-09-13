@@ -2,8 +2,8 @@ import {
 	COVER_QUALITY,
 	coverLadder,
 	masterWidthFromFilename,
-} from "@nanahoshi-v2/api/lib/cover-ladder";
-import { env } from "@nanahoshi-v2/env/web";
+} from "@nanahoshi/api/lib/cover-ladder";
+import { env } from "@nanahoshi/env/web";
 
 /**
  * Minimum book-cover tile width (px). Single source of truth so every grid

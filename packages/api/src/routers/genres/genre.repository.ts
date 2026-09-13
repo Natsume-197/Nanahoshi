@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { genre } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { genre } from "@nanahoshi/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 import {
 	type FacetDefinition,

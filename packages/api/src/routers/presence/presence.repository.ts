@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { user } from "@nanahoshi/db/schema/auth";
 import { eq } from "drizzle-orm";
 import type { ManualPresenceStatus } from "../../modules/presence/presence.types";
 

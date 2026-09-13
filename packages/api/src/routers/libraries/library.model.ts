@@ -3,7 +3,7 @@ import type {
 	libraryPath,
 	MetadataProviderRouting,
 	StoredMetadataProviders,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import z from "zod";
 import { isBookMetadataProfileId } from "../../modules/metadataProfiles";
 import { AUDIOBOOK_PROVIDER_IDS } from "../audiobooks/metadata/providers/provider.manifest";

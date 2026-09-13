@@ -1,5 +1,5 @@
 {
-	"name": "@nanahoshi-v2/auth",
+	"name": "@nanahoshi/auth",
 	"type": "module",
 	"exports": {
 		".": {
@@ -12,14 +12,14 @@
 	"scripts": {},
 	"dependencies": {
 		"@better-auth/api-key": "^1.7.2",
-		"@nanahoshi-v2/db": "workspace:*",
-		"@nanahoshi-v2/env": "workspace:*",
+		"@nanahoshi/db": "workspace:*",
+		"@nanahoshi/env": "workspace:*",
 		"better-auth": "^1.7.2",
 		"drizzle-orm": "^0.45.2",
 		"nodemailer": "^9.0.5"
 	},
 	"devDependencies": {
-		"@nanahoshi-v2/config": "workspace:*",
+		"@nanahoshi/config": "workspace:*",
 		"@types/nodemailer": "^8.0.1",
 		"typescript": "^7.0.2"
 	}

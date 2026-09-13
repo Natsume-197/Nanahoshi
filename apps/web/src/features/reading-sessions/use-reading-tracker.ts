@@ -1,4 +1,4 @@
-import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";

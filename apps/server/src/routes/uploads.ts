@@ -1,21 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getUserPermissionContext } from "@nanahoshi-v2/api/auth/access.repository";
-import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { getUserPermissionContext } from "@nanahoshi/api/auth/access.repository";
+import { hasGlobal } from "@nanahoshi/api/auth/access.service";
+import { logger } from "@nanahoshi/api/lib/logger";
 import {
 	isSupportedExtension,
 	isUploadBatchTooLarge,
 	MAX_UPLOAD_BYTES,
-} from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+} from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import {
 	enqueueUploadedFiles,
 	type UploadedFile,
-} from "@nanahoshi-v2/api/modules/uploads/upload.service";
-import { bookRepository } from "@nanahoshi-v2/api/routers/books/book.repository";
-import { libraryRepository } from "@nanahoshi-v2/api/routers/libraries/library.repository";
-import { hashContentBytes } from "@nanahoshi-v2/api/utils/misc";
-import { auth } from "@nanahoshi-v2/auth";
+} from "@nanahoshi/api/modules/uploads/upload.service";
+import { bookRepository } from "@nanahoshi/api/routers/books/book.repository";
+import { libraryRepository } from "@nanahoshi/api/routers/libraries/library.repository";
+import { hashContentBytes } from "@nanahoshi/api/utils/misc";
+import { auth } from "@nanahoshi/auth";
 import type { Hono } from "hono";
 
 const log = logger.child({ component: "upload-routes" });

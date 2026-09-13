@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	audiobookAuthor,
 	audiobookChapter,
@@ -18,7 +18,7 @@ import {
 	publisher,
 	series,
 	tag,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 import { normalizeTagNames } from "../../../utils/normalizeTagNames";
 import { normalizePersonName } from "../../_shared/person-name";

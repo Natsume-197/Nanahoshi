@@ -7,7 +7,7 @@ const root = await mkdtemp(join(tmpdir(), "nanahoshi-retention-test-"));
 const originalDirectory = process.cwd();
 process.chdir(root);
 let failDump = false;
-mock.module("@nanahoshi-v2/env/server", () => ({ env: {} }));
+mock.module("@nanahoshi/env/server", () => ({ env: {} }));
 mock.module("../../infrastructure/queue/redis", () => ({ redis: {} }));
 mock.module("bullmq", () => ({ Queue: class {} }));
 mock.module("../../routers/settings/settings.repository", () => ({

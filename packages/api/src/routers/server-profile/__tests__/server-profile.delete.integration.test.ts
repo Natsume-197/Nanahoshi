@@ -10,8 +10,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 const enabled = process.env.SERVER_DELETE_INTEGRATION === "1";
 
 describe.skipIf(!enabled)("server deletion integration", () => {
-	let db: typeof import("@nanahoshi-v2/db").db;
-	let pool: typeof import("@nanahoshi-v2/db").pool;
+	let db: typeof import("@nanahoshi/db").db;
+	let pool: typeof import("@nanahoshi/db").pool;
 	let sql: typeof import("drizzle-orm").sql;
 	let deleteServer: typeof import("../server-profile.router").serverProfileRouter.deleteServer;
 	let callAs: typeof import("../../../__tests__/helpers/authHarness").callAs;
@@ -22,13 +22,13 @@ describe.skipIf(!enabled)("server deletion integration", () => {
 	let audiobookLibraryId = 0;
 
 	beforeAll(async () => {
-		({ db, pool } = await import("@nanahoshi-v2/db"));
+		({ db, pool } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ deleteServer } = (
 			await import("../server-profile.router")
 		).serverProfileRouter);
 		({ callAs } = await import("../../../__tests__/helpers/authHarness"));
-		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
+		const { runMigrations } = await import("@nanahoshi/db/migrate");
 		await runMigrations();
 
 		await db.execute(sql`

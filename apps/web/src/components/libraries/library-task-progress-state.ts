@@ -1,4 +1,4 @@
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 import { getTaskJobProgress } from "@/utils/task-progress";
 
 export const SCAN_PROGRESS_STALE_MS = 90_000;

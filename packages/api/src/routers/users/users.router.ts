@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { z } from "zod";
 import { resolveLibraryAccess } from "../../auth/access.repository";
 import { orgProcedure, protectedProcedure } from "../../index";

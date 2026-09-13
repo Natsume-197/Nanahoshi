@@ -2,7 +2,7 @@ import {
 	runtimeCpuCapacity,
 	runtimeMemoryCapacity,
 	runtimeWorkerCpuBudget,
-} from "@nanahoshi-v2/env/resources";
+} from "@nanahoshi/env/resources";
 import sharp from "sharp";
 
 /**

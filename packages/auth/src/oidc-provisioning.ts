@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@nanahoshi-v2/db";
-import { account, member } from "@nanahoshi-v2/db/schema/auth";
-import { memberRole, role } from "@nanahoshi-v2/db/schema/general";
-import { env } from "@nanahoshi-v2/env/server";
+import { db } from "@nanahoshi/db";
+import { account, member } from "@nanahoshi/db/schema/auth";
+import { memberRole, role } from "@nanahoshi/db/schema/general";
+import { env } from "@nanahoshi/env/server";
 import { and, eq } from "drizzle-orm";
 
 /**

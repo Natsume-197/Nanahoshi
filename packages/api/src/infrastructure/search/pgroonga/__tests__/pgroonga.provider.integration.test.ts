@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 const enabled = process.env.SEARCH_INTEGRATION === "1";
 
 describe.skipIf(!enabled)("pgroonga provider integration", () => {
-	let db: typeof import("@nanahoshi-v2/db").db;
+	let db: typeof import("@nanahoshi/db").db;
 	let sql: typeof import("drizzle-orm").sql;
 	let provider: typeof import("../pgroonga.provider").search;
 
@@ -34,10 +34,10 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	let seriesId: number;
 
 	beforeAll(async () => {
-		({ db } = await import("@nanahoshi-v2/db"));
+		({ db } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ search: provider } = await import("../pgroonga.provider"));
-		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
+		const { runMigrations } = await import("@nanahoshi/db/migrate");
 		await runMigrations();
 
 		await db.execute(sql`

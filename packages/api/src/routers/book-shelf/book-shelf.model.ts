@@ -1,4 +1,4 @@
-import type { userBookShelf } from "@nanahoshi-v2/db/schema/general";
+import type { userBookShelf } from "@nanahoshi/db/schema/general";
 import { z } from "zod";
 import { LIST_STATUSES } from "../../constants";
 

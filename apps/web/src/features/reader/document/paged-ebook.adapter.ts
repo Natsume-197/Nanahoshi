@@ -1,4 +1,4 @@
-import type { EbookDocument } from "@nanahoshi-v2/ebook-parser";
+import type { EbookDocument } from "@nanahoshi/ebook-parser";
 import { formatStyleSheet } from "@/features/reader/document/processing/format-style-sheet";
 import { recountBookData } from "@/features/reader/document/processing/recount-book-data";
 import { sanitizeStoredBookHtml } from "@/features/reader/document/processing/sanitize-html";

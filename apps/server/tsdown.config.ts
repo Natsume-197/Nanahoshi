@@ -12,6 +12,6 @@ export default defineConfig({
 		rename: "7zz.wasm",
 	},
 	deps: {
-		alwaysBundle: [/@nanahoshi-v2\/.*/],
+		alwaysBundle: [/@nanahoshi\/.*/],
 	},
 });

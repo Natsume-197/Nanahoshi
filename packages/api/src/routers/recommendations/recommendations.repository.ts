@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { userRecommendationFeedback } from "@nanahoshi-v2/db/schema/recommendations";
+import { db } from "@nanahoshi/db";
+import { userRecommendationFeedback } from "@nanahoshi/db/schema/recommendations";
 import { and, eq, type SQL, sql } from "drizzle-orm";
 import type { WorkKind } from "../../modules/recommendations/types";
 import {

@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { downloadDeliveryEvent } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { downloadDeliveryEvent } from "@nanahoshi/db/schema/general";
 import { logger } from "../../lib/logger";
 import {
 	type DownloadDeliveryInput,

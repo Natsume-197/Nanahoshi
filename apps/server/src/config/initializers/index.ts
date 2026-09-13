@@ -1,4 +1,4 @@
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { logger } from "@nanahoshi/api/lib/logger";
 import { capabilitiesInitializer } from "./capabilities";
 import { databaseInitializer } from "./database";
 import { imagesInitializer } from "./images";

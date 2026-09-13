@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
+import { coverIngestQueue } from "@nanahoshi/api/infrastructure/queue/queues/cover-ingest.queue";
 import {
 	type CoverFormat,
 	coverCacheFile,
@@ -9,8 +9,8 @@ import {
 	findWarmFallback,
 	snapDim,
 	snapQuality,
-} from "@nanahoshi-v2/api/lib/cover-cache";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+} from "@nanahoshi/api/lib/cover-cache";
+import { logger } from "@nanahoshi/api/lib/logger";
 import type { Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { coversDir, tmpDir } from "../lib/paths";

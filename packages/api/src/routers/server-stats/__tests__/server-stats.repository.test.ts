@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 /**
  * Unit tests for ServerStatsRepository.
  *
- * Mocks `@nanahoshi-v2/db` with a thenable select chain; each `db.select()`
+ * Mocks `@nanahoshi/db` with a thenable select chain; each `db.select()`
  * call consumes the next entry from `selectResults`, matching the fixed order
  * of the queries inside `getStats` (Promise.all preserves call order).
  *
@@ -36,7 +36,7 @@ const mockSelect = mock(() => {
 	return createSelectChain(result);
 });
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { select: mockSelect },
 }));
 

@@ -1,7 +1,7 @@
 import type {
 	CollectionSortRule,
 	DynamicCollectionDefinitionV1,
-} from "@nanahoshi-v2/api/routers/collections/collection-rules";
+} from "@nanahoshi/api/routers/collections/collection-rules";
 
 const template = (
 	id: string,

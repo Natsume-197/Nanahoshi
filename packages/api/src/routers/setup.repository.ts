@@ -1,6 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { appSettings } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member, organization, user } from "@nanahoshi/db/schema/auth";
+import { appSettings } from "@nanahoshi/db/schema/general";
 import { eq } from "drizzle-orm";
 import { ForbiddenError, InternalServerError } from "../errors";
 import { logger } from "../lib/logger";

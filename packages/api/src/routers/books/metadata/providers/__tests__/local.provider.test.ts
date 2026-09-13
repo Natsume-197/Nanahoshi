@@ -3,21 +3,21 @@ import type {
 	EbookDocument,
 	HtmlContent,
 	PagedContent,
-} from "@nanahoshi-v2/ebook-parser/types";
+} from "@nanahoshi/ebook-parser/types";
 import sharp from "sharp";
 
 const openEbookFile = mock(async (): Promise<EbookDocument> => {
 	throw new Error("openEbookFile mock was not configured");
 });
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
 	},
 }));
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
-mock.module("@nanahoshi-v2/ebook-parser/node", () => ({ openEbookFile }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
+mock.module("@nanahoshi/ebook-parser/node", () => ({ openEbookFile }));
 
 const {
 	classifyEbookIdentifiers,

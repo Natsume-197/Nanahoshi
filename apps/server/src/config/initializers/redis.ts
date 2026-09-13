@@ -1,5 +1,5 @@
-import { redis } from "@nanahoshi-v2/api/infrastructure/queue/redis";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { redis } from "@nanahoshi/api/infrastructure/queue/redis";
+import { logger } from "@nanahoshi/api/lib/logger";
 import type { RuntimeInitializer } from "./types";
 
 // Shutdown-only: the API process shares one Redis connection across queues,

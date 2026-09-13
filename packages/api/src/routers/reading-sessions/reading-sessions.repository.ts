@@ -1,10 +1,10 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	readingRun,
 	readingSegment,
 	readingSession,
 	readingTrackingPreference,
-} from "@nanahoshi-v2/db/schema/reading-sessions";
+} from "@nanahoshi/db/schema/reading-sessions";
 import {
 	and,
 	desc,

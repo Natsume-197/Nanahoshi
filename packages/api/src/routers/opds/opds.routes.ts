@@ -1,4 +1,4 @@
-import type { auth as authInstance } from "@nanahoshi-v2/auth";
+import type { auth as authInstance } from "@nanahoshi/auth";
 import { Hono } from "hono";
 import { opdsAuthMiddleware } from "./opds.auth";
 import type { OpdsUser } from "./opds.model";

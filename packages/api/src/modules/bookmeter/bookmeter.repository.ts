@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { member, user } from "@nanahoshi/db/schema/auth";
 import {
 	author,
 	book,
@@ -7,7 +7,7 @@ import {
 	bookMetadata,
 	library,
 	userBookShelf,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 

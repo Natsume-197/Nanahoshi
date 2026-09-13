@@ -1,8 +1,8 @@
 import {
 	EBOOK_EXTENSIONS,
 	MAX_UPLOAD_BYTES,
-} from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
-import { env } from "@nanahoshi-v2/env/web";
+} from "@nanahoshi/api/modules/scanning/supportedExtensions";
+import { env } from "@nanahoshi/env/web";
 import {
 	ArrowClockwise,
 	CheckCircle,

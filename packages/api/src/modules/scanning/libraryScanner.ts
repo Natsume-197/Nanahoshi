@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { logger } from "../../lib/logger";
 import {
 	scanHashConcurrency,

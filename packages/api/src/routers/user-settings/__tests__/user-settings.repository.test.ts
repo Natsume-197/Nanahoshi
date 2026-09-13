@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 /**
  * Unit tests for UserSettingsRepository.
  *
- * We mock `@nanahoshi-v2/db` (the Drizzle client) but import the real schema
- * from `@nanahoshi-v2/db/schema/general` so we can assert that the conflict
+ * We mock `@nanahoshi/db` (the Drizzle client) but import the real schema
+ * from `@nanahoshi/db/schema/general` so we can assert that the conflict
  * target references the actual Drizzle column objects.
  *
  * Run with:
@@ -82,7 +82,7 @@ const mockInsert = mock(() => createInsertChain());
 const mockSelect = mock(() => createSelectChain());
 const mockUpdate = mock(() => createUpdateChain());
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: mockInsert,
 		select: mockSelect,
@@ -90,7 +90,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 	},
 }));
 
-const { userSettings } = await import("@nanahoshi-v2/db/schema/general");
+const { userSettings } = await import("@nanahoshi/db/schema/general");
 const { UserSettingsRepository } = await import("../user-settings.repository");
 
 describe("UserSettingsRepository", () => {

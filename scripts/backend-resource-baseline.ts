@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 
 export const DEFAULT_CONTAINERS = [
-	"nanahoshi-v2-server",
-	"nanahoshi-v2-worker",
-	"nanahoshi-v2-postgres",
-	"nanahoshi-v2-redis",
+	"nanahoshi-server",
+	"nanahoshi-worker",
+	"nanahoshi-postgres",
+	"nanahoshi-redis",
 ] as const;
 
 export type CliOptions = {

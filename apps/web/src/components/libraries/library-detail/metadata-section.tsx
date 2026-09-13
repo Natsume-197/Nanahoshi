@@ -2,8 +2,8 @@ import {
 	type BookMetadataProfileId,
 	bookMetadataProfile,
 	isBookMetadataProfileId,
-} from "@nanahoshi-v2/api/modules/metadataProfiles";
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
+} from "@nanahoshi/api/modules/metadataProfiles";
+import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
 import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";

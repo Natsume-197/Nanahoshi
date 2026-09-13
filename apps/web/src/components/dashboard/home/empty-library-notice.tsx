@@ -1,4 +1,4 @@
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 import { Books, CircleNotch } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";

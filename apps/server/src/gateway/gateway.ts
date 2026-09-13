@@ -1,5 +1,5 @@
-import { membersRepository } from "@nanahoshi-v2/api/routers/members/members.repository";
-import { auth } from "@nanahoshi-v2/auth";
+import { membersRepository } from "@nanahoshi/api/routers/members/members.repository";
+import { auth } from "@nanahoshi/auth";
 import type { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
 import { instanceActivityModule } from "./instance-activity.module";

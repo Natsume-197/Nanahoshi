@@ -1,7 +1,7 @@
 import {
 	MANUAL_PRESENCE_STATUSES,
 	type ManualPresenceStatus,
-} from "@nanahoshi-v2/api/modules/presence/presence.types";
+} from "@nanahoshi/api/modules/presence/presence.types";
 import { PRESENCE_DOT } from "@/components/shared/presence-dot";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";

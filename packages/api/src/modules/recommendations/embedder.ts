@@ -2,7 +2,7 @@ import path from "node:path";
 import {
 	runtimeCpuCapacity,
 	runtimeWorkerCpuBudget,
-} from "@nanahoshi-v2/env/resources";
+} from "@nanahoshi/env/resources";
 import { logger } from "../../lib/logger";
 import { settingsRepository } from "../../routers/settings/settings.repository";
 

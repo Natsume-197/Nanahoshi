@@ -6,7 +6,7 @@ import {
 	type HONOMIYA_MANIFEST_SCHEMA,
 	type HonomiyaManifestV1,
 	honomiyaManifestV1Schema,
-} from "@nanahoshi-v2/read-listen/manifest";
+} from "@nanahoshi/read-listen/manifest";
 import { z } from "zod";
 
 const MAX_SIDECAR_BYTES = 64 * 1024 * 1024;

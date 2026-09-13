@@ -1,5 +1,5 @@
 {
-	"name": "nanahoshi-v2",
+	"name": "nanahoshi",
 	"private": true,
 	"workspaces": {
 		"packages": [
@@ -30,14 +30,14 @@
 		"check-types": "bun run generate && turbo check-types",
 		"dev:web": "turbo -F web dev",
 		"dev:server": "turbo -F server dev dev:worker",
-		"db:push": "turbo -F @nanahoshi-v2/db db:push",
-		"db:studio": "turbo -F @nanahoshi-v2/db db:studio",
-		"db:generate": "turbo -F @nanahoshi-v2/db db:generate",
-		"db:migrate": "turbo -F @nanahoshi-v2/db db:migrate",
-		"db:start": "turbo -F @nanahoshi-v2/db db:start",
-		"db:watch": "turbo -F @nanahoshi-v2/db db:watch",
-		"db:stop": "turbo -F @nanahoshi-v2/db db:stop",
-		"db:down": "turbo -F @nanahoshi-v2/db db:down",
+		"db:push": "turbo -F @nanahoshi/db db:push",
+		"db:studio": "turbo -F @nanahoshi/db db:studio",
+		"db:generate": "turbo -F @nanahoshi/db db:generate",
+		"db:migrate": "turbo -F @nanahoshi/db db:migrate",
+		"db:start": "turbo -F @nanahoshi/db db:start",
+		"db:watch": "turbo -F @nanahoshi/db db:watch",
+		"db:stop": "turbo -F @nanahoshi/db db:stop",
+		"db:down": "turbo -F @nanahoshi/db db:down",
 		"recs:evaluate": "cd apps/server && bun run ../../packages/api/scripts/recs-offline-evaluate.ts",
 		"scan:benchmark": "bun run packages/api/scripts/scan-processing-benchmark.ts",
 		"scan:acceptance": "bun run packages/api/scripts/scan-acceptance.ts",
@@ -55,7 +55,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@nanahoshi-v2/config": "workspace:*",
+		"@nanahoshi/config": "workspace:*",
 		"@types/bun": "^1.4.0",
 		"playwright-core": "^1.62.1",
 		"turbo": "^2.10.12",

@@ -1,8 +1,8 @@
 import {
 	runtimeMemoryCapacity,
 	runtimeWorkerCpuBudget,
-} from "@nanahoshi-v2/env/resources";
-import { env } from "@nanahoshi-v2/env/server";
+} from "@nanahoshi/env/resources";
+import { env } from "@nanahoshi/env/server";
 
 export function clampToCpuBudget(
 	requested: number,

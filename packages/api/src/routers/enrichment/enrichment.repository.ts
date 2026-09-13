@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	book,
 	type EnrichmentDecision,
@@ -7,7 +7,7 @@ import {
 	type EnrichmentStatus,
 	enrichmentState,
 	library,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import {
 	and,
 	eq,

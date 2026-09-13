@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 
 const MANAGED_PREFIXES = [
 	"/api/data/avatars/",

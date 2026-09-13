@@ -1,4 +1,4 @@
-import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 export type TrackingMode = "automatic" | "manual" | "off";
 export interface ClockSnapshot {
 	state: "idle" | "active" | "paused" | "finished";

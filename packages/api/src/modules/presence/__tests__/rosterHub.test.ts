@@ -4,8 +4,8 @@ import type { PresenceEvent } from "../presence.types";
 // The default rosterHub singleton wires membersRepository (→ db/env) and
 // presenceManager (→ redis) — mock those chains so importing the module is
 // side-effect free. The class under test only uses injected deps.
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/db", () => ({ db: {} }));
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

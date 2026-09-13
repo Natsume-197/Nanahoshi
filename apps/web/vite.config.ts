@@ -43,6 +43,6 @@ export default defineConfig(({ command }) => ({
 		noExternal: ["@better-auth/core", "better-auth"],
 	},
 	server: {
-		port: 3001,
+		port: 7332,
 	},
 }));

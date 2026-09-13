@@ -24,7 +24,7 @@ export const env = createEnv({
 		DB_PORT: z.coerce.number().default(5432),
 		DB_USER: z.string().default("postgres"),
 		DB_PASSWORD: z.string().default("password"),
-		DB_NAME: z.string().default("nanahoshi-v2"),
+		DB_NAME: z.string().default("nanahoshi"),
 
 		// Redis
 		REDIS_HOST: z.string().default("127.0.0.1"),

@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { book, library, libraryPath } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { book, library, libraryPath } from "@nanahoshi/db/schema/general";
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import type {

@@ -109,7 +109,7 @@ esac
 		expect(await readFile(destination, "utf8")).toBe("docker-verified-dump");
 		expect((await stat(destination)).mode & 0o777).toBe(0o600);
 		const argumentsText = await readFile(log, "utf8");
-		expect(argumentsText).toContain("nanahoshi-v2-postgres");
+		expect(argumentsText).toContain("nanahoshi-dev-postgres-1");
 		expect(argumentsText).not.toContain("test-password");
 		await writeFile(
 			docker,

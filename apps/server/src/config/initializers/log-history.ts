@@ -1,7 +1,7 @@
 import {
 	startSharedLogHistory,
 	stopSharedLogHistory,
-} from "@nanahoshi-v2/api/lib/shared-log-history";
+} from "@nanahoshi/api/lib/shared-log-history";
 import type { RuntimeInitializer } from "./types";
 
 export const logHistoryInitializer: RuntimeInitializer = {

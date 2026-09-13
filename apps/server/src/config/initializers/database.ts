@@ -1,6 +1,6 @@
-import { ensureDefaultRoles } from "@nanahoshi-v2/api/auth/access.repository";
-import { runMigrations, withStartupLock } from "@nanahoshi-v2/db/migrate";
-import { firstSeed } from "@nanahoshi-v2/db/seed/seed";
+import { ensureDefaultRoles } from "@nanahoshi/api/auth/access.repository";
+import { runMigrations, withStartupLock } from "@nanahoshi/db/migrate";
+import { firstSeed } from "@nanahoshi/db/seed/seed";
 import type { RuntimeInitializer } from "./types";
 
 export const databaseInitializer: RuntimeInitializer = {

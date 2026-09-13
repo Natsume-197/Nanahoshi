@@ -1,4 +1,4 @@
-import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+import { ebookSourceFormatForFilename } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import {

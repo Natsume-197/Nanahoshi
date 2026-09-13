@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ReadListenCue } from "@nanahoshi-v2/read-listen/manifest";
+import type { ReadListenCue } from "@nanahoshi/read-listen/manifest";
 import {
 	createReadListenTimeline,
 	findAdjacentReadListenCue,

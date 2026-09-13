@@ -268,7 +268,7 @@ test("unmount aborts the opening and disposes a late session exactly once", asyn
 
 for (const abandoned of [true, false]) {
 	test(`failed lazy setup closes the acquired archive (${abandoned ? "abort" : "fallback"})`, async () => {
-		const parser = await import("@nanahoshi-v2/ebook-parser");
+		const parser = await import("@nanahoshi/ebook-parser");
 		const lazy = await import("./lazy-html-book");
 		const close = mock(async () => {});
 		const ebook = { close } as unknown as Awaited<

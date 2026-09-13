@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-4000-8000-000000000000",
@@ -229,7 +229,7 @@ const mockExecute = mock((node: unknown) => {
 	return Promise.resolve([]);
 });
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: mockInsert,
 		select: mockSelect,
@@ -241,8 +241,8 @@ mock.module("@nanahoshi-v2/db", () => ({
 
 // Re-export all real schema exports plus override scannedFile with a simple mock.
 // This prevents mock pollution across test files that share the same Bun process.
-const realSchema = await import("@nanahoshi-v2/db/schema/general");
-mock.module("@nanahoshi-v2/db/schema/general", () => ({
+const realSchema = await import("@nanahoshi/db/schema/general");
+mock.module("@nanahoshi/db/schema/general", () => ({
 	...realSchema,
 	scannedFile: {
 		path: "path",

@@ -15,9 +15,9 @@ import path from "node:path";
  *   bun test packages/api/src/utils/__tests__/misc.test.ts
  */
 
-// Mock env so importing misc (which pulls @nanahoshi-v2/env/server) doesn't
+// Mock env so importing misc (which pulls @nanahoshi/env/server) doesn't
 // trigger validation.
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

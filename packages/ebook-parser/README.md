@@ -15,7 +15,7 @@ Current parser families:
 - `zip/`: shared browser and Node archive adapters used by EPUB, FB2 and CBZ.
 
 Browser callers use `openEbook`. Node callers use
-`@nanahoshi-v2/ebook-parser/node` so filesystem and `node-stream-zip` never enter
+`@nanahoshi/ebook-parser/node` so filesystem and `node-stream-zip` never enter
 the browser bundle.
 
 To add a reflowable format:

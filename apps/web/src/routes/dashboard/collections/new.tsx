@@ -1,4 +1,4 @@
-import { DynamicCollectionDefinitionSchema } from "@nanahoshi-v2/api/routers/collections/collection-rules";
+import { DynamicCollectionDefinitionSchema } from "@nanahoshi/api/routers/collections/collection-rules";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";

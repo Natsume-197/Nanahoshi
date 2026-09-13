@@ -2,7 +2,7 @@ import { afterAll, expect, mock, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NotFoundError } from "@nanahoshi-v2/api/errors/index";
+import { NotFoundError } from "@nanahoshi/api/errors/index";
 import { Hono } from "hono";
 
 let session: { user: { role: string } } | null = null;
@@ -10,10 +10,10 @@ let resolutions = 0;
 const root = await mkdtemp(join(tmpdir(), "nanahoshi-backup-route-"));
 const path = join(root, "database.dump");
 await writeFile(path, "private-database");
-mock.module("@nanahoshi-v2/api/context", () => ({
+mock.module("@nanahoshi/api/context", () => ({
 	createContext: async () => ({ session }),
 }));
-mock.module("@nanahoshi-v2/api/modules/database-backup/backups", () => ({
+mock.module("@nanahoshi/api/modules/database-backup/backups", () => ({
 	resolveBackup: async (filename: string) => {
 		resolutions++;
 		if (filename !== "database.dump")

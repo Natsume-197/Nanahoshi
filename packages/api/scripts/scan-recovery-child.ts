@@ -1,4 +1,4 @@
-import { pool } from "@nanahoshi-v2/db";
+import { pool } from "@nanahoshi/db";
 import { scanPathLibrary } from "../src/modules/scanning/libraryScanner";
 
 const [root, libraryIdValue, libraryPathIdValue, taskId] = Bun.argv.slice(2);

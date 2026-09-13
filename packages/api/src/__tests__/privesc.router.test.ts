@@ -18,7 +18,7 @@ import { describe, mock, test } from "bun:test";
  * middleware and the handler guard.
  */
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
@@ -35,7 +35,7 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_PASS: "mock",
 	},
 }));
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
 
 type PC = {
 	isAppOwner: boolean;

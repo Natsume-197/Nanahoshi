@@ -1,7 +1,7 @@
-import { pinoRequestLogger } from "@nanahoshi-v2/api/lib/request-logger";
-import { createOpdsApp } from "@nanahoshi-v2/api/routers/opds/opds.routes";
-import { auth } from "@nanahoshi-v2/auth";
-import { env } from "@nanahoshi-v2/env/server";
+import { pinoRequestLogger } from "@nanahoshi/api/lib/request-logger";
+import { createOpdsApp } from "@nanahoshi/api/routers/opds/opds.routes";
+import { auth } from "@nanahoshi/auth";
+import { env } from "@nanahoshi/env/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { mountBullBoard } from "./admin/bull-board";

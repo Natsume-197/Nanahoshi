@@ -1,5 +1,5 @@
 import path from "node:path";
-import { coverCacheDir, coversDir } from "@nanahoshi-v2/api/lib/cover-cache";
+import { coverCacheDir, coversDir } from "@nanahoshi/api/lib/cover-cache";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 

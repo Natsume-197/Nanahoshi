@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
-import { createContext } from "@nanahoshi-v2/api/context";
-import { NotFoundError } from "@nanahoshi-v2/api/errors/index";
-import { resolveBackup } from "@nanahoshi-v2/api/modules/database-backup/backups";
+import { createContext } from "@nanahoshi/api/context";
+import { NotFoundError } from "@nanahoshi/api/errors/index";
+import { resolveBackup } from "@nanahoshi/api/modules/database-backup/backups";
 import type { Hono } from "hono";
 import { attachmentContentDisposition } from "../lib/content-disposition";
 import { asBody } from "../lib/node-stream";

@@ -1,4 +1,4 @@
-import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
+import type { NotificationData } from "@nanahoshi/api/routers/notifications/notification.model";
 import {
 	ArrowsClockwise,
 	BookOpen,

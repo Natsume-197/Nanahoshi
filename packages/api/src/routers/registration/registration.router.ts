@@ -1,8 +1,8 @@
 import {
 	getRegistrationSettings,
 	REGISTRATION_SETTINGS_KEY,
-} from "@nanahoshi-v2/auth/registration-settings";
-import { env } from "@nanahoshi-v2/env/server";
+} from "@nanahoshi/auth/registration-settings";
+import { env } from "@nanahoshi/env/server";
 import { BadRequestError } from "../../errors";
 import { adminProcedure } from "../../index";
 import { settingsRepository } from "../settings/settings.repository";

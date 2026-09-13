@@ -1,4 +1,4 @@
-import { recordSecurityAuditEvent } from "@nanahoshi-v2/auth/security-audit";
+import { recordSecurityAuditEvent } from "@nanahoshi/auth/security-audit";
 import { adminProcedure } from "../../index";
 import {
 	BanUserInput,

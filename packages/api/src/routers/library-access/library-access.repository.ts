@@ -1,8 +1,8 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	library,
 	libraryPermissionOverwrite,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 import type { PermissionMap } from "../../auth/permissions.catalog";
 

@@ -1,8 +1,8 @@
-import { getUserPermissionContext } from "@nanahoshi-v2/api/auth/access.repository";
+import { getUserPermissionContext } from "@nanahoshi/api/auth/access.repository";
 import {
 	subscribeToTasks,
 	type TaskScope,
-} from "@nanahoshi-v2/api/modules/taskManager";
+} from "@nanahoshi/api/modules/taskManager";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 // Live task/scan progress over the gateway. subscribeToTasks applies

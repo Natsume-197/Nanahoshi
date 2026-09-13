@@ -3,7 +3,7 @@ import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 let executed: SQL;
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		execute: async (query: SQL) => {
 			executed = query;

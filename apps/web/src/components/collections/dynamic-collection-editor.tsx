@@ -12,7 +12,7 @@ import {
 	DynamicCollectionDefinitionSchema,
 	type DynamicCollectionDefinitionV1,
 	isPersonalizedCollectionDefinition,
-} from "@nanahoshi-v2/api/routers/collections/collection-rules";
+} from "@nanahoshi/api/routers/collections/collection-rules";
 import {
 	Books,
 	CaretDown,

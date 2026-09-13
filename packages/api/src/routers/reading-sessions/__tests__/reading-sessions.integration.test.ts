@@ -2,13 +2,28 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { SessionUpload } from "../reading-sessions.model";
 
 const enabled = process.env.READING_SESSIONS_INTEGRATION === "1";
+
+function required<T>(value: T | undefined): T {
+	if (value === undefined) throw new Error("Expected test data to exist");
+	return value;
+}
+
 describe.skipIf(!enabled)("reading sessions persistence", () => {
-	let db: typeof import("@nanahoshi-v2/db").db;
+	let db: typeof import("@nanahoshi/db").db;
 	let sql: typeof import("drizzle-orm").sql;
 	let repo: typeof import("../reading-sessions.repository").readingSessionsRepository;
 	const userId = `reading-test-${crypto.randomUUID()}`;
 	const orgId = `reading-test-${crypto.randomUUID()}`;
 	let bookId: number;
+	const segment = {
+		id: crypto.randomUUID(),
+		startedAt: "2026-01-01T12:00:00.000Z",
+		endedAt: "2026-01-01T12:10:00.000Z",
+		seconds: 600,
+		startPosition: 0.1,
+		endPosition: 0.2,
+		kind: "reading" as const,
+	};
 	const input: SessionUpload = {
 		id: crypto.randomUUID(),
 		bookUuid: crypto.randomUUID(),
@@ -23,26 +38,16 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		installationId: crypto.randomUUID(),
 		contentVersion: "test",
 		timeZone: "UTC",
-		segments: [
-			{
-				id: crypto.randomUUID(),
-				startedAt: "2026-01-01T12:00:00.000Z",
-				endedAt: "2026-01-01T12:10:00.000Z",
-				seconds: 600,
-				startPosition: 0.1,
-				endPosition: 0.2,
-				kind: "reading",
-			},
-		],
+		segments: [segment],
 	};
 	beforeAll(async () => {
-		({ db } = await import("@nanahoshi-v2/db"));
+		({ db } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ readingSessionsRepository: repo } = await import(
 			"../reading-sessions.repository"
 		));
 		const { runMigrations, withStartupLock } = await import(
-			"@nanahoshi-v2/db/migrate"
+			"@nanahoshi/db/migrate"
 		);
 		await withStartupLock(runMigrations);
 		await db.execute(
@@ -85,7 +90,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			endedAt: "2026-01-01T12:20:00.000Z",
 			segments: [
 				{
-					...input.segments[0]!,
+					...segment,
 					id: crypto.randomUUID(),
 					startedAt: "2026-01-01T12:10:00.000Z",
 					endedAt: "2026-01-01T12:20:00.000Z",
@@ -107,7 +112,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 	});
 	test("finishing and reopening a book does not manufacture a reread", async () => {
 		const h = await repo.history(userId, bookId);
-		const run = h.runs[0]!;
+		const run = required(h.runs[0]);
 		await repo.mutateRun(userId, bookId, run.id, "finish");
 		const next = await repo.sync(userId, bookId, {
 			...input,
@@ -126,7 +131,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 	});
 	test("a reading can be discarded with all of its sessions", async () => {
 		const before = await repo.history(userId, bookId);
-		const run = before.runs[0]!;
+		const run = required(before.runs[0]);
 		await repo.discardRun(userId, bookId, run.id);
 		const after = await repo.history(userId, bookId);
 		expect(after.runs.some((row) => row.id === run.id)).toBe(false);
@@ -156,7 +161,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		const session = {
 			...input,
 			id: crypto.randomUUID(),
-			segments: [{ ...input.segments[0]!, id: crypto.randomUUID() }],
+			segments: [{ ...segment, id: crypto.randomUUID() }],
 		};
 		await repo.sync(userId, bookId, session);
 		await expect(
@@ -177,7 +182,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		const session = {
 			...input,
 			id: crypto.randomUUID(),
-			segments: [{ ...input.segments[0]!, id: crypto.randomUUID() }],
+			segments: [{ ...segment, id: crypto.randomUUID() }],
 		};
 		await repo.sync(userId, bookId, session);
 		for (const revision of [1, 2]) {
@@ -185,7 +190,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 				repo.sync(userId, bookId, {
 					...session,
 					revision,
-					segments: [{ ...session.segments[0]!, seconds: 300 }],
+					segments: [{ ...required(session.segments[0]), seconds: 300 }],
 				}),
 			).rejects.toThrow("Segment ID conflict");
 		}
@@ -198,7 +203,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 	});
 	test("offline uploads choose the run at activity time, not upload time", async () => {
 		const h = await repo.history(userId, bookId);
-		const original = h.runs.at(-1)!;
+		const original = required(h.runs.at(-1));
 		const result = await repo.sync(userId, bookId, {
 			...input,
 			id: crypto.randomUUID(),
@@ -214,7 +219,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			segments: [],
 		});
 		const h = await repo.history(userId, bookId);
-		const run = h.runs.find((r) => r.id === result.runId)!;
+		const run = required(h.runs.find((r) => r.id === result.runId));
 		expect(run.state).toBe("left");
 		expect(run.closureReason).toBe("historical_import");
 		expect(h.runs[0]?.id).not.toBe(run.id);
@@ -225,7 +230,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		await repo.mutateRun(userId, bookId, crypto.randomUUID(), "reread");
 		let h = await repo.history(userId, bookId);
 		expect(h.runs.find((r) => r.id === first)?.closureReason).toBe("reread");
-		const current = h.runs[0]!;
+		const current = required(h.runs[0]);
 		expect(
 			(await repo.mutateRun(userId, bookId, current.id, "leave"))
 				?.closureReason,
@@ -241,7 +246,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 	});
 	test("history scopes segments to the selected run and overlapping dates", async () => {
 		const h = await repo.history(userId, bookId);
-		const row = h.rows.find((r) => r.segment)!;
+		const row = required(h.rows.find((r) => r.segment));
 		const selected = await repo.history(userId, bookId, {
 			runId: row.session.runId,
 			from: "2026-01-01T12:05:00Z",
@@ -266,7 +271,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		const session = {
 			...input,
 			id: crypto.randomUUID(),
-			segments: [{ ...input.segments[0]!, id: crypto.randomUUID() }],
+			segments: [{ ...segment, id: crypto.randomUUID() }],
 		};
 		await repo.sync(userId, bookId, session);
 		await expect(
@@ -279,12 +284,14 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		await expect(
 			repo.sync(userId, bookId, {
 				...session,
-				segments: [{ ...session.segments[0]!, id: crypto.randomUUID() }],
+				segments: [
+					{ ...required(session.segments[0]), id: crypto.randomUUID() },
+				],
 			}),
 		).rejects.toThrow("Stale revision contains unacknowledged segments");
 	});
 	test("duplicate IDs within a batch must have identical payloads", async () => {
-		const part = { ...input.segments[0]!, id: crypto.randomUUID() };
+		const part = { ...segment, id: crypto.randomUUID() };
 		const session = {
 			...input,
 			id: crypto.randomUUID(),
@@ -303,7 +310,7 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			sql`INSERT INTO "user" (id,name,email,email_verified,username,created_at,updated_at) VALUES (${otherUser},'Reading test',${`${otherUser}@example.test`},true,${otherUser},now(),now())`,
 		);
 		try {
-			const part = { ...input.segments[0]!, id: crypto.randomUUID() };
+			const part = { ...segment, id: crypto.randomUUID() };
 			const results = await Promise.allSettled(
 				[userId, otherUser].map((owner) =>
 					repo.sync(owner, bookId, {

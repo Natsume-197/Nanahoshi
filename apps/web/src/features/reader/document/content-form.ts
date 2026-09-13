@@ -1,4 +1,4 @@
-import type { EbookPresentation } from "@nanahoshi-v2/ebook-parser";
+import type { EbookPresentation } from "@nanahoshi/ebook-parser";
 
 interface ContentFormEvidence {
 	presentation?: EbookPresentation;

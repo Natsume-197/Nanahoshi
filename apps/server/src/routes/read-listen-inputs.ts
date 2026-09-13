@@ -1,18 +1,18 @@
 import {
 	canAccessBookAction,
 	resolveLibraryAccess,
-} from "@nanahoshi-v2/api/auth/access.repository";
-import { BadRequestError, isAppError } from "@nanahoshi-v2/api/errors/index";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { readListenService } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
+} from "@nanahoshi/api/auth/access.repository";
+import { BadRequestError, isAppError } from "@nanahoshi/api/errors/index";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { readListenService } from "@nanahoshi/api/routers/read-listen/read-listen.service";
 import {
 	MAX_ALIGNMENT_UPLOAD_BYTES,
 	MAX_TIMED_TEXT_UPLOAD_BYTES,
 	MAX_TIMED_TEXT_UPLOAD_TOTAL_BYTES,
 	validateAlignmentReportUpload,
 	validateAlignmentUpload,
-} from "@nanahoshi-v2/api/routers/read-listen/uploaded-alignment-input";
-import { auth } from "@nanahoshi-v2/auth";
+} from "@nanahoshi/api/routers/read-listen/uploaded-alignment-input";
+import { auth } from "@nanahoshi/auth";
 import type { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 

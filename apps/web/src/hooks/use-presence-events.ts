@@ -1,12 +1,12 @@
 import type {
 	PresenceEvent,
 	PresenceState,
-} from "@nanahoshi-v2/api/modules/presence/presence.types";
-import { comparePresenceRows } from "@nanahoshi-v2/api/modules/presence/presence.types";
+} from "@nanahoshi/api/modules/presence/presence.types";
+import { comparePresenceRows } from "@nanahoshi/api/modules/presence/presence.types";
 import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { orpc, queryClient } from "@/utils/orpc";
 
-export type { PresenceState } from "@nanahoshi-v2/api/modules/presence/presence.types";
+export type { PresenceState } from "@nanahoshi/api/modules/presence/presence.types";
 
 type MemberRow = {
 	id: string;

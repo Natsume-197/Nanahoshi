@@ -1,6 +1,6 @@
-import * as presence from "@nanahoshi-v2/api/modules/presence/presenceManager";
-import { rosterHub } from "@nanahoshi-v2/api/modules/presence/rosterHub";
-import { presenceRepository } from "@nanahoshi-v2/api/routers/presence/presence.repository";
+import * as presence from "@nanahoshi/api/modules/presence/presenceManager";
+import { rosterHub } from "@nanahoshi/api/modules/presence/rosterHub";
+import { presenceRepository } from "@nanahoshi/api/routers/presence/presence.repository";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 export const presenceModule: GatewayModule = {

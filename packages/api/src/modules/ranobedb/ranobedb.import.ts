@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createGunzip } from "node:zlib";
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { Client } from "pg";
 import { ranobedbImportQueue } from "../../infrastructure/queue/queues/ranobedb-import.queue";
 import {

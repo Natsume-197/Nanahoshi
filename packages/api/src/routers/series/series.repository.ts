@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { series } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { series } from "@nanahoshi/db/schema/general";
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import {
 	accessibleSql,

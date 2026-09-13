@@ -7,7 +7,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pool } from "@nanahoshi-v2/db";
+import { pool } from "@nanahoshi/db";
 import { readListenService } from "../src/routers/read-listen/read-listen.service";
 
 type ImportEntry = {

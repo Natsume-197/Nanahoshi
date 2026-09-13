@@ -1,4 +1,4 @@
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 
 // A first scan/upload populates an otherwise empty server. While one of these
 // runs, the home shows import progress instead of the "nothing here" card so

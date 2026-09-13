@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-mock.module("@nanahoshi-v2/env/web", () => ({
+mock.module("@nanahoshi/env/web", () => ({
 	env: { VITE_SERVER_URL: "https://api.example" },
 }));
 mock.module("@tanstack/react-start/server-entry", () => ({

@@ -16,7 +16,7 @@ const enabled = process.env.RECS_INTEGRATION === "1";
 
 describe.skipIf(!enabled)("recommendations integration", () => {
 	// dynamic imports so the DB pool is only created when the gate is open
-	let db: typeof import("@nanahoshi-v2/db").db;
+	let db: typeof import("@nanahoshi/db").db;
 	let repo: typeof import("../recommendations.repository").recommendationsRepository;
 	let sql: typeof import("drizzle-orm").sql;
 
@@ -31,12 +31,12 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 	let hiddenBookId: number;
 
 	beforeAll(async () => {
-		({ db } = await import("@nanahoshi-v2/db"));
+		({ db } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ recommendationsRepository: repo } = await import(
 			"../recommendations.repository"
 		));
-		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
+		const { runMigrations } = await import("@nanahoshi/db/migrate");
 		await runMigrations();
 
 		await db.execute(sql`

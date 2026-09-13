@@ -1,4 +1,4 @@
-import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import { summarizeReading } from "../../../../packages/api/src/routers/reading-sessions/reading-statistics";

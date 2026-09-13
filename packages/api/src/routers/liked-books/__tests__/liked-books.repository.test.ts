@@ -56,7 +56,7 @@ function createSelectChain() {
 
 const mockSelect = mock(() => createSelectChain());
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { select: mockSelect },
 }));
 
@@ -66,7 +66,7 @@ const realDrizzle = await import("drizzle-orm");
 const ilikeSpy = mock(realDrizzle.ilike);
 mock.module("drizzle-orm", () => ({ ...realDrizzle, ilike: ilikeSpy }));
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

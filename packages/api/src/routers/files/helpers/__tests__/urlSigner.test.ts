@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from "bun:test";
 // ─── Mock: env ───────────────────────────────────────────────────────────────
 // urlSigner reads DOWNLOAD_SECRET at module load time; mock env before import.
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DOWNLOAD_SECRET: "test-secret-for-unit-tests",
 		SERVER_URL: "http://localhost:3000",

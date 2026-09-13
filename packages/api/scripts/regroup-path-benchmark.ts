@@ -7,7 +7,7 @@
 //   cd apps/server
 //   bun run ../../packages/api/scripts/regroup-path-benchmark.ts --library=29 --books=1000
 
-import { pool } from "@nanahoshi-v2/db";
+import { pool } from "@nanahoshi/db";
 import { regroupBookDuplicates } from "../src/modules/duplicateGrouping";
 import { bookRepository } from "../src/routers/books/book.repository";
 import { bookMetadataRepository } from "../src/routers/books/metadata/metadata.repository";

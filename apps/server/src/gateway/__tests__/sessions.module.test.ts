@@ -1,10 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { SessionsRevokedEvent } from "@nanahoshi-v2/api/routers/sessions/session.events";
+import type { SessionsRevokedEvent } from "@nanahoshi/api/routers/sessions/session.events";
 import type { GatewayConnection } from "../types";
 
 let subscriber: ((event: SessionsRevokedEvent) => void) | undefined;
 
-mock.module("@nanahoshi-v2/api/routers/sessions/session.events", () => ({
+mock.module("@nanahoshi/api/routers/sessions/session.events", () => ({
 	subscribeToSessionRevocations: (
 		_userId: string,
 		callback: (event: SessionsRevokedEvent) => void,

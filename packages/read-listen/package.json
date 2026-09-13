@@ -1,5 +1,5 @@
 {
-	"name": "@nanahoshi-v2/read-listen",
+	"name": "@nanahoshi/read-listen",
 	"private": true,
 	"type": "module",
 	"exports": {
@@ -12,7 +12,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@nanahoshi-v2/config": "workspace:*",
+		"@nanahoshi/config": "workspace:*",
 		"typescript": "^7.0.2"
 	}
 }

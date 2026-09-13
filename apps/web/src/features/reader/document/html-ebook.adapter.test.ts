@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EbookDocument, HtmlContent } from "@nanahoshi-v2/ebook-parser";
+import type { EbookDocument, HtmlContent } from "@nanahoshi/ebook-parser";
 import { JSDOM } from "jsdom";
 import { adaptHtmlEbook } from "./html-ebook.adapter";
 

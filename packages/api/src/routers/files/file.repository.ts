@@ -1,11 +1,11 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	audiobookMetadata,
 	book,
 	bookMetadata,
 	library,
 	libraryPath,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, sql } from "drizzle-orm";
 
 export class FileRepository {

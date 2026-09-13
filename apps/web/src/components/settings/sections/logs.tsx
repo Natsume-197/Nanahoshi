@@ -1,4 +1,4 @@
-import type { LogLevel, LogSource } from "@nanahoshi-v2/api/lib/log-buffer";
+import type { LogLevel, LogSource } from "@nanahoshi/api/lib/log-buffer";
 import {
 	ArrowDown,
 	ArrowElbowDownLeft,

@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
  */
 
 // Benign mocks so importing taskManager doesn't open Redis/queue connections.
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

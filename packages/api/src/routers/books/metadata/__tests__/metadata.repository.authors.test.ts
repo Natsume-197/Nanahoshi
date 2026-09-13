@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
  * dedupe in replaceBookAuthors and the hierarchical (asin > normalized name)
  * upsertAuthor flow.
  *
- * We mock `@nanahoshi-v2/db` but import the real schema so conflict targets
+ * We mock `@nanahoshi/db` but import the real schema so conflict targets
  * reference actual Drizzle column objects.
  *
  * Run with:
@@ -70,7 +70,7 @@ const mockDelete = mock(() =>
 	thenableChain(() => ({ rowCount: 1 }), ["where"]),
 );
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		select: mockSelect,
 		insert: mockInsert,
@@ -79,7 +79,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 	},
 }));
 
-const { author } = await import("@nanahoshi-v2/db/schema/general");
+const { author } = await import("@nanahoshi/db/schema/general");
 const { normalizePersonName } = await import("../../../_shared/person-name");
 const { bookMetadataRepository } = await import("../metadata.repository");
 

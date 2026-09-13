@@ -6,7 +6,7 @@
 //   cd apps/server && bun run ../../packages/api/scripts/query-benchmark.ts compare /tmp/baseline.json /tmp/after.json
 //   cd apps/server && bun run ../../packages/api/scripts/query-benchmark.ts clean
 
-import { pool } from "@nanahoshi-v2/db";
+import { pool } from "@nanahoshi/db";
 
 const ORG_ID = "qbench-org";
 const BOOKS = 40_000;

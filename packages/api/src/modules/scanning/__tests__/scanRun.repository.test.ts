@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { PgDialect } from "drizzle-orm/pg-core";
 
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
 
 const { ScanRunRepository, sanitizeScanFailure } = await import(
 	"../scanRun.repository"

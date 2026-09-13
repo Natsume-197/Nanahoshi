@@ -1,12 +1,12 @@
-import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { member } from "@nanahoshi/db/schema/auth";
 import {
 	author,
 	book,
 	collection,
 	library,
 	series,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { count, eq, sql } from "drizzle-orm";
 
 export class ServerStatsRepository {

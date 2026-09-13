@@ -1,4 +1,4 @@
-import type { ForUserOutput } from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
+import type { ForUserOutput } from "@nanahoshi/api/routers/recommendations/recommendations.model";
 import {
 	ArrowSquareOut,
 	BookmarkSimple,

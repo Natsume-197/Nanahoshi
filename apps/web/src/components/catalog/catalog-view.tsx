@@ -1,4 +1,4 @@
-import type { DynamicCollectionDefinitionV1 } from "@nanahoshi-v2/api/routers/collections/collection-rules";
+import type { DynamicCollectionDefinitionV1 } from "@nanahoshi/api/routers/collections/collection-rules";
 import { FunnelSimple } from "@phosphor-icons/react";
 import {
 	useInfiniteQuery,

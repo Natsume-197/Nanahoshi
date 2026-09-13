@@ -4,35 +4,35 @@ import {
 	canAccessBookActionInOrganization,
 	resolveBookScopeCached,
 	resolveLibraryAccess,
-} from "@nanahoshi-v2/api/auth/access.repository";
-import { hasGlobal } from "@nanahoshi-v2/api/auth/access.service";
-import { createContext } from "@nanahoshi-v2/api/context";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+} from "@nanahoshi/api/auth/access.repository";
+import { hasGlobal } from "@nanahoshi/api/auth/access.service";
+import { createContext } from "@nanahoshi/api/context";
+import { logger } from "@nanahoshi/api/lib/logger";
 import {
 	type DownloadDeliveryInput,
 	recordDownloadDeliveryEvent,
-} from "@nanahoshi-v2/api/modules/instance-activity/download-delivery";
-import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
+} from "@nanahoshi/api/modules/instance-activity/download-delivery";
+import { getAudioFile } from "@nanahoshi/api/routers/audiobooks/audiobook.service";
 import {
 	getDownloadPayload,
 	getSeriesZipDownloadPayload,
-} from "@nanahoshi-v2/api/routers/files/file.service";
+} from "@nanahoshi/api/routers/files/file.service";
 import {
 	createSeriesZipStream,
 	zipFilename,
-} from "@nanahoshi-v2/api/routers/files/helpers/seriesZip";
+} from "@nanahoshi/api/routers/files/helpers/seriesZip";
 import {
 	verifyAudioFileSignature,
 	verifyReaderSignature,
 	verifySeriesSignature,
 	verifySignature,
-} from "@nanahoshi-v2/api/routers/files/helpers/urlSigner";
+} from "@nanahoshi/api/routers/files/helpers/urlSigner";
 import {
 	parseBasicAuthKey,
 	resolveOrgFromApiKey,
-} from "@nanahoshi-v2/api/routers/opds/opds.auth";
-import { auth } from "@nanahoshi-v2/auth";
-import { getAuditRequestMetadata } from "@nanahoshi-v2/auth/security-audit";
+} from "@nanahoshi/api/routers/opds/opds.auth";
+import { auth } from "@nanahoshi/auth";
+import { getAuditRequestMetadata } from "@nanahoshi/auth/security-audit";
 import type { Hono } from "hono";
 import { attachmentContentDisposition } from "../lib/content-disposition";
 import { asBody } from "../lib/node-stream";

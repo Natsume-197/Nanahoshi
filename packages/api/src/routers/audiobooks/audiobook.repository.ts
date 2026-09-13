@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	audiobookAuthor,
 	audiobookChapter,
@@ -16,7 +16,7 @@ import {
 	publisher,
 	series,
 	tag,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, asc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { compareAudiobookSeriesEntries } from "../../modules/audiobookSeriesOrder";
 import { batchLoaderRepository } from "../_shared/batch-loaders";

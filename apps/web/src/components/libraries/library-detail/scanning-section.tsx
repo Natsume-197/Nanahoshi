@@ -1,4 +1,4 @@
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
+import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";

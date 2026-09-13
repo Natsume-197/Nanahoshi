@@ -1,4 +1,4 @@
-import type { MetadataProviderRouting } from "@nanahoshi-v2/db/schema/general";
+import type { MetadataProviderRouting } from "@nanahoshi/db/schema/general";
 
 // Per-field provider routing policy, shared by ebook and audiobook enrichment.
 //

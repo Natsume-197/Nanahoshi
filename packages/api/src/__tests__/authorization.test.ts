@@ -17,7 +17,7 @@ import { EventEmitter } from "node:events";
 // Must come before any module that reads env at import time
 // (redis, urlSigner, search.factory, etc.).
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
@@ -86,7 +86,7 @@ function createSelectChain() {
 	return chain;
 }
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: mock(() => {
 			const c: Record<string, unknown> = {};

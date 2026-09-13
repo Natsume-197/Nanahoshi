@@ -25,7 +25,7 @@ mock.module("node:fs/promises", () => ({
 	},
 }));
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
@@ -43,7 +43,7 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_PASS: "mock",
 	},
 }));
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
 
 const service = await import("../file.service");
 const { fileRepository } = await import("../file.repository");

@@ -1,4 +1,4 @@
-import type { book } from "@nanahoshi-v2/db/schema/general";
+import type { book } from "@nanahoshi/db/schema/general";
 import { z } from "zod";
 import { MetadataInfoSchema } from "./metadata/book.metadata.model";
 

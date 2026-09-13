@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/web";
+import { env } from "@nanahoshi/env/web";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";

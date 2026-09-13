@@ -1,4 +1,4 @@
-import type { auth as authInstance } from "@nanahoshi-v2/auth";
+import type { auth as authInstance } from "@nanahoshi/auth";
 import type { Context, MiddlewareHandler } from "hono";
 import {
 	getAccessibleLibraryIds,

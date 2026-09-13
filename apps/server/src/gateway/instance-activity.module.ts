@@ -1,8 +1,8 @@
 import {
 	publishInstanceActivity,
 	subscribeToInstanceActivity,
-} from "@nanahoshi-v2/api/modules/instance-activity/playback.manager";
-import { subscribeToSecurityAuditWrites } from "@nanahoshi-v2/auth/security-audit";
+} from "@nanahoshi/api/modules/instance-activity/playback.manager";
+import { subscribeToSecurityAuditWrites } from "@nanahoshi/auth/security-audit";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 /** Instance-global operations stream; only the application owner may attach. */

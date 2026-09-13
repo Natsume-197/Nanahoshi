@@ -1,4 +1,4 @@
-import type { ReadListenPairing } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
+import type { ReadListenPairing } from "@nanahoshi/api/routers/read-listen/read-listen.service";
 import { BookOpen, Headphones, Sparkle } from "@phosphor-icons/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";

@@ -13,7 +13,7 @@ import { describe, expect, mock, test } from "bun:test";
  * asserting the error code proves the guard short-circuited.
  */
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
@@ -30,7 +30,7 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 		SMTP_PASS: "mock",
 	},
 }));
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
 // presence.service (imported by the progress services) pulls presenceManager,
 // which opens Redis at import time. Stub the manager, not the service — the
 // service has its own dedicated tests and must stay the real module.

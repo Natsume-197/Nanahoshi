@@ -3,7 +3,7 @@ import {
 	ebookMediaType,
 	isSupportedEbookFormat,
 	type SupportedEbookFormat,
-} from "@nanahoshi-v2/ebook-parser/formats";
+} from "@nanahoshi/ebook-parser/formats";
 
 export type LibraryMediaType = "ebook" | "audiobook";
 

@@ -1,6 +1,6 @@
-import { createContext } from "@nanahoshi-v2/api/context";
-import { errorHandlerInterceptor } from "@nanahoshi-v2/api/lib/error-handler";
-import { appRouter } from "@nanahoshi-v2/api/routers/index";
+import { createContext } from "@nanahoshi/api/context";
+import { errorHandlerInterceptor } from "@nanahoshi/api/lib/error-handler";
+import { appRouter } from "@nanahoshi/api/routers/index";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { RPCHandler } from "@orpc/server/fetch";

@@ -1,9 +1,9 @@
-import { db } from "@nanahoshi-v2/db";
-import { session, user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { session, user } from "@nanahoshi/db/schema/auth";
 import {
 	downloadDeliveryEvent,
 	securityAuditEvent,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, desc, eq, ilike, lt } from "drizzle-orm";
 
 export class InstanceActivityRepository {

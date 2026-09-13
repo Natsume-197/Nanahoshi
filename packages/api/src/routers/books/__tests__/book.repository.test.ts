@@ -13,8 +13,8 @@ import { PgDialect } from "drizzle-orm/pg-core";
 /**
  * Unit tests for BookRepository.
  *
- * We mock `@nanahoshi-v2/db` (the Drizzle client) but import the real schema
- * from `@nanahoshi-v2/db/schema/general` so we can assert that the conflict
+ * We mock `@nanahoshi/db` (the Drizzle client) but import the real schema
+ * from `@nanahoshi/db/schema/general` so we can assert that the conflict
  * target references the actual Drizzle column objects.
  *
  * Run with:
@@ -101,7 +101,7 @@ const mockExecute = mock((query: SQL) => {
 	return Promise.resolve({ rows: executeResult });
 });
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: mockInsert,
 		select: mockSelect,
@@ -111,7 +111,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 }));
 
 // Mock env to prevent validation errors when the module graph pulls it in
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",
@@ -120,7 +120,7 @@ mock.module("@nanahoshi-v2/env/server", () => ({
 
 // ─── Import real schema + module under test ──────────────────────────────────
 
-const { book } = await import("@nanahoshi-v2/db/schema/general");
+const { book } = await import("@nanahoshi/db/schema/general");
 const { BookRepository } = await import("../book.repository");
 
 // Patch the metadata repository singleton in place (module mocks leak across

@@ -1,6 +1,6 @@
-import { configureImageConcurrency } from "@nanahoshi-v2/api/lib/image-concurrency";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { env } from "@nanahoshi-v2/env/server";
+import { configureImageConcurrency } from "@nanahoshi/api/lib/image-concurrency";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { env } from "@nanahoshi/env/server";
 import type { RuntimeInitializer } from "./types";
 
 /**

@@ -19,11 +19,11 @@ const mockExecute = mock(() =>
 	Promise.resolve(executeQueue.shift() ?? { rows: [] }),
 );
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { execute: mockExecute },
 }));
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

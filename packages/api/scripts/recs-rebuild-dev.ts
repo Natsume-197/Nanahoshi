@@ -2,8 +2,8 @@
 // in apps/server/.env, twice (second run should skip via fingerprints).
 //   cd apps/server && bun run ../../packages/api/scripts/recs-rebuild-dev.ts [--full]
 
-import { pool } from "@nanahoshi-v2/db";
-import { runMigrations } from "@nanahoshi-v2/db/migrate";
+import { pool } from "@nanahoshi/db";
+import { runMigrations } from "@nanahoshi/db/migrate";
 import { rebuildServer } from "../src/modules/recommendations/rebuild.service";
 import { recommendationComputeRepository } from "../src/modules/recommendations/recommendation-compute.repository";
 

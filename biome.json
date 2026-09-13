@@ -92,7 +92,7 @@
 			}
 		},
 		{
-			"includes": ["**/components/reader/reader.css"],
+			"includes": ["apps/web/src/features/reader/ui/styles/reader.css"],
 			"linter": {
 				"rules": {
 					"complexity": {

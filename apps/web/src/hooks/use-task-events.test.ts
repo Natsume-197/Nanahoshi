@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, spyOn, test } from "bun:test";
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 
 process.env.VITE_SERVER_URL ||= "http://localhost:3000";
 const { updateTasksInCache } = await import("./use-task-events");

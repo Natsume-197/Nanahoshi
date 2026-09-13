@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { user } from "@nanahoshi/db/schema/auth";
 import {
 	audiobookAuthor,
 	audiobookMetadata,
@@ -15,7 +15,7 @@ import {
 	readingProgress,
 	userAudiobookShelf,
 	userBookShelf,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import {
 	and,
 	asc,

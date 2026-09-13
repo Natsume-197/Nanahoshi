@@ -1,4 +1,4 @@
-import type { ReadListenAlignmentView } from "@nanahoshi-v2/api/routers/read-listen/read-listen.service";
+import type { ReadListenAlignmentView } from "@nanahoshi/api/routers/read-listen/read-listen.service";
 
 /** Repairs pairings persisted before the alignment lifecycle was introduced. */
 export function resolveReadListenAlignment(

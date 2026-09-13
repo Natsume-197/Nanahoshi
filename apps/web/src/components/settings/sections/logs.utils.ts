@@ -2,7 +2,7 @@ import type {
 	LogEntry,
 	LogLevel,
 	LogSource,
-} from "@nanahoshi-v2/api/lib/log-buffer";
+} from "@nanahoshi/api/lib/log-buffer";
 
 export function normalizeLogSource(source: unknown): LogSource {
 	return source === "worker" ? "worker" : "server";

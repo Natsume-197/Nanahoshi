@@ -2,7 +2,7 @@ import {
 	isSupportedExtension,
 	MAX_UPLOAD_BATCH_BYTES,
 	MAX_UPLOAD_BYTES,
-} from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+} from "@nanahoshi/api/modules/scanning/supportedExtensions";
 
 /**
  * One row of the upload list. `pending` and `failed` are the only statuses that

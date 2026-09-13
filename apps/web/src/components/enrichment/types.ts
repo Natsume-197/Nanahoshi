@@ -1,4 +1,4 @@
-import type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/api/routers/enrichment/enrichment.model";
+import type { UnresolvedEnrichmentDecision } from "@nanahoshi/api/routers/enrichment/enrichment.model";
 import type { EnrichmentLifecycle as Lifecycle } from "./filters";
 import type { EnrichmentStatus } from "./lifecycle";
 import type { resolveRetryView } from "./retry-view";

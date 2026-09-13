@@ -1,4 +1,4 @@
-import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
+import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
 import { orpc } from "@/utils/orpc";
 
 // Ranking depth for the compact header dropdown. The full search page uses the

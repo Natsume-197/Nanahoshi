@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { scannedFile } from "@nanahoshi-v2/db/schema/general";
+import type { scannedFile } from "@nanahoshi/db/schema/general";
 import { scanQueueBudget } from "../../lib/worker-budget";
 import { planJobs, throwIfTaskCancelled } from "../taskManager";
 import {

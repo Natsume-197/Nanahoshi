@@ -1,4 +1,4 @@
-import { subscribeToSessionRevocations } from "@nanahoshi-v2/api/routers/sessions/session.events";
+import { subscribeToSessionRevocations } from "@nanahoshi/api/routers/sessions/session.events";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 export const sessionsModule: GatewayModule = {

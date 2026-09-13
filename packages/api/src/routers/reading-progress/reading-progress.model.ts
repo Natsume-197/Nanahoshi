@@ -1,4 +1,4 @@
-import type { readingProgress } from "@nanahoshi-v2/db/schema/general";
+import type { readingProgress } from "@nanahoshi/db/schema/general";
 import { z } from "zod";
 import { READING_STATUSES } from "../../constants";
 

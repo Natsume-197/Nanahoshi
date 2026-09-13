@@ -1,4 +1,4 @@
-import type { EnrichmentStatus } from "@nanahoshi-v2/db/schema/general";
+import type { EnrichmentStatus } from "@nanahoshi/db/schema/general";
 import type { JobsOptions } from "bullmq";
 import { metadataEnrichQueue } from "../../infrastructure/queue/queues/metadata-enrich.queue";
 

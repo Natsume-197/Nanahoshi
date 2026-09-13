@@ -1,5 +1,5 @@
-import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
-import type { TopResultPools } from "@nanahoshi-v2/api/routers/search/search.ranking";
+import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
+import type { TopResultPools } from "@nanahoshi/api/routers/search/search.ranking";
 import {
 	BookOpen,
 	Books,

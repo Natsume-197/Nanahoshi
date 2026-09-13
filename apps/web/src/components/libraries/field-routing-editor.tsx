@@ -1,5 +1,5 @@
-import { AUDIOBOOK_PROVIDER_MANIFEST } from "@nanahoshi-v2/api/routers/audiobooks/metadata/providers/provider.manifest";
-import { BOOK_PROVIDER_MANIFEST } from "@nanahoshi-v2/api/routers/books/metadata/providers/provider.manifest";
+import { AUDIOBOOK_PROVIDER_MANIFEST } from "@nanahoshi/api/routers/audiobooks/metadata/providers/provider.manifest";
+import { BOOK_PROVIDER_MANIFEST } from "@nanahoshi/api/routers/books/metadata/providers/provider.manifest";
 import {
 	ArrowCounterClockwise,
 	ArrowsClockwise,

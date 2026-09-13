@@ -1,5 +1,5 @@
 {
-	"name": "@nanahoshi-v2/ebook-parser",
+	"name": "@nanahoshi/ebook-parser",
 	"private": true,
 	"type": "module",
 	"exports": {
@@ -22,7 +22,7 @@
 		"node-stream-zip": "^1.16.0"
 	},
 	"devDependencies": {
-		"@nanahoshi-v2/config": "workspace:*",
+		"@nanahoshi/config": "workspace:*",
 		"@types/bun": "^1.4.0",
 		"typescript": "^7.0.2"
 	}

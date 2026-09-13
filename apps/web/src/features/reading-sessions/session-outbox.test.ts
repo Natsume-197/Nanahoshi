@@ -1,6 +1,6 @@
 import "@/test-utils/setup-dom";
 import { afterEach, expect, test } from "bun:test";
-import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 import {
 	acknowledgeSession,
 	pendingSessions,

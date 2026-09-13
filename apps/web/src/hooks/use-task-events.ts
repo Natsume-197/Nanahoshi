@@ -1,6 +1,6 @@
-import type { Task } from "@nanahoshi-v2/api/modules/taskManager";
+import type { Task } from "@nanahoshi/api/modules/taskManager";
 // Pure data module (no server-only imports), safe to pull into the web bundle.
-import { CONTENT_TASK_TYPES } from "@nanahoshi-v2/api/modules/tasks/task-registry";
+import { CONTENT_TASK_TYPES } from "@nanahoshi/api/modules/tasks/task-registry";
 import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { orpc, queryClient } from "@/utils/orpc";
 import {

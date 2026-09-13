@@ -11,7 +11,7 @@ import {
 // ─── Mocks must be registered before importing the module under test ─────────
 
 // Mock env to prevent validation errors
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

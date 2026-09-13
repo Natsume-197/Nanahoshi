@@ -1,4 +1,4 @@
-name: nanahoshi-v2
+name: nanahoshi
 
 services:
   server:
@@ -6,7 +6,7 @@ services:
     image: ghcr.io/natsume-197/nanahoshi:latest
     restart: unless-stopped
     env_file: .env
-    ports: ["3000:3000"]
+    ports: ["${APP_PORT:-7331}:3000"]
     volumes:
       - server_data:/app/apps/server/data
       - ./books:/books:ro
@@ -20,7 +20,7 @@ services:
     shm_size: 256mb
     command: ["postgres", "-c", "shared_buffers=256MB", "-c", "jit=off"]
     environment:
-      POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
+      POSTGRES_DB: ${DB_NAME:-nanahoshi}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: ["postgres_data:/var/lib/postgresql"]

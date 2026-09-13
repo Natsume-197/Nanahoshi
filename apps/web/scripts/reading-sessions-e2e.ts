@@ -2,7 +2,7 @@
 // Run: READER_E2E_BROWSER=/path/to/chrome bun scripts/reading-sessions-e2e.ts
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import type { SessionUpload } from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 import { chromium, type Page } from "playwright-core";
 
 const artifacts =

@@ -1,4 +1,4 @@
-import { subscribeToRecommendationEvents } from "@nanahoshi-v2/api/modules/recommendations/recommendation.events";
+import { subscribeToRecommendationEvents } from "@nanahoshi/api/modules/recommendations/recommendation.events";
 import type { GatewayConnection, GatewayModule } from "./types";
 
 // Live "your feed was recomputed" pushes. Routing is per userId (interest

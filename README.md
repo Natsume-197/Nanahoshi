@@ -15,7 +15,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 2. Inside create `docker-compose.yml` with this content:
 
    ```yml
-   name: nanahoshi-v2
+   name: nanahoshi
 
    services:
      server:
@@ -23,7 +23,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
        image: ghcr.io/natsume-197/nanahoshi:latest
        restart: unless-stopped
        env_file: .env
-       ports: ["3000:3000"]
+       ports: ["${APP_PORT:-7331}:3000"]
        volumes:
          - server_data:/app/apps/server/data
          - ./books:/books:ro
@@ -37,7 +37,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
        shm_size: 256mb
        command: ["postgres", "-c", "shared_buffers=256MB", "-c", "jit=off"]
        environment:
-         POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
+         POSTGRES_DB: ${DB_NAME:-nanahoshi}
          POSTGRES_USER: ${DB_USER:-postgres}
          POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
        volumes: ["postgres_data:/var/lib/postgresql"]
@@ -72,7 +72,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
    docker compose up -d
    ```
 
-Open your configured URL (default `http://localhost:3000`), create your account and add a library.
+Open your configured URL (default `http://localhost:7331`), create your account and add a library.
 
 ## Local development
 
@@ -82,15 +82,18 @@ Requirements: Bun 1.4.0, Docker and Docker Compose.
 cp .env.example apps/server/.env
 # Fill every REQUIRED value in apps/server/.env and set:
 # ENVIRONMENT=development, DB_HOST=127.0.0.1, REDIS_HOST=127.0.0.1
-# CORS_ORIGIN=http://localhost:3001
+# CORS_ORIGIN=http://nanahoshi-dev.localhost:7332, PORT=7333
+# SERVER_URL=http://nanahoshi-dev.localhost:7333
+# BETTER_AUTH_URL=http://nanahoshi-dev.localhost:7333
+# DB_PORT=55432, REDIS_PORT=56379
 bun install --frozen-lockfile
 bun run infra:up
 bun run db:migrate
-VITE_SERVER_URL=http://localhost:3000 bun run dev
+VITE_SERVER_URL=http://nanahoshi-dev.localhost:7333 bun run dev
 ```
 
-The web application is available at `http://localhost:3001` and the API at
-`http://localhost:3000` with the example defaults. The first account created on
+The web application is available at `http://nanahoshi-dev.localhost:7332` and the API at
+`http://nanahoshi-dev.localhost:7333` with the development settings above. The first account created on
 a fresh installation becomes the instance administrator.
 
 ## Contribution and attribution

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type {
 	MixRow,
 	RecommendationItem,
-} from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
+} from "@nanahoshi/api/routers/recommendations/recommendations.model";
 import { mergeRecommendationMixes } from "./recommendation-mixes-utils";
 
 function item(

@@ -1,11 +1,11 @@
 import { apiKey } from "@better-auth/api-key";
-import { db } from "@nanahoshi-v2/db";
-import * as schema from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import * as schema from "@nanahoshi/db/schema/auth";
 import {
 	discordAccessRule,
 	invitationLink,
-} from "@nanahoshi-v2/db/schema/general";
-import { env } from "@nanahoshi-v2/env/server";
+} from "@nanahoshi/db/schema/general";
+import { env } from "@nanahoshi/env/server";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, getOAuthState } from "better-auth/api";

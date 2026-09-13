@@ -1,8 +1,8 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	appSettings,
 	organizationSettings,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
 export class SettingsRepository {

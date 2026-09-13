@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 /**
  * Unit tests for ServerProfileRepository.deleteServer.
  *
- * Mocks `@nanahoshi-v2/db`; the delete chain captures its `where` argument so
+ * Mocks `@nanahoshi/db`; the delete chain captures its `where` argument so
  * we can assert the deletion targets the organization row.
  *
  * Run with:
@@ -23,11 +23,11 @@ const mockDelete = mock((table: unknown) => {
 	};
 });
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { delete: mockDelete },
 }));
 
-const { organization } = await import("@nanahoshi-v2/db/schema/auth");
+const { organization } = await import("@nanahoshi/db/schema/auth");
 const { serverProfileRepository } = await import(
 	"../server-profile.repository"
 );

@@ -1,9 +1,9 @@
-import { recordSecurityAuditEvent } from "@nanahoshi-v2/auth/security-audit";
-import { db } from "@nanahoshi-v2/db";
+import { recordSecurityAuditEvent } from "@nanahoshi/auth/security-audit";
+import { db } from "@nanahoshi/db";
 import {
 	downloadDeliveryEvent,
 	securityAuditEvent,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { lt } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import {

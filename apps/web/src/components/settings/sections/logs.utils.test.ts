@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { LogEntry } from "@nanahoshi-v2/api/lib/log-buffer";
+import type { LogEntry } from "@nanahoshi/api/lib/log-buffer";
 import {
 	filterLogEntries,
 	formatLogContext,

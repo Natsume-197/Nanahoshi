@@ -1,4 +1,4 @@
-import type { LibraryComplete } from "@nanahoshi-v2/api/routers/libraries/library.model";
+import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {

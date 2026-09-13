@@ -1,6 +1,6 @@
-import { auth } from "@nanahoshi-v2/auth";
-import { getRegistrationSettings } from "@nanahoshi-v2/auth/registration-settings";
-import { env } from "@nanahoshi-v2/env/server";
+import { auth } from "@nanahoshi/auth";
+import { getRegistrationSettings } from "@nanahoshi/auth/registration-settings";
+import { env } from "@nanahoshi/env/server";
 import { ensureDefaultRole } from "../auth/access.repository";
 import { InternalServerError } from "../errors";
 import { publicProcedure } from "../index";

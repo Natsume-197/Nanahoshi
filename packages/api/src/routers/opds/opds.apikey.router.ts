@@ -1,4 +1,4 @@
-import { auth } from "@nanahoshi-v2/auth";
+import { auth } from "@nanahoshi/auth";
 import { hasGlobal } from "../../auth/access.service";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { orgReadProcedure, requirePermission } from "../../index";

@@ -1,4 +1,4 @@
-import { auth } from "@nanahoshi-v2/auth";
+import { auth } from "@nanahoshi/auth";
 import { invalidatePermissionCaches } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { checkDiscordAccess } from "../../lib/discord-access";

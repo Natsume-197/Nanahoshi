@@ -6,7 +6,7 @@ import {
 	logBuffer,
 } from "./log-buffer";
 
-const REDIS_LOG_KEY = "nanahoshi-v2:logs:v1";
+const REDIS_LOG_KEY = "nanahoshi:logs:v1";
 const FLUSH_DELAY_MS = 100;
 
 const pending: LogEntry[] = [];

@@ -1,16 +1,15 @@
-name: nanahoshi-v2
+name: nanahoshi-dev
 
 services:
   # ── Infrastructure ─────────────────────────────────────────────────
   postgres:
     image: groonga/pgroonga:4.0.8-alpine-18
-    container_name: nanahoshi-v2-postgres
     environment:
-      POSTGRES_DB: ${DB_NAME:-nanahoshi-v2}
+      POSTGRES_DB: ${DB_NAME:-nanahoshi}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -22,10 +21,9 @@ services:
 
   redis:
     image: redis:8.10.1-alpine
-    container_name: nanahoshi-v2-redis
     command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-56379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s

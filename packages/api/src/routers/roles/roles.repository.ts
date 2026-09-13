@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
-import { memberRole, role } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member } from "@nanahoshi/db/schema/auth";
+import { memberRole, role } from "@nanahoshi/db/schema/general";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 import type { PermissionMap } from "../../auth/permissions.catalog";
 

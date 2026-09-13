@@ -19,13 +19,13 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 
 // ─── Mocks: infrastructure (before any real module import) ──────────────────
 
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
 // Re-export all real schema exports to prevent mock pollution across files.
-const realSchema = await import("@nanahoshi-v2/db/schema/general");
-mock.module("@nanahoshi-v2/db/schema/general", () => ({ ...realSchema }));
+const realSchema = await import("@nanahoshi/db/schema/general");
+mock.module("@nanahoshi/db/schema/general", () => ({ ...realSchema }));
 
 // Real repositories/services in this file's import graph pull env in.
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

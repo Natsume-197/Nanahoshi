@@ -1,4 +1,4 @@
-import type { AppRouter } from "@nanahoshi-v2/api/routers/index";
+import type { AppRouter } from "@nanahoshi/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";

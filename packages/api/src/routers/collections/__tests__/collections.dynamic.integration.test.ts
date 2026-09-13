@@ -4,7 +4,7 @@ import type { DynamicCollectionDefinitionV1 } from "../collection-rules";
 const enabled = process.env.DYNAMIC_COLLECTION_INTEGRATION === "1";
 
 describe.skipIf(!enabled)("Dynamic Collections integration", () => {
-	let db: typeof import("@nanahoshi-v2/db").db;
+	let db: typeof import("@nanahoshi/db").db;
 	let sql: typeof import("drizzle-orm").sql;
 	let repository: typeof import("../collections.repository").collectionsRepository;
 	const orgId = `dynamic-it-${crypto.randomUUID()}`;
@@ -14,12 +14,12 @@ describe.skipIf(!enabled)("Dynamic Collections integration", () => {
 	let firstBookId: number;
 
 	beforeAll(async () => {
-		({ db } = await import("@nanahoshi-v2/db"));
+		({ db } = await import("@nanahoshi/db"));
 		({ sql } = await import("drizzle-orm"));
 		({ collectionsRepository: repository } = await import(
 			"../collections.repository"
 		));
-		const { runMigrations } = await import("@nanahoshi-v2/db/migrate");
+		const { runMigrations } = await import("@nanahoshi/db/migrate");
 		await runMigrations();
 		await db.execute(
 			sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${orgId}, 'dynamic-it', ${orgId}, now())`,

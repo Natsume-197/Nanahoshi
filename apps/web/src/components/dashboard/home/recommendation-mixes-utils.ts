@@ -1,7 +1,7 @@
 import type {
 	MixRow,
 	RecommendationItem,
-} from "@nanahoshi-v2/api/routers/recommendations/recommendations.model";
+} from "@nanahoshi/api/routers/recommendations/recommendations.model";
 
 function appendRoundRobin(
 	mixes: MixRow[],

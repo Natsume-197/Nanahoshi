@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { narrator } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { narrator } from "@nanahoshi/db/schema/general";
 import { and, eq, type SQL, sql } from "drizzle-orm";
 import {
 	accessiblePredicateSql,

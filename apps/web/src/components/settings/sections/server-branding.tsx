@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/web";
+import { env } from "@nanahoshi/env/web";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";

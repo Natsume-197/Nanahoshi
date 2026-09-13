@@ -1,5 +1,5 @@
 import os from "node:os";
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { Pool } from "pg";
 import { logger } from "../../lib/logger";
 import {

@@ -6,7 +6,7 @@ const where = mock((_condition: Parameters<PgDialect["sqlToQuery"]>[0]) =>
 );
 const set = mock((_values: Record<string, unknown>) => ({ where }));
 const update = mock(() => ({ set }));
-mock.module("@nanahoshi-v2/db", () => ({ db: { update } }));
+mock.module("@nanahoshi/db", () => ({ db: { update } }));
 const { scannedFileRepository } = await import("../scannedFile.repository");
 
 beforeEach(() => {

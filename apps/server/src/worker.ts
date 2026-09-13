@@ -1,9 +1,9 @@
 import os from "node:os";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
+import { logger } from "@nanahoshi/api/lib/logger";
 import {
 	runtimeCpuCapacity,
 	runtimeWorkerCpuBudget,
-} from "@nanahoshi-v2/env/resources";
+} from "@nanahoshi/env/resources";
 import {
 	runInitializers,
 	runShutdownInitializers,

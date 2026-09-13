@@ -105,7 +105,8 @@ describe("reader layout", () => {
 					</div>
 				</div>
 			`);
-			const spacer = dom.window.document.querySelector(".h-valign-width")!;
+			const spacer = dom.window.document.querySelector(".h-valign-width");
+			if (!spacer) throw new Error("Missing vertical alignment spacer");
 			expect(dom.window.getComputedStyle(spacer).display).toBe(expected);
 			dom.window.close();
 		}

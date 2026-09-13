@@ -17,14 +17,16 @@ Create a folder and save these two files in it:
 Edit `.env` with your public URL:
 
 ```dotenv
-APP_URL=http://localhost:3000
+APP_PORT=7331
+APP_URL=http://localhost:7331
 ```
 
 In `docker-compose.yml`, replace `./books` in `./books:/books:ro` with your host
-book directory. The left side of `3000:3000` selects the host port.
+book directory. `APP_PORT` selects the host port; the container continues to use
+its internal port `3000`.
 
 For access from a phone or another computer, set `APP_URL` to your server's LAN
-address, for example `http://192.168.1.20:3000`. Changing the port also requires
+address, for example `http://192.168.1.20:7331`. Changing `APP_PORT` also requires
 changing the port in `APP_URL`. Use the configured URL to access the application.
 Paths containing spaces are supported. Both application and worker receive the
 same book directory at `/books`.

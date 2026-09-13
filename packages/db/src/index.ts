@@ -1,5 +1,5 @@
-import { runtimeWorkerCpuBudget } from "@nanahoshi-v2/env/resources";
-import { env } from "@nanahoshi-v2/env/server";
+import { runtimeWorkerCpuBudget } from "@nanahoshi/env/resources";
+import { env } from "@nanahoshi/env/server";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 

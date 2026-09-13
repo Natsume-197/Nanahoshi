@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	audiobookMetadata,
 	author,
@@ -11,7 +11,7 @@ import {
 	libraryPath,
 	publisher,
 	series,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import {
 	and,
 	asc,

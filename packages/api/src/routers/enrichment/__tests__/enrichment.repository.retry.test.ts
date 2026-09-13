@@ -55,7 +55,7 @@ function selectChain() {
 	return chain;
 }
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: mock(insertChain),
 		update: mock(updateChain),

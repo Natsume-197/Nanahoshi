@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { member, user } from "@nanahoshi/db/schema/auth";
 import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
 
 export class UsersRepository {

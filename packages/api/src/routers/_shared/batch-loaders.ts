@@ -1,11 +1,11 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	audiobookAuthor,
 	author,
 	bookAuthor,
 	bookNarrator,
 	narrator,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { eq, inArray } from "drizzle-orm";
 
 export type AuthorInfo = {

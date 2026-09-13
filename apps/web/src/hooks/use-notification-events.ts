@@ -1,6 +1,6 @@
-import { CONTENT_TASK_TYPES } from "@nanahoshi-v2/api/modules/tasks/task-registry";
-import type { NotificationPushEvent } from "@nanahoshi-v2/api/routers/notifications/notification.events";
-import type { NotificationData } from "@nanahoshi-v2/api/routers/notifications/notification.model";
+import { CONTENT_TASK_TYPES } from "@nanahoshi/api/modules/tasks/task-registry";
+import type { NotificationPushEvent } from "@nanahoshi/api/routers/notifications/notification.events";
+import type { NotificationData } from "@nanahoshi/api/routers/notifications/notification.model";
 import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { orpc, queryClient } from "@/utils/orpc";
 

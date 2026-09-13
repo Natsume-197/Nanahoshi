@@ -1,7 +1,7 @@
 import type {
 	EnrichmentDecision,
 	EnrichmentStatus,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { type SQL, sql } from "drizzle-orm";
 import { MAX_PROVIDER_RETRY_ATTEMPTS } from "../metadataRetry/metadata-retry.policy";
 

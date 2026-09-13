@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MAX_UPLOAD_REQUEST_BYTES } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+import { MAX_UPLOAD_REQUEST_BYTES } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import { withHttpRequestLimits } from "../http-options";
 
 test("raises Bun's request limit high enough for an allowed multipart upload", () => {

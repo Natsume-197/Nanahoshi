@@ -52,7 +52,7 @@ const transaction = mock(
 	},
 );
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		select,
 		transaction,
@@ -64,7 +64,7 @@ mock.module("@nanahoshi-v2/db", () => ({
 }));
 
 const { readListenMatchEvaluation } = await import(
-	"@nanahoshi-v2/db/schema/general"
+	"@nanahoshi/db/schema/general"
 );
 const { ReadListenRepository } = await import("../read-listen.repository");
 

@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import { appSettings } from "../schema/general";
 
 export async function firstSeed() {

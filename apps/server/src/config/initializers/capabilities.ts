@@ -1,6 +1,6 @@
-import { checkFfprobeAvailable } from "@nanahoshi-v2/api/modules/audioProbe";
-import { checkEbookConvertAvailable } from "@nanahoshi-v2/api/modules/calibre";
-import { checkPsqlAvailable } from "@nanahoshi-v2/api/modules/ranobedb/ranobedb.import";
+import { checkFfprobeAvailable } from "@nanahoshi/api/modules/audioProbe";
+import { checkEbookConvertAvailable } from "@nanahoshi/api/modules/calibre";
+import { checkPsqlAvailable } from "@nanahoshi/api/modules/ranobedb/ranobedb.import";
 import type { RuntimeInitializer } from "./types";
 
 export const capabilitiesInitializer: RuntimeInitializer = {

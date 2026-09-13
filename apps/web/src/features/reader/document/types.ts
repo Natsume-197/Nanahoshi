@@ -1,5 +1,5 @@
-import type { EbookPresentation } from "@nanahoshi-v2/ebook-parser";
-import type { SupportedEbookFormat } from "@nanahoshi-v2/ebook-parser/formats";
+import type { EbookPresentation } from "@nanahoshi/ebook-parser";
+import type { SupportedEbookFormat } from "@nanahoshi/ebook-parser/formats";
 
 export interface Section {
 	reference: string;

@@ -1,4 +1,4 @@
-import type { userAudiobookShelf } from "@nanahoshi-v2/db/schema/general";
+import type { userAudiobookShelf } from "@nanahoshi/db/schema/general";
 import { z } from "zod";
 import { AUDIOBOOK_SHELF_STATUSES } from "../../constants";
 

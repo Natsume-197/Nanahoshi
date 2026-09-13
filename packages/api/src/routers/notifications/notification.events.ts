@@ -1,4 +1,4 @@
-import type { Notification } from "@nanahoshi-v2/db/schema/general";
+import type { Notification } from "@nanahoshi/db/schema/general";
 import {
 	addToBucket,
 	lazySubscriber,

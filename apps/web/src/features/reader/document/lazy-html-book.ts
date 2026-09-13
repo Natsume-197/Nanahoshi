@@ -1,4 +1,4 @@
-import type { EbookDocument, HtmlContent } from "@nanahoshi-v2/ebook-parser";
+import type { EbookDocument, HtmlContent } from "@nanahoshi/ebook-parser";
 import {
 	type FormattedBookHtml,
 	formatBookDataHtml,

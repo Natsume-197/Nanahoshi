@@ -17,7 +17,7 @@ jobs:
     name: Code checks & unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Dummy values so @nanahoshi-v2/env/server validates at import time. Tests
+    # Dummy values so @nanahoshi/env/server validates at import time. Tests
     # mock all real infra (DB, Redis, SMTP); these only satisfy the schema so
     # module-eval doesn't throw. Not secrets — do not use in production.
     env:

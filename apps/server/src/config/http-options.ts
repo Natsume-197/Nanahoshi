@@ -1,4 +1,4 @@
-import { MAX_UPLOAD_REQUEST_BYTES } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
+import { MAX_UPLOAD_REQUEST_BYTES } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 
 /**
  * Bun rejects oversized bodies before Hono can add CORS headers or a JSON

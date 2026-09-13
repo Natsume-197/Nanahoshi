@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { appSettings } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { appSettings } from "@nanahoshi/db/schema/general";
 import { eq } from "drizzle-orm";
 import {
 	normalizeRegistrationSettings,

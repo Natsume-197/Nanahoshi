@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { ForbiddenError, InternalServerError } from "../errors";
 import { discordAccessRepository } from "./discord-access.repository";
 

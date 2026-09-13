@@ -1,4 +1,4 @@
-import { isOwnerRole } from "@nanahoshi-v2/api/auth/access.service";
+import { isOwnerRole } from "@nanahoshi/api/auth/access.service";
 import { Crown, DotsThree, Shield, UserMinus } from "@phosphor-icons/react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";

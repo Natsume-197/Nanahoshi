@@ -1,6 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { member } from "@nanahoshi-v2/db/schema/auth";
-import { bookMetadata } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member } from "@nanahoshi/db/schema/auth";
+import { bookMetadata } from "@nanahoshi/db/schema/general";
 import { asc, eq } from "drizzle-orm";
 import { search } from "../../infrastructure/search";
 import { authorRepository } from "../authors/author.repository";

@@ -1,4 +1,4 @@
-import type { ReadListenCue } from "@nanahoshi-v2/read-listen/manifest";
+import type { ReadListenCue } from "@nanahoshi/read-listen/manifest";
 
 type TextSegment = {
 	node: Text;

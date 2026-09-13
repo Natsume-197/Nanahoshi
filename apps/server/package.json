@@ -15,10 +15,10 @@
 	"dependencies": {
 		"@bull-board/api": "^9.5.0",
 		"@bull-board/hono": "^9.5.0",
-		"@nanahoshi-v2/api": "workspace:*",
-		"@nanahoshi-v2/auth": "workspace:*",
-		"@nanahoshi-v2/db": "workspace:*",
-		"@nanahoshi-v2/env": "workspace:*",
+		"@nanahoshi/api": "workspace:*",
+		"@nanahoshi/auth": "workspace:*",
+		"@nanahoshi/db": "workspace:*",
+		"@nanahoshi/env": "workspace:*",
 		"@orpc/openapi": "^1.15.0",
 		"@orpc/server": "^1.15.0",
 		"@orpc/zod": "^1.15.0",
@@ -26,7 +26,7 @@
 		"sharp": "^0.35.4"
 	},
 	"devDependencies": {
-		"@nanahoshi-v2/config": "workspace:*",
+		"@nanahoshi/config": "workspace:*",
 		"@types/bun": "^1.4.0",
 		"tsdown": "^0.22.14",
 		"typescript": "^7.0.2"

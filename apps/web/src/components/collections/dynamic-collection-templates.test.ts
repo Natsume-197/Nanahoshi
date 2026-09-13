@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DynamicCollectionDefinitionSchema } from "@nanahoshi-v2/api/routers/collections/collection-rules";
+import { DynamicCollectionDefinitionSchema } from "@nanahoshi/api/routers/collections/collection-rules";
 import {
 	DYNAMIC_COLLECTION_TEMPLATES,
 	emptyDynamicCollectionDefinition,

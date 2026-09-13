@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { userSettings } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { userSettings } from "@nanahoshi/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
 export class UserSettingsRepository {

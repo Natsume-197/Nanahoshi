@@ -5,7 +5,7 @@ import {
 	memoryCapacityFrom,
 	memoryUsageFrom,
 	workerCpuBudgetFromCapacity,
-} from "@nanahoshi-v2/env/resources";
+} from "@nanahoshi/env/resources";
 import {
 	clampToCpuBudget,
 	fileEventConcurrency,

@@ -2,7 +2,7 @@ import type {
 	EbookDocument,
 	HtmlContent,
 	HtmlNavigationItem,
-} from "@nanahoshi-v2/ebook-parser";
+} from "@nanahoshi/ebook-parser";
 import { formatStyleSheet } from "@/features/reader/document/processing/format-style-sheet";
 import { mapConcurrent } from "@/features/reader/document/processing/map-concurrent";
 import { recountBookData } from "@/features/reader/document/processing/recount-book-data";

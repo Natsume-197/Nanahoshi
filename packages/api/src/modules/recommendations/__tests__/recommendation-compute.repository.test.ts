@@ -8,7 +8,7 @@ const mockExecute = mock((query: unknown) => {
 	return Promise.resolve({ rows: [] });
 });
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { execute: mockExecute },
 }));
 

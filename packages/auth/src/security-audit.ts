@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { securityAuditEvent } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { securityAuditEvent } from "@nanahoshi/db/schema/general";
 
 export type SecurityAuditSource = "web" | "oauth" | "opds" | "api";
 export type SecurityAuditOutcome = "success" | "failure";

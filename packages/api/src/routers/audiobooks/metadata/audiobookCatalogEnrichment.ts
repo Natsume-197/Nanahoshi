@@ -1,4 +1,4 @@
-import type { UnresolvedEnrichmentDecision } from "@nanahoshi-v2/db/schema/general";
+import type { UnresolvedEnrichmentDecision } from "@nanahoshi/db/schema/general";
 import {
 	audiobookFilenameTitle,
 	cleanAudiobookTitle,

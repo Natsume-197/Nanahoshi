@@ -175,8 +175,8 @@ try {
 	}
 
 	const [{ db }, schema, drizzle, repositories] = await Promise.all([
-		import("@nanahoshi-v2/db"),
-		import("@nanahoshi-v2/db/schema/general"),
+		import("@nanahoshi/db"),
+		import("@nanahoshi/db/schema/general"),
 		import("drizzle-orm"),
 		import("../src/routers/libraries/library.repository"),
 	]);
@@ -345,8 +345,8 @@ try {
 		).catch(() => {});
 	}
 	if (temporaryLibraryId !== null) {
-		const { db } = await import("@nanahoshi-v2/db");
-		const { book, library } = await import("@nanahoshi-v2/db/schema/general");
+		const { db } = await import("@nanahoshi/db");
+		const { book, library } = await import("@nanahoshi/db/schema/general");
 		const { eq } = await import("drizzle-orm");
 		if (temporaryBookIds.size === 0) {
 			const books = await db
@@ -371,7 +371,7 @@ try {
 	await fs.rm(scratchDir, { recursive: true, force: true });
 	await fileEventQueue.close().catch(() => {});
 	await coverIngestQueue.close().catch(() => {});
-	await (await import("@nanahoshi-v2/db")).pool.end().catch(() => {});
+	await (await import("@nanahoshi/db")).pool.end().catch(() => {});
 	await (await import("../src/infrastructure/queue/redis")).redis
 		.quit()
 		.catch(() => {});

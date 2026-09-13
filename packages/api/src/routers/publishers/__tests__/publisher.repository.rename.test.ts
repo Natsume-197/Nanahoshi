@@ -39,11 +39,11 @@ function makeUpdateChain() {
 
 const tx = { select: mock(makeSelectChain), update: mock(makeUpdateChain) };
 
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: { transaction: (cb: (t: typeof tx) => unknown) => cb(tx) },
 }));
 
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

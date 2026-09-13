@@ -1,5 +1,5 @@
-import { db } from "@nanahoshi-v2/db";
-import { organization } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { organization } from "@nanahoshi/db/schema/auth";
 import { eq } from "drizzle-orm";
 import type { UpdateServerProfileInput } from "./server-profile.model";
 

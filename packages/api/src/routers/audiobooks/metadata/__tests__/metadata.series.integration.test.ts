@@ -47,7 +47,7 @@ describe.skipIf(!enabled)("audiobook series transactions and migration", () => {
 		await pool.query(
 			"INSERT INTO organization VALUES ('one'),('two'); INSERT INTO library VALUES (1,'one'); INSERT INTO book(id,filename,library_id) VALUES (1,'Slayers [B07BBHFJTX].m4b',1); INSERT INTO audiobook_metadata(book_id,title) VALUES (1,'Slayers2');",
 		);
-		mock.module("@nanahoshi-v2/db", () => ({ db: drizzle(pool) }));
+		mock.module("@nanahoshi/db", () => ({ db: drizzle(pool) }));
 		const { AudiobookMetadataRepository } = await import(
 			"../metadata.repository"
 		);

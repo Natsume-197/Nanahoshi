@@ -1,14 +1,14 @@
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
-import { coverIngestQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/cover-ingest.queue";
-import { fileEventQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/file-event.queue";
-import { metadataEnrichQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/metadata-enrich.queue";
-import { ranobedbImportQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/ranobedb-import.queue";
-import { recommendationsQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/recommendations.queue";
-import { scheduledScanQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/scheduled-scan.queue";
-import { sendToKindleQueue } from "@nanahoshi-v2/api/infrastructure/queue/queues/send-to-kindle.queue";
-import { auth } from "@nanahoshi-v2/auth";
+import { coverIngestQueue } from "@nanahoshi/api/infrastructure/queue/queues/cover-ingest.queue";
+import { fileEventQueue } from "@nanahoshi/api/infrastructure/queue/queues/file-event.queue";
+import { metadataEnrichQueue } from "@nanahoshi/api/infrastructure/queue/queues/metadata-enrich.queue";
+import { ranobedbImportQueue } from "@nanahoshi/api/infrastructure/queue/queues/ranobedb-import.queue";
+import { recommendationsQueue } from "@nanahoshi/api/infrastructure/queue/queues/recommendations.queue";
+import { scheduledScanQueue } from "@nanahoshi/api/infrastructure/queue/queues/scheduled-scan.queue";
+import { sendToKindleQueue } from "@nanahoshi/api/infrastructure/queue/queues/send-to-kindle.queue";
+import { auth } from "@nanahoshi/auth";
 import type { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 

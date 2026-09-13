@@ -1,4 +1,4 @@
-import { PERMISSIONS } from "@nanahoshi-v2/api/auth/permissions.catalog";
+import { PERMISSIONS } from "@nanahoshi/api/auth/permissions.catalog";
 import {
 	CaretRight,
 	DotsSixVertical,

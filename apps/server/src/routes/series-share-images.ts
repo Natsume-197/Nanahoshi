@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
-import { logger } from "@nanahoshi-v2/api/lib/logger";
-import { getCollectionSharePreview } from "@nanahoshi-v2/api/routers/collections/collections.service";
-import { getSeriesSharePreview } from "@nanahoshi-v2/api/routers/series/series.service";
+import { logger } from "@nanahoshi/api/lib/logger";
+import { getCollectionSharePreview } from "@nanahoshi/api/routers/collections/collections.service";
+import { getSeriesSharePreview } from "@nanahoshi/api/routers/series/series.service";
 import type { Hono } from "hono";
 import { ensureSeriesShareImage } from "../lib/series-share-image";
 

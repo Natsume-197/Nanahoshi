@@ -1,11 +1,11 @@
-import { db } from "@nanahoshi-v2/db";
-import { user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { user } from "@nanahoshi/db/schema/auth";
 import {
 	book,
 	bookMetadata,
 	library,
 	userBookShelf,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, count, desc, eq } from "drizzle-orm";
 import type { ListStatus } from "../../constants";
 import { batchLoaderRepository } from "../_shared/batch-loaders";

@@ -2,7 +2,7 @@
 //   bun run recs:evaluate --cases=50 --k=10
 //   bun run recs:evaluate --synthetic --cases=100 --k=10 --json
 
-import { pool } from "@nanahoshi-v2/db";
+import { pool } from "@nanahoshi/db";
 import { buildEmbeddingSpace } from "../src/modules/recommendations/candidate-generation";
 import {
 	evaluateHistoricalWalkForward,

@@ -1,4 +1,4 @@
-import { db } from "@nanahoshi-v2/db";
+import { db } from "@nanahoshi/db";
 import {
 	itemSimilarity,
 	userMix,
@@ -6,7 +6,7 @@ import {
 	userRecState,
 	workEmbedding,
 	workPopularity,
-} from "@nanahoshi-v2/db/schema/recommendations";
+} from "@nanahoshi/db/schema/recommendations";
 import { and, eq, sql } from "drizzle-orm";
 import type { PopularityEntry } from "./popularity";
 import { isGenericRecommendationTerm } from "./taxonomy";

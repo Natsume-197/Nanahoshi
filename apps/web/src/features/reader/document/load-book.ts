@@ -1,5 +1,5 @@
-import { ebookSourceFormatForFilename } from "@nanahoshi-v2/api/modules/scanning/supportedExtensions";
-import { openEbook, openEpubSource } from "@nanahoshi-v2/ebook-parser";
+import { ebookSourceFormatForFilename } from "@nanahoshi/api/modules/scanning/supportedExtensions";
+import { openEbook, openEpubSource } from "@nanahoshi/ebook-parser";
 import { readBlobWithProgress } from "@/features/reader/document/processing/fetch-with-progress";
 import type { ReaderSourceFormat } from "@/features/reader/document/types";
 import {

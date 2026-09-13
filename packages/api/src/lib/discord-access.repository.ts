@@ -1,6 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { account } from "@nanahoshi-v2/db/schema/auth";
-import { discordAccessRule } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { account } from "@nanahoshi/db/schema/auth";
+import { discordAccessRule } from "@nanahoshi/db/schema/general";
 import { and, eq } from "drizzle-orm";
 
 export class DiscordAccessRepository {

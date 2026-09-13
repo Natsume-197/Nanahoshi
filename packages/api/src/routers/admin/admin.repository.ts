@@ -1,6 +1,6 @@
-import { db } from "@nanahoshi-v2/db";
-import { member, organization, user } from "@nanahoshi-v2/db/schema/auth";
-import { book, library } from "@nanahoshi-v2/db/schema/general";
+import { db } from "@nanahoshi/db";
+import { member, organization, user } from "@nanahoshi/db/schema/auth";
+import { book, library } from "@nanahoshi/db/schema/general";
 import { count, eq } from "drizzle-orm";
 
 export class AdminRepository {

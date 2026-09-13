@@ -1,4 +1,4 @@
-import { env } from "@nanahoshi-v2/env/web";
+import { env } from "@nanahoshi/env/web";
 
 // One multiplexed WebSocket for the whole app. Features subscribe by namespace
 // (`presence` today, `chat` later) over this single connection. Unlike the

@@ -1,4 +1,4 @@
-import type { TopHit } from "@nanahoshi-v2/api/routers/search/search.model";
+import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
 import { Link } from "@tanstack/react-router";
 
 export function HitLink({

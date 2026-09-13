@@ -2,7 +2,7 @@ import {
 	ReadingSegmentInput,
 	type SessionUpload,
 	SyncReadingSessionInput,
-} from "@nanahoshi-v2/api/routers/reading-sessions/reading-sessions.model";
+} from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
 import { z } from "zod";
 
 const StoredSession = SyncReadingSessionInput.extend({

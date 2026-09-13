@@ -1,6 +1,6 @@
 import fs from "node:fs";
-import { db } from "@nanahoshi-v2/db";
-import { organization, user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { organization, user } from "@nanahoshi/db/schema/auth";
 import {
 	avatarsDir,
 	headersDir,

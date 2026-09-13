@@ -3,9 +3,9 @@ import { stat } from "node:fs/promises";
 import {
 	canAccessBookAction,
 	resolveBookScopeCached,
-} from "@nanahoshi-v2/api/auth/access.repository";
-import { createContext } from "@nanahoshi-v2/api/context";
-import { getAudioFile } from "@nanahoshi-v2/api/routers/audiobooks/audiobook.service";
+} from "@nanahoshi/api/auth/access.repository";
+import { createContext } from "@nanahoshi/api/context";
+import { getAudioFile } from "@nanahoshi/api/routers/audiobooks/audiobook.service";
 import type { Hono } from "hono";
 import { asBody } from "../lib/node-stream";
 

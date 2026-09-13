@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, mock, spyOn, test } from "bun:test";
 
-const realSchema = await import("@nanahoshi-v2/db/schema/general");
+const realSchema = await import("@nanahoshi/db/schema/general");
 
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
-mock.module("@nanahoshi-v2/db/schema/general", () => ({ ...realSchema }));
+mock.module("@nanahoshi/db", () => ({ db: {} }));
+mock.module("@nanahoshi/db/schema/general", () => ({ ...realSchema }));
 const metadataEnrichAddMock = mock(async () => {});
 mock.module("../../infrastructure/queue/queues/metadata-enrich.queue", () => ({
 	metadataEnrichQueue: { add: metadataEnrichAddMock },

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import type { PresenceEvent } from "../../../modules/presence/presence.types";
 
-mock.module("@nanahoshi-v2/db", () => ({ db: {} }));
-mock.module("@nanahoshi-v2/env/server", () => ({
+mock.module("@nanahoshi/db", () => ({ db: {} }));
+mock.module("@nanahoshi/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://mock",
 		NAMESPACE_UUID: "00000000-0000-0000-0000-000000000000",

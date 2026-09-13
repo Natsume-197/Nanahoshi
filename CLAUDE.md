@@ -130,16 +130,16 @@ Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` dir
 - `packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts` — library scanner (scan phases, upsert behavior, job creation, scoping by libraryPathId)
 - `packages/api/src/routers/books/__tests__/book.repository.test.ts` — book repository (insert, conflict handling, composite unique key, deletion)
 
-**Mocking pattern:** Tests mock Drizzle's chainable query builder (`db.insert().values().onConflictDoUpdate()`) by returning objects whose methods return `this` and that resolve to configurable arrays when awaited. External modules (`@nanahoshi-v2/db`, queues, filesystem) are mocked via `mock.module()` before the module under test is dynamically imported.
+**Mocking pattern:** Tests mock Drizzle's chainable query builder (`db.insert().values().onConflictDoUpdate()`) by returning objects whose methods return `this` and that resolve to configurable arrays when awaited. External modules (`@nanahoshi/db`, queues, filesystem) are mocked via `mock.module()` before the module under test is dynamically imported.
 
-**Important:** When mocking `@nanahoshi-v2/db/schema/general`, re-export all real schema exports (`...realSchema`) to prevent mock pollution across test files that share the same Bun process.
+**Important:** When mocking `@nanahoshi/db/schema/general`, re-export all real schema exports (`...realSchema`) to prevent mock pollution across test files that share the same Bun process.
 
 ## Key Conventions
 
 - **Package manager**: Bun (not npm/yarn). Use `bun add`, `bun install`.
 - **Linter/Formatter**: Biome with tabs for indentation and double quotes for JS strings.
-- **Type safety**: oRPC provides end-to-end type safety between `packages/api` and `apps/web` — the frontend imports `AppRouter` type from `@nanahoshi-v2/api/routers/index`.
-- **Workspace imports**: Packages reference each other via `workspace:*` aliases (e.g., `@nanahoshi-v2/api`, `@nanahoshi-v2/db`).
+- **Type safety**: oRPC provides end-to-end type safety between `packages/api` and `apps/web` — the frontend imports `AppRouter` type from `@nanahoshi/api/routers/index`.
+- **Workspace imports**: Packages reference each other via `workspace:*` aliases (e.g., `@nanahoshi/api`, `@nanahoshi/db`).
 - **Catalog**: Shared dependency versions are defined in the root `package.json` `workspaces.catalog` field and referenced with `catalog:` in individual `package.json` files.
 
 ## No useEffect Rule

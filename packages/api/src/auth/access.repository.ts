@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@nanahoshi-v2/db";
-import { member, user } from "@nanahoshi-v2/db/schema/auth";
+import { db } from "@nanahoshi/db";
+import { member, user } from "@nanahoshi/db/schema/auth";
 import {
 	book,
 	library,
 	libraryPermissionOverwrite,
 	memberRole,
 	role,
-} from "@nanahoshi-v2/db/schema/general";
+} from "@nanahoshi/db/schema/general";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { TtlPromiseCache } from "../lib/ttl-promise-cache";
 import {

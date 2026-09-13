@@ -1,7 +1,7 @@
 import {
 	runtimeMemoryCapacity,
 	runtimeMemoryUsage,
-} from "@nanahoshi-v2/env/resources";
+} from "@nanahoshi/env/resources";
 import { logger } from "./logger";
 import { nextConcurrencyForMemoryPressure } from "./worker-budget";
 

@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { env } from "@nanahoshi-v2/env/server";
+import { env } from "@nanahoshi/env/server";
 import { Queue } from "bullmq";
 import { BadRequestError, NotFoundError } from "../../errors";
 import { redis } from "../../infrastructure/queue/redis";

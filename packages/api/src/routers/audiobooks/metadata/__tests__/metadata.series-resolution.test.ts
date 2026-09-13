@@ -2,7 +2,7 @@ import { expect, mock, test } from "bun:test";
 
 const stored = new Map([["本好きの下剋上", 1]]);
 const names: string[] = [];
-mock.module("@nanahoshi-v2/db", () => ({
+mock.module("@nanahoshi/db", () => ({
 	db: {
 		insert: () => ({
 			values: ({ name }: { name: string }) => ({
