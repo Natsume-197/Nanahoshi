@@ -14,7 +14,7 @@ export function QueryErrorState({
 			className={
 				compact
 					? "flex flex-col items-center gap-3 px-4 py-8 text-center"
-					: "flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-border/60 px-6 text-center"
+					: "flex min-h-64 flex-col items-center justify-center gap-3 px-4 py-8 text-center"
 			}
 			role="alert"
 		>

@@ -133,6 +133,7 @@ export function DirectoryPicker({
 							size="icon-sm"
 							onClick={handleGoBack}
 							disabled={exploringPath === "/"}
+							aria-label={m["dir_picker.parent"]()}
 						>
 							<ArrowLeft className="size-4" />
 						</Button>
@@ -209,6 +210,9 @@ export function DirectoryPicker({
 										size="sm"
 										className="h-11 px-3 opacity-100 transition-opacity md:h-8 md:px-2 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
 										onClick={() => handleConfirm(dir.path)}
+										aria-label={m["dir_picker.select_named"]({
+											name: dir.name,
+										})}
 									>
 										<Check className="mr-2 size-4" />
 										{m["dir_picker.select"]()}

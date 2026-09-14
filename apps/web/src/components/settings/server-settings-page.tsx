@@ -144,12 +144,6 @@ export function ServerSettingsPage({
 
 	const visibleSection = resolveVisibleOrgSettingsSection(section, canSee);
 
-	// A deep-link intent fires its section action once: drop it from the URL so
-	// leaving and returning to the section doesn't re-fire it.
-	useMountEffect(() => {
-		if (intent) onConsumeIntent();
-	});
-
 	if (!visibleSection) return null;
 
 	return (
@@ -178,15 +172,21 @@ export function ServerSettingsPage({
 			</aside>
 
 			<div className="min-w-0 px-4 py-6 sm:px-6 md:px-8 md:py-8 lg:px-12 lg:py-10">
-				<header className="mx-auto mb-6 w-full max-w-5xl border-border border-b pb-4">
+				{intent && <ConsumeIntent onConsume={onConsumeIntent} />}
+				<header className="mx-auto mb-6 w-full max-w-7xl border-border border-b pb-4">
 					<h2 className="font-semibold text-2xl">{LABELS[visibleSection]()}</h2>
 				</header>
-				<div className="mx-auto w-full max-w-5xl">
+				<div className="mx-auto w-full max-w-7xl">
 					<OrgSettingsContent section={visibleSection} intent={intent} />
 				</div>
 			</div>
 		</div>
 	);
+}
+
+function ConsumeIntent({ onConsume }: { onConsume: () => void }) {
+	useMountEffect(onConsume);
+	return null;
 }
 
 function OrgSettingsContent({

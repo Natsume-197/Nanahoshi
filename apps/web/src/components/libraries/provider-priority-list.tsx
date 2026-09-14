@@ -1,10 +1,32 @@
-import { CaretDown, CaretUp } from "@phosphor-icons/react";
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	restrictToParentElement,
+	restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { DotsSixVertical, GearSix } from "@phosphor-icons/react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { getActiveProviderPositions } from "./library-ui-state";
 
 export type MediaType = "ebook" | "audiobook";
 export type MetadataProviderId =
@@ -109,31 +131,146 @@ export function toProviderIds(entries: ProviderEntry[]): MetadataProviderId[] {
 	return entries.filter((e) => e.enabled).map((e) => e.id);
 }
 
+export function reorderProviderEntries(
+	value: ProviderEntry[],
+	activeId: MetadataProviderId,
+	overId: MetadataProviderId,
+): ProviderEntry[] {
+	const active = value.filter((entry) => entry.enabled);
+	const inactive = value.filter((entry) => !entry.enabled);
+	const from = active.findIndex((entry) => entry.id === activeId);
+	const to = active.findIndex((entry) => entry.id === overId);
+	if (from === -1 || to === -1 || from === to) return value;
+	return [...arrayMove(active, from, to), ...inactive];
+}
+
+function SortableProviderRow({
+	entry,
+	disabled,
+	disableToggle,
+	control,
+	onEnabledChange,
+}: {
+	entry: ProviderEntry;
+	disabled: boolean;
+	disableToggle: boolean;
+	control?: ReactNode;
+	onEnabledChange: (enabled: boolean) => void;
+}) {
+	const info = PROVIDER_INFO[entry.id];
+	const [settingsOpen, setSettingsOpen] = useState(false);
+	const sortable = entry.enabled;
+	const {
+		attributes,
+		isDragging,
+		listeners,
+		setActivatorNodeRef,
+		setNodeRef,
+		transform,
+		transition,
+	} = useSortable({ id: entry.id, disabled: disabled || !sortable });
+	const style: CSSProperties = {
+		transform: CSS.Translate.toString(transform),
+		transition,
+	};
+	const checkboxId = `available-provider-${entry.id}`;
+
+	return (
+		<li
+			ref={setNodeRef}
+			style={style}
+			className={cn(
+				"group rounded-lg border motion-safe:transition-colors",
+				entry.enabled
+					? "border-border bg-card"
+					: "border-transparent bg-muted/30",
+				isDragging && "relative z-10 bg-card shadow-md",
+			)}
+		>
+			<div className="flex items-center gap-3 px-3 py-2.5">
+				<Checkbox
+					id={checkboxId}
+					checked={entry.enabled}
+					onCheckedChange={onEnabledChange}
+					disabled={disabled || (entry.enabled && disableToggle)}
+					aria-label={m["library.provider_enable"]({ name: info.label })}
+				/>
+				<Label
+					htmlFor={checkboxId}
+					aria-label={m["library.provider_enable"]({ name: info.label })}
+					className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-1 text-foreground text-sm"
+				>
+					<span>{info.label}</span>
+					<span className="font-normal text-muted-foreground text-xs leading-relaxed">
+						{info.description()}
+					</span>
+				</Label>
+				{control && entry.id === "amazon" && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="size-7 shrink-0 text-muted-foreground"
+						disabled={disabled}
+						onClick={() => setSettingsOpen(true)}
+						aria-label={m["library.amazon_store"]()}
+						title={m["library.amazon_store"]()}
+						aria-haspopup="dialog"
+					>
+						<GearSix aria-hidden="true" />
+					</Button>
+				)}
+				{sortable && (
+					<Button
+						ref={setActivatorNodeRef}
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="size-7 shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+						disabled={disabled}
+						{...attributes}
+						{...listeners}
+						aria-label={m["library.provider_drag"]({ name: info.label })}
+					>
+						<DotsSixVertical aria-hidden="true" />
+					</Button>
+				)}
+			</div>
+			{control &&
+				(entry.id === "amazon" ? (
+					<Modal
+						open={settingsOpen}
+						onOpenChange={setSettingsOpen}
+						title={m["library.amazon_store"]()}
+					>
+						{control}
+					</Modal>
+				) : (
+					<div className="mx-3 border-border/60 border-t py-3">{control}</div>
+				))}
+		</li>
+	);
+}
+
 export function ProviderPriorityList({
 	value,
 	onChange,
 	disabled = false,
-	requiredProviderId,
+	providerControls,
 }: {
 	value: ProviderEntry[];
 	onChange: (value: ProviderEntry[]) => void;
 	disabled?: boolean;
-	/** An authoritative profile provider cannot be disabled. */
-	requiredProviderId?: MetadataProviderId;
+	providerControls?: Partial<Record<MetadataProviderId, ReactNode>>;
 }) {
-	const activePositions = getActiveProviderPositions(value);
-	const move = (index: number, delta: -1 | 1) => {
-		const target = index + delta;
-		if (target < 0 || target >= value.length) return;
-		const next = [...value];
-		const a = next[index];
-		const b = next[target];
-		if (!a || !b) return;
-		if (a.id === requiredProviderId || b.id === requiredProviderId) return;
-		next[index] = b;
-		next[target] = a;
-		onChange(next);
-	};
+	const activeProviders = value.filter((entry) => entry.enabled);
+	const inactive = value.filter((entry) => !entry.enabled);
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
 
 	const toggle = (index: number, enabled: boolean) => {
 		const next = value.map((entry, i) =>
@@ -141,74 +278,104 @@ export function ProviderPriorityList({
 		);
 		onChange(next);
 	};
+	const handleDragEnd = ({ active, over }: DragEndEvent) => {
+		if (!over) return;
+		onChange(
+			reorderProviderEntries(
+				value,
+				active.id as MetadataProviderId,
+				over.id as MetadataProviderId,
+			),
+		);
+	};
+	const dragLabel = (id: string | number) =>
+		PROVIDER_INFO[id as MetadataProviderId].label;
+	const dragPosition = (id: string | number) =>
+		activeProviders.findIndex((entry) => entry.id === id) + 1;
+	if (value.length === 0) {
+		return (
+			<p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground text-sm">
+				{m["library.rules_no_providers"]()}
+			</p>
+		);
+	}
 
 	return (
-		<ul className="flex flex-col">
-			{value.map((entry, index) => {
-				const info = PROVIDER_INFO[entry.id];
-				return (
-					<li key={entry.id} className={cn(!entry.enabled && "opacity-60")}>
-						<div className="flex min-h-16 items-center gap-3 py-3">
-							<span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary font-mono text-secondary-foreground text-xs tabular-nums">
-								{entry.enabled ? activePositions.get(entry.id) : "–"}
-							</span>
-							<div className="min-w-0 flex-1">
-								<p className="font-medium text-foreground text-sm">
-									{info.label}
-								</p>
-								<p className="line-clamp-2 text-muted-foreground text-xs">
-									{info.description()}
-								</p>
-							</div>
-							<div className="flex shrink-0 items-center gap-0.5">
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									className="size-10 sm:size-8"
-									disabled={
-										disabled ||
-										index === 0 ||
-										entry.id === requiredProviderId ||
-										value[index - 1]?.id === requiredProviderId
-									}
-									onClick={() => move(index, -1)}
-									aria-label={m["library.provider_move_up"]({
-										name: info.label,
-									})}
-								>
-									<CaretUp />
-								</Button>
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									className="size-10 sm:size-8"
-									disabled={
-										disabled ||
-										index === value.length - 1 ||
-										entry.id === requiredProviderId ||
-										value[index + 1]?.id === requiredProviderId
-									}
-									onClick={() => move(index, 1)}
-									aria-label={m["library.provider_move_down"]({
-										name: info.label,
-									})}
-								>
-									<CaretDown />
-								</Button>
-							</div>
-							<Switch
-								checked={entry.enabled}
-								onCheckedChange={(checked) => toggle(index, checked)}
-								disabled={disabled || entry.id === requiredProviderId}
-								aria-label={m["library.provider_enable"]({ name: info.label })}
-							/>
-						</div>
-						{index < value.length - 1 && <Separator className="bg-border/60" />}
-					</li>
-				);
-			})}
-		</ul>
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+			onDragEnd={handleDragEnd}
+			accessibility={{
+				screenReaderInstructions: {
+					draggable: m["library.provider_drag_instructions"](),
+				},
+				announcements: {
+					onDragStart: ({ active }) =>
+						m["library.provider_drag_started"]({
+							name: dragLabel(active.id),
+						}),
+					onDragOver: ({ active, over }) =>
+						over
+							? m["library.provider_drag_position"]({
+									name: dragLabel(active.id),
+									position: dragPosition(over.id),
+									total: activeProviders.length,
+								})
+							: undefined,
+					onDragEnd: ({ active, over }) =>
+						over
+							? m["library.provider_drag_finished"]({
+									name: dragLabel(active.id),
+									position: dragPosition(over.id),
+									total: activeProviders.length,
+								})
+							: m["library.provider_drag_cancelled"]({
+									name: dragLabel(active.id),
+								}),
+					onDragCancel: ({ active }) =>
+						m["library.provider_drag_cancelled"]({
+							name: dragLabel(active.id),
+						}),
+				},
+			}}
+		>
+			<ul className="flex flex-col gap-1.5">
+				<SortableContext
+					items={activeProviders.map((entry) => entry.id)}
+					strategy={verticalListSortingStrategy}
+				>
+					{activeProviders.map((entry) => (
+						<SortableProviderRow
+							key={entry.id}
+							entry={entry}
+							disabled={disabled}
+							disableToggle={activeProviders.length === 1}
+							control={providerControls?.[entry.id]}
+							onEnabledChange={(enabled) =>
+								toggle(
+									value.findIndex((provider) => provider.id === entry.id),
+									enabled,
+								)
+							}
+						/>
+					))}
+				</SortableContext>
+				{inactive.map((entry) => (
+					<SortableProviderRow
+						key={entry.id}
+						entry={entry}
+						disabled={disabled}
+						disableToggle={false}
+						onEnabledChange={(enabled) =>
+							toggle(
+								value.findIndex((provider) => provider.id === entry.id),
+								enabled,
+							)
+						}
+					/>
+				))}
+			</ul>
+		</DndContext>
 	);
 }

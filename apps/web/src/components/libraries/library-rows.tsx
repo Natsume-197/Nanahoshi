@@ -24,8 +24,15 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -73,41 +80,71 @@ export function LibraryRows({
 }) {
 	const busyByLibrary = useLibraryTasks();
 
-	if (isLoading) {
-		return (
-			<ul className="flex flex-col">
-				{[0, 1, 2].map((key) => (
-					<li key={key} className="flex items-center gap-4 py-4">
-						<Skeleton className="size-12 rounded-lg" />
-						<div className="flex min-w-0 flex-1 flex-col gap-2">
-							<Skeleton className="h-4 w-40" />
-							<Skeleton className="h-3 w-64" />
-						</div>
-					</li>
-				))}
-			</ul>
-		);
-	}
-
 	return (
-		<ul className="flex flex-col">
-			{items.map((item, index) => (
-				<li key={item.uuid}>
-					<LibraryRow
-						item={item}
-						busy={busyByLibrary.get(item.id)}
-						canScan={canScan}
-						canUpload={canUpload}
-						canDelete={canDelete}
-						onOpen={onOpen}
-						onScan={onScan}
-						onUpload={onUpload}
-						onDelete={onDelete}
-					/>
-					{index < items.length - 1 && <Separator className="bg-border/60" />}
-				</li>
-			))}
-		</ul>
+		<Table>
+			<TableHeader>
+				<TableRow className="hover:bg-transparent">
+					<TableHead>{m["library.name"]()}</TableHead>
+					<TableHead className="hidden md:table-cell">
+						{m["library.table_type"]()}
+					</TableHead>
+					<TableHead className="text-right">
+						{m["library.table_items"]()}
+					</TableHead>
+					<TableHead className="text-right">
+						{m["library.section_folders"]()}
+					</TableHead>
+					<TableHead className="hidden sm:table-cell">
+						{m["library.table_last_scan"]()}
+					</TableHead>
+					<TableHead className="w-12">
+						<span className="sr-only">
+							{m["library.row_actions"]({ name: "" })}
+						</span>
+					</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{isLoading
+					? [0, 1, 2].map((key) => (
+							<TableRow key={key} className="hover:bg-transparent">
+								<TableCell>
+									<div className="flex items-center gap-3">
+										<Skeleton className="size-10 rounded-lg" />
+										<Skeleton className="h-4 w-40" />
+									</div>
+								</TableCell>
+								<TableCell className="hidden md:table-cell">
+									<Skeleton className="h-4 w-16" />
+								</TableCell>
+								<TableCell className="text-right">
+									<Skeleton className="ml-auto h-4 w-10" />
+								</TableCell>
+								<TableCell className="text-right">
+									<Skeleton className="ml-auto h-4 w-10" />
+								</TableCell>
+								<TableCell className="hidden sm:table-cell">
+									<Skeleton className="h-4 w-24" />
+								</TableCell>
+								<TableCell />
+							</TableRow>
+						))
+					: items.map((item) => (
+							<LibraryRow
+								key={item.uuid}
+								item={item}
+								busy={busyByLibrary.get(item.id)}
+								canScan={canScan}
+								canUpload={canUpload}
+								canDelete={canDelete}
+								onOpen={onOpen}
+								onScan={onScan}
+								onUpload={onUpload}
+								onDelete={onDelete}
+							/>
+						))}
+			</TableBody>
+		</Table>
 	);
 }
 
@@ -134,73 +171,70 @@ function LibraryRow({
 }) {
 	const isAudiobook = item.mediaType === "audiobook";
 	const uploadable = canUpload && !isAudiobook && item.hasEnabledPath;
-	const contentLabel =
-		item.bookCount === null
-			? "—"
-			: isAudiobook
-				? m["media.audiobook_count"]({ count: item.bookCount })
-				: m["media.book_count"]({ count: item.bookCount });
 
 	return (
-		<div className="group/library-row relative flex items-center gap-4 py-3">
-			{/* The whole row opens the library; the trailing controls sit above it. */}
-			<button
-				type="button"
-				onClick={() => onOpen(item)}
-				aria-label={m["library.open_settings_for"]({ name: item.name })}
-				className="absolute -inset-x-3 inset-y-0 rounded-xl outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring group-hover/library-row:bg-surface-hover motion-reduce:transition-none"
-			/>
-
-			<CoverStack
-				covers={item.previewCovers}
-				square={isAudiobook}
-				mediaType={item.mediaType}
-			/>
-
-			<div className="pointer-events-none relative min-w-0 flex-1">
-				<p className="truncate font-medium text-foreground text-sm">
-					{item.name}
-				</p>
-				<p className="truncate text-muted-foreground text-sm">
-					{isAudiobook ? m["media.audiobook"]() : m["media.ebook"]()}
-					{" · "}
-					{contentLabel}
-					{" · "}
-					{m["library.folder_count"]({ count: item.pathCount })}
-				</p>
+		<TableRow className="cursor-pointer" onClick={() => onOpen(item)}>
+			<TableCell>
+				<div className="flex min-w-0 items-center gap-3">
+					<CoverStack
+						covers={item.previewCovers}
+						square={isAudiobook}
+						mediaType={item.mediaType}
+					/>
+					<button
+						type="button"
+						onClick={() => onOpen(item)}
+						className="min-w-0 flex-1 truncate text-left font-medium text-foreground text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						{item.name}
+					</button>
+				</div>
+			</TableCell>
+			<TableCell className="hidden whitespace-nowrap text-muted-foreground text-sm md:table-cell">
+				{isAudiobook ? m["media.audiobook"]() : m["media.ebook"]()}
+			</TableCell>
+			<TableCell className="text-right text-sm tabular-nums">
+				{item.bookCount ?? "—"}
+			</TableCell>
+			<TableCell className="text-right">
+				<span className="inline-flex items-center justify-end gap-2 text-sm tabular-nums">
+					{!item.hasEnabledPath ? (
+						<Badge variant="warning">
+							{m["library.status_needs_folder"]()}
+						</Badge>
+					) : item.unreachablePathCount > 0 ? (
+						<Badge variant="destructive">
+							<WarningCircle aria-hidden className="size-3.5" />
+							{m["library.folders_unreachable"]({
+								count: item.unreachablePathCount,
+							})}
+						</Badge>
+					) : (
+						m["library.folder_count"]({ count: item.pathCount })
+					)}
+				</span>
+			</TableCell>
+			<TableCell className="hidden sm:table-cell">
 				{busy ? (
-					<LibraryTaskProgress task={busy} className="mt-1" />
+					<LibraryTaskProgress task={busy} className="min-w-32" />
 				) : (
-					<p className="truncate text-muted-foreground/80 text-xs">
+					<span className="whitespace-nowrap text-muted-foreground text-sm">
 						{item.lastScannedAt
-							? m["library.last_scanned"]({
-									time: formatRelativeTime(item.lastScannedAt),
-								})
+							? formatRelativeTime(item.lastScannedAt)
 							: m["library.never_scanned"]()}
-					</p>
+					</span>
 				)}
-			</div>
-
-			<div className="relative flex shrink-0 items-center gap-2">
-				{!item.hasEnabledPath ? (
-					<Badge variant="warning">{m["library.status_needs_folder"]()}</Badge>
-				) : item.unreachablePathCount > 0 ? (
-					<Badge variant="destructive">
-						<WarningCircle aria-hidden className="size-3.5" />
-						{m["library.folders_unreachable"]({
-							count: item.unreachablePathCount,
-						})}
-					</Badge>
-				) : null}
-
+			</TableCell>
+			<TableCell>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
 							type="button"
 							variant="ghost"
 							size="icon"
-							className="size-9 shrink-0"
+							className="size-9"
 							aria-label={m["library.row_actions"]({ name: item.name })}
+							onClick={(event) => event.stopPropagation()}
 						>
 							<DotsThree weight="bold" />
 						</Button>
@@ -245,8 +279,8 @@ function LibraryRow({
 						</DropdownMenuGroup>
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>
-		</div>
+			</TableCell>
+		</TableRow>
 	);
 }
 
@@ -279,14 +313,14 @@ function CoverStack({
 
 	if (filenames.length === 0) {
 		return (
-			<div className="pointer-events-none relative grid size-12 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-				<Icon className="size-5" weight="duotone" aria-hidden />
+			<div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground">
+				<Icon className="size-4" weight="duotone" aria-hidden />
 			</div>
 		);
 	}
 
 	return (
-		<div className="pointer-events-none relative h-12 w-12 shrink-0">
+		<div className="relative h-10 w-10 shrink-0">
 			{filenames.map((filename, index) => (
 				<img
 					key={filename}

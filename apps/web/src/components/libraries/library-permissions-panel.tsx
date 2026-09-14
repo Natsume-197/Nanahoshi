@@ -315,7 +315,7 @@ export function LibraryPermissionsPanel({
 	};
 
 	if (overwritesLoading || rolesLoading) {
-		return <Skeleton className="h-[520px] w-full rounded-xl" />;
+		return <Skeleton className="h-64 w-full" />;
 	}
 
 	if (overwritesError || rolesError) {
@@ -330,15 +330,15 @@ export function LibraryPermissionsPanel({
 
 	return (
 		<>
-			<div className="flex min-h-[480px] flex-col overflow-hidden rounded-xl border border-border md:min-h-[520px] md:flex-row">
+			<div className="flex flex-col gap-6 md:flex-row md:gap-8">
 				<aside
 					className={cn(
-						"shrink-0 flex-col border-border bg-muted/30 p-3 md:flex md:w-56 md:border-r",
+						"shrink-0 flex-col gap-1 md:flex md:w-56",
 						mobileEditorOpen ? "hidden" : "flex",
 					)}
 				>
-					<div className="flex items-center justify-between gap-3 px-2 pb-2">
-						<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+					<div className="flex items-center justify-between gap-3 pb-1">
+						<p className="font-medium text-foreground text-sm">
 							{m["library.access_subjects"]()}
 						</p>
 						<Button
@@ -386,7 +386,7 @@ export function LibraryPermissionsPanel({
 
 				<section
 					className={cn(
-						"min-w-0 flex-1 p-5 sm:p-6 md:block",
+						"min-w-0 flex-1 md:block",
 						mobileEditorOpen ? "block" : "hidden",
 					)}
 				>
@@ -403,14 +403,11 @@ export function LibraryPermissionsPanel({
 								{m["library.access_subjects"]()}
 							</Button>
 							<div className="flex items-start justify-between gap-6">
-								<div className="min-w-0">
-									<p className="text-muted-foreground text-xs uppercase tracking-wide">
-										{m["library.access_permissions_for"]()}
-									</p>
-									<h3 className="truncate font-semibold text-foreground text-lg">
+								<div className="flex min-w-0 flex-col gap-1">
+									<h3 className="truncate font-medium text-base text-foreground">
 										{subjectName(draft)}
 									</h3>
-									<p className="mt-1 max-w-xl text-muted-foreground text-sm">
+									<p className="max-w-xl text-muted-foreground text-sm">
 										{m["library.access_inherit_hint"]()}
 									</p>
 								</div>
@@ -428,12 +425,12 @@ export function LibraryPermissionsPanel({
 								)}
 							</div>
 
-							<Separator />
+							<Separator className="bg-border/60" />
 
-							<div className="flex flex-col gap-7">
+							<div className="flex flex-col gap-6">
 								{OVERRIDABLE.map(([resource, actions]) => (
 									<section key={resource} className="flex flex-col gap-2">
-										<h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+										<h4 className="font-medium text-foreground text-sm">
 											{RESOURCE_LABELS[resource]?.() ?? resource}
 										</h4>
 										<div className="flex flex-col">
@@ -442,7 +439,7 @@ export function LibraryPermissionsPanel({
 												return (
 													<div
 														key={action}
-														className="flex flex-col items-start gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+														className="flex flex-col items-start gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
 													>
 														<span className="text-foreground text-sm">
 															{ACTION_LABELS[action]?.() ?? action}
@@ -497,7 +494,7 @@ export function LibraryPermissionsPanel({
 						<div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 text-center">
 							<Shield className="size-10 text-muted-foreground" />
 							<div className="flex flex-col gap-1">
-								<h3 className="font-medium text-foreground">
+								<h3 className="font-medium text-base text-foreground">
 									{m["library.access_select_title"]()}
 								</h3>
 								<p className="max-w-sm text-muted-foreground text-sm">
@@ -534,7 +531,7 @@ export function LibraryPermissionsPanel({
 
 					{availableRoles.length > 0 && (
 						<section className="flex flex-col gap-1">
-							<h3 className="px-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							<h3 className="px-2 font-medium text-foreground text-sm">
 								{m["library.access_roles"]()}
 							</h3>
 							{availableRoles.map((role) => (
@@ -556,7 +553,7 @@ export function LibraryPermissionsPanel({
 
 					{availableMembers.length > 0 && (
 						<section className="flex flex-col gap-1">
-							<h3 className="px-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							<h3 className="px-2 font-medium text-foreground text-sm">
 								{m["library.access_members"]()}
 							</h3>
 							{availableMembers.map((member) => (
@@ -709,7 +706,7 @@ function SubjectOption({
 		<button
 			type="button"
 			onClick={onClick}
-			className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
+			className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-muted/60"
 		>
 			<div className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary text-secondary-foreground">
 				<Icon className="size-4" />
@@ -746,7 +743,7 @@ function PermissionToggle({
 	];
 
 	return (
-		<div className="flex w-full shrink-0 items-center gap-1 rounded-xl bg-muted/50 p-1 sm:w-auto">
+		<div className="flex w-full shrink-0 items-center gap-1 rounded-lg border border-border/70 bg-muted/35 p-1 sm:w-auto">
 			{options.map((option) => {
 				const Icon = option.icon;
 				return (
@@ -755,7 +752,7 @@ function PermissionToggle({
 						type="button"
 						onClick={() => onChange(option.value)}
 						className={cn(
-							"flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs outline-none transition-colors hover:bg-background hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 sm:h-8 sm:flex-none",
+							"flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs outline-none transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary sm:h-8 sm:flex-none",
 							value === option.value &&
 								option.value === "inherit" &&
 								"bg-background text-foreground shadow-sm",

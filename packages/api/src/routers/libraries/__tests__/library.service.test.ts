@@ -640,11 +640,12 @@ describe("library.service — org-scoped authorization", () => {
 			);
 			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-new" }));
 
-			await service.createLibrary(
+			const created = await service.createLibrary(
 				{ name: "Novelas", paths: ["/books"] },
 				"org-A",
 				"user-1",
 			);
+			expect(created.initialScanStatus).toBe("started");
 
 			expect(mockCreateTask).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -667,8 +668,13 @@ describe("library.service — org-scoped authorization", () => {
 				Promise.resolve({ id: 8, name: "Vacía", paths: [] }),
 			);
 
-			await service.createLibrary({ name: "Vacía" }, "org-A", "user-1");
+			const created = await service.createLibrary(
+				{ name: "Vacía" },
+				"org-A",
+				"user-1",
+			);
 
+			expect(created.initialScanStatus).toBe("not_requested");
 			expect(mockCreateTask).not.toHaveBeenCalled();
 			expect(mockScheduledScanAdd).not.toHaveBeenCalled();
 		});
@@ -692,6 +698,7 @@ describe("library.service — org-scoped authorization", () => {
 			);
 
 			expect(created).toMatchObject({ id: 9 });
+			expect(created.initialScanStatus).toBe("failed");
 		});
 	});
 

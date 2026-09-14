@@ -119,6 +119,19 @@ export function LibrariesSettings({
 		setSelectedLibraryId(item.id);
 	};
 
+	if (showWizard) {
+		return (
+			<CreateLibraryWizard
+				heading={m["library.new"]()}
+				onOpenChange={setShowWizard}
+				onSubmit={(data: CreateLibraryData) =>
+					createMutation.mutateAsync(data).then(() => undefined)
+				}
+				isPending={createMutation.isPending}
+			/>
+		);
+	}
+
 	if (selected) {
 		return (
 			<LibraryDetailView
@@ -175,16 +188,6 @@ export function LibrariesSettings({
 						onDelete={setDeleteTarget}
 					/>
 				))}
-
-			{canManageLibraries && (
-				<CreateLibraryWizard
-					key={showWizard ? "open" : "closed"}
-					open={showWizard}
-					onOpenChange={setShowWizard}
-					onSubmit={(data: CreateLibraryData) => createMutation.mutate(data)}
-					isPending={createMutation.isPending}
-				/>
-			)}
 
 			{uploadLibrary && (
 				<UploadBooksModal

@@ -1,6 +1,7 @@
 import { Books, FolderPlus, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -24,7 +25,7 @@ const CreateMenuDialogs = lazy(async () => {
  */
 export function CreateMenu() {
 	const { can } = useAbilities();
-	const [showLibraryWizard, setShowLibraryWizard] = useState(false);
+	const { openOrgSettings } = useSettingsModal();
 	const [showCollectionDialog, setShowCollectionDialog] = useState(false);
 	const [showUploadModal, setShowUploadModal] = useState(false);
 	const [dialogsMounted, setDialogsMounted] = useState(false);
@@ -69,7 +70,7 @@ export function CreateMenu() {
 					{canCreateLibrary && (
 						<DropdownMenuItem
 							className="gap-2.5"
-							onClick={() => openDialog(() => setShowLibraryWizard(true))}
+							onClick={() => openOrgSettings("libraries", "create-library")}
 						>
 							<Books />
 							<span className="flex-1">{m["library.new"]()}</span>
@@ -99,12 +100,9 @@ export function CreateMenu() {
 			{dialogsMounted && (
 				<Suspense fallback={null}>
 					<CreateMenuDialogs
-						canCreateLibrary={canCreateLibrary}
 						canCreateCollection={canCreateCollection}
 						canUpload={canUploadHere}
 						libraries={uploadable}
-						showLibraryWizard={showLibraryWizard}
-						setShowLibraryWizard={setShowLibraryWizard}
 						showCollectionDialog={showCollectionDialog}
 						setShowCollectionDialog={setShowCollectionDialog}
 						showUploadModal={showUploadModal}

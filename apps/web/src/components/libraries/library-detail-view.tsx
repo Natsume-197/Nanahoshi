@@ -5,11 +5,10 @@ import {
 	BookOpen,
 	CaretDown,
 	CircleNotch,
-	Database,
+	type Database,
 	FolderOpen,
 	Headphones,
 	ListMagnifyingGlass,
-	LockKey,
 	MagicWand,
 	PencilSimple,
 	Sparkle,
@@ -174,7 +173,9 @@ export function LibraryDetailView({
 				? m["media.audiobook_count"]({ count: bookCount })
 				: m["media.book_count"]({ count: bookCount });
 
-	const metadataSummary = getMetadataSummary(library);
+	const [pendingPanel, setPendingPanel] = useState<LibraryAdvancedPanel | null>(
+		null,
+	);
 
 	const openPanel = (panel: LibraryAdvancedPanel) => {
 		setPanelDirty(false);
@@ -193,6 +194,7 @@ export function LibraryDetailView({
 	const handleBack = () => {
 		if (activePanel !== null) {
 			if (panelDirty) {
+				setPendingPanel(null);
 				setDiscardOpen(true);
 				return;
 			}
@@ -393,13 +395,47 @@ export function LibraryDetailView({
 					)}
 				</header>
 
+				<nav
+					className="flex flex-wrap gap-1 border-border/60 border-b pb-3"
+					aria-label={m["library.section_options"]()}
+				>
+					{(
+						[
+							{ id: null, label: m["library.section_options"]() },
+							{ id: "metadata", label: m["library.sources_priority_title"]() },
+							...(canManageAccess
+								? [{ id: "access", label: m["library.section_access"]() }]
+								: []),
+						] as const
+					).map(({ id, label }) => (
+						<Button
+							key={id ?? "general"}
+							type="button"
+							variant={activePanel === id ? "secondary" : "ghost"}
+							size="sm"
+							aria-current={activePanel === id ? "page" : undefined}
+							ref={(element) => {
+								if (id)
+									panelButtons.current[id as LibraryAdvancedPanel] = element;
+							}}
+							onClick={() => {
+								if (activePanel === id) return;
+								if (panelDirty) {
+									setPendingPanel(id as LibraryAdvancedPanel | null);
+									setDiscardOpen(true);
+								} else if (id) openPanel(id as LibraryAdvancedPanel);
+								else leavePanel();
+							}}
+						>
+							{label}
+						</Button>
+					))}
+				</nav>
+
 				{activePanel === null ? (
-					<div className="flex flex-col gap-12">
+					<div className="flex flex-col gap-6">
 						<div ref={foldersSectionRef}>
-							<SettingsSection
-								title={m["library.section_folders"]()}
-								description={m["library.folders_hint"]()}
-							>
+							<SettingsSection title={m["library.section_folders"]()}>
 								<FoldersSection
 									library={library}
 									canManage={canManagePaths}
@@ -417,59 +453,8 @@ export function LibraryDetailView({
 							<GeneralSection library={library} canManage={canManage} />
 						</SettingsSection>
 
-						<Disclosure
-							summary={m["library.section_advanced"]()}
-							description={m["library.section_advanced_desc"]()}
-						>
+						<Disclosure summary={m["library.section_advanced"]()}>
 							<SettingRows>
-								<SettingControlRow
-									label={
-										<AdvancedLabel
-											icon={Database}
-											title={m["library.section_metadata"]()}
-										/>
-									}
-									description={metadataSummary}
-								>
-									<Button
-										ref={(element) => {
-											panelButtons.current.metadata = element;
-										}}
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => openPanel("metadata")}
-									>
-										{canManageProviders
-											? m["library.customize"]()
-											: m["library.view_configuration"]()}
-									</Button>
-								</SettingControlRow>
-
-								{canManageAccess && (
-									<SettingControlRow
-										label={
-											<AdvancedLabel
-												icon={LockKey}
-												title={m["library.section_access"]()}
-											/>
-										}
-										description={m["library.access_summary"]()}
-									>
-										<Button
-											ref={(element) => {
-												panelButtons.current.access = element;
-											}}
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={() => openPanel("access")}
-										>
-											{m["library.manage_access"]()}
-										</Button>
-									</SettingControlRow>
-								)}
-
 								{canScan && library.mediaType !== "audiobook" && (
 									<SettingControlRow
 										label={
@@ -526,24 +511,18 @@ export function LibraryDetailView({
 				) : (
 					<div>
 						{activePanel === "metadata" && (
-							<SettingsSection
+							<MetadataSection
+								library={library}
+								canManage={canManageProviders}
+								onDirtyChange={setPanelDirty}
 								headingRef={sectionTitleRef}
-								title={m["library.section_metadata"]()}
-								description={m["library.section_metadata_desc"]()}
-							>
-								<MetadataSection
-									library={library}
-									canManage={canManageProviders}
-									onDirtyChange={setPanelDirty}
-								/>
-							</SettingsSection>
+							/>
 						)}
 
 						{activePanel === "access" && canManageAccess && (
 							<SettingsSection
 								headingRef={sectionTitleRef}
 								title={m["library.section_access"]()}
-								description={m["library.section_access_desc"]()}
 							>
 								<LibraryPermissionsPanel
 									libraryId={library.id}
@@ -684,7 +663,8 @@ export function LibraryDetailView({
 							variant="destructive"
 							onClick={() => {
 								setDiscardOpen(false);
-								leavePanel();
+								if (pendingPanel) openPanel(pendingPanel);
+								else leavePanel();
 							}}
 						>
 							{m["library.discard_changes"]()}
@@ -863,29 +843,21 @@ function LibraryAlert({
 	);
 }
 
-/**
- * Collapsed by default: metadata routing, access, maintenance and deletion are
- * rare, and as always-open sections they buried the folder list under a scroll.
- */
+/** Less frequent maintenance actions stay collapsed. */
 function Disclosure({
 	summary,
-	description,
 	children,
 }: {
 	summary: string;
-	description: string;
 	children: ReactNode;
 }) {
 	return (
 		<details className="group/disclosure border-border border-t pt-6">
 			<summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
 				<div className="flex min-w-0 flex-col gap-1">
-					<h2 className="text-balance font-semibold text-foreground text-xl">
+					<h2 className="text-balance font-medium text-base text-foreground">
 						{summary}
 					</h2>
-					<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
-						{description}
-					</p>
 				</div>
 				<CaretDown
 					aria-hidden
@@ -975,26 +947,6 @@ function MaintenanceMenu({
 	);
 }
 
-function getMetadataSummary(library: LibraryComplete): string {
-	if (library.mediaType === "audiobook") {
-		return m["library.metadata_audiobooks_summary"]();
-	}
-	if (!Array.isArray(library.metadataProviders)) {
-		const profileId = library.metadataProviders.profile?.id;
-		if (profileId === "general") {
-			return m["library.metadata_summary"]({
-				profile: m["library.metadata_profile_general"](),
-			});
-		}
-		if (profileId === "light_novels") {
-			return m["library.metadata_summary"]({
-				profile: m["library.metadata_profile_light_novels"](),
-			});
-		}
-	}
-	return m["library.metadata_custom_summary"]();
-}
-
 function SettingsSection({
 	title,
 	description,
@@ -1013,7 +965,7 @@ function SettingsSection({
 				<h2
 					ref={headingRef}
 					tabIndex={headingRef ? -1 : undefined}
-					className="text-balance font-semibold text-foreground text-xl outline-none"
+					className="text-balance font-medium text-base text-foreground outline-none"
 				>
 					{title}
 				</h2>

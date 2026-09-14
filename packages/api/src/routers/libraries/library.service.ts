@@ -88,6 +88,8 @@ export const createLibrary = async (
 	const enabledPaths = (created.paths ?? []).filter(
 		(p) => p.isEnabled !== false,
 	);
+	let initialScanStatus: "not_requested" | "started" | "failed" =
+		enabledPaths.length > 0 ? "failed" : "not_requested";
 	if (enabledPaths.length > 0) {
 		try {
 			const task = await createTask({
@@ -108,6 +110,7 @@ export const createLibrary = async (
 				serverId,
 				taskId: task.id,
 			});
+			initialScanStatus = "started";
 		} catch (err) {
 			logger.error(
 				{ err, libraryId: created.id },
@@ -115,7 +118,7 @@ export const createLibrary = async (
 			);
 		}
 	}
-	return created;
+	return { ...created, initialScanStatus };
 };
 
 export const getLibraries = async (

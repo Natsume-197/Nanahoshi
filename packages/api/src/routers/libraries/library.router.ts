@@ -1,5 +1,6 @@
 import { getReadContextCached } from "../../auth/access.repository";
 import { orgReadProcedure, requirePermission } from "../../index";
+import { getMetadataProviderAvailability } from "../settings/settings.service";
 import {
 	AddPathInput,
 	CreateLibraryInputSchema,
@@ -33,6 +34,10 @@ export const libraryRouter = {
 			context.accessibleLibraryIds,
 		);
 	}),
+
+	getMetadataProviderAvailability: orgReadProcedure.handler(
+		async ({ context }) => getMetadataProviderAvailability(context.serverId),
+	),
 
 	getLibrariesWithPaths: requirePermission("library", "managePaths").handler(
 		async ({ context }) => service.getLibrariesWithPaths(context.serverId),

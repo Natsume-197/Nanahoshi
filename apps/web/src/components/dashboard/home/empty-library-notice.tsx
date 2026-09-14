@@ -79,10 +79,11 @@ function GettingStartedNotice(): JSX.Element {
 	if (creating)
 		return (
 			<CreateLibraryWizard
-				inline
-				open
+				heading={m["home.add_first_library"]()}
 				onOpenChange={setCreating}
-				onSubmit={(data) => createLibrary.mutate(data)}
+				onSubmit={(data) =>
+					createLibrary.mutateAsync(data).then(() => undefined)
+				}
 				isPending={createLibrary.isPending}
 			/>
 		);
@@ -169,14 +170,21 @@ export function EmptyLibraryNotice(): JSX.Element {
 	}
 
 	if (canManageLibraries && libraries?.length) {
+		const hasConnectedFolder = libraries.some(
+			(library) => library.hasEnabledPath,
+		);
 		return (
 			<NoticeShell>
 				<h2 className="font-semibold text-xl">{m["home.no_books_title"]()}</h2>
 				<p className="max-w-md text-muted-foreground text-sm">
-					{m["library.status_needs_folder_desc"]()}
+					{hasConnectedFolder
+						? m["home.empty_connected"]()
+						: m["library.status_needs_folder_desc"]()}
 				</p>
 				<Button onClick={() => openOrgSettings("libraries")}>
-					{m["library.section_folders"]()}
+					{hasConnectedFolder
+						? m["home.go_library_settings"]()
+						: m["library.section_folders"]()}
 				</Button>
 			</NoticeShell>
 		);

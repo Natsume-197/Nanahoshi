@@ -198,7 +198,7 @@ export function SettingsPage({
 						className={
 							visibleSection === "logs"
 								? "mb-6"
-								: "mx-auto mb-6 w-full max-w-5xl border-border border-b pb-4"
+								: "mx-auto mb-6 w-full max-w-7xl border-border border-b pb-4"
 						}
 					>
 						<h2 className="font-semibold text-2xl">
@@ -207,7 +207,7 @@ export function SettingsPage({
 					</header>
 					<div
 						className={
-							visibleSection === "logs" ? "w-full" : "mx-auto w-full max-w-5xl"
+							visibleSection === "logs" ? "w-full" : "mx-auto w-full max-w-7xl"
 						}
 					>
 						<SettingsContent

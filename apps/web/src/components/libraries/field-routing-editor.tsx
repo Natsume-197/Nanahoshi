@@ -3,7 +3,6 @@ import { BOOK_PROVIDER_MANIFEST } from "@nanahoshi/api/routers/books/metadata/pr
 import {
 	ArrowCounterClockwise,
 	ArrowsClockwise,
-	CaretDown,
 	DotsSixVertical,
 	FunnelSimple,
 	MagnifyingGlass,
@@ -22,6 +21,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -123,11 +130,7 @@ const GROUPS = [
 		label: () => m["library.rules_classification"](),
 		fields: ["genres", "tags"],
 	},
-	{
-		label: () => m["library.rules_advanced"](),
-		fields: [...ADVANCED_FIELDS],
-		advanced: true,
-	},
+	{ label: () => m["library.rules_advanced"](), fields: [...ADVANCED_FIELDS] },
 ];
 
 export function FieldRoutingEditor({
@@ -154,7 +157,6 @@ export function FieldRoutingEditor({
 	disabled?: boolean;
 }) {
 	const [search, setSearch] = useState("");
-	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [undo, setUndo] = useState<{
 		rules: FieldRules;
 		updates: FieldUpdates;
@@ -242,15 +244,13 @@ export function FieldRoutingEditor({
 		modes[field] = "fill_gaps";
 		onUpdatesChange(modes);
 	};
-	const gridClass =
-		"grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_260px] md:gap-5";
 	return (
-		<div className="overflow-hidden rounded-xl border border-border/70 bg-background/40">
-			<div className="flex flex-wrap items-center gap-3 border-border/70 border-b p-4">
+		<div className="overflow-hidden rounded-lg border border-border/60">
+			<div className="flex flex-wrap items-center gap-2 border-border/60 border-b p-3">
 				<div className="relative w-full sm:w-64">
 					<MagnifyingGlass className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						className="h-10 rounded-lg border border-border/70 bg-background/60 pl-9 shadow-none"
+						className="h-9 pl-9"
 						placeholder={m["library.rules_search"]()}
 						aria-label={m["library.rules_search"]()}
 						value={search}
@@ -259,7 +259,7 @@ export function FieldRoutingEditor({
 				</div>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" className="h-10 rounded-lg">
+						<Button variant="outline" className="h-9">
 							<FunnelSimple />
 							{providerFilter
 								? PROVIDER_INFO[providerFilter].label
@@ -294,7 +294,7 @@ export function FieldRoutingEditor({
 					)}
 					<Button
 						variant="outline"
-						className="h-10 rounded-lg border-destructive/25 text-destructive hover:bg-destructive/10 hover:text-destructive"
+						className="h-9 border-destructive/25 text-destructive hover:bg-destructive/10 hover:text-destructive"
 						disabled={disabled}
 						onClick={() => {
 							snapshot();
@@ -318,7 +318,7 @@ export function FieldRoutingEditor({
 					</Button>
 					<Button
 						variant="outline"
-						className="h-10 rounded-lg"
+						className="h-9"
 						disabled={disabled}
 						onClick={() => {
 							snapshot();
@@ -339,276 +339,299 @@ export function FieldRoutingEditor({
 					</Button>
 				</div>
 			</div>
-			<div
-				className={cn(
-					gridClass,
-					"hidden border-border/70 border-b bg-muted/30 px-5 py-3 text-center font-semibold text-muted-foreground text-xs uppercase tracking-wide md:grid",
-				)}
-			>
-				<span>{m["library.rules_field"]()}</span>
-				<span>{m["library.rules_providers"]()}</span>
-				<span>{m["library.rules_update"]()}</span>
-			</div>
-			{groups.length === 0 && (
-				<p className="p-8 text-center text-muted-foreground text-sm">
-					{m["library.rules_empty"]()}
-				</p>
-			)}
-			{groups.map((group) => (
-				<section key={group.label()}>
-					<div className="flex items-center justify-between border-border/50 border-y bg-muted/25 px-5 py-2">
-						<h4 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-							{"advanced" in group ? (
-								<button
-									type="button"
-									className="flex items-center gap-2"
-									aria-expanded={
-										advancedOpen || search.length > 0 || providerFilter !== null
-									}
-									onClick={() => setAdvancedOpen(!advancedOpen)}
-								>
-									{group.label()}
-									<CaretDown
-										className={cn(
-											"size-3 transition-transform",
-											advancedOpen && "rotate-180",
-										)}
-									/>
-								</button>
-							) : (
-								group.label()
-							)}
-						</h4>
-						<span className="text-muted-foreground text-xs">
-							{m["library.rules_enabled_count"]({
-								enabled: String(
-									group.fields.filter((field) => value[field]?.length !== 0)
-										.length,
-								),
-								total: String(group.fields.length),
-							})}
-						</span>
-					</div>
-					{(!("advanced" in group) ||
-					advancedOpen ||
-					search.length > 0 ||
-					providerFilter !== null
-						? group.fields
-						: []
-					).map((field) => {
-						const compatible = order.filter((id) => supports(id, field));
-						const ids = (value[field] ?? order).filter(
-							(id) => order.includes(id) && supports(id, field),
-						);
-						const enabled = value[field]?.length !== 0;
-						const custom =
-							(updates[field] ?? "fill_gaps") !== "fill_gaps" ||
-							JSON.stringify(value[field]) !== JSON.stringify(defaults[field]);
-						const label = FIELD_LABELS[field]?.() ?? field;
-						const move = (id: MetadataProviderId, target: number) => {
-							const next = [...ids];
-							const index = next.indexOf(id);
-							if (index < 0 || target < 0 || target >= next.length) return;
-							next.splice(index, 1);
-							next.splice(target, 0, id);
-							setRule(field, next);
-						};
-						const mode = updates[field] ?? "fill_gaps";
-						return (
-							<div
-								key={field}
-								className={cn(
-									gridClass,
-									"group/row min-h-16 items-center border-border/40 border-b px-5 py-3 transition-colors last:border-0 hover:bg-muted/15",
-									!enabled && "bg-muted/10",
-								)}
+			<Table>
+				<TableHeader className="bg-muted/30">
+					<TableRow>
+						<TableHead className="w-48 px-3">
+							{m["library.rules_field"]()}
+						</TableHead>
+						<TableHead className="min-w-80 px-3">
+							{m["library.rules_providers"]()}
+						</TableHead>
+						<TableHead className="w-72 px-3">
+							{m["library.rules_update"]()}
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				{groups.length === 0 && (
+					<TableBody>
+						<TableRow>
+							<TableCell
+								colSpan={3}
+								className="h-24 text-center text-muted-foreground"
 							>
-								<div className="flex items-center gap-3">
-									<Switch
-										checked={enabled}
-										disabled={disabled || (!enabled && compatible.length === 0)}
-										aria-label={label}
-										onCheckedChange={(checked) =>
-											toggleField(field, checked, ids, compatible)
-										}
-									/>
-									<span
-										className={cn(
-											"font-medium text-sm",
-											!enabled && "text-muted-foreground",
-										)}
-									>
-										{label}
-									</span>
-									{custom && (
-										<span
-											className="size-1.5 shrink-0 rounded-full bg-primary"
-											title={m["library.rules_custom"]()}
-										/>
+								{m["library.rules_empty"]()}
+							</TableCell>
+						</TableRow>
+					</TableBody>
+				)}
+				{groups.map((group) => (
+					<TableBody key={group.label()}>
+						<TableRow className="bg-muted/25 hover:bg-muted/25">
+							<TableCell colSpan={3} className="px-3 py-2">
+								<h4 className="font-medium text-muted-foreground text-xs">
+									{group.label()}
+								</h4>
+							</TableCell>
+						</TableRow>
+						{group.fields.map((field) => {
+							const compatible = order.filter((id) => supports(id, field));
+							const ids = (value[field] ?? order).filter(
+								(id) => order.includes(id) && supports(id, field),
+							);
+							const enabled = value[field]?.length !== 0;
+							const custom =
+								(updates[field] ?? "fill_gaps") !== "fill_gaps" ||
+								JSON.stringify(value[field]) !==
+									JSON.stringify(defaults[field]);
+							const label = FIELD_LABELS[field]?.() ?? field;
+							const move = (id: MetadataProviderId, target: number) => {
+								const next = [...ids];
+								const index = next.indexOf(id);
+								if (index < 0 || target < 0 || target >= next.length) return;
+								next.splice(index, 1);
+								next.splice(target, 0, id);
+								setRule(field, next);
+							};
+							const mode = updates[field] ?? "fill_gaps";
+							return (
+								<TableRow
+									key={field}
+									className={cn(
+										"group/row hover:bg-muted/15",
+										!enabled && "bg-muted/10",
 									)}
-								</div>
-								<div className="flex flex-wrap items-center gap-2">
-									{ids.map((id, index) => (
-										<fieldset
-											key={id}
-											draggable={!disabled}
-											onDragStart={() => setDrag({ field, id })}
-											onDragEnd={() => setDrag(null)}
-											onDragOver={(event) => {
-												if (!disabled && drag?.field === field)
-													event.preventDefault();
-											}}
-											onDrop={(event) => {
-												event.preventDefault();
-												if (!disabled && drag?.field === field)
-													move(drag.id, index);
-												setDrag(null);
-											}}
-											className={cn(
-												"flex min-w-0 items-center rounded-md border text-sm transition-opacity",
-												PROVIDER_COLORS[id],
-												drag?.field === field && drag.id === id && "opacity-40",
-											)}
-										>
-											<button
-												type="button"
-												disabled={disabled}
-												title={m["library.rules_reorder"]()}
-												aria-label={`${PROVIDER_INFO[id].label}, ${label}: ${m["library.rules_reorder"]()}`}
-												onKeyDown={(event) => {
-													if (
-														event.key === "ArrowLeft" ||
-														event.key === "ArrowRight"
-													) {
-														event.preventDefault();
-														move(
-															id,
-															index + (event.key === "ArrowLeft" ? -1 : 1),
-														);
-													}
-												}}
-												className="flex cursor-grab items-center gap-1.5 rounded-l-md py-1.5 pr-1.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
-											>
-												<DotsSixVertical className="size-3.5 opacity-60" />
-												<span className="opacity-65">{index + 1}</span>
-												<span className="whitespace-nowrap font-medium">
-													{PROVIDER_INFO[id].label}
-												</span>
-											</button>
-											<button
-												type="button"
-												disabled={disabled}
-												aria-label={`${m["library.rules_remove"]()}: ${PROVIDER_INFO[id].label}, ${label}`}
-												onClick={() =>
-													setRule(
-														field,
-														ids.filter((p) => p !== id),
-													)
+								>
+									<TableCell className="px-3 py-3 align-middle">
+										<div className="flex items-center gap-3">
+											<Switch
+												checked={enabled}
+												disabled={
+													disabled || (!enabled && compatible.length === 0)
 												}
-												className="mr-1 rounded p-1 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-30"
+												aria-label={label}
+												onCheckedChange={(checked) =>
+													toggleField(field, checked, ids, compatible)
+												}
+											/>
+											<span
+												className={cn(
+													"font-medium text-sm",
+													!enabled && "text-muted-foreground",
+												)}
 											>
-												<X className="size-3.5" />
-											</button>
-										</fieldset>
-									))}
-									{ids.length === 0 && (
-										<span className="text-muted-foreground text-xs">
-											{enabled
-												? m["library.rules_no_providers"]()
-												: m["library.rules_disabled"]()}
-										</span>
-									)}
-									{compatible.some((id) => !ids.includes(id)) && (
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
+												{label}
+											</span>
+											{custom && (
+												<span
+													className="size-1.5 shrink-0 rounded-full bg-primary"
+													title={m["library.rules_custom"]()}
+												/>
+											)}
+										</div>
+									</TableCell>
+									<TableCell className="px-3 py-3 align-middle">
+										<div className="flex flex-wrap items-center gap-2">
+											{value[field] !== undefined && (
 												<button
 													type="button"
 													disabled={disabled}
-													aria-label={`${m["library.rules_add"]()}: ${label}`}
-													className="flex items-center gap-1 rounded-md border border-border border-dashed px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"
+													aria-label={`${m["library.field_use_general"]()}: ${label}`}
+													title={
+														m["library.field_order_custom"]() +
+														" · " +
+														m["library.field_use_general"]()
+													}
+													className="flex size-7 shrink-0 items-center justify-center rounded-md text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+													onClick={() => {
+														setUndo(null);
+														const next = { ...value };
+														delete next[field];
+														onChange(next);
+														const paused = { ...pausedFields };
+														delete paused[field];
+														onPausedFieldsChange(paused);
+													}}
 												>
-													<Plus className="size-3.5" />
-													{m["library.rules_add_short"]()}
+													<ArrowCounterClockwise
+														aria-hidden="true"
+														className="size-3.5"
+													/>
 												</button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent>
-												{compatible
-													.filter((id) => !ids.includes(id))
-													.map((id) => (
-														<DropdownMenuItem
-															key={id}
-															onClick={() => setRule(field, [...ids, id])}
-														>
+											)}
+											{ids.map((id, index) => (
+												<fieldset
+													key={id}
+													draggable={!disabled}
+													onDragStart={() => setDrag({ field, id })}
+													onDragEnd={() => setDrag(null)}
+													onDragOver={(event) => {
+														if (!disabled && drag?.field === field)
+															event.preventDefault();
+													}}
+													onDrop={(event) => {
+														event.preventDefault();
+														if (!disabled && drag?.field === field)
+															move(drag.id, index);
+														setDrag(null);
+													}}
+													className={cn(
+														"flex min-w-0 items-center rounded-md border text-sm transition-opacity",
+														PROVIDER_COLORS[id],
+														drag?.field === field &&
+															drag.id === id &&
+															"opacity-40",
+													)}
+												>
+													<button
+														type="button"
+														disabled={disabled}
+														title={m["library.rules_reorder"]()}
+														aria-label={`${PROVIDER_INFO[id].label}, ${label}: ${m["library.rules_reorder"]()}`}
+														onKeyDown={(event) => {
+															if (
+																event.key === "ArrowLeft" ||
+																event.key === "ArrowRight"
+															) {
+																event.preventDefault();
+																move(
+																	id,
+																	index + (event.key === "ArrowLeft" ? -1 : 1),
+																);
+															}
+														}}
+														className="flex cursor-grab items-center gap-1.5 rounded-l-md py-1.5 pr-1.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
+													>
+														<DotsSixVertical className="size-3.5 opacity-60" />
+														<span className="opacity-65">{index + 1}</span>
+														<span className="whitespace-nowrap font-medium">
 															{PROVIDER_INFO[id].label}
-														</DropdownMenuItem>
-													))}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									)}
-								</div>
-								<div className="flex items-center gap-2">
-									<fieldset
-										aria-label={`${m["library.rules_update"]()}: ${label}`}
-										disabled={disabled || !enabled}
-										className="flex min-w-0 flex-1 items-center rounded-lg border border-border/70 bg-muted/35 p-1 disabled:opacity-40"
-									>
-										<button
-											type="button"
-											aria-pressed={mode === "fill_gaps"}
-											title={m["library.rules_fill_help"]()}
-											onClick={() => {
-												setUndo(null);
-												onUpdatesChange({ ...updates, [field]: "fill_gaps" });
-											}}
-											className={cn(
-												"flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary",
-												mode === "fill_gaps"
-													? "bg-background font-medium text-foreground shadow-sm"
-													: "text-muted-foreground hover:text-foreground",
+														</span>
+													</button>
+													<button
+														type="button"
+														disabled={disabled}
+														aria-label={`${m["library.rules_remove"]()}: ${PROVIDER_INFO[id].label}, ${label}`}
+														onClick={() =>
+															setRule(
+																field,
+																ids.filter((p) => p !== id),
+															)
+														}
+														className="mr-1 rounded p-1 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-30"
+													>
+														<X className="size-3.5" />
+													</button>
+												</fieldset>
+											))}
+											{ids.length === 0 && (
+												<span className="text-muted-foreground text-xs">
+													{enabled
+														? m["library.rules_no_providers"]()
+														: m["library.rules_disabled"]()}
+												</span>
 											)}
-										>
-											<PlusCircle className="size-3.5" />
-											{m["library.rules_fill"]()}
-										</button>
-										<button
-											type="button"
-											aria-pressed={mode === "if_provided"}
-											title={m["library.rules_replace_help"]()}
-											onClick={() => {
-												setUndo(null);
-												onUpdatesChange({ ...updates, [field]: "if_provided" });
-											}}
-											className={cn(
-												"flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary",
-												mode === "if_provided"
-													? "bg-background font-medium text-foreground shadow-sm"
-													: "text-muted-foreground hover:text-foreground",
+											{compatible.some((id) => !ids.includes(id)) && (
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<button
+															type="button"
+															disabled={disabled}
+															aria-label={`${m["library.rules_add"]()}: ${label}`}
+															className="flex items-center gap-1 rounded-md border border-border border-dashed px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"
+														>
+															<Plus className="size-3.5" />
+															{m["library.rules_add_short"]()}
+														</button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent>
+														{compatible
+															.filter((id) => !ids.includes(id))
+															.map((id) => (
+																<DropdownMenuItem
+																	key={id}
+																	onClick={() => setRule(field, [...ids, id])}
+																>
+																	{PROVIDER_INFO[id].label}
+																</DropdownMenuItem>
+															))}
+													</DropdownMenuContent>
+												</DropdownMenu>
 											)}
-										>
-											<ArrowsClockwise className="size-3.5" />
-											{m["library.rules_replace_short"]()}
-										</button>
-									</fieldset>
-									<button
-										type="button"
-										disabled={disabled || !custom}
-										title={
-											custom
-												? m["library.field_reset_rule"]()
-												: m["library.rules_default_help"]()
-										}
-										aria-label={`${m["library.field_reset_rule"]()}: ${label}`}
-										onClick={() => restore(field)}
-										className="rounded-md p-1.5 text-muted-foreground opacity-40 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-15"
-									>
-										<ArrowCounterClockwise className="size-4" />
-									</button>
-								</div>
-							</div>
-						);
-					})}
-				</section>
-			))}
+										</div>
+									</TableCell>
+									<TableCell className="px-3 py-3 align-middle">
+										<div className="flex items-center gap-2">
+											<fieldset
+												aria-label={`${m["library.rules_update"]()}: ${label}`}
+												disabled={disabled || !enabled}
+												className="flex min-w-0 flex-1 items-center rounded-lg border border-border/70 bg-muted/35 p-1 disabled:opacity-40"
+											>
+												<button
+													type="button"
+													aria-pressed={mode === "fill_gaps"}
+													title={m["library.rules_fill_help"]()}
+													onClick={() => {
+														setUndo(null);
+														onUpdatesChange({
+															...updates,
+															[field]: "fill_gaps",
+														});
+													}}
+													className={cn(
+														"flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+														mode === "fill_gaps"
+															? "bg-background font-medium text-foreground shadow-sm"
+															: "text-muted-foreground hover:text-foreground",
+													)}
+												>
+													<PlusCircle className="size-3.5" />
+													{m["library.rules_fill"]()}
+												</button>
+												<button
+													type="button"
+													aria-pressed={mode === "if_provided"}
+													title={m["library.rules_replace_help"]()}
+													onClick={() => {
+														setUndo(null);
+														onUpdatesChange({
+															...updates,
+															[field]: "if_provided",
+														});
+													}}
+													className={cn(
+														"flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+														mode === "if_provided"
+															? "bg-background font-medium text-foreground shadow-sm"
+															: "text-muted-foreground hover:text-foreground",
+													)}
+												>
+													<ArrowsClockwise className="size-3.5" />
+													{m["library.rules_replace_short"]()}
+												</button>
+											</fieldset>
+											<button
+												type="button"
+												disabled={disabled || !custom}
+												title={
+													custom
+														? m["library.field_reset_rule"]()
+														: m["library.rules_default_help"]()
+												}
+												aria-label={`${m["library.field_reset_rule"]()}: ${label}`}
+												onClick={() => restore(field)}
+												className="rounded-md p-1.5 text-muted-foreground opacity-40 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-15"
+											>
+												<ArrowCounterClockwise className="size-4" />
+											</button>
+										</div>
+									</TableCell>
+								</TableRow>
+							);
+						})}
+					</TableBody>
+				))}
+			</Table>
 		</div>
 	);
 }

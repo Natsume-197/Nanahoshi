@@ -263,6 +263,36 @@ export const setHardcoverConfig = (
 	patch: Partial<HardcoverConfig>,
 ) => hardcoverStore.set(serverId, patch);
 
+/** Capability flags for library routing; credentials never leave settings. */
+export async function getMetadataProviderAvailability(serverId: string) {
+	const [
+		ranobedb,
+		amazon,
+		googlebooks,
+		openlibrary,
+		goodreads,
+		hardcover,
+		comicvine,
+	] = await Promise.all([
+		getRanobedbConfig(serverId),
+		getAmazonConfig(serverId),
+		getGoogleBooksConfig(serverId),
+		getOpenLibraryConfig(serverId),
+		getGoodreadsConfig(serverId),
+		getHardcoverConfig(serverId),
+		getComicvineConfig(serverId),
+	]);
+	return {
+		ranobedb: ranobedb.enabled,
+		amazon: amazon.enabled,
+		googlebooks: googlebooks.enabled,
+		openlibrary: openlibrary.enabled,
+		goodreads: goodreads.enabled,
+		hardcover: hardcover.enabled,
+		comicvine: comicvine.enabled,
+	};
+}
+
 // ─── Recommendations (per-organization) ─────────────
 
 const RECOMMENDATIONS_KEY = "recommendations";

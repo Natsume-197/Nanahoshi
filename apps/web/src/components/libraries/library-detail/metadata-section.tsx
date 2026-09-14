@@ -1,8 +1,3 @@
-import {
-	type BookMetadataProfileId,
-	bookMetadataProfile,
-	isBookMetadataProfileId,
-} from "@nanahoshi/api/modules/metadataProfiles";
 import type {
 	LibraryComplete,
 	MetadataConfig,
@@ -10,7 +5,7 @@ import type {
 } from "@nanahoshi/api/routers/libraries/library.model";
 import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	defaultFieldUpdates,
@@ -20,12 +15,11 @@ import {
 } from "@/components/libraries/field-routing-editor";
 import {
 	type MetadataProviderId,
-	PROVIDER_INFO,
 	type ProviderEntry,
+	ProviderPriorityList,
 	toProviderEntries,
 	toProviderIds,
 } from "@/components/libraries/provider-priority-list";
-import { SettingControlRow } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,10 +31,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";
@@ -52,7 +44,6 @@ const ORG_DEFAULT = "__default__";
 // { order, fields } shape; this section edits the order and must not drop
 // any per-field rules configured elsewhere.
 type ProvidersConfig = LibraryComplete["metadataProviders"];
-type ProfileChoice = BookMetadataProfileId | "custom";
 const orderOf = (config: ProvidersConfig): string[] =>
 	Array.isArray(config) ? config : config.order;
 const fieldRulesOf = (config: ProvidersConfig): FieldRules =>
@@ -66,22 +57,6 @@ const updatesOf = (
 	...defaultFieldUpdates(mediaType),
 	...(Array.isArray(config) ? {} : (config.updates ?? {})),
 });
-const profileOf = (config: ProvidersConfig): ProfileChoice => {
-	if (Array.isArray(config)) return "custom";
-	const id = config.profile?.id;
-	return id && isBookMetadataProfileId(id) ? id : "custom";
-};
-const primaryOf = (
-	config: ProvidersConfig,
-	profile: ProfileChoice,
-): MetadataProviderId | undefined => {
-	if (profile === "custom") return undefined;
-	if (!Array.isArray(config) && config.primary) {
-		return config.primary as MetadataProviderId;
-	}
-	return bookMetadataProfile(profile).primary;
-};
-
 export type MetadataDraft = {
 	metadataProviders: MetadataProvidersConfig;
 	metadataConfig: MetadataConfig;
@@ -92,6 +67,7 @@ export function MetadataSection({
 	canManage,
 	onDirtyChange,
 	onDraftChange,
+	headingRef,
 }: {
 	library: Pick<
 		LibraryComplete,
@@ -100,6 +76,7 @@ export function MetadataSection({
 	canManage: boolean;
 	onDirtyChange?: (dirty: boolean) => void;
 	onDraftChange?: (draft: MetadataDraft) => void;
+	headingRef?: RefObject<HTMLHeadingElement | null>;
 }) {
 	const isAudiobook = library.mediaType === "audiobook";
 	const savedDomain = library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT;
@@ -111,9 +88,6 @@ export function MetadataSection({
 	);
 	const [fieldRules, setFieldRules] = useState<FieldRules>(() =>
 		fieldRulesOf(library.metadataProviders),
-	);
-	const [profile, setProfile] = useState<ProfileChoice>(() =>
-		profileOf(library.metadataProviders),
 	);
 	const [fieldUpdates, setFieldUpdates] = useState<FieldUpdates>(() =>
 		updatesOf(library.metadataProviders, library.mediaType),
@@ -134,7 +108,6 @@ export function MetadataSection({
 		);
 		setFieldRules(fieldRulesOf(library.metadataProviders));
 		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
-		setProfile(profileOf(library.metadataProviders));
 		setPausedFields(pausedOf(library.metadataProviders));
 		setEditorVersion((version) => version + 1);
 		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
@@ -142,16 +115,6 @@ export function MetadataSection({
 			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
 		);
 	}
-
-	// Derived, not synced: the authority is whatever the chosen profile declares,
-	// except while the saved profile is still selected — then the saved config's
-	// explicit primary wins (a failing provider may have been swapped out of it).
-	const primaryProvider =
-		profile === "custom"
-			? undefined
-			: profile === profileOf(library.metadataProviders)
-				? primaryOf(library.metadataProviders, profile)
-				: bookMetadataProfile(profile).primary;
 
 	const updateMutation = useMutation({
 		...orpc.libraries.updateLibrary.mutationOptions(),
@@ -168,6 +131,44 @@ export function MetadataSection({
 		...orpc.settings.getAmazon.queryOptions(),
 		enabled: !isAudiobook,
 	});
+	const { data: providerAvailability } = useQuery(
+		orpc.libraries.getMetadataProviderAvailability.queryOptions(),
+	);
+	// Providers the server currently offers. Anything else is pruned from the
+	// editable state on load, so the dirty check must compare against the
+	// same pruned baseline — otherwise the tab always opens as "unsaved".
+	const allowed = useMemo(
+		() =>
+			isAudiobook || !providerAvailability
+				? null
+				: new Set<MetadataProviderId>(
+						Object.entries(providerAvailability).flatMap(([id, enabled]) =>
+							enabled ? [id as MetadataProviderId] : [],
+						),
+					),
+		[isAudiobook, providerAvailability],
+	);
+	const pruneRules = (rules: FieldRules): FieldRules =>
+		allowed
+			? Object.fromEntries(
+					Object.entries(rules).map(([field, ids]) => [
+						field,
+						ids.filter((id) => allowed.has(id)),
+					]),
+				)
+			: rules;
+	const availableProviders = useMemo(
+		() =>
+			isAudiobook || !providerAvailability
+				? providers
+				: providers.filter(
+						(entry) =>
+							providerAvailability[
+								entry.id as keyof typeof providerAvailability
+							] === true,
+					),
+		[isAudiobook, providerAvailability, providers],
+	);
 	const orgDomainLabel = AMAZON_DOMAINS.find(
 		(d) => d.value === orgAmazon?.domain,
 	)?.label;
@@ -177,15 +178,18 @@ export function MetadataSection({
 		orderOf(library.metadataProviders),
 	);
 	const savedFieldRules = fieldRulesOf(library.metadataProviders);
-	const savedProfile = profileOf(library.metadataProviders);
+	const savedPausedFields = pausedOf(library.metadataProviders);
+	const baselineEntries = allowed
+		? savedEntries.filter((entry) => allowed.has(entry.id))
+		: savedEntries;
+	const baselineRules = pruneRules(savedFieldRules);
+	const baselinePaused = pruneRules(savedPausedFields);
 	const changed =
-		JSON.stringify(providers) !== JSON.stringify(savedEntries) ||
-		JSON.stringify(fieldRules) !== JSON.stringify(savedFieldRules) ||
+		JSON.stringify(providers) !== JSON.stringify(baselineEntries) ||
+		JSON.stringify(fieldRules) !== JSON.stringify(baselineRules) ||
 		JSON.stringify(fieldUpdates) !==
 			JSON.stringify(updatesOf(library.metadataProviders, library.mediaType)) ||
-		JSON.stringify(pausedFields) !==
-			JSON.stringify(pausedOf(library.metadataProviders)) ||
-		profile !== savedProfile ||
+		JSON.stringify(pausedFields) !== JSON.stringify(baselinePaused) ||
 		(isAudiobook
 			? audibleRegion !== savedRegion
 			: amazonDomain !== savedDomain);
@@ -210,64 +214,30 @@ export function MetadataSection({
 		},
 		...AMAZON_DOMAINS.map((d) => ({ value: d.value, label: d.label })),
 	];
-	const profileItems = [
-		{ value: "general", label: m["library.metadata_profile_general"]() },
-		{
-			value: "light_novels",
-			label: m["library.metadata_profile_light_novels"](),
-		},
-		{ value: "custom", label: m["library.metadata_profile_custom"]() },
-	];
-
-	const handleProfileChange = (value: ProfileChoice) => {
-		setProfile(value);
-		setEditorVersion((version) => version + 1);
-		if (value === "custom") {
-			return;
-		}
-		setPausedFields({});
-		const preset = bookMetadataProfile(value);
-		setProviders(toProviderEntries("ebook", [...preset.order]));
-		setFieldRules(
-			Object.fromEntries(
-				Object.entries(preset.fields ?? {}).flatMap(([field, ids]) =>
-					ids ? [[field, [...ids]]] : [],
-				),
-			) as FieldRules,
+	useEffect(() => {
+		if (!allowed) return;
+		setProviders((current) =>
+			current.every((entry) => allowed.has(entry.id))
+				? current
+				: current.filter((entry) => allowed.has(entry.id)),
 		);
-		setFieldUpdates(defaultFieldUpdates(library.mediaType));
-	};
+		setFieldRules((current) => pruneRules(current));
+		setPausedFields((current) => pruneRules(current));
+	}, [allowed]);
 
 	const cleanedRules = fieldRules;
 	const hasRules =
 		Object.keys(fieldRules).length > 0 || Object.keys(fieldUpdates).length > 0;
-	const defaults =
-		!isAudiobook && profile !== "custom"
-			? (bookMetadataProfile(profile).fields as FieldRules)
-			: {};
 	const draft = useMemo<MetadataDraft>(
 		() => ({
-			metadataProviders:
-				!isAudiobook && profile !== "custom" && primaryProvider
-					? {
-							order: toProviderIds(providers),
-							...(hasRules && { fields: cleanedRules }),
-							updates: fieldUpdates,
-							pausedFields,
-							primary: primaryProvider,
-							profile: {
-								id: profile,
-								version: bookMetadataProfile(profile).profile.version,
-							},
-						}
-					: hasRules
-						? {
-								order: toProviderIds(providers),
-								fields: cleanedRules,
-								updates: fieldUpdates,
-								pausedFields,
-							}
-						: toProviderIds(providers),
+			metadataProviders: hasRules
+				? {
+						order: toProviderIds(availableProviders),
+						fields: cleanedRules,
+						updates: fieldUpdates,
+						pausedFields,
+					}
+				: toProviderIds(availableProviders),
 			metadataConfig: isAudiobook
 				? { audible: { region: audibleRegion } }
 				: amazonDomain !== ORG_DEFAULT
@@ -276,9 +246,7 @@ export function MetadataSection({
 		}),
 		[
 			isAudiobook,
-			profile,
-			primaryProvider,
-			providers,
+			availableProviders,
 			hasRules,
 			cleanedRules,
 			fieldUpdates,
@@ -302,222 +270,149 @@ export function MetadataSection({
 		setFieldRules(fieldRulesOf(library.metadataProviders));
 		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
 		setPausedFields(pausedOf(library.metadataProviders));
-		setProfile(savedProfile);
 		setAmazonDomain(savedDomain);
 		setAudibleRegion(savedRegion);
 		setEditorVersion((version) => version + 1);
 	};
 	const toggleProvider = (id: MetadataProviderId, enabled: boolean) => {
-		const active = toProviderIds(providers);
-		if (!enabled && (id === primaryProvider || active.length === 1)) return;
-		// Preserve displayed per-field priority before changing provider availability.
-		setFieldRules({
-			...fieldRules,
-			...(Object.fromEntries(
-				Object.keys(defaultFieldUpdates(library.mediaType)).map((field) => [
-					field,
-					[...(fieldRules[field] ?? active)],
-				]),
-			) as FieldRules),
-		});
+		const active = toProviderIds(availableProviders);
+		if (!enabled && active.length === 1) return;
 		setProviders(
 			providers.map((entry) =>
 				entry.id === id ? { ...entry, enabled } : entry,
 			),
 		);
 	};
-
-	return (
-		<div className="flex flex-col gap-6">
-			{!isAudiobook && (
-				<section className="flex flex-col">
-					<SettingControlRow
-						label={
-							<Label
-								htmlFor="library-metadata-profile"
-								className="font-medium text-base text-foreground"
-							>
-								{m["library.metadata_profile"]()}
-							</Label>
-						}
-						description={m["library.metadata_profile_hint"]()}
-					>
+	const updateProviders = (next: ProviderEntry[]) => {
+		const toggled = next.find(
+			(entry) =>
+				entry.enabled !==
+				providers.find((provider) => provider.id === entry.id)?.enabled,
+		);
+		if (toggled) toggleProvider(toggled.id, toggled.enabled);
+		else setProviders(next);
+	};
+	const providerControls = isAudiobook
+		? {
+				audible: (
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="library-audible-region">
+							{m["library.audible_region"]()}
+						</Label>
 						<Select
-							value={profile}
-							onValueChange={handleProfileChange}
+							value={audibleRegion}
+							onValueChange={setAudibleRegion}
 							disabled={disabled}
-							items={profileItems}
+							items={audibleItems}
 						>
 							<SelectTrigger
-								id="library-metadata-profile"
+								id="library-audible-region"
 								className="w-full sm:w-72"
 							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
-									{profileItems.map((item) => (
-										<SelectItem key={item.value} value={item.value}>
-											{item.label}
+									{AUDIBLE_REGIONS.map((region) => (
+										<SelectItem key={region.value} value={region.value}>
+											{region.label}
+											{region.value === DEFAULT_AUDIBLE_REGION
+												? ` — ${m["library.default_suffix"]()}`
+												: ""}
 										</SelectItem>
 									))}
 								</SelectGroup>
 							</SelectContent>
 						</Select>
-					</SettingControlRow>
-				</section>
-			)}
+						<p className="text-muted-foreground text-xs">
+							{m["library.audible_region_hint"]()}
+						</p>
+					</div>
+				),
+			}
+		: {
+				amazon: (
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="library-amazon-store">
+							{m["library.amazon_store"]()}
+						</Label>
+						<Select
+							value={amazonDomain}
+							onValueChange={setAmazonDomain}
+							disabled={disabled}
+							items={amazonItems}
+						>
+							<SelectTrigger
+								id="library-amazon-store"
+								className="w-full sm:w-72"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectItem value={ORG_DEFAULT}>
+										{m["library.org_default"]()}
+										{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
+									</SelectItem>
+									{AMAZON_DOMAINS.map((domain) => (
+										<SelectItem key={domain.value} value={domain.value}>
+											{domain.label}
+										</SelectItem>
+									))}
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+						<p className="text-muted-foreground text-xs">
+							{m["library.amazon_store_hint"]()}
+						</p>
+					</div>
+				),
+			};
+	const fieldRouting = (
+		<section className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1">
+				<h3 className="font-medium text-base text-foreground">
+					{m["library.field_routing_title"]()}
+				</h3>
+			</div>
+			<FieldRoutingEditor
+				key={editorVersion}
+				pausedFields={pausedFields}
+				onPausedFieldsChange={setPausedFields}
+				mediaType={library.mediaType}
+				order={toProviderIds(availableProviders)}
+				value={fieldRules}
+				updates={fieldUpdates}
+				onChange={setFieldRules}
+				onUpdatesChange={setFieldUpdates}
+				disabled={disabled}
+			/>
+		</section>
+	);
 
-			{!isAudiobook && <Separator className="bg-border/60" />}
-
+	return (
+		<div className="flex flex-col gap-6">
 			<section className="flex flex-col gap-5">
 				<div className="flex min-w-0 flex-col gap-1">
-					<h3 className="font-medium text-base text-foreground">
-						{m["library.rules_available"]()}
+					<h3
+						ref={headingRef}
+						tabIndex={headingRef ? -1 : undefined}
+						className="font-medium text-base text-foreground outline-none"
+					>
+						{m["library.sources_priority_title"]()}
 					</h3>
-					<p className="text-muted-foreground text-sm">
-						{m["library.rules_available_help"]()}
-					</p>
 				</div>
-				<div className="flex flex-wrap gap-2">
-					{providers.map((entry) => (
-						<label
-							htmlFor={`available-provider-${entry.id}`}
-							key={entry.id}
-							title={PROVIDER_INFO[entry.id].description()}
-							className={cn(
-								"flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
-								entry.enabled
-									? "border-primary/30 bg-primary/5"
-									: "border-border text-muted-foreground",
-							)}
-						>
-							<Switch
-								id={`available-provider-${entry.id}`}
-								checked={entry.enabled}
-								disabled={
-									disabled ||
-									entry.id === primaryProvider ||
-									(entry.enabled && toProviderIds(providers).length === 1)
-								}
-								aria-label={m["library.provider_enable"]({
-									name: PROVIDER_INFO[entry.id].label,
-								})}
-								onCheckedChange={(checked) => toggleProvider(entry.id, checked)}
-							/>
-							{PROVIDER_INFO[entry.id].label}
-						</label>
-					))}
-				</div>
-			</section>
-
-			<Separator className="bg-border/60" />
-			<section className="flex flex-col gap-4">
-				<div className="flex flex-col gap-1">
-					<h3 className="font-medium text-base text-foreground">
-						{m["library.field_routing_title"]()}
-					</h3>
-					<p className="text-muted-foreground text-sm">
-						{m["library.field_routing_hint"]()}
-					</p>
-				</div>
-				<FieldRoutingEditor
-					key={editorVersion}
-					pausedFields={pausedFields}
-					onPausedFieldsChange={setPausedFields}
-					mediaType={library.mediaType}
-					order={toProviderIds(providers)}
-					value={fieldRules}
-					updates={fieldUpdates}
-					onChange={setFieldRules}
-					onUpdatesChange={setFieldUpdates}
-					defaults={defaults}
+				<p className="text-muted-foreground text-xs leading-relaxed">
+					{m["library.sources_order_hint"]()}
+				</p>
+				<ProviderPriorityList
+					value={availableProviders}
+					onChange={updateProviders}
 					disabled={disabled}
+					providerControls={providerControls}
 				/>
-			</section>
-
-			<Separator className="bg-border/60" />
-			<section className="flex flex-col">
-				<div>
-					{isAudiobook ? (
-						<SettingControlRow
-							label={
-								<Label
-									htmlFor="library-audible-region"
-									className="font-medium text-base text-foreground"
-								>
-									{m["library.audible_region"]()}
-								</Label>
-							}
-							description={m["library.audible_region_hint"]()}
-						>
-							<Select
-								value={audibleRegion}
-								onValueChange={setAudibleRegion}
-								disabled={disabled}
-								items={audibleItems}
-							>
-								<SelectTrigger
-									id="library-audible-region"
-									className="w-full sm:w-72"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										{AUDIBLE_REGIONS.map((r) => (
-											<SelectItem key={r.value} value={r.value}>
-												{r.label}
-												{r.value === DEFAULT_AUDIBLE_REGION
-													? ` — ${m["library.default_suffix"]()}`
-													: ""}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-						</SettingControlRow>
-					) : (
-						<SettingControlRow
-							label={
-								<Label
-									htmlFor="library-amazon-store"
-									className="font-medium text-base text-foreground"
-								>
-									{m["library.amazon_store"]()}
-								</Label>
-							}
-							description={m["library.amazon_store_hint"]()}
-						>
-							<Select
-								value={amazonDomain}
-								onValueChange={setAmazonDomain}
-								disabled={disabled}
-								items={amazonItems}
-							>
-								<SelectTrigger
-									id="library-amazon-store"
-									className="w-full sm:w-72"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										<SelectItem value={ORG_DEFAULT}>
-											{m["library.org_default"]()}
-											{orgDomainLabel ? ` (${orgDomainLabel})` : ""}
-										</SelectItem>
-										{AMAZON_DOMAINS.map((d) => (
-											<SelectItem key={d.value} value={d.value}>
-												{d.label}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-						</SettingControlRow>
-					)}
-				</div>
+				<Separator className="bg-border/60" />
+				{fieldRouting}
 			</section>
 
 			{!onDraftChange && canManage && changed && (
@@ -536,7 +431,7 @@ export function MetadataSection({
 						disabled={
 							!changed ||
 							updateMutation.isPending ||
-							toProviderIds(providers).length === 0
+							toProviderIds(availableProviders).length === 0
 						}
 						onClick={handleSave}
 					>

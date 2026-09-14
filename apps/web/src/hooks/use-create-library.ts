@@ -4,9 +4,7 @@ import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 
-/** Creating a library is triggered from two places (settings and the rail's
- *  create menu); they share the invalidation and the toast so the two can't
- *  drift. `onCreated` is where the caller closes its own wizard. */
+/** Every creation surface shares cache invalidation and completion feedback. */
 export function useCreateLibrary({
 	onCreated,
 }: {
@@ -14,17 +12,15 @@ export function useCreateLibrary({
 } = {}) {
 	return useMutation({
 		...orpc.libraries.createLibrary.mutationOptions(),
-		onSuccess: () => {
+		onSuccess: (created) => {
 			posthog?.capture("library_created");
 			queryClient.invalidateQueries({
-				queryKey: orpc.libraries.getLibraries.queryOptions().queryKey,
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.libraries.getLibrariesOverview.queryOptions().queryKey,
+				queryKey: orpc.libraries.key(),
 			});
 			onCreated?.();
-			toast.success(m["toast.library_created"]());
+			if (created.initialScanStatus === "failed")
+				toast.warning(m["toast.library_created_scan_failed"]());
+			else toast.success(m["toast.library_created"]());
 		},
-		onError: (err) => toast.error(err.message),
 	});
 }
