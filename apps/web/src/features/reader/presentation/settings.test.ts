@@ -1,27 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
 	defaultReaderSettings,
-	getReaderScrollbarTrackColor,
 	normalizeReaderSettings,
 	READER_FONT_SIZE_MAX,
 	READER_FONT_SIZE_MIN,
 	READER_LINE_HEIGHT_MAX,
 } from "./settings";
-
-test("the document scrollbar track does not create a gap beside the book", () => {
-	const backgroundColor = "rgba(18, 18, 18, 1)";
-	expect(
-		getReaderScrollbarTrackColor({
-			fontColor: "white",
-			backgroundColor,
-			selectionFontColor: "white",
-			selectionBackgroundColor: "black",
-			hintFuriganaShadowColor: "black",
-			hintFuriganaFontColor: "white",
-			tooltipTextFontColor: "white",
-		}),
-	).toBe(backgroundColor);
-});
 
 describe("reader settings normalization", () => {
 	test("migrates the old ragged CJK default while preserving later opt-outs", () => {

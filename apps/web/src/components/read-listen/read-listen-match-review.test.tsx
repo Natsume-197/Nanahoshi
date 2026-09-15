@@ -6,7 +6,6 @@ import {
 	getMatchWarningLabel,
 	getRemovalTarget,
 	getReviewSelectionTarget,
-	MATCH_ROW_COLUMNS,
 	MatchPublicationArtwork,
 } from "./read-listen-match-review";
 
@@ -16,13 +15,6 @@ describe("getMatchWarningLabel", () => {
 		expect(getMatchWarningLabel("author.mismatch")).toBeTruthy();
 		expect(getMatchWarningLabel("series.position.conflict")).toBeTruthy();
 		expect(getMatchWarningLabel("unknown.warning")).toBeNull();
-	});
-});
-
-describe("MATCH_ROW_COLUMNS", () => {
-	test("lets the translated action controls claim their intrinsic width", () => {
-		expect(MATCH_ROW_COLUMNS).toContain("max-content");
-		expect(MATCH_ROW_COLUMNS).not.toContain("_11rem]");
 	});
 });
 

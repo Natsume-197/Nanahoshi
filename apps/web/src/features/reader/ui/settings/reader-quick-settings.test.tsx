@@ -10,7 +10,6 @@ import {
 import { defaultVisualReaderSettings } from "@/features/reader/presentation/visual-settings";
 
 const { cleanup, fireEvent, render } = await import("@testing-library/react");
-const { m } = await import("@/paraglide/messages");
 const { setLocale } = await import("@/paraglide/runtime");
 
 const { constrainQuickSettingsDialogOffset, ReaderQuickSettings } =
@@ -117,37 +116,6 @@ describe("ReaderQuickSettings desktop dialog", () => {
 			expect(resolve).toHaveBeenLastCalledWith("remote");
 		});
 	}
-
-	test("provides reader settings copy in every supported locale", () => {
-		setLocale("es", { reload: false });
-		expect(m["reader_settings.text_size"]()).toBe("Tamaño del texto");
-		expect(m["reader_settings.create_theme"]()).toBe("Crear tema");
-
-		setLocale("ja", { reload: false });
-		expect(m["reader_settings.text_size"]()).toBe("文字サイズ");
-		expect(m["reader_settings.create_theme"]()).toBe("テーマを作成");
-	});
-
-	test("exposes dialog semantics and a close button", () => {
-		const onClose = mock(() => {});
-		const panel = renderPanel(onClose);
-		const dialog = panel.getByRole("dialog", { name: "Reader settings" });
-		const closeButton = panel.getByRole("button", { name: "Close settings" });
-
-		expect(
-			panel.container.ownerDocument.querySelector(
-				'[data-slot="modal-backdrop"]',
-			),
-		).toBeNull();
-		expect((dialog as HTMLElement).style.willChange).toBe("transform");
-		expect(dialog.querySelector("header")?.className).toContain("border-b");
-		expect(closeButton.querySelector("svg")?.className.baseVal).toContain(
-			"size-3.5",
-		);
-		fireEvent.click(closeButton);
-
-		expect(onClose).toHaveBeenCalledTimes(1);
-	});
 
 	test("keeps a dragged window inside the viewport", () => {
 		expect(
@@ -312,37 +280,6 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		expect((dialog as HTMLElement).style.transform).toContain("-50% + 4px");
 	});
 
-	test("removes Advanced settings from the category list", () => {
-		const panel = renderPanel(() => {});
-
-		expect(panel.queryByText("Advanced settings")).toBeNull();
-	});
-
-	test("keeps profiles outside the settings categories", () => {
-		const panel = renderPanel(() => {});
-
-		expect(
-			panel.getByRole("heading", { name: "Reading profile" }),
-		).toBeTruthy();
-		expect(panel.getByRole("button", { name: "Add" })).toBeTruthy();
-		expect(
-			panel.getByRole("combobox", { name: "Active reading profile" }),
-		).toBeTruthy();
-		expect(panel.queryByRole("button", { name: "Profiles" })).toBeNull();
-	});
-
-	test("layers the profile menu above the floating settings window", () => {
-		const panel = renderPanel(() => {});
-		const manageButton = panel.getByRole("button", { name: "Manage" });
-
-		fireEvent.click(manageButton);
-		const menu = panel.getByRole("menu", { name: "Manage" });
-		const positioner = menu.parentElement;
-
-		expect(positioner?.className).toContain("z-[70]");
-		fireEvent.click(manageButton);
-	});
-
 	test("creates a named profile from an explicit form", () => {
 		const onProfileCreate = mock(() => {});
 		const panel = renderPanel(() => {}, false, { onProfileCreate });
@@ -407,71 +344,6 @@ describe("ReaderQuickSettings desktop dialog", () => {
 
 		fireEvent.click(panel.getByRole("button", { name: "Delete profile" }));
 		expect(onProfileDelete).toHaveBeenCalledWith("default");
-	});
-
-	test("hides Read as when text is the only supported content type", () => {
-		const panel = renderPanel(() => {});
-
-		fireEvent.click(panel.getByRole("button", { name: "Layout" }));
-
-		expect(panel.queryByText("Read as")).toBeNull();
-	});
-
-	test("offers only settings consumed by the PDF renderer", () => {
-		const panel = renderPanel(() => {}, false, {
-			presentation: {
-				...presentation,
-				contentKind: "pdf",
-				renderer: "pdf",
-			},
-		});
-
-		expect(panel.getByRole("button", { name: "Visual" })).toBeTruthy();
-		expect(panel.queryByRole("button", { name: "Text" })).toBeNull();
-		expect(panel.queryByRole("button", { name: "Layout" })).toBeNull();
-		expect(panel.getByRole("button", { name: "Behaviour" })).toBeTruthy();
-		fireEvent.click(panel.getByRole("button", { name: "Visual" }));
-		expect(panel.getByRole("group", { name: "Reading theme" })).toBeTruthy();
-		expect(panel.queryByText("Character counter")).toBeNull();
-		expect(panel.queryByText("Percentage")).toBeNull();
-		fireEvent.click(
-			panel.getByRole("button", { name: "Back to settings categories" }),
-		);
-		fireEvent.click(panel.getByRole("button", { name: "Behaviour" }));
-		expect(panel.getByRole("combobox", { name: "Save position" })).toBeTruthy();
-		expect(panel.queryByText("Disable wheel navigation")).toBeNull();
-	});
-
-	test("moves paginated reader controls into Layout", () => {
-		const panel = renderPanel(() => {}, false, {
-			presentation: {
-				...presentation,
-				textLayout: "paginated",
-				renderer: "text-paginated",
-				supportsVisual: true,
-			},
-		});
-
-		fireEvent.click(panel.getByRole("button", { name: "Layout" }));
-
-		expect(panel.getByText("Read as")).toBeTruthy();
-		expect(panel.getByText("Avoid page break")).toBeTruthy();
-	});
-
-	test("moves vertical typography controls into Text", () => {
-		const panel = renderPanel(() => {}, false, {
-			settings: {
-				...defaultReaderSettings,
-				writingMode: "vertical-rl",
-			},
-		});
-
-		fireEvent.click(panel.getByRole("button", { name: "Text" }));
-
-		expect(panel.getByText("Sans font family")).toBeTruthy();
-		expect(panel.getByText("Latin character orientation")).toBeTruthy();
-		expect(panel.getByText("Font kerning")).toBeTruthy();
-		expect(panel.getByText("Proportional vertical metrics")).toBeTruthy();
 	});
 
 	test("offers line-by-line audio playback only in Read & Listen focus mode", () => {

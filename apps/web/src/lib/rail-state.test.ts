@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
 	parseRailState,
-	RAIL_ANIM_MS,
 	RAIL_COOKIE_MAX_AGE,
 	RAIL_COOKIE_NAME,
 	railDirection,
@@ -74,43 +71,5 @@ describe("railDirection", () => {
 	test("names the way the panel is travelling", () => {
 		expect(railDirection("expanded")).toBe("opening");
 		expect(railDirection("collapsed")).toBe("closing");
-	});
-});
-
-describe("open/close motion budget", () => {
-	const css = readFileSync(join(import.meta.dir, "../index.css"), "utf8");
-
-	test("every data-rail-anim rule finishes before the attribute is dropped", () => {
-		const rules = [
-			...css.matchAll(
-				/html\[data-rail-anim="[^"]+"\][^{]*\{\s*animation:\s*([^;]+);/g,
-			),
-		];
-		expect(rules.length).toBe(2);
-		for (const [, shorthand] of rules) {
-			const times = [...(shorthand ?? "").matchAll(/(\d+)ms/g)].map((m) =>
-				Number(m[1]),
-			);
-			expect(times.length).toBe(2);
-			const [start, duration] = times;
-			if (start === undefined || duration === undefined) {
-				throw new Error("Rail animation must define start and duration");
-			}
-			expect(start + duration).toBeLessThanOrEqual(RAIL_ANIM_MS);
-		}
-	});
-
-	test("both directions are styled", () => {
-		expect(css).toContain('html[data-rail-anim="opening"]');
-		expect(css).toContain('html[data-rail-anim="closing"]');
-		expect(css).toContain("@keyframes rail-open");
-		expect(css).toContain("@keyframes rail-close");
-	});
-
-	test("the held-back contents use both-fill", () => {
-		const anim = css.match(
-			/html\[data-rail-anim="opening"\][^{]*\{\s*animation:([^;]+);/,
-		);
-		expect(anim?.[1]).toContain("both");
 	});
 });

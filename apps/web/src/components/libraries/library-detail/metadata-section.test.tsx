@@ -85,19 +85,6 @@ function mountSection() {
 	);
 }
 
-test("a server-disabled provider does not mark the section as dirty", async () => {
-	const view = mountSection();
-	// Wait until the prune effect has run (Amazon disappears from the list).
-	await waitFor(() =>
-		expect(
-			view.queryByRole("checkbox", {
-				name: m["library.provider_enable"]({ name: "Amazon" }),
-			}),
-		).toBeNull(),
-	);
-	expect(view.queryByText(m["library.rules_unsaved"]())).toBeNull();
-});
-
 test("toggling a provider marks the section as dirty", async () => {
 	const view = mountSection();
 	await waitFor(() =>

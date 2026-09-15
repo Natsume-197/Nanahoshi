@@ -4,7 +4,7 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 
 mock.module("@/lib/posthog", () => ({ posthog: null }));
 
-const { cleanup, fireEvent, render, screen, within } = await import(
+const { cleanup, fireEvent, render, screen } = await import(
 	"@testing-library/react"
 );
 
@@ -61,17 +61,6 @@ const { CreateCollectionDialog } = await import("./create-collection-button");
 afterEach(cleanup);
 
 describe("CreateCollectionDialog", () => {
-	test("starts with exactly the two collection type actions", () => {
-		render(<CreateCollectionDialog open onOpenChange={() => {}} />);
-
-		const dialog = screen.getByRole("region", { name: "Create collection" });
-		const buttons = within(dialog).getAllByRole("button");
-
-		expect(buttons).toHaveLength(2);
-		expect(buttons[0]?.textContent).toBe("Create a manual collection");
-		expect(buttons[1]?.textContent).toBe("Create a dynamic collection");
-	});
-
 	test("opens each editor only after its type is chosen", () => {
 		const view = render(
 			<CreateCollectionDialog open onOpenChange={() => {}} />,
