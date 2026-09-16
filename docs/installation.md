@@ -4,8 +4,7 @@ Nanahoshi runs with Docker and Docker Compose v2. The stack contains the applica
 (web + API and a background worker in one container), PostgreSQL/PGroonga and Redis.
 [s6-overlay](https://github.com/just-containers/s6-overlay) supervises the two
 application processes, which run as the unprivileged `nanahoshi` user.
-The initial release workflow publishes Linux amd64 images. ARM64 is not yet a
-verified release target.
+The release workflow publishes Linux amd64 and arm64 images.
 
 ## First installation
 

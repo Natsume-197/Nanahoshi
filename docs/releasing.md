@@ -1,4 +1,4 @@
-# Publish Nanahoshi 1.0.0
+# Publish a Nanahoshi release
 
 ## 1. Validate the release commit
 
@@ -34,14 +34,13 @@ On GitHub, open **Releases → Draft a new release**:
 3. Leave **pre-release** unchecked and publish the release.
 
 The **Release Docker image** workflow builds the image, runs the installation
-test and publishes that same image as:
+test, and publishes amd64 and arm64 images as:
 
 - `ghcr.io/natsume-197/nanahoshi:v1.0.0`
 - `ghcr.io/natsume-197/nanahoshi:latest`
 
 It authenticates with the repository's `GITHUB_TOKEN`; no personal token needs
-to be added. This release supports **Linux amd64**. Prereleases publish their
-version tag without updating `latest`.
+to be added. Prereleases publish their version tag without updating `latest`.
 
 ## 3. Make the first package public
 
