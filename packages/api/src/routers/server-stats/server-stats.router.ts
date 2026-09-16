@@ -1,8 +1,8 @@
 import { requirePermission } from "../../index";
-import { serverStatsRepository } from "./server-stats.repository";
+import { getCachedStats } from "./server-stats.service";
 
 export const serverStatsRouter = {
 	get: requirePermission("settings", "read").handler(async ({ context }) => {
-		return serverStatsRepository.getStats(context.serverId);
+		return getCachedStats(context.serverId);
 	}),
 };
