@@ -230,36 +230,31 @@ export function MatchDetailPanel({
 	return (
 		<aside
 			aria-label={m["enrichment.detail_title"]()}
-			className={cn("flex min-h-0 flex-col bg-muted/20", className)}
+			className={cn("flex min-h-0 flex-col", className)}
 		>
-			<header className="flex items-start gap-3 border-border/60 border-b px-4 py-3.5">
+			{/* Hero tipo MangaDex: la portada a gran tamaño sobre su propia
+			    versión desenfocada como banner, fundida al fondo. */}
+			<header className="relative shrink-0 overflow-hidden">
 				{coverFilename ? (
-					<img
-						src={getCoverUrl(coverFilename, coverPresets.activity.widths[1])}
-						alt=""
-						decoding="async"
-						className={cn(
-							"h-16 w-11 shrink-0 rounded object-cover",
-							COVER_EDGE,
-						)}
-					/>
-				) : (
-					<div className="h-16 w-11 shrink-0 rounded bg-muted" />
-				)}
-				<div className="min-w-0 flex-1">
-					<h2 className="line-clamp-2 font-semibold text-base leading-snug">
-						{item.title ?? item.bookUuid}
-					</h2>
-					<div className="mt-1.5 flex flex-wrap items-center gap-2">
-						<LifecycleChip lifecycle={item.lifecycle} />
-						{item.libraryName && (
-							<span className="truncate text-muted-foreground text-xs">
-								{item.libraryName}
-							</span>
-						)}
+					<div
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0"
+					>
+						<img
+							src={getCoverUrl(coverFilename, coverPresets.activity.widths[0])}
+							alt=""
+							decoding="async"
+							className="h-full w-full scale-105 object-cover opacity-30 blur-xl saturate-150"
+						/>
+						<div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
 					</div>
-				</div>
-				<div className="flex shrink-0 items-center gap-0.5">
+				) : (
+					<div
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 bg-gradient-to-b from-muted/60 via-background/60 to-background"
+					/>
+				)}
+				<div className="absolute top-2 right-2 z-10 flex shrink-0 items-center gap-0.5">
 					<Button
 						size="icon-sm"
 						variant="ghost"
@@ -279,15 +274,42 @@ export function MatchDetailPanel({
 						<X />
 					</Button>
 				</div>
+				<div className="relative flex flex-col items-center px-4 pt-10 text-center">
+					{coverFilename ? (
+						<img
+							src={getCoverUrl(coverFilename, coverPresets.detail.widths[1])}
+							alt=""
+							decoding="async"
+							className={cn(
+								"h-56 w-40 shrink-0 rounded-xl object-cover shadow-2xl ring-1 ring-white/10",
+								COVER_EDGE,
+							)}
+						/>
+					) : (
+						<div className="h-56 w-40 shrink-0 rounded-xl bg-muted shadow-2xl ring-1 ring-white/10" />
+					)}
+					<div className="mt-4 min-w-0">
+						<h2 className="line-clamp-3 font-semibold text-lg leading-snug">
+							{item.title ?? item.bookUuid}
+						</h2>
+						<div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+							<LifecycleChip lifecycle={item.lifecycle} />
+							{item.libraryName && (
+								<span className="truncate text-muted-foreground text-xs">
+									{item.libraryName}
+								</span>
+							)}
+						</div>
+					</div>
+				</div>
+				<div className="relative flex justify-center px-4 pt-3 pb-4">
+					<DetailActions
+						lifecycle={item.lifecycle}
+						busy={busy}
+						actions={actions}
+					/>
+				</div>
 			</header>
-
-			<div className="border-border/60 border-b px-4 py-2.5">
-				<DetailActions
-					lifecycle={item.lifecycle}
-					busy={busy}
-					actions={actions}
-				/>
-			</div>
 
 			<Tabs defaultValue="match" className="min-h-0 flex-1 gap-0">
 				<TabsList variant="line" className="w-full px-4 pt-2">

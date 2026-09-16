@@ -15,7 +15,6 @@ import {
 	Play,
 	Prohibit,
 	Question,
-	SlidersHorizontal,
 	Warning,
 } from "@phosphor-icons/react";
 import {
@@ -27,6 +26,7 @@ import {
 import { getRouteApi, Link } from "@tanstack/react-router";
 import {
 	type ComponentProps,
+	type CSSProperties,
 	Fragment,
 	type ReactNode,
 	useRef,
@@ -40,6 +40,12 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/components/ui/drawer";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -55,7 +61,6 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -70,7 +75,6 @@ import { client, orpc } from "@/utils/orpc";
 import {
 	ALL_BUCKETS,
 	ALL_LIBRARIES,
-	ALL_TYPES,
 	type EnrichmentBucket as Bucket,
 	type BucketFilter,
 	DEFAULT_BUCKET,
@@ -238,7 +242,6 @@ export function MatchManager() {
 
 	const bucket = urlSearch.bucket ?? DEFAULT_BUCKET;
 	const libraryUuid = urlSearch.library ?? ALL_LIBRARIES;
-	const mediaType = urlSearch.type ?? ALL_TYPES;
 	const sort = urlSearch.sort ?? "recent";
 	const onlyFailures = urlSearch.failures ?? false;
 
@@ -276,9 +279,6 @@ export function MatchManager() {
 	// useDeferredValue only smooths rendering — it would still fire a request
 	// (three full scans server-side) per settled keystroke.
 	const debouncedSearch = useDebounce(search, 300);
-	// The detail pane only earns its width on a wide screen; below that the same
-	// component opens as a modal, so exactly one copy is ever mounted.
-	const detailFits = useMediaQuery("(min-width: 1280px)");
 
 	const singleLibrary = libraryUuid !== ALL_LIBRARIES;
 	// Built by the same helper the route loader uses, so the prefetched entry
@@ -490,7 +490,8 @@ export function MatchManager() {
 	};
 	const anyDialogOpen =
 		fixTarget != null || providerFixOpen || restoreRequest != null;
-	// Escape closes the pane, matching what it would do if this were the modal.
+	// Escape closes the drawer. The drawer handles it natively too; this is
+	// the fallback for the same keypress so selection state always resets.
 	useWindowEvent("keydown", (event: KeyboardEvent) => {
 		if (event.key !== "Escape" || anyDialogOpen || detailUuid == null) return;
 		closeDetail();
@@ -634,9 +635,6 @@ export function MatchManager() {
 		items.length === 0 && counts
 			? SUGGEST_ORDER.find((key) => key !== bucket && (counts[key] ?? 0) > 0)
 			: undefined;
-
-	const activeFilterCount =
-		(mediaType !== ALL_TYPES ? 1 : 0) + (onlyFailures ? 1 : 0);
 
 	const sidebar = (
 		<MatchSidebar
@@ -839,7 +837,7 @@ export function MatchManager() {
 						</div>
 
 						<div className="relative ms-auto w-full min-w-0 max-w-72 flex-1">
-							<MagnifyingGlass className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+							<MagnifyingGlass className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								value={search}
 								onChange={(event) => {
@@ -847,115 +845,50 @@ export function MatchManager() {
 									setOffset(0);
 								}}
 								placeholder={m["enrichment.search_placeholder"]()}
-								className="h-8 w-full ps-8"
+								className="h-[30px] w-full rounded-full ps-8 text-xs"
 							/>
 						</div>
-
-						<Popover>
-							<PopoverTrigger
-								render={
-									<Button
-										variant={activeFilterCount > 0 ? "secondary" : "ghost"}
-										size="sm"
-										aria-label={m["enrichment.filters"]()}
-									>
-										<SlidersHorizontal data-icon="inline-start" />
-										<span className="hidden sm:inline">
-											{m["enrichment.filters"]()}
-										</span>
-										{activeFilterCount > 0 && (
-											<span className="tabular-nums">{activeFilterCount}</span>
-										)}
-									</Button>
-								}
-							/>
-							<PopoverContent align="end" className="w-64">
-								<div className="flex flex-col gap-4">
-									<div className="flex flex-col gap-1.5">
-										<p className="font-medium text-xs">
-											{m["enrichment.all_types"]()}
-										</p>
-										<div className="flex gap-1.5">
-											{(
-												[
-													[ALL_TYPES, m["enrichment.all_types"]()],
-													["ebook", m["enrichment.type_ebook"]()],
-													["audiobook", m["enrichment.type_audiobook"]()],
-												] as const
-											).map(([value, label]) => (
-												<button
-													key={value}
-													type="button"
-													onClick={() =>
-														patchFilters({
-															type:
-																value === ALL_TYPES
-																	? undefined
-																	: (value as MediaTypeFilter),
-														})
-													}
-													aria-pressed={mediaType === value}
-													className={cn(
-														"h-7 flex-1 rounded-lg border px-2 text-xs transition-colors",
-														mediaType === value
-															? "border-primary/40 bg-primary/12 font-medium text-foreground"
-															: "border-border/60 text-muted-foreground hover:text-foreground",
-													)}
-												>
-													{label}
-												</button>
-											))}
-										</div>
-									</div>
-									<button
-										type="button"
-										onClick={() =>
-											patchFilters({
-												failures: onlyFailures ? undefined : true,
-											})
-										}
-										aria-pressed={onlyFailures}
-										className="flex items-center gap-2.5 text-start text-sm"
-									>
-										<Checkbox
-											checked={onlyFailures}
-											aria-hidden
-											tabIndex={-1}
-											className="pointer-events-none"
-										/>
-										{m["enrichment.only_failures"]()}
-									</button>
-								</div>
-							</PopoverContent>
-						</Popover>
 					</div>
 
-					<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-						{/* Mirrors the loaded geometry exactly — flush h-14 rows under a
-						    column header — so nothing shifts when the data lands. */}
+					<div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+						{/* Mirrors the loaded geometry exactly — dense 38px header over
+						    52px rows — so nothing shifts when the data lands. */}
 						{isLoading && (
-							<div>
-								<div className="flex h-8 items-center border-border/60 border-b">
-									<div className="flex w-11 shrink-0 justify-center">
+							<div className={TABLE_GRID}>
+								<div
+									className={cn(
+										ROW_SUBGRID,
+										"h-[38px] border-border/60 border-b px-3",
+									)}
+								>
+									<span className="flex items-center justify-center">
 										<Skeleton className="size-4 rounded-[5px]" />
-									</div>
+									</span>
 									<Skeleton className="h-3 w-16 rounded-sm" />
+									<Skeleton className="h-3 w-14 rounded-sm" />
+									<Skeleton className="h-5 w-20 rounded-full" />
+									<Skeleton className="h-3 w-14 rounded-sm" />
+									<span />
 								</div>
 								{SKELETON_ROWS.map((id) => (
 									<div
 										key={id}
-										className="flex h-14 items-stretch border-border/40 border-b"
+										className={cn(
+											ROW_SUBGRID,
+											"h-[52px] border-border/40 border-b px-3",
+										)}
 									>
-										<div className="flex w-11 shrink-0 items-center justify-center">
+										<span className="flex items-center justify-center">
 											<Skeleton className="size-4 rounded-[5px]" />
-										</div>
-										<div className="flex min-w-0 flex-1 items-center gap-2.5 pe-2">
-											<Skeleton className="h-11 w-8 shrink-0 rounded" />
-											<Skeleton className="h-3.5 w-48 max-w-[45%] rounded-sm" />
-											<Skeleton className="ms-auto hidden h-5 w-20 shrink-0 rounded-2xl md:block" />
-											<Skeleton className="hidden h-3 w-14 shrink-0 rounded-sm lg:block" />
-										</div>
-										<div className="w-9 shrink-0" />
+										</span>
+										<span className="flex min-w-0 items-center gap-2.5">
+											<Skeleton className="h-9 w-6 shrink-0 rounded-[4px]" />
+											<Skeleton className="h-3.5 w-48 max-w-[60%] rounded-sm" />
+										</span>
+										<Skeleton className="h-3.5 w-3/4 rounded-sm" />
+										<Skeleton className="h-5 w-20 rounded-full" />
+										<Skeleton className="h-3 w-14 rounded-sm" />
+										<span />
 									</div>
 								))}
 							</div>
@@ -983,43 +916,48 @@ export function MatchManager() {
 						{!isLoading && items.length > 0 && (
 							<div
 								className={cn(
+									TABLE_GRID,
 									"transition-opacity",
 									isPlaceholderData && "pointer-events-none opacity-50",
 								)}
 							>
-								<div className="sticky top-0 z-10 flex items-center border-border/60 border-b bg-background text-muted-foreground text-xs">
-									<div className="flex w-11 shrink-0 justify-center">
+								<div
+									className={cn(
+										ROW_SUBGRID,
+										"sticky top-0 z-10 border-border/60 border-b bg-background px-3 text-muted-foreground",
+									)}
+								>
+									<span className="flex h-[38px] items-center justify-center">
 										<Checkbox
 											checked={headerChecked}
 											indeterminate={headerIndeterminate}
 											onCheckedChange={toggleSelectPage}
 											aria-label={m["enrichment.select_page"]()}
 										/>
-									</div>
-									<div className={cn("min-w-0 flex-1 py-2 pe-2", ROW_COLUMNS)}>
+									</span>
+									<span className="flex h-[38px] items-center">
 										<SortHeader
 											label={m["enrichment.col_book"]()}
 											active={sort === "title"}
 											direction="asc"
 											onClick={toggleTitleSort}
 										/>
-										<span className="hidden font-medium xl:block">
-											{m["enrichment.col_match"]()}
-										</span>
-										<span className="hidden font-medium md:block">
-											{m["enrichment.col_status"]()}
-										</span>
-										<SortHeader
-											className="hidden lg:inline-flex"
-											label={m["enrichment.col_updated"]()}
-											active={sort === "recent" || sort === "oldest"}
-											direction={sort === "oldest" ? "asc" : "desc"}
-											onClick={toggleUpdatedSort}
-										/>
-									</div>
-									<div className="w-9 shrink-0" />
+									</span>
+									<span className="flex h-[38px] items-center font-medium text-xs">
+										{m["enrichment.col_match"]()}
+									</span>
+									<span className="flex h-[38px] items-center font-medium text-xs">
+										{m["enrichment.col_status"]()}
+									</span>
+									<SortHeader
+										label={m["enrichment.col_updated"]()}
+										active={sort === "recent" || sort === "oldest"}
+										direction={sort === "oldest" ? "asc" : "desc"}
+										onClick={toggleUpdatedSort}
+									/>
+									<span />
 								</div>
-								<ul>
+								<ul className="contents">
 									{items.map((item) => (
 										<EnrichmentRow
 											key={item.bookUuid}
@@ -1154,39 +1092,44 @@ export function MatchManager() {
 						</div>
 					)}
 				</section>
-
-				{detailItem && detailFits && (
-					<MatchDetailPanel
-						item={detailItem}
-						providerLabels={providerLabels}
-						providerUrlTemplates={data?.providerUrlTemplates}
-						busy={busy}
-						actions={rowActions(detailItem)}
-						onClose={closeDetail}
-						className="panel-in w-96 shrink-0 border-border/60 border-s"
-					/>
-				)}
 			</div>
 
-			{detailItem && !detailFits && (
-				<Modal
-					open
-					onOpenChange={(open) => !open && closeDetail()}
-					title={m["enrichment.detail_title"]()}
-					className="max-h-[85dvh] overflow-hidden p-0 sm:max-w-xl"
-					bare
+			<Drawer
+				open={detailItem != null}
+				onOpenChange={(open) => {
+					if (!open) closeDetail();
+				}}
+				swipeDirection="right"
+				overlayClassName="supports-backdrop-filter:backdrop-blur-none"
+			>
+				<DrawerContent
+					className="rounded-none border-border/60 border-y-0 border-r-0 bg-background"
+					style={
+						{
+							"--drawer-content-width": "min(26rem, calc(100dvw - 3rem))",
+							"--drawer-inset": "0px",
+						} as CSSProperties
+					}
 				>
-					<MatchDetailPanel
-						item={detailItem}
-						providerLabels={providerLabels}
-						providerUrlTemplates={data?.providerUrlTemplates}
-						busy={busy}
-						actions={rowActions(detailItem)}
-						onClose={closeDetail}
-						className="max-h-[85dvh] bg-transparent"
-					/>
-				</Modal>
-			)}
+					<DrawerTitle className="sr-only">
+						{m["enrichment.detail_title"]()}
+					</DrawerTitle>
+					<DrawerDescription className="sr-only">
+						{detailItem?.title ?? detailItem?.bookUuid ?? ""}
+					</DrawerDescription>
+					{detailItem && (
+						<MatchDetailPanel
+							item={detailItem}
+							providerLabels={providerLabels}
+							providerUrlTemplates={data?.providerUrlTemplates}
+							busy={busy}
+							actions={rowActions(detailItem)}
+							onClose={closeDetail}
+							className="min-h-0 flex-1 bg-transparent"
+						/>
+					)}
+				</DrawerContent>
+			</Drawer>
 
 			<Modal
 				open={restoreRequest != null}
@@ -1262,12 +1205,14 @@ export function MatchManager() {
 	);
 }
 
-// One template shared by the header and every row. Columns are declared per
-// breakpoint in DOM order (book, match, status, updated); a hidden cell drops
-// out of grid placement entirely, so each breakpoint's template lists exactly
-// the cells that are visible at it.
-const ROW_COLUMNS =
-	"grid grid-cols-[minmax(0,1fr)] items-center gap-3 md:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-[minmax(0,1fr)_10rem_6.5rem] xl:grid-cols-[minmax(0,1fr)_minmax(0,30%)_10rem_6.5rem]";
+// Dense CRM grid: the outer wrapper owns the column template, the header and
+// every row are subgrids of it, and the list itself is `contents` so rows
+// participate directly. Track 1 is the checkbox gutter, tracks 2–5 are the
+// content columns (owned by one row button, so the row stays a single tab
+// stop with no nested buttons), track 6 is the row menu.
+const TABLE_GRID =
+	"grid min-w-[860px] grid-cols-[2.5rem_minmax(0,1.7fr)_minmax(0,1fr)_9.5rem_7rem_1.5rem]";
+const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center gap-3";
 
 function SortHeader({
 	label,
@@ -1287,8 +1232,8 @@ function SortHeader({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"inline-flex w-fit items-center gap-1 font-medium transition-colors hover:text-foreground",
-				active && "text-foreground",
+				"inline-flex w-fit items-center gap-1 text-xs transition-colors hover:text-foreground",
+				active ? "font-medium text-foreground" : "font-normal",
 				className,
 			)}
 		>
@@ -1364,42 +1309,31 @@ function EnrichmentRow({
 	return (
 		<li
 			className={cn(
-				"group relative isolate flex items-stretch border-border/40 border-b",
+				ROW_SUBGRID,
+				"group border-border/40 border-b px-3 transition-colors duration-150",
 				// Selection needs to read at a glance across 50 rows; the open row
 				// stays clearly the stronger tint so the two never compete.
-				open ? "bg-primary/16" : selected && "bg-primary/6",
+				open ? "bg-primary/16" : "hover:bg-card/60",
+				selected && !open && "bg-primary/6",
 			)}
+			data-active={open}
 		>
-			{/* Hover tint as an opacity fade (compositor) rather than an animated
-			    background-color, which costs a style recalc + paint per frame on
-			    every row. Same pattern as MediaListRow. */}
-			{!open && (
-				<span
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-0 -z-10 bg-muted/50 opacity-0 transition-opacity duration-150 ease-[var(--ease-smooth-out)] group-hover:opacity-100"
-				/>
-			)}
-			<div className="flex w-11 shrink-0 items-center justify-center">
+			{/* Checkbox gutter and row menu stay outside the row button: the
+			    button owns tracks 2–5 as its own subgrid, so the row keeps one
+			    tab stop and never nests buttons. */}
+			<span className="flex items-center justify-center">
 				<Checkbox
 					checked={selected}
 					onCheckedChange={onToggle}
 					aria-label={item.title ?? item.bookUuid}
 				/>
-			</div>
-
-			{/* The whole row is one button: clicking anywhere opens the detail, and
-			    it is a single tab stop with the book title as its accessible name.
-			    Nothing interactive may live inside it — provider links belong to the
-			    detail pane. Every cell is capped to two lines so the list keeps one
-			    scan rhythm no matter how long a title or a failure reason runs. */}
+			</span>
 			<button
 				type="button"
 				onClick={onOpen}
 				aria-current={open ? "true" : undefined}
-				className={cn(
-					"h-14 min-w-0 flex-1 pe-2 text-start outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
-					ROW_COLUMNS,
-				)}
+				aria-label={item.title ?? item.bookUuid}
+				className="col-span-4 grid min-h-[52px] grid-cols-subgrid items-center gap-3 py-1.5 text-start outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
 			>
 				<span className="flex min-w-0 items-center gap-2.5">
 					{coverFilename ? (
@@ -1409,16 +1343,19 @@ function EnrichmentRow({
 							loading="lazy"
 							decoding="async"
 							className={cn(
-								"h-11 w-8 shrink-0 rounded object-cover",
+								"h-9 w-6 shrink-0 rounded-[4px] object-cover ring-1 ring-foreground/10",
 								COVER_EDGE,
 							)}
 						/>
 					) : (
-						<span className="h-11 w-8 shrink-0 rounded bg-muted" />
+						<span className="h-9 w-6 shrink-0 rounded-[4px] bg-muted ring-1 ring-foreground/10" />
 					)}
 					<span className="min-w-0 flex-1">
 						<span
-							className={cn("block truncate text-sm", open && "font-medium")}
+							className={cn(
+								"block truncate text-[14px] leading-tight",
+								open && "font-medium",
+							)}
 							title={item.title ?? undefined}
 						>
 							{item.title ?? item.bookUuid}
@@ -1427,19 +1364,19 @@ function EnrichmentRow({
 							className="block truncate text-muted-foreground text-xs"
 							title={sourceName ?? undefined}
 						>
-							{/* Without the match column there is nowhere else to say what
-							    the pipeline chose, so the comparison collapses inline. */}
-							{chosen && <span className="xl:hidden">{chosen} · </span>}
 							{sourceName ?? item.libraryName}
 						</span>
 					</span>
 				</span>
 
-				<span className="hidden min-w-0 xl:block">
+				<span className="min-w-0">
 					{chosen ? (
 						<>
 							<span className="flex min-w-0 items-center gap-1.5">
-								<span className="truncate text-sm" title={chosen}>
+								<span
+									className="truncate text-[14px] leading-tight"
+									title={chosen}
+								>
 									{chosen}
 								</span>
 								{primaryMatch?.reasons?.length ? (
@@ -1459,7 +1396,7 @@ function EnrichmentRow({
 					)}
 				</span>
 
-				<span className="hidden min-w-0 md:block">
+				<span className="min-w-0">
 					<LifecycleChip lifecycle={item.lifecycle} />
 					{failureLine && (
 						<span
@@ -1471,16 +1408,16 @@ function EnrichmentRow({
 					)}
 				</span>
 
-				<span className="hidden truncate text-muted-foreground text-xs tabular-nums lg:block">
+				<span className="truncate text-muted-foreground text-xs tabular-nums">
 					{item.lastRunAt
 						? formatRelativeTime(item.lastRunAt)
 						: m["enrichment.never_ran"]()}
 				</span>
 			</button>
 
-			<div className="flex w-9 shrink-0 items-center justify-center">
+			<span className="flex items-center justify-center">
 				<RowMenu lifecycle={item.lifecycle} actions={actions} />
-			</div>
+			</span>
 		</li>
 	);
 }
@@ -1496,10 +1433,10 @@ function RowMenu({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
-					size="icon-sm"
+					size="icon-xs"
 					variant="ghost"
 					aria-label={m["enrichment.more"]()}
-					className="text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 max-md:opacity-100"
+					className="rounded-full text-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 max-md:opacity-100"
 				>
 					<DotsThreeVertical weight="bold" />
 				</Button>
