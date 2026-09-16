@@ -377,13 +377,19 @@ export function DashboardLayout() {
 							>
 								<Users weight={activityRailOpen ? "fill" : "bold"} />
 							</Button>
-							<NotificationBell
-								open={notificationRailOpen}
-								onOpenChange={(open) => {
-									if (open) setActivityRailOpen(false);
-									setNotificationRailOpen(open);
-								}}
-							/>
+							<div className="relative">
+								<NotificationBell
+									open={notificationRailOpen}
+									onOpenChange={(open) => {
+										if (open) setActivityRailOpen(false);
+										setNotificationRailOpen(open);
+									}}
+								/>
+								<NotificationRail
+									open={notificationRailOpen}
+									onClose={() => setNotificationRailOpen(false)}
+								/>
+							</div>
 							<div className="hidden md:contents">
 								<UserMenu collapsed />
 							</div>
@@ -448,16 +454,10 @@ export function DashboardLayout() {
 							{/* Its only toggle lives in the top bar, so a standalone route
 							    would strand it open with no way to close it. */}
 							{!standalone && (
-								<>
-									<ActivityRail
-										open={activityRailOpen}
-										onClose={() => setActivityRailOpen(false)}
-									/>
-									<NotificationRail
-										open={notificationRailOpen}
-										onClose={() => setNotificationRailOpen(false)}
-									/>
-								</>
+								<ActivityRail
+									open={activityRailOpen}
+									onClose={() => setActivityRailOpen(false)}
+								/>
 							)}
 						</div>
 					</div>

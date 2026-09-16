@@ -9,9 +9,8 @@ import {
 } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { type ComponentProps, memo, useState } from "react";
+import { type ComponentProps, memo, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Empty,
@@ -36,7 +35,11 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { client, orpc, queryClient } from "@/utils/orpc";
 import { getTaskJobProgress } from "@/utils/task-progress";
-import { NotificationItem, type NotificationRow } from "./notification-item";
+import {
+	hasActionableAttention,
+	NotificationItem,
+	type NotificationRow,
+} from "./notification-item";
 
 const PAGE_SIZE = 20;
 
@@ -83,19 +86,20 @@ function NotificationTrigger({
 			type="button"
 			variant="ambient"
 			size="icon-lg"
+			data-notification-trigger="true"
 			aria-label={accessibleLabel}
 			title={m["notifications.title"]()}
 			className={cn("relative rounded-full", className)}
 		>
-			<Bell />
-			{count > 0 && (
-				<Badge
-					className="absolute -end-1 -top-1 min-w-5 px-1 tabular-nums"
-					aria-hidden="true"
-				>
-					{count > 99 ? "99+" : count}
-				</Badge>
-			)}
+			<span className="relative inline-flex">
+				<Bell />
+				{count > 0 && (
+					<span
+						className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-primary ring-2 ring-background"
+						aria-hidden="true"
+					/>
+				)}
+			</span>
 		</Button>
 	);
 }
@@ -107,11 +111,14 @@ interface NotificationRailProps {
 
 /**
  * Below `lg`, notifications use the established full-screen mobile sheet.
- * From `lg` up, they share the same non-modal overlay rail as server members:
- * the workspace never reflows and remains interactive behind the panel.
+ * From `lg` up, they open as a floating dropdown card anchored to the top bar
+ * (title + unread pill, "Mark all as read", All/Unread tabs), not as a
+ * full-height side rail: the workspace never reflows and remains interactive
+ * behind the panel.
  */
 export function NotificationRail({ open, onClose }: NotificationRailProps) {
 	const isSheet = useActivityRailIsSheet();
+	const panelRef = useRef<HTMLElement | null>(null);
 	useOverlayBackDismiss(open && isSheet, onClose);
 
 	useWindowEvent("keydown", (event) => {
@@ -120,22 +127,44 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 		onClose();
 	});
 
+	// Dropdown behavior on desktop: a pointer press outside the card dismisses
+	// it. Presses on the bell itself are ignored here — the bell's own click
+	// toggles, and closing on pointerdown first would make that click reopen.
+	useEffect(() => {
+		if (!open || isSheet) return;
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target as HTMLElement | null;
+			if (target?.closest?.("[data-notification-trigger]")) return;
+			if (
+				panelRef.current &&
+				!panelRef.current.contains(event.target as Node)
+			) {
+				onClose();
+			}
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		return () => document.removeEventListener("pointerdown", onPointerDown);
+	}, [open, isSheet, onClose]);
+
 	return (
 		<>
 			<aside
+				ref={panelRef}
 				aria-label={m["notifications.title"]()}
 				aria-hidden={!open}
 				inert={!open}
-				// The rail is its own box, so sliding out takes the border along
-				// instead of stranding it over the content.
+				// Anchored to the bell in the top bar — the rail renders inside a
+				// relative wrapper around the trigger, so it drops just below the
+				// header right-aligned with the bell, with a scale/fade transition
+				// instead of a lateral slide.
 				className={cn(
-					"absolute inset-y-0 right-0 z-20 hidden min-h-0 w-[var(--overlay-rail-width)] max-w-full transition-transform duration-200 ease-[var(--ease-smooth-out)] lg:flex",
+					"absolute top-[calc(100%+0.625rem)] right-0 z-50 hidden w-[24rem] max-w-[calc(100vw-2rem)] origin-top-right transition-all duration-150 ease-[var(--ease-smooth-out)] lg:block",
 					open
-						? "pointer-events-auto translate-x-0"
-						: "pointer-events-none translate-x-full",
+						? "pointer-events-auto scale-100 opacity-100"
+						: "pointer-events-none scale-[0.98] opacity-0",
 				)}
 			>
-				<div className="theme-gradient-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-sidebar-border border-t border-b-0 bg-background text-foreground">
+				<div className="theme-gradient-surface flex max-h-[min(70vh,34rem)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-sidebar-border bg-background text-foreground shadow-2xl">
 					{!isSheet && (
 						<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
 					)}
@@ -264,11 +293,13 @@ function NotificationPanel({
 
 	const handleSelect = (notification: NotificationRow) => {
 		if (notification.readAt === null) markRead.mutate([notification.id]);
-		const attention = (notification.payload as NotificationData).attention;
-		if (attention) {
+		const data = notification.payload as NotificationData;
+		// No-change tasks never surface attention (see hasActionableAttention),
+		// so tapping them only marks as read instead of deep-linking.
+		if (hasActionableAttention(data) && data.attention) {
 			// Deep-link to the match manager's "needs attention" tray for this
 			// library — unmatched, review and failures all live there.
-			void navigateToAttention(attention.libraryUuid);
+			void navigateToAttention(data.attention.libraryUuid);
 		}
 	};
 
@@ -278,6 +309,12 @@ function NotificationPanel({
 
 	const hasUnread = notifications.some((n) => n.readAt === null);
 	const hasNotifications = notifications.length > 0;
+	const unreadCount = notifications.filter((n) => n.readAt === null).length;
+	const [filter, setFilter] = useState<"all" | "unread">("all");
+	const visibleNotifications =
+		filter === "unread"
+			? notifications.filter((n) => n.readAt === null)
+			: notifications;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -341,56 +378,106 @@ function NotificationPanel({
 						)}
 					</div>
 				</SheetHeader>
-			) : hasNotifications ? (
-				<div className="flex shrink-0 justify-end px-3 pt-3">
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-lg"
-						onClick={() => deleteAll.mutate()}
-						disabled={deleteAll.isPending}
-						aria-label={m["notifications.delete_all"]()}
-						title={m["notifications.delete_all"]()}
-						className="rounded-full"
-					>
-						{deleteAll.isPending ? (
-							<CircleNotch className="animate-spin" />
-						) : (
-							<Trash />
-						)}
-					</Button>
-					{hasUnread && (
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-lg"
-							onClick={() => markAllRead.mutate()}
-							disabled={markAllRead.isPending}
-							aria-label={m["notifications.mark_all_read"]()}
-							title={m["notifications.mark_all_read"]()}
-							className="rounded-full"
-						>
-							{markAllRead.isPending ? (
-								<CircleNotch className="animate-spin" />
-							) : (
-								<Checks />
+			) : (
+				<div className="flex shrink-0 flex-col px-5 pt-5">
+					<div className="flex items-center justify-between gap-2">
+						<h2 className="flex min-w-0 items-center gap-2 font-semibold text-[1.05rem] tracking-tight">
+							<span className="truncate">{m["notifications.title"]()}</span>
+							{unreadCount > 0 && (
+								<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs tabular-nums">
+									<span aria-hidden="true">
+										{unreadCount > 99 ? "99+" : unreadCount}
+									</span>
+									<span className="sr-only">
+										{m["notifications.unread_count"]({
+											count: unreadCount,
+										})}
+									</span>
+								</span>
 							)}
-						</Button>
-					)}
+						</h2>
+						<div className="flex shrink-0 items-center gap-0.5">
+							{hasUnread && (
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => markAllRead.mutate()}
+									disabled={markAllRead.isPending}
+									className="h-auto rounded-full px-2.5 py-1.5 font-normal text-[0.8125rem] text-muted-foreground hover:text-foreground"
+								>
+									{m["notifications.mark_all_read"]()}
+								</Button>
+							)}
+							{hasNotifications && (
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									onClick={() => deleteAll.mutate()}
+									disabled={deleteAll.isPending}
+									aria-label={m["notifications.delete_all"]()}
+									title={m["notifications.delete_all"]()}
+									className="rounded-full text-muted-foreground hover:text-foreground"
+								>
+									{deleteAll.isPending ? (
+										<CircleNotch className="animate-spin" />
+									) : (
+										<Trash />
+									)}
+								</Button>
+							)}
+						</div>
+					</div>
+					<div
+						role="tablist"
+						aria-label={m["notifications.title"]()}
+						className="mt-2 flex items-center gap-5 border-sidebar-border border-b text-sm"
+					>
+						{(["all", "unread"] as const).map((tab) => {
+							const selected = filter === tab;
+							return (
+								<button
+									key={tab}
+									type="button"
+									role="tab"
+									aria-selected={selected}
+									onClick={() => setFilter(tab)}
+									className={cn(
+										"relative px-0.5 pt-1 pb-2.5 transition-colors",
+										selected
+											? "font-medium text-foreground"
+											: "text-muted-foreground hover:text-foreground",
+									)}
+								>
+									{tab === "all"
+										? m["search.all"]()
+										: m["notifications.unread"]()}
+									<span
+										aria-hidden="true"
+										className={cn(
+											"absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-foreground transition-opacity",
+											selected ? "opacity-100" : "opacity-0",
+										)}
+									/>
+								</button>
+							);
+						})}
+					</div>
 				</div>
-			) : null}
+			)}
 
 			<div
 				className={cn(
 					"flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain",
 					mode === "screen"
 						? "ps-[max(0.75rem,var(--safe-area-left))] pe-[max(0.75rem,var(--safe-area-right))] pt-3 pb-[max(0.75rem,var(--safe-area-bottom))]"
-						: "px-3 py-3",
+						: "px-3 pt-3 pb-3",
 				)}
 			>
 				{activeTasks && activeTasks.length > 0 && (
 					<section
-						className="mb-4 rounded-2xl bg-muted/50 p-2"
+						className="mb-3 rounded-2xl bg-muted/30 p-2"
 						aria-labelledby="notification-active-tasks"
 					>
 						<h3
@@ -452,7 +539,7 @@ function NotificationPanel({
 
 				{isLoading ? (
 					<NotificationsSkeleton />
-				) : notifications.length === 0 ? (
+				) : visibleNotifications.length === 0 ? (
 					<Empty className="min-h-0 flex-1 p-8">
 						<EmptyHeader>
 							<EmptyTitle>{m["notifications.empty"]()}</EmptyTitle>
@@ -464,7 +551,7 @@ function NotificationPanel({
 				) : (
 					<section aria-label={m["notifications.title"]()}>
 						<ul className="flex flex-col gap-1">
-							{notifications.map((notification) => (
+							{visibleNotifications.map((notification) => (
 								<li key={notification.id}>
 									<NotificationItem
 										notification={notification}
