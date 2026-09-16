@@ -123,6 +123,12 @@ export function AudiobookDetailPage() {
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
+	const bannerUrl = coverFilename
+		? getCoverPresetUrl(coverFilename, coverPresets.banner)
+		: null;
+	const bannerSrcSet = coverFilename
+		? getCoverSrcSet(coverFilename, coverPresets.banner.widths)
+		: undefined;
 	const authorText = formatNames(audiobook.authors);
 	const authorLinks = audiobook.authors?.length ? (
 		<AuthorLinkList
@@ -160,7 +166,25 @@ export function AudiobookDetailPage() {
 			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
 			<DetailBackButton fallbackTo="/dashboard/audiobooks" />
-			<section aria-labelledby="audiobook-detail-title">
+			{/* Portada tipo MangaDex: la misma cover desenfocada como banner superior. */}
+			{bannerUrl && (
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute inset-x-0 top-0 h-[160px] overflow-hidden sm:h-[200px]"
+				>
+					<img
+						src={bannerUrl}
+						srcSet={bannerSrcSet}
+						sizes={coverPresets.banner.sizes}
+						alt=""
+						className="h-full w-full scale-105 object-cover opacity-25 blur-xl saturate-75"
+						loading="eager"
+						decoding="async"
+					/>
+					<div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-[92%] to-background" />
+				</div>
+			)}
+			<section aria-labelledby="audiobook-detail-title" className="relative">
 				{/* Below md the back button floats where the top bar used to be, so the
 				    cover starts under it rather than behind it. */}
 				<div className={cn(PAGE_GUTTER, "pt-16 pb-12 md:pt-10 lg:pb-16")}>
