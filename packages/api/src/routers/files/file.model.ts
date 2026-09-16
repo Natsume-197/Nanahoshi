@@ -16,4 +16,12 @@ export const GetSeriesDownloadUrlInput = z.object({
 	seriesUuid: z.string().uuid(),
 });
 
-export const GetDirectoriesInput = z.object({ location: z.string() });
+export const GetDirectoriesInput = z.object({
+	location: z
+		.string()
+		.max(1024)
+		.refine((s) => !s.includes("\0"), { message: "Invalid path" })
+		.refine((s) => s === "" || s.startsWith("/") || /^[A-Za-z]:[\\/]/.test(s), {
+			message: "Path must be absolute",
+		}),
+});

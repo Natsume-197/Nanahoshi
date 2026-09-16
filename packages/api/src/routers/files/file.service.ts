@@ -41,6 +41,10 @@ const resolveEbookFileInfo = async (b: BookFileRow) => {
 	};
 };
 
+/** Upper bound for one directory listing: the picker filters client-side, so a
+ * larger result set is pathological, not useful. */
+const MAX_DIRECTORY_ENTRIES = 1000;
+
 export const getDirectories = async (location?: string) => {
 	const items: { name: string; path: string; hasChildren: boolean }[] = [];
 
@@ -62,11 +66,13 @@ export const getDirectories = async (location?: string) => {
 		}
 	} else {
 		try {
-			const dirents = await fs.readdir(location, { withFileTypes: true });
+			const normalized = path.normalize(location);
+			const dirents = await fs.readdir(normalized, { withFileTypes: true });
 			for (const entry of dirents) {
 				if (entry.isDirectory()) {
-					const fullPath = `${location}/${entry.name}`;
+					const fullPath = path.join(normalized, entry.name);
 					items.push({ name: entry.name, path: fullPath, hasChildren: true });
+					if (items.length >= MAX_DIRECTORY_ENTRIES) break;
 				}
 			}
 		} catch {
