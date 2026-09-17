@@ -4,15 +4,15 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { account } from "../schema/auth";
 
 describe("Better Auth account schema", () => {
-	test("scopes external identities by issuer and account id", () => {
+	test("allows Better Auth to create accounts without the legacy issuer", () => {
 		const columns = getTableColumns(account);
-		expect(columns.issuer).toBeDefined();
+		expect(columns.issuer.notNull).toBe(false);
 
 		const config = getTableConfig(account);
 		const identityIndex = config.indexes.find(
 			(index) => index.config.name === "account_issuer_accountId_uidx",
 		);
 
-		expect(identityIndex?.config.unique).toBe(true);
+		expect(identityIndex).toBeUndefined();
 	});
 });

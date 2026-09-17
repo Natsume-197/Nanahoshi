@@ -232,7 +232,7 @@ async function resolveActiveOrgId(userId: string): Promise<string | null> {
 const authConfig = {
 	database: drizzleAdapter(db, {
 		provider: "pg",
-		schema: schema,
+		schema,
 	}),
 	trustedOrigins: [env.CORS_ORIGIN],
 	emailAndPassword: {
@@ -551,6 +551,4 @@ const authConfig = {
 	],
 } satisfies BetterAuthOptions;
 
-export const auth = betterAuth(authConfig) as ReturnType<
-	typeof betterAuth<typeof authConfig>
->;
+export const auth = betterAuth(authConfig);
