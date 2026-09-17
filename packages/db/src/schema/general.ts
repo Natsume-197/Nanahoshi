@@ -2049,6 +2049,9 @@ export const listeningProgress = pgTable(
 		currentTimeSeconds: doublePrecision("current_time_seconds").default(0),
 		durationSeconds: doublePrecision("duration_seconds").default(0),
 		listeningTimeSeconds: integer("listening_time_seconds").default(0),
+		// Per-book playback speed override. Null means "use the client's global
+		// default". Persisted so the override follows the user across devices.
+		playbackRate: doublePrecision("playback_rate"),
 		status: varchar({ length: 20 }).default("unstarted"),
 		startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
 		completedAt: timestamp("completed_at", {

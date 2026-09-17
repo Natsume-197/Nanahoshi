@@ -1,13 +1,17 @@
 import {
+	BookmarkSimple,
 	CaretDown,
+	CheckCircle,
 	Headphones,
 	ListBullets,
 	Timer,
 	WarningCircle,
+	X,
 } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
 import { realTimeAt } from "@/components/audio-player/chapter-progress";
 import { MarqueeText } from "@/components/audio-player/marquee-text";
+import { PlayerBookmarksPanel } from "@/components/audio-player/player-bookmarks-panel";
 import { PlayerChapterPanel } from "@/components/audio-player/player-chapter-panel";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
@@ -21,6 +25,7 @@ import {
 	ReadListenModeControls,
 	type ReadListenPlayerContext,
 } from "@/components/audio-player/read-listen-player";
+import { Button } from "@/components/ui/button";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
@@ -68,14 +73,16 @@ const SCENE_STYLE = {
 
 const PILL_ACTIVE_CLASS = "bg-foreground/15 text-foreground";
 
-export type PlayerSidePanelMode = "chapters" | null;
+export type PlayerSidePanelMode = "chapters" | "bookmarks" | null;
 
 function PlayerSidePanel({
+	mode,
 	chapters,
 	activeChapterIndex,
 	onSeekToChapter,
 	className,
 }: {
+	mode: Exclude<PlayerSidePanelMode, null>;
 	chapters: {
 		index: number;
 		title: string | null;
@@ -88,12 +95,97 @@ function PlayerSidePanel({
 }) {
 	return (
 		<div className={cn("flex min-h-0 flex-col", className)}>
-			<PlayerChapterPanel
-				chapters={chapters}
-				activeIndex={activeChapterIndex}
-				onSeekToChapter={onSeekToChapter}
-				className="h-full px-1 pb-1"
-			/>
+			{mode === "bookmarks" ? (
+				<PlayerBookmarksPanel className="h-full px-1 pb-1" />
+			) : (
+				<PlayerChapterPanel
+					chapters={chapters}
+					activeIndex={activeChapterIndex}
+					onSeekToChapter={onSeekToChapter}
+					className="h-full px-1 pb-1"
+				/>
+			)}
+		</div>
+	);
+}
+
+/** Up Next hint + end-of-book actions under the transport. */
+function UpNextRow() {
+	const { upNext, bookEnded } = useAudioPlayerState();
+	const { playNextInSeries, replayBook, dismissBookEnded } =
+		useAudioPlayerActions();
+
+	if (bookEnded) {
+		return (
+			<div
+				role="status"
+				className="flex w-full min-w-0 touch-none items-center gap-2 rounded-xl bg-foreground/10 px-3 py-2"
+			>
+				<CheckCircle
+					aria-hidden="true"
+					className="size-5 shrink-0"
+					weight="fill"
+				/>
+				<div className="min-w-0 flex-1">
+					<p className="font-medium text-sm leading-tight">
+						{m["audiobook.player_book_finished"]()}
+					</p>
+					{upNext?.title && (
+						<p className="truncate text-muted-foreground text-xs">
+							{m["audiobook.player_up_next"]()}: {upNext.title}
+						</p>
+					)}
+				</div>
+				{upNext && (
+					<Button
+						type="button"
+						size="sm"
+						onClick={() => {
+							void playNextInSeries();
+						}}
+						className="h-8 shrink-0"
+					>
+						{m["audiobook.player_play_next"]()}
+					</Button>
+				)}
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					onClick={replayBook}
+					className="h-8 shrink-0"
+				>
+					{m["audiobook.player_replay_book"]()}
+				</Button>
+				<button
+					type="button"
+					aria-label={m["common.close"]()}
+					onClick={dismissBookEnded}
+					className="flex size-8 shrink-0 items-center justify-center rounded-full text-foreground/70 hover:text-foreground"
+				>
+					<X aria-hidden="true" className="size-4" />
+				</button>
+			</div>
+		);
+	}
+
+	if (!upNext) return null;
+	return (
+		<div className="flex w-full min-w-0 touch-none items-center gap-2 px-1">
+			<p className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+				{m["audiobook.player_up_next"]()}: {upNext.title ?? upNext.uuid}
+			</p>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				onClick={() => {
+					void playNextInSeries();
+				}}
+				className="h-7 shrink-0 text-xs"
+			>
+				{m["audiobook.player_play_next"]()}
+			</Button>
 		</div>
 	);
 }
@@ -165,10 +257,24 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 		>
 			<div
 				aria-hidden
+				// Remount per book so the scene fades in on the new palette
+				// instead of snapping between hues.
+				key={audiobook.uuid}
 				className="player-ambient-field pointer-events-none absolute inset-0 overflow-hidden"
 			>
+				{coverUrl && (
+					<img
+						src={coverUrl}
+						alt=""
+						aria-hidden
+						draggable={false}
+						className="player-ambient-backdrop"
+					/>
+				)}
 				<div className="player-ambient-orbs" />
+				<div className="player-ambient-orbs-b" />
 				<div className="player-ambient-veil" />
+				<div className="player-ambient-grain" />
 			</div>
 
 			{/* Insets here, not on the panel, so the scene still paints under the notch. */}
@@ -231,6 +337,7 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 						>
 							{inlineSidePanel ? (
 								<PlayerSidePanel
+									mode={sidePanel === "bookmarks" ? "bookmarks" : "chapters"}
 									chapters={chapters}
 									activeChapterIndex={activeChapterIndex}
 									onSeekToChapter={seekTo}
@@ -313,6 +420,8 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 
 						<PlayerTransport size="expanded" />
 
+						<UpNextRow />
+
 						{/* Match the header's optical inset: these controls have an invisible
 						    hit-area around their visible glyphs and labels. */}
 						<div className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 shrink-0 touch-none items-center justify-between gap-1">
@@ -363,12 +472,31 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 										</PlayerIconButton>
 									</>
 								)}
+								<PlayerIconButton
+									label={m["audiobook.player_bookmarks"]()}
+									pressed={sidePanel === "bookmarks"}
+									onClick={() =>
+										onSidePanelChange(
+											sidePanel === "bookmarks" ? null : "bookmarks",
+										)
+									}
+									className={cn(
+										"size-11 rounded-full text-foreground",
+										sidePanel === "bookmarks" && PILL_ACTIVE_CLASS,
+									)}
+								>
+									<BookmarkSimple
+										className="size-5"
+										weight={sidePanel === "bookmarks" ? "fill" : "regular"}
+									/>
+								</PlayerIconButton>
 							</div>
 						</div>
 					</div>
 
 					{sidePanel && !inlineSidePanel && (
 						<PlayerSidePanel
+							mode={sidePanel === "bookmarks" ? "bookmarks" : "chapters"}
 							chapters={chapters}
 							activeChapterIndex={activeChapterIndex}
 							onSeekToChapter={seekTo}

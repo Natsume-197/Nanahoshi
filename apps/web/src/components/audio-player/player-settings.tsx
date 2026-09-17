@@ -5,7 +5,29 @@ import { JumpSettings } from "@/components/audio-player/player-jump-settings";
 import { SleepSettings } from "@/components/audio-player/player-sleep-control";
 import { SpeedSettings } from "@/components/audio-player/player-speed-control";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+	useAudioPlayerActions,
+	useAudioPlayerState,
+} from "@/context/audio-player-context";
 import { m } from "@/paraglide/messages";
+
+const AutoplayNextSetting = memo(function AutoplayNextSetting() {
+	const { autoplayNext } = useAudioPlayerState();
+	const { setAutoplayNext } = useAudioPlayerActions();
+	return (
+		<div className="flex items-center justify-between gap-2">
+			<span id="autoplay-next-label" className="font-medium text-xs">
+				{m["audiobook.player_autoplay_next"]()}
+			</span>
+			<Switch
+				checked={autoplayNext}
+				onCheckedChange={setAutoplayNext}
+				aria-labelledby="autoplay-next-label"
+			/>
+		</div>
+	);
+});
 
 /**
  * Gear popover grouping the secondary playback settings so the compact player
@@ -29,6 +51,8 @@ export const PlayerSettings = memo(function PlayerSettings({
 			<SleepSettings />
 			<Separator />
 			<JumpSettings />
+			<Separator />
+			<AutoplayNextSetting />
 		</PlayerPopoverButton>
 	);
 });

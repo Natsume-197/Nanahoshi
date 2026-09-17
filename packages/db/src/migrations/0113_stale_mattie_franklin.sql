@@ -1,0 +1,1 @@
+ALTER TABLE "listening_progress" ADD COLUMN "playback_rate" double precision;

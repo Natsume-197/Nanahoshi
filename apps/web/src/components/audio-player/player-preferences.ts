@@ -15,6 +15,11 @@ const JUMP_BACK_KEY = "audio-jump-back";
 const JUMP_FORWARD_KEY = "audio-jump-forward";
 const VOLUME_KEY = "audio-volume";
 const ACTIVE_BOOK_KEY = "audio-active-book";
+const AUTOPLAY_NEXT_KEY = "audio-autoplay-next";
+
+function speedKeyForBook(uuid: string): string {
+	return `${SPEED_KEY}:${uuid}`;
+}
 
 export function clampSpeed(value: number): number {
 	if (!Number.isFinite(value)) return 1;
@@ -68,6 +73,43 @@ export function readStoredSpeed(): number {
 
 export function persistSpeed(value: number) {
 	writeStored(SPEED_KEY, String(value));
+}
+
+/**
+ * Per-book speed override. Falls back to the global speed when the book has
+ * no override yet, so existing listeners keep their setting.
+ */
+export function readStoredSpeedForBook(uuid: string | null): number | null {
+	if (!uuid) return null;
+	const stored = readStored(speedKeyForBook(uuid));
+	if (!stored) return null;
+	const parsed = Number(stored);
+	if (!Number.isFinite(parsed)) return null;
+	return clampSpeed(parsed);
+}
+
+export function persistSpeedForBook(uuid: string, value: number) {
+	writeStored(speedKeyForBook(uuid), String(clampSpeed(value)));
+}
+
+export function clearSpeedForBook(uuid: string) {
+	if (typeof window === "undefined") return;
+	try {
+		window.localStorage.removeItem(speedKeyForBook(uuid));
+	} catch {
+		// Private-mode quota errors must not break playback.
+	}
+}
+
+export function readStoredAutoplayNext(): boolean {
+	const stored = readStored(AUTOPLAY_NEXT_KEY);
+	// Default on: series listeners expect continuous playback.
+	if (stored == null) return true;
+	return stored !== "0";
+}
+
+export function persistAutoplayNext(enabled: boolean) {
+	writeStored(AUTOPLAY_NEXT_KEY, enabled ? "1" : "0");
 }
 
 export function readStoredJumpBack(): JumpAmount {

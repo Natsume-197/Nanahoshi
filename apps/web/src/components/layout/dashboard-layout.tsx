@@ -12,6 +12,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { isPlayerHiddenRoute } from "@/components/audio-player/player-host";
 import { CreateMenu } from "@/components/dashboard/create-menu";
 import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
@@ -216,8 +217,14 @@ export function DashboardLayout() {
 	const playerExpanded = useAudioPlayerExpanded();
 	// The full-width transport bar is fixed to the bottom. The layout reserves a
 	// separate row for it below the workspace so the scroll area ends above the
-	// bar instead of painting and scrolling behind it.
-	const showPlayerBar = Boolean(audiobook);
+	// bar instead of painting and scrolling behind it. On routes where the
+	// player host doesn't mount the bar (settings, logged-out pages) the
+	// reserve collapses too — same predicate, same location source, so the
+	// row and the bar can never disagree mid-navigation.
+	const hidePlayerBar = useRouterState({
+		select: ({ location }) => isPlayerHiddenRoute(location.pathname),
+	});
+	const showPlayerBar = Boolean(audiobook) && !hidePlayerBar;
 	const renderedRoute = useRouterState({
 		select: (state) =>
 			getRenderedDashboardRoute(

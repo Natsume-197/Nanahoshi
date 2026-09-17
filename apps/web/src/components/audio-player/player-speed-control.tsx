@@ -17,8 +17,8 @@ import {
 import { m } from "@/paraglide/messages";
 
 export const SpeedSettings = memo(function SpeedSettings() {
-	const { speed } = useAudioPlayerState();
-	const { setSpeed } = useAudioPlayerActions();
+	const { speed, defaultSpeed, speedIsOverride } = useAudioPlayerState();
+	const { setSpeed, useDefaultSpeed } = useAudioPlayerActions();
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -66,30 +66,55 @@ export const SpeedSettings = memo(function SpeedSettings() {
 					</Button>
 				))}
 			</div>
-			{speed !== 1 && (
+			{speedIsOverride ? (
 				<Button
 					type="button"
 					variant="ghost"
 					size="sm"
-					onClick={() => setSpeed(1)}
+					onClick={useDefaultSpeed}
 					className="h-7 gap-1.5 text-muted-foreground text-xs"
 				>
 					<ArrowCounterClockwise className="size-3.5" />
-					{m["audiobook.player_speed_reset"]()}
+					{m["audiobook.player_speed_use_default"]({
+						speed: formatSpeed(defaultSpeed),
+					})}
 				</Button>
+			) : (
+				speed !== 1 && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => setSpeed(1)}
+						className="h-7 gap-1.5 text-muted-foreground text-xs"
+					>
+						<ArrowCounterClockwise className="size-3.5" />
+						{m["audiobook.player_speed_reset"]()}
+					</Button>
+				)
 			)}
 		</div>
 	);
 });
 
 export const SpeedButton = memo(function SpeedButton() {
-	const { speed } = useAudioPlayerState();
+	const { speed, speedIsOverride } = useAudioPlayerState();
 
 	return (
 		<PlayerPopoverButton
 			label={m["audiobook.player_speed"]()}
 			className="h-11 w-auto min-w-16 rounded-full px-4 font-mono text-base text-foreground tabular-nums"
-			trigger={formatSpeed(speed)}
+			trigger={
+				<span className="relative inline-flex items-center">
+					{formatSpeed(speed)}
+					{speedIsOverride && (
+						<span
+							aria-hidden
+							className="absolute -top-0.5 -right-2 size-1.5 rounded-full bg-primary"
+						/>
+					)}
+				</span>
+			}
 		>
 			<SpeedSettings />
 		</PlayerPopoverButton>

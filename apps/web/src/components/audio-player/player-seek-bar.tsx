@@ -1,5 +1,10 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { BookmarkSimple } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
+import {
+	findBookmarkNear,
+	useBookmarks,
+} from "@/components/audio-player/bookmarks";
 import {
 	getProgressReadout,
 	type ProgressScope,
@@ -20,6 +25,43 @@ import {
 	getChapterMarkerPercents,
 } from "@/utils/chapters";
 import { formatTime } from "@/utils/format";
+
+/**
+ * Bookmark positions as vertical ticks deliberately taller than the track
+ * (12px vs 4px), centered on it. They live on the Control — not inside the
+ * track, whose overflow-hidden would clip them. Solid foreground: the middle
+ * merges with the played fill, but the ends sticking out always contrast
+ * with the panel background, so the tick reads on both sides of the
+ * playhead. Subscribed to the bookmark store, so they appear/disappear in
+ * the same tick the bookmark changes (a memo keyed on uuid alone would
+ * stay stale).
+ */
+const BookmarkMarkers = memo(function BookmarkMarkers({
+	uuid,
+	totalDuration,
+}: {
+	uuid: string | null;
+	totalDuration: number;
+}) {
+	const bookmarks = useBookmarks(uuid);
+	if (totalDuration <= 0) return null;
+	return (
+		<>
+			{bookmarks.map((bookmark) => (
+				<span
+					key={bookmark.id}
+					className="pointer-events-none absolute top-1/2 h-3 w-[1.5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+					style={{
+						left: `${Math.min(100, Math.max(0, (bookmark.time / totalDuration) * 100))}%`,
+					}}
+				/>
+			))}
+		</>
+	);
+});
+
+/** Hover claims a bookmark within this fraction of the book duration. */
+const BOOKMARK_HOVER_FRACTION = 0.01;
 
 /** Chapter starts on the track. Static between chapter edits. */
 const ChapterMarkers = memo(function ChapterMarkers({
@@ -83,6 +125,21 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 	const hoverTime = hoverPct != null ? start + hoverPct * trackLength : null;
 	const hoverIndex =
 		hoverTime != null ? getActiveChapterIndex(chapters, hoverTime) : -1;
+	// Bookmark title on hover, by proximity (a 2px tick is unhittable, so the
+	// tooltip claims the bookmark when the cursor is within ~1% of the book).
+	// Book scope only: the chapter-scoped bar narrows to one chapter.
+	const bookmarks = useBookmarks(audiobook?.uuid ?? null);
+	const nearBookmark =
+		!isChapterScope && hoverTime != null
+			? findBookmarkNear(
+					bookmarks,
+					hoverTime,
+					Math.max(3, totalDuration * BOOKMARK_HOVER_FRACTION),
+				)
+			: null;
+	const nearBookmarkIndex = nearBookmark
+		? bookmarks.findIndex((b) => b.id === nearBookmark.id)
+		: -1;
 
 	const handleSeekHover = (e: React.PointerEvent<HTMLElement>) => {
 		const pct = hoverFraction(
@@ -126,10 +183,23 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 					<span className="font-medium tabular-nums">
 						{formatTime(isChapterScope ? hoverTime - start : hoverTime)}
 					</span>
-					{hoverIndex >= 0 && (
-						<span className="whitespace-normal break-words text-muted-foreground">
-							{formatChapterLabel(chapters[hoverIndex], hoverIndex)}
+					{nearBookmark?.label ? (
+						<span className="inline-flex max-w-full items-center gap-1 whitespace-normal break-words text-foreground">
+							<BookmarkSimple
+								aria-hidden="true"
+								className="size-3 shrink-0"
+								weight="fill"
+							/>
+							<span className="min-w-0 tabular-nums">
+								{nearBookmarkIndex + 1} · {nearBookmark.label}
+							</span>
 						</span>
+					) : (
+						hoverIndex >= 0 && (
+							<span className="whitespace-normal break-words text-muted-foreground">
+								{formatChapterLabel(chapters[hoverIndex], hoverIndex)}
+							</span>
+						)
 					)}
 				</div>
 			)}
@@ -162,21 +232,31 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 						isLarge ? "py-3" : "py-2",
 					)}
 				>
-					<SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
-						{hoverPct != null && (
-							<span
-								className="pointer-events-none absolute h-full rounded-full bg-foreground/35"
-								style={{ width: `${hoverPct * 100}%` }}
-							/>
-						)}
-						<SliderPrimitive.Indicator className="absolute h-full rounded-full bg-foreground" />
-						{!isChapterScope && (
-							<ChapterMarkers
-								chapters={chapters}
-								totalDuration={totalDuration}
-							/>
-						)}
-					</SliderPrimitive.Track>
+					{/* Fixed-height shell: the track thickens on hover inside it, so
+				    the growth never reflows the rows above (dock + expanded). */}
+					<div className="relative flex h-1.5 w-full grow items-center">
+						<SliderPrimitive.Track className="relative h-1 w-full overflow-hidden rounded-full bg-foreground/20 transition-[height] group-hover:h-1.5">
+							{hoverPct != null && (
+								<span
+									className="pointer-events-none absolute h-full rounded-full bg-foreground/35"
+									style={{ width: `${hoverPct * 100}%` }}
+								/>
+							)}
+							<SliderPrimitive.Indicator className="absolute h-full rounded-full bg-foreground" />
+							{!isChapterScope && (
+								<ChapterMarkers
+									chapters={chapters}
+									totalDuration={totalDuration}
+								/>
+							)}
+						</SliderPrimitive.Track>
+					</div>
+					{!isChapterScope && (
+						<BookmarkMarkers
+							uuid={audiobook?.uuid ?? null}
+							totalDuration={totalDuration}
+						/>
+					)}
 					{/* pointer-events-none, or a press on the thumb would be a grab
 						    instead of a jump. Dragging runs off the Control's capture. */}
 					<SliderPrimitive.Thumb

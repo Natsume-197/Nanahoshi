@@ -19,6 +19,7 @@ export const SleepSettings = memo(function SleepSettings() {
 	const hasChapters = (audiobook?.chapters.length ?? 0) > 0;
 	const activeMinutes =
 		sleepTimer?.mode.kind === "duration" ? sleepTimer.mode.minutes : null;
+	const activeKind = sleepTimer?.mode.kind ?? null;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -50,7 +51,7 @@ export const SleepSettings = memo(function SleepSettings() {
 			{hasChapters && (
 				<Button
 					type="button"
-					variant={sleepTimer?.mode.kind === "chapter" ? "default" : "outline"}
+					variant={activeKind === "chapter" ? "default" : "outline"}
 					size="sm"
 					onClick={() => startSleepTimer({ kind: "chapter" })}
 					className="h-7 text-xs"
@@ -58,6 +59,15 @@ export const SleepSettings = memo(function SleepSettings() {
 					{m["audiobook.player_sleep_end_of_chapter"]()}
 				</Button>
 			)}
+			<Button
+				type="button"
+				variant={activeKind === "book-end" ? "default" : "outline"}
+				size="sm"
+				onClick={() => startSleepTimer({ kind: "book-end" })}
+				className="h-7 text-xs"
+			>
+				{m["audiobook.player_sleep_end_of_book"]()}
+			</Button>
 			{sleepTimer && (
 				<div className="flex gap-1">
 					<Button

@@ -23,16 +23,21 @@ import {
 import {
 	clampSpeed,
 	clampVolume,
+	clearSpeedForBook,
 	type JumpAmount,
 	persistActiveBook,
+	persistAutoplayNext,
 	persistJumpBack,
 	persistJumpForward,
 	persistSpeed,
+	persistSpeedForBook,
 	persistVolume,
 	readActiveBook,
+	readStoredAutoplayNext,
 	readStoredJumpBack,
 	readStoredJumpForward,
 	readStoredSpeed,
+	readStoredSpeedForBook,
 	readStoredVolume,
 } from "@/components/audio-player/player-preferences";
 import {
@@ -50,10 +55,18 @@ import {
 	sleepFadeFactor,
 	tickSleepTimer,
 } from "@/components/audio-player/sleep-timer";
-import { nextTrackPosition } from "@/components/audio-player/track-transition";
+import { computeSmartRewind } from "@/components/audio-player/smart-rewind";
+import {
+	findNextInSeries,
+	nextTrackPosition,
+} from "@/components/audio-player/track-transition";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import {
+	invalidateListeningProgress,
+	invalidateRecommendations,
+} from "@/lib/invalidate-progress";
 import { formatChapterLabel, getActiveChapterIndex } from "@/utils/chapters";
 import { formatNames } from "@/utils/format";
 import { client } from "@/utils/orpc";
@@ -65,6 +78,7 @@ export interface AudiobookPlayerData {
 	cover: string | null;
 	mainColor: string | null;
 	duration: number | null;
+	seriesUuid: string | null;
 	authors: { name: string }[];
 	narrators: { name: string }[];
 	chapters: {
@@ -74,6 +88,11 @@ export interface AudiobookPlayerData {
 		endTime: number;
 	}[];
 	audioFiles: { index: number; duration: number }[];
+}
+
+export interface UpNextBook {
+	uuid: string;
+	title: string | null;
 }
 
 interface AudioPlayerState {
@@ -110,12 +129,20 @@ interface AudioPlayerState {
 	jumpBack: JumpAmount;
 	jumpForward: JumpAmount;
 	sleepTimer: SleepTimerState | null;
+	/** Global default speed (last speed set anywhere). */
+	defaultSpeed: number;
+	/** True when the book plays at its own remembered speed, not the default. */
+	speedIsOverride: boolean;
+	autoplayNext: boolean;
+	upNext: UpNextBook | null;
+	/** Last file ended with nothing more to auto-play. */
+	bookEnded: boolean;
 }
 
 interface AudioPlayerActions {
 	loadAudiobook: (
 		audiobook: AudiobookPlayerData,
-		options?: { autoplay?: boolean; startTime?: number },
+		options?: { autoplay?: boolean; startTime?: number; speed?: number },
 	) => void;
 	togglePlay: () => void;
 	play: () => void;
@@ -141,6 +168,14 @@ interface AudioPlayerActions {
 	extendSleep: () => void;
 	cancelSleepTimer: () => void;
 	setExpanded: (expanded: boolean) => void;
+	/** Clear this book's override and return to the global default speed. */
+	useDefaultSpeed: () => void;
+	setAutoplayNext: (enabled: boolean) => void;
+	/** Advance to the next book in the series. Resolves false when none. */
+	playNextInSeries: () => Promise<boolean>;
+	/** Restart the finished book from zero and clear the ended state. */
+	replayBook: () => void;
+	dismissBookEnded: () => void;
 }
 
 type AudiobookDetails = NonNullable<
@@ -168,6 +203,7 @@ export function toPlayerData(ab: AudiobookDetails): AudiobookPlayerData {
 			index: f.index,
 			duration: f.duration,
 		})),
+		seriesUuid: ab.series?.uuid ?? null,
 	};
 }
 
@@ -205,7 +241,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		readStoredJumpForward,
 	);
 	const [sleepTimer, setSleepTimer] = useState<SleepTimerState | null>(null);
+	const [defaultSpeed, setDefaultSpeed] = useState(readStoredSpeed);
+	const [speedIsOverride, setSpeedIsOverride] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
+	const [autoplayNext, setAutoplayNextState] = useState(readStoredAutoplayNext);
+	const [upNext, setUpNext] = useState<UpNextBook | null>(null);
+	const [bookEnded, setBookEnded] = useState(false);
 
 	// Refs that hold latest values for callbacks
 	const audiobookRef = useRef<AudiobookPlayerData | null>(null);
@@ -234,6 +275,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	// Precomputed file offsets and total duration for multi-file audiobooks
 	const fileOffsetsRef = useRef<number[]>([]);
 	const totalDurationRef = useRef(0);
+	// Timestamp of the last pause, for smart-rewind on resume.
+	const pausedAtRef = useRef<number | null>(null);
+	// Gapless handoff: hidden element preloading the next file's stream.
+	const preloadRef = useRef<HTMLAudioElement | null>(null);
+	const preloadedFileRef = useRef<string | null>(null);
+	// Up Next is resolved once per book to avoid refetching on every tick.
+	const upNextResolvedForRef = useRef<string | null>(null);
+	const autoplayNextRef = useRef(autoplayNext);
+	autoplayNextRef.current = autoplayNext;
+	const upNextRef = useRef<UpNextBook | null>(null);
+	upNextRef.current = upNext;
+	// End-of-book handoff, assigned after loadAudiobook exists (listeners call
+	// it through the ref to avoid a dependency cycle).
+	const advanceRef = useRef<() => Promise<void>>(async () => {});
+	// seekTo is defined below replayBook; the ref keeps the closure fresh.
+	const seekToRef = useRef<(time: number) => void>(() => {});
 
 	// Position (within the active file) to seek to once the media can accept it.
 	// Setting currentTime before metadata loads only records a "default start
@@ -315,6 +372,50 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			`${env.VITE_SERVER_URL}/stream/${uuid}/${fileIndex}`,
 		[],
 	);
+
+	// Best-effort preload of a stream so the next handoff starts from the HTTP
+	// cache instead of a cold connection. Never blocks playback on failure.
+	const ensureFilePreloaded = useCallback(
+		(uuid: string, fileIndex: number) => {
+			const key = `${uuid}:${fileIndex}`;
+			if (preloadedFileRef.current === key) return;
+			preloadedFileRef.current = key;
+			try {
+				const el = new Audio();
+				el.preload = "auto";
+				el.src = getStreamUrl(uuid, fileIndex);
+				preloadRef.current = el;
+			} catch {
+				// Preloading is opportunistic; ignore.
+			}
+		},
+		[getStreamUrl],
+	);
+
+	// Resolve the next book in the series once per book (Up Next). The listing
+	// already comes back in canonical order — never re-sort here.
+	const resolveUpNext = useCallback(async () => {
+		const ab = audiobookRef.current;
+		if (!ab?.seriesUuid) return;
+		if (upNextResolvedForRef.current === ab.uuid) return;
+		upNextResolvedForRef.current = ab.uuid;
+		try {
+			const list = await client.audiobooks.listBySeries({
+				seriesUuid: ab.seriesUuid,
+			});
+			const current = audiobookRef.current;
+			if (!current || current.uuid !== ab.uuid) return;
+			const found = findNextInSeries({
+				currentUuid: ab.uuid,
+				seriesBooks: list,
+			});
+			if (!found) return;
+			setUpNext({ uuid: found.uuid, title: found.title ?? null });
+			ensureFilePreloaded(found.uuid, 0);
+		} catch {
+			// Up Next is a hint; playback never depends on it.
+		}
+	}, [ensureFilePreloaded]);
 
 	const pushMediaSessionState = useCallback(() => {
 		const ab = audiobookRef.current;
@@ -411,6 +512,40 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				}
 				setCurrentTime(audio.currentTime);
 				pushMediaSessionState();
+				// Gapless handoff: while the tail of a file plays, warm the next
+				// stream; near the end of the book, resolve Up Next so the next
+				// book's first file is warm too.
+				const ab = audiobookRef.current;
+				if (ab && ab.audioFiles.length > 1) {
+					const idx = currentFileIndexRef.current;
+					const offsets = fileOffsetsRef.current;
+					const fileStart = offsets[idx] ?? 0;
+					const fileDur = ab.audioFiles[idx]?.duration ?? 0;
+					const globalPos = fileStart + audio.currentTime;
+					const inFileRemaining = fileStart + fileDur - globalPos;
+					if (inFileRemaining < 60 && idx + 1 < ab.audioFiles.length) {
+						ensureFilePreloaded(ab.uuid, idx + 1);
+					}
+					const total = totalDurationRef.current;
+					if (
+						autoplayNextRef.current &&
+						ab.seriesUuid &&
+						total > 0 &&
+						total - globalPos < 300
+					) {
+						void resolveUpNext();
+					}
+				} else if (ab) {
+					const total = totalDurationRef.current || audio.duration || 0;
+					if (
+						autoplayNextRef.current &&
+						ab.seriesUuid &&
+						total > 0 &&
+						total - audio.currentTime < 300
+					) {
+						void resolveUpNext();
+					}
+				}
 			};
 			const handleSeeked = () => {
 				if (!acknowledgePendingSeek()) return;
@@ -421,11 +556,31 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			// otherwise flush the pending position.
 			const handleLoadedMetadata = flushPendingSeek;
 			const handlePlay = () => {
+				// Smart rewind: after a long pause the listener lost context, so
+				// back up a few seconds instead of resuming mid-sentence.
+				if (pausedAtRef.current != null) {
+					const pausedMs = Date.now() - pausedAtRef.current;
+					pausedAtRef.current = null;
+					const rewind = computeSmartRewind({
+						pausedMs,
+						currentTime: audio.currentTime,
+					});
+					if (rewind > 0) {
+						const target = Math.max(0, audio.currentTime - rewind);
+						try {
+							audio.currentTime = target;
+						} catch {
+							// Media not seekable yet; keep the live position.
+						}
+						setCurrentTime(target);
+					}
+				}
 				setIsPlaying(true);
 				setMediaSessionPlaybackState("playing");
 			};
 			const handlePlaying = () => buffering.resume();
 			const handlePause = () => {
+				pausedAtRef.current = Date.now();
 				setIsPlaying(false);
 				setMediaSessionPlaybackState("paused");
 				buffering.resume();
@@ -442,10 +597,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 					currentTimeRef.current = next.currentTime;
 					setCurrentTime(next.currentTime);
 					setCurrentFileIndex(next.fileIndex);
+					preloadedFileRef.current = `${ab.uuid}:${next.fileIndex}`;
 					audio.src = getStreamUrl(ab.uuid, next.fileIndex);
 					audio.play();
 				} else {
-					setIsPlaying(false);
+					// End of the book: try the series handoff, else the ended UI.
+					void advanceRef.current();
 				}
 			};
 
@@ -476,7 +633,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				buffering.dispose();
 			};
 		},
-		[getStreamUrl, pushMediaSessionState],
+		[ensureFilePreloaded, getStreamUrl, pushMediaSessionState, resolveUpNext],
 	);
 
 	useMountEffect(() => {
@@ -485,6 +642,20 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		audio.volume = volume;
 		return attachAudioListeners(audio);
 	});
+
+	// Apply a book's own remembered speed (server or local override). The
+	// global default is untouched: it only changes on an explicit setSpeed.
+	const applyBookSpeed = useCallback(
+		(uuid: string, rate: number, isOverride: boolean) => {
+			const clamped = clampSpeed(rate);
+			setSpeedState(clamped);
+			speedRef.current = clamped;
+			if (audioRef.current) audioRef.current.playbackRate = clamped;
+			persistSpeedForBook(uuid, clamped);
+			setSpeedIsOverride(isOverride);
+		},
+		[],
+	);
 
 	const retry = useCallback(() => {
 		const audio = audioRef.current;
@@ -506,7 +677,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const loadAudiobook = useCallback(
 		(
 			ab: AudiobookPlayerData,
-			options?: { autoplay?: boolean; startTime?: number },
+			options?: { autoplay?: boolean; startTime?: number; speed?: number },
 		) => {
 			const autoplay = options?.autoplay ?? true;
 			const audio = audioRef.current;
@@ -525,11 +696,31 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			setLoadingUuid(ab.uuid);
 			setPlaybackError(false);
 			setIsPlaying(false);
+			setBookEnded(false);
+			setUpNext(null);
+			upNextResolvedForRef.current = null;
+			preloadedFileRef.current = null;
+			preloadRef.current = null;
 			setCurrentTime(0);
 			setCurrentFileIndex(0);
 			pendingSeekRef.current = null;
-			// The rate carries over between books; a fade may have left the
-			// element quiet.
+			pausedAtRef.current = null;
+			// Per-book speed wins; otherwise the global setting carries over. An
+			// explicit server rate (cross-device override) wins over both. A
+			// sleep-timer fade may also have left the element quiet.
+			const globalSpeed = readStoredSpeed();
+			setDefaultSpeed(globalSpeed);
+			if (options?.speed != null && Number.isFinite(options.speed)) {
+				applyBookSpeed(ab.uuid, options.speed, options.speed !== globalSpeed);
+			} else {
+				const localOverride = readStoredSpeedForBook(ab.uuid);
+				const nextSpeed = localOverride ?? globalSpeed;
+				setSpeedState(nextSpeed);
+				speedRef.current = nextSpeed;
+				setSpeedIsOverride(
+					localOverride != null && localOverride !== globalSpeed,
+				);
+			}
 			audio.playbackRate = speedRef.current;
 			audio.volume = volumeRef.current;
 			userSeekedRef.current = false;
@@ -597,6 +788,8 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				client.listeningProgress
 					.getProgress({ bookUuid: ab.uuid })
 					.then((progress) => {
+						// The book may have changed while the fetch was in flight.
+						if (audiobookRef.current?.uuid !== ab.uuid) return;
 						const saved = progress?.currentTimeSeconds;
 						if (
 							shouldApplyRestoredPosition({
@@ -606,6 +799,15 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 						) {
 							applyStartPosition(saved as number);
 						}
+						// Server override (set on another device) wins over local.
+						const serverRate = progress?.playbackRate;
+						if (typeof serverRate === "number" && Number.isFinite(serverRate)) {
+							applyBookSpeed(
+								ab.uuid,
+								serverRate,
+								clampSpeed(serverRate) !== readStoredSpeed(),
+							);
+						}
 					})
 					.catch(() => {})
 					.then(() => {
@@ -613,7 +815,95 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 					});
 			}
 		},
-		[computeFileOffsets, getStreamUrl, retry],
+		[applyBookSpeed, computeFileOffsets, getStreamUrl, retry],
+	);
+
+	// Advance to the next book in the series, loading its details fresh so the
+	// player state (chapters, files, series link) is complete. Prefers the
+	// already-resolved Up Next hint; falls back to a live series listing.
+	const playNextInSeries = useCallback(async (): Promise<boolean> => {
+		const ab = audiobookRef.current;
+		if (!ab?.seriesUuid) return false;
+		try {
+			let next = upNextRef.current;
+			if (!next || upNextResolvedForRef.current !== ab.uuid) {
+				const list = await client.audiobooks.listBySeries({
+					seriesUuid: ab.seriesUuid,
+				});
+				const found = findNextInSeries({
+					currentUuid: ab.uuid,
+					seriesBooks: list,
+				});
+				if (!found) return false;
+				next = { uuid: found.uuid, title: found.title ?? null };
+			}
+			const details = await client.audiobooks.getDetails({
+				uuid: next.uuid,
+			});
+			if (!details) return false;
+			loadAudiobook(toPlayerData(details), { startTime: 0 });
+			return true;
+		} catch {
+			return false;
+		}
+	}, [loadAudiobook]);
+
+	// Persist the finished state ( completion drives recommendations) without
+	// waiting for the next 45s sync tick.
+	const markBookCompleted = useCallback(() => {
+		const ab = audiobookRef.current;
+		if (!ab) return;
+		const total = totalDurationRef.current || 0;
+		client.listeningProgress
+			.saveProgress(
+				{
+					bookUuid: ab.uuid,
+					currentTimeSeconds: total,
+					durationSeconds: total,
+					status: "completed",
+				},
+				{ context: { keepalive: true } },
+			)
+			.then(() => {
+				invalidateListeningProgress();
+				invalidateRecommendations();
+			})
+			.catch(() => {});
+	}, []);
+
+	const finishCurrentBook = useCallback(async () => {
+		const ab = audiobookRef.current;
+		if (!ab) return;
+		markBookCompleted();
+		if (autoplayNextRef.current && ab.seriesUuid) {
+			const advanced = await playNextInSeries();
+			if (advanced) return;
+		}
+		setIsPlaying(false);
+		setMediaSessionPlaybackState("paused");
+		setBookEnded(true);
+	}, [markBookCompleted, playNextInSeries]);
+
+	// Keep the media listeners' handoff pointed at the latest closure.
+	advanceRef.current = finishCurrentBook;
+
+	const replayBook = useCallback(() => {
+		setBookEnded(false);
+		seekToRef.current(0);
+		audioRef.current?.play().catch(() => {});
+	}, []);
+
+	const dismissBookEnded = useCallback(() => {
+		setBookEnded(false);
+	}, []);
+
+	const setAutoplayNext = useCallback(
+		(enabled: boolean) => {
+			setAutoplayNextState(enabled);
+			persistAutoplayNext(enabled);
+			if (enabled) void resolveUpNext();
+		},
+		[resolveUpNext],
 	);
 
 	// Restore the last active audiobook after a full page reload: bring the mini
@@ -708,6 +998,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		},
 		[seekTo],
 	);
+	seekToRef.current = seekTo;
 
 	// Back restarts the current chapter unless the playhead just entered it.
 	const skipChapter = useCallback(
@@ -735,10 +1026,42 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 	const setSpeed = useCallback((newSpeed: number) => {
 		const clamped = clampSpeed(newSpeed);
 		setSpeedState(clamped);
+		speedRef.current = clamped;
+		setDefaultSpeed(clamped);
+		// An explicit change becomes both the new global default and this
+		// book's override, so they agree and no override badge shows.
+		setSpeedIsOverride(false);
 		if (audioRef.current) {
 			audioRef.current.playbackRate = clamped;
 		}
 		persistSpeed(clamped);
+		const uuid = audiobookRef.current?.uuid;
+		if (!uuid) return;
+		persistSpeedForBook(uuid, clamped);
+		client.listeningProgress
+			.saveProgress(
+				{ bookUuid: uuid, playbackRate: clamped },
+				{ context: { keepalive: true } },
+			)
+			.catch(() => {});
+	}, []);
+
+	const useDefaultSpeed = useCallback(() => {
+		const uuid = audiobookRef.current?.uuid;
+		const def = readStoredSpeed();
+		setSpeedState(def);
+		speedRef.current = def;
+		setSpeedIsOverride(false);
+		if (audioRef.current) audioRef.current.playbackRate = def;
+		if (!uuid) return;
+		clearSpeedForBook(uuid);
+		// Mirror the default server-side so other devices drop the override too.
+		client.listeningProgress
+			.saveProgress(
+				{ bookUuid: uuid, playbackRate: def },
+				{ context: { keepalive: true } },
+			)
+			.catch(() => {});
 	}, []);
 
 	const setJumpBack = useCallback((seconds: JumpAmount) => {
@@ -822,6 +1145,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		}
 		setIsExpanded(false);
 		setSleepTimer(null);
+		setUpNext(null);
+		setBookEnded(false);
+		upNextResolvedForRef.current = null;
+		preloadedFileRef.current = null;
+		preloadRef.current = null;
+		pausedAtRef.current = null;
 		clearMediaSession();
 		mediaChapterRef.current = -1;
 		pendingSeekRef.current = null;
@@ -877,6 +1206,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			jumpBack,
 			jumpForward,
 			sleepTimer,
+			defaultSpeed,
+			speedIsOverride,
+			autoplayNext,
+			upNext,
+			bookEnded,
 		}),
 		[
 			audiobook,
@@ -898,6 +1232,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			jumpBack,
 			jumpForward,
 			sleepTimer,
+			defaultSpeed,
+			speedIsOverride,
+			autoplayNext,
+			upNext,
+			bookEnded,
 		],
 	);
 
@@ -922,6 +1261,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			extendSleep,
 			cancelSleepTimer,
 			setExpanded: setIsExpanded,
+			useDefaultSpeed,
+			setAutoplayNext,
+			playNextInSeries,
+			replayBook,
+			dismissBookEnded,
 		}),
 		[
 			loadAudiobook,
@@ -942,6 +1286,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 			startSleepTimer,
 			extendSleep,
 			cancelSleepTimer,
+			useDefaultSpeed,
+			setAutoplayNext,
+			playNextInSeries,
+			replayBook,
+			dismissBookEnded,
 		],
 	);
 

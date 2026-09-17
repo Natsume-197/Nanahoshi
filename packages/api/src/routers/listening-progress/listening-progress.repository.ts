@@ -22,6 +22,7 @@ export class ListeningProgressRepository {
 			currentTimeSeconds?: number;
 			durationSeconds?: number;
 			listeningTimeSeconds?: number;
+			playbackRate?: number;
 			status?: string;
 		},
 	): Promise<ListeningProgress> {
@@ -34,6 +35,9 @@ export class ListeningProgressRepository {
 				currentTimeSeconds: data.currentTimeSeconds ?? 0,
 				durationSeconds: data.durationSeconds ?? 0,
 				listeningTimeSeconds: data.listeningTimeSeconds ?? 0,
+				...(data.playbackRate !== undefined && {
+					playbackRate: data.playbackRate,
+				}),
 				status: data.status ?? LISTENING_STATUSES.LISTENING,
 				startedAt: now,
 				lastListenedAt: now,
@@ -49,6 +53,9 @@ export class ListeningProgressRepository {
 					}),
 					...(data.listeningTimeSeconds !== undefined && {
 						listeningTimeSeconds: sql`${listeningProgress.listeningTimeSeconds} + ${data.listeningTimeSeconds}`,
+					}),
+					...(data.playbackRate !== undefined && {
+						playbackRate: data.playbackRate,
 					}),
 					...(data.status !== undefined && { status: data.status }),
 					lastListenedAt: now,

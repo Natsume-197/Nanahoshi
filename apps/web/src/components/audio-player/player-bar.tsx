@@ -1,6 +1,7 @@
 import { CaretUp, Headphones, WarningCircle, X } from "@phosphor-icons/react";
 import { memo, useMemo } from "react";
 import { MarqueeText } from "@/components/audio-player/marquee-text";
+import { PlayerBookmarksButton } from "@/components/audio-player/player-bookmarks-panel";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { PlayerSettings } from "@/components/audio-player/player-settings";
@@ -210,6 +211,9 @@ export const PlayerBar = memo(function PlayerBar({
 							secondaryTabular={Boolean(readListen)}
 						/>
 					</div>
+					<div className="relative shrink-0">
+						<PlayerBookmarksButton className={compactControlClass} />
+					</div>
 					{readListen ? (
 						<div className="relative flex shrink-0 items-center justify-center">
 							<PlayerTransport alwaysShowChapterControls />
@@ -338,6 +342,7 @@ export const PlayerBar = memo(function PlayerBar({
 						<div className={cn(readListen && "hidden lg:block")}>
 							<PlayerVolumeControl />
 						</div>
+						<PlayerBookmarksButton />
 						<PlayerSettings />
 						{showStopButton && (
 							<PlayerIconButton

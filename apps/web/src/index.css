@@ -754,116 +754,200 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 	animation: read-listen-route-return var(--read-listen-route-dur)
 		var(--ease-smooth-out) both;
 }
-
-/* A near-black version of the extracted main colour gives the ambient light
-   somewhere to disappear into. The cover itself is never blurred. */
+/* The whole scene derives from the cover's extracted colour, so it always
+   harmonises: a near-black base to disappear into, two analogous glows
+   (hue-shifted, cover-dominant) and one bright wash behind the artwork.
+   Fixed hues only whisper in, so grey covers still get a little life without
+   violet blobs fighting green/orange artwork. The cover itself is never
+   blurred. */
 .player-ambient-field {
-	--player-night-light: oklch(from var(--player-source) 0.24 calc(c * 0.28) h);
-	--player-night-mid: oklch(from var(--player-source) 0.18 calc(c * 0.2) h);
-	--player-night-deep: oklch(from var(--player-source) 0.135 calc(c * 0.14) h);
+	--player-night-light: oklch(from var(--player-source) 0.23 calc(c * 0.3) h);
+	--player-night-mid: oklch(from var(--player-source) 0.17 calc(c * 0.22) h);
+	--player-night-deep: oklch(from var(--player-source) 0.125 calc(c * 0.16) h);
+	--player-glow-warm: color-mix(
+		in oklab,
+		oklch(from var(--player-source) 0.58 calc(c * 0.55 + 0.02) calc(h + 26)) 68%,
+		oklch(0.55 0.09 45) 32%
+	);
+	--player-glow-cool: color-mix(
+		in oklab,
+		oklch(from var(--player-source) 0.5 calc(c * 0.5 + 0.02) calc(h - 30)) 72%,
+		oklch(0.5 0.07 265) 28%
+	);
+	--player-glow-cover: oklch(
+		from var(--player-source) 0.62 calc(c * 0.42 + 0.015) h
+	);
 
 	background: linear-gradient(
-		155deg,
+		168deg,
 		var(--player-night-light),
-		var(--player-night-mid) 54%,
+		var(--player-night-mid) 52%,
 		var(--player-night-deep) 100%
 	);
 }
 
-.player-ambient-orbs {
-	/* Three anchored hues keep the scene intentional. A small share of the
-	   extracted cover colour ties the light to the current audiobook. */
-	--player-glow-violet: color-mix(
-		in oklab,
-		oklch(0.52 0.105 305) 78%,
-		var(--player-source) 22%
-	);
-	--player-glow-rose: color-mix(
-		in oklab,
-		oklch(0.47 0.105 22) 82%,
-		var(--player-source) 18%
-	);
-	--player-glow-blue: color-mix(
-		in oklab,
-		oklch(0.44 0.085 265) 86%,
-		var(--player-source) 14%
-	);
-	--player-glow-cover: oklch(from var(--player-source) 0.46 calc(c * 0.36) h);
-
-	position: absolute;
-	inset: -24%;
-	backface-visibility: hidden;
-	background:
-		radial-gradient(
-			ellipse 62% 72% at 66% 34%,
-			color-mix(in oklab, var(--player-glow-violet) 30%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-violet) 17%, transparent) 36%,
-			color-mix(in oklab, var(--player-glow-violet) 6%, transparent) 66%,
-			transparent 88%
-		),
-		radial-gradient(
-			ellipse 78% 56% at 52% 108%,
-			color-mix(in oklab, var(--player-glow-rose) 24%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-rose) 13%, transparent) 42%,
-			color-mix(in oklab, var(--player-glow-rose) 4%, transparent) 70%,
-			transparent 90%
-		),
-		radial-gradient(
-			ellipse 54% 68% at 108% 48%,
-			color-mix(in oklab, var(--player-glow-blue) 17%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-blue) 8%, transparent) 48%,
-			color-mix(in oklab, var(--player-glow-blue) 3%, transparent) 72%,
-			transparent 90%
-		),
-		radial-gradient(
-			ellipse 58% 72% at 14% 36%,
-			color-mix(in oklab, var(--player-glow-cover) 16%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-cover) 7%, transparent) 50%,
-			color-mix(in oklab, var(--player-glow-cover) 2%, transparent) 74%,
-			transparent 92%
-		);
-	contain: paint;
-	transform: translate3d(0, 0, 0) scale(1.03) rotate(-1deg);
-}
-
-@keyframes player-ambient-drift {
+@keyframes player-ambient-enter {
 	from {
-		transform: translate3d(-1%, 0.75%, 0) scale(1.03) rotate(-1deg);
+		opacity: 0;
 	}
 
 	to {
-		transform: translate3d(1.25%, -1%, 0) scale(1.06) rotate(1deg);
+		opacity: 1;
 	}
+}
+
+/* The actual cover, hugely blurred and saturated, behind everything
+   procedural. Same URL as the artwork itself, so it costs no extra fetch —
+   and it ties the scene to the real art, not just its average colour.
+   Static layer: composited once, never repainted by the drift above it. */
+.player-ambient-backdrop {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	opacity: 0.32;
+	transform: scale(1.06);
+	filter: blur(72px) saturate(1.5);
+}
+
+.player-ambient-orbs {
+	position: absolute;
+	inset: -18%;
+	backface-visibility: hidden;
+	background:
+		radial-gradient(
+			ellipse 72% 52% at 50% 30%,
+			color-mix(in oklab, var(--player-glow-cover) 26%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-cover) 12%, transparent) 42%,
+			transparent 72%
+		),
+		radial-gradient(
+			ellipse 90% 62% at 12% 88%,
+			color-mix(in oklab, var(--player-glow-warm) 20%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-warm) 9%, transparent) 46%,
+			transparent 74%
+		),
+		radial-gradient(
+			ellipse 84% 60% at 92% 74%,
+			color-mix(in oklab, var(--player-glow-cool) 18%, transparent) 0%,
+			color-mix(in oklab, var(--player-glow-cool) 8%, transparent) 48%,
+			transparent 76%
+		);
+	contain: paint;
+	transform: translate3d(0, 0, 0);
+}
+
+/* Drift is translation-only: rotation/scale on a layer this large reads as
+   smearing, not air. The main layer tours a slow circuit while a fainter
+   second layer drifts against it, so the light feels alive with parallax
+   instead of rocking back and forth. */
+@keyframes player-ambient-drift {
+	0% {
+		transform: translate3d(-1.1%, 0.7%, 0);
+	}
+
+	35% {
+		transform: translate3d(0.9%, 1%, 0);
+	}
+
+	70% {
+		transform: translate3d(1%, -0.8%, 0);
+	}
+
+	100% {
+		transform: translate3d(-1.1%, 0.7%, 0);
+	}
+}
+
+@keyframes player-ambient-drift-b {
+	0% {
+		transform: translate3d(0.9%, -0.6%, 0);
+	}
+
+	45% {
+		transform: translate3d(-0.9%, -0.3%, 0);
+	}
+
+	75% {
+		transform: translate3d(-0.5%, 0.7%, 0);
+	}
+
+	100% {
+		transform: translate3d(0.9%, -0.6%, 0);
+	}
+}
+
+.player-ambient-orbs-b {
+	position: absolute;
+	inset: -18%;
+	backface-visibility: hidden;
+	background:
+		radial-gradient(
+			ellipse 58% 42% at 80% 16%,
+			color-mix(in oklab, var(--player-glow-warm) 13%, transparent) 0%,
+			transparent 70%
+		),
+		radial-gradient(
+			ellipse 62% 44% at 16% 84%,
+			color-mix(in oklab, var(--player-glow-cool) 11%, transparent) 0%,
+			transparent 72%
+		);
+	contain: paint;
+	transform: translate3d(0, 0, 0);
 }
 
 @media (prefers-reduced-motion: no-preference) {
+	.player-ambient-field {
+		animation: player-ambient-enter 900ms ease-out;
+	}
+
 	.player-ambient-orbs {
 		will-change: transform;
-		animation: player-ambient-drift 42s ease-in-out infinite alternate;
+		animation: player-ambient-drift 56s ease-in-out infinite;
+	}
+
+	.player-ambient-orbs-b {
+		will-change: transform;
+		animation: player-ambient-drift-b 84s ease-in-out infinite;
 	}
 }
 
+/* Vignette for depth plus top/bottom shading so header and transport type
+   stay legible over bright artwork. */
 .player-ambient-veil {
 	position: absolute;
 	inset: 0;
 	background:
 		linear-gradient(
 			to bottom,
-			oklch(from var(--player-source) 0.08 calc(c * 0.08) h / 4%),
-			transparent 30%,
-			oklch(from var(--player-source) 0.055 calc(c * 0.07) h / 7%) 64%,
-			oklch(from var(--player-source) 0.045 calc(c * 0.06) h / 18%) 84%,
-			oklch(from var(--player-source) 0.04 calc(c * 0.05) h / 34%) 100%
+			oklch(0 0 0 / 26%) 0%,
+			transparent 22%,
+			transparent 62%,
+			oklch(0 0 0 / 30%) 100%
 		),
 		radial-gradient(
-			ellipse 105% 84% at 50% 45%,
-			transparent 64%,
-			oklch(from var(--player-source) 0.05 calc(c * 0.06) h / 12%) 100%
+			ellipse 110% 90% at 50% 46%,
+			transparent 58%,
+			oklch(0 0 0 / 26%) 100%
 		);
 }
 
+/* Fine film grain kills gradient banding on large panels and gives the scene
+   a finished feel. Static and faint: no animation cost. */
+.player-ambient-grain {
+	position: absolute;
+	inset: 0;
+	opacity: 0.07;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+	background-size: 160px 160px;
+}
+
 @media (prefers-reduced-transparency: reduce) {
-	.player-ambient-orbs {
+	.player-ambient-orbs,
+	.player-ambient-orbs-b,
+	.player-ambient-backdrop,
+	.player-ambient-grain {
 		opacity: 0;
 	}
 
@@ -873,9 +957,19 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 }
 
 @media (prefers-contrast: more) {
-	.player-ambient-orbs {
-		opacity: 0.38;
+	.player-ambient-orbs,
+	.player-ambient-orbs-b {
+		opacity: 0.5;
 	}
+
+	.player-ambient-backdrop {
+		opacity: 0;
+	}
+
+	.player-ambient-grain {
+		opacity: 0;
+	}
+
 	.player-ambient-veil {
 		background: oklch(0.08 0 0 / 72%);
 	}

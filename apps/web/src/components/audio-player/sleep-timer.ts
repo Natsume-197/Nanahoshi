@@ -7,7 +7,8 @@ export const SLEEP_EXTEND_SECONDS = 300;
 
 export type SleepTimerMode =
 	| { kind: "duration"; minutes: number }
-	| { kind: "chapter" };
+	| { kind: "chapter" }
+	| { kind: "book-end" };
 
 export interface SleepTimerState {
 	mode: SleepTimerMode;
@@ -43,11 +44,13 @@ export function createSleepTimer(
 	const remaining =
 		mode.kind === "duration"
 			? mode.minutes * 60
-			: chapterSecondsRemaining(
-					context.chapters,
-					context.globalTime,
-					context.totalDuration,
-				);
+			: mode.kind === "book-end"
+				? Math.max(0, context.totalDuration - context.globalTime)
+				: chapterSecondsRemaining(
+						context.chapters,
+						context.globalTime,
+						context.totalDuration,
+					);
 	return { mode, remaining };
 }
 
@@ -68,13 +71,16 @@ export function tickSleepTimer(
 ): SleepTick {
 	if (!state) return { state: null, expired: false };
 
-	if (state.mode.kind === "chapter") {
-		const remaining =
-			chapterSecondsRemaining(
-				context.chapters,
-				context.globalTime,
-				context.totalDuration,
-			) / Math.max(0.1, context.speed);
+	if (state.mode.kind === "chapter" || state.mode.kind === "book-end") {
+		const bookRemaining =
+			state.mode.kind === "book-end"
+				? Math.max(0, context.totalDuration - context.globalTime)
+				: chapterSecondsRemaining(
+						context.chapters,
+						context.globalTime,
+						context.totalDuration,
+					);
+		const remaining = bookRemaining / Math.max(0.1, context.speed);
 		if (remaining <= 0.5) return { state: null, expired: true };
 		return { state: { ...state, remaining }, expired: false };
 	}

@@ -37,8 +37,11 @@ export function usePlayAudiobook() {
 					signalPlayIntent(null);
 					return;
 				}
+				const serverRate = progress?.playbackRate;
 				loadAudiobook(toPlayerData(details), {
 					startTime: progress?.currentTimeSeconds ?? 0,
+					...(typeof serverRate === "number" &&
+						Number.isFinite(serverRate) && { speed: serverRate }),
 				});
 				posthog?.capture("audiobook_playback_started", {
 					resumed: (progress?.currentTimeSeconds ?? 0) > 0,

@@ -43,12 +43,13 @@ export const saveProgress = async (
 	);
 	const previousStatus = existing?.status;
 
-	const { playbackRate, ...persistentProgress } = data;
-	const result = await listeningProgressRepository.upsert(
-		userId,
-		bookId,
-		persistentProgress,
-	);
+	// playbackRate is both persistent (per-book override across devices) and
+	// live presence data, so it flows to both.
+	const { playbackRate, ...rest } = data;
+	const result = await listeningProgressRepository.upsert(userId, bookId, {
+		...rest,
+		...(playbackRate !== undefined && { playbackRate }),
+	});
 
 	if (data.status === LISTENING_STATUSES.LISTENING) {
 		await markBookActivity(
