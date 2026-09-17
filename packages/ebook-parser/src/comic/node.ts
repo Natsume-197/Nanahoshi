@@ -21,6 +21,6 @@ export async function openComicFile(
 			format,
 		);
 	}
-	const data = Uint8Array.from(await fs.readFile(filePath));
+	const data = await fs.readFile(filePath);
 	return openComicArchive(await openSevenZipArchive(data), format);
 }

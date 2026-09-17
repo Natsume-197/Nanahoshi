@@ -17,7 +17,16 @@ export async function openPdfFile(filePath: string): Promise<EbookDocument> {
 }
 
 export async function openPdfBytes(input: Uint8Array): Promise<EbookDocument> {
-	const content = Uint8Array.from(input);
+	const content =
+		input.byteOffset === 0 && input.byteLength === input.buffer.byteLength
+			? input
+			: Uint8Array.from(input);
+	const contentBuffer =
+		content.buffer instanceof ArrayBuffer &&
+		content.byteOffset === 0 &&
+		content.byteLength === content.buffer.byteLength
+			? content.buffer
+			: Uint8Array.from(content).buffer;
 	const [documentId, wasmBinary] = await Promise.all([
 		pdfDocumentId(content),
 		pdfiumWasmBinary,
@@ -39,7 +48,7 @@ export async function openPdfBytes(input: Uint8Array): Promise<EbookDocument> {
 	const engine = new PdfEngine(executor, { imageConverter });
 	return openPdfEbookDocument(
 		engine,
-		{ id: documentId, content: content.buffer },
+		{ id: documentId, content: contentBuffer },
 		async (image) => Uint8Array.from(image),
 	);
 }

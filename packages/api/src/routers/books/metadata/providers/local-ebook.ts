@@ -32,6 +32,7 @@ import { normalizePublishedDate } from "./provider.utils";
 const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
 const COVER_CANDIDATE_SECTIONS = 6;
 const COVER_CANDIDATE_LIMIT = 24;
+const COVER_ANALYSIS_MAX_EDGE = 512;
 
 export interface LocalEbookMetadata {
 	title: string;
@@ -104,7 +105,8 @@ async function acquireEbookCover(
 
 async function isUsableDeclaredCover(data: Uint8Array): Promise<boolean> {
 	try {
-		await sharp(Buffer.from(data)).metadata();
+		const metadata = await sharp(Buffer.from(data)).metadata();
+		if (!metadata.width || !metadata.height) return false;
 		return !(await isBlankCover(data));
 	} catch {
 		return false;
@@ -195,11 +197,9 @@ function imageReferences(html: string): string[] {
 
 async function isFallbackCoverCandidate(data: Uint8Array): Promise<boolean> {
 	try {
-		const image = sharp(Buffer.from(data));
-		const [metadata, stats] = await Promise.all([
-			image.metadata(),
-			image.stats(),
-		]);
+		const metadata = await sharp(Buffer.from(data)).metadata();
+		if (!metadata.width || !metadata.height) return false;
+		const stats = await boundedCoverStats(data);
 		const width = metadata.width ?? 0;
 		const height = metadata.height ?? 0;
 		const ratio = width / height;
@@ -225,7 +225,7 @@ async function isFallbackCoverCandidate(data: Uint8Array): Promise<boolean> {
 
 export async function isBlankCover(data: Uint8Array): Promise<boolean> {
 	try {
-		const stats = await sharp(Buffer.from(data)).stats();
+		const stats = await boundedCoverStats(data);
 		const mean =
 			stats.channels.reduce((sum, channel) => sum + channel.mean, 0) /
 			stats.channels.length;
@@ -233,6 +233,16 @@ export async function isBlankCover(data: Uint8Array): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+async function boundedCoverStats(data: Uint8Array) {
+	return sharp(Buffer.from(data))
+		.resize(COVER_ANALYSIS_MAX_EDGE, COVER_ANALYSIS_MAX_EDGE, {
+			fit: "inside",
+			withoutEnlargement: true,
+		})
+		.removeAlpha()
+		.stats();
 }
 
 export async function measureContentForm(
