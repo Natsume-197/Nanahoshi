@@ -25,6 +25,7 @@ export function withProviderGate<
 	adapter: CatalogProviderAdapter<TProvider, TMetadata>,
 	quotaContext: (metadata: TMetadata) => ProviderQuotaContext,
 ): CatalogProviderAdapter<TProvider, TMetadata> {
+	const lookup = adapter.lookup;
 	const guard = async <T>(
 		context: ProviderQuotaContext,
 		call: () => Promise<T>,
@@ -80,5 +81,12 @@ export function withProviderGate<
 				adapter.hydrate(candidate, metadata),
 			);
 		},
+		...(lookup && {
+			async lookup(providerId: string, metadata: TMetadata) {
+				return guard(quotaContext(metadata), () =>
+					lookup(providerId, metadata),
+				);
+			},
+		}),
 	};
 }

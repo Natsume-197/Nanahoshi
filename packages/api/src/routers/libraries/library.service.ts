@@ -8,6 +8,7 @@ import {
 } from "../../infrastructure/search/catalog-relations";
 import { logger } from "../../lib/logger";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import { createAudiobookJobs } from "../../modules/scanning/audiobookJobCreator";
 import { reconcileLibraryWatcher } from "../../modules/scanning/library-watcher";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
@@ -725,9 +726,8 @@ export const runLibraryScan = async (opts: {
 
 const REPROCESS_BATCH_SIZE = 10000;
 
-// Re-run the per-book pipeline (local metadata fill-missing, duplicate
-// grouping, pending enrichment, search sync) over a library's existing books,
-// skipping the expensive part of a scan: the fs walk and per-file hashing.
+// Re-read local metadata for existing books, without provider calls or
+// organization changes. Audiobooks reuse their stored source-file inventory.
 export const reprocessLibrary = async (
 	libraryUuid: string,
 	serverId: string,
@@ -735,9 +735,6 @@ export const reprocessLibrary = async (
 ) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
-	if (library.mediaType === "audiobook") {
-		throw new BadRequestError("Audiobook libraries cannot be reprocessed");
-	}
 	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
@@ -765,11 +762,29 @@ export const reprocessLibrary = async (
 /** Enqueues the reprocess jobs; called from the scheduled-scan worker. */
 export const runLibraryReprocess = async (opts: {
 	libraryId: number;
+	serverId: string;
 	taskId: string;
 }) => {
-	const { libraryId, taskId } = opts;
+	const { libraryId, serverId, taskId } = opts;
 	let lastId = 0;
 	try {
+		const library = await libraryRepository.findById(libraryId, serverId);
+		if (!library) throw new NotFoundError("Library not found");
+		if (library.mediaType === "audiobook") {
+			for (const libraryPath of (library.paths ?? []).filter(
+				(path) => path.isEnabled !== false,
+			)) {
+				await throwIfTaskCancelled(taskId);
+				await createAudiobookJobs({
+					rootDir: libraryPath.path,
+					libraryId,
+					libraryPathId: libraryPath.id,
+					taskId,
+					reprocess: true,
+				});
+			}
+			return;
+		}
 		while (true) {
 			await throwIfTaskCancelled(taskId);
 			const books = await bookRepository.listEbookIdsByLibraryAfter(
@@ -894,9 +909,8 @@ export const runLibraryRegroup = async (opts: {
 	}
 };
 
-// Provider-only pass: fan out one refresh-enrich job per ebook so providers
-// are re-consulted and fresh values replace stale DB data (locks still win).
-// Lighter than a reprocess — no local re-extract, regroup or search resync.
+// Series-only pass for both media types. Providers may be consulted to resolve
+// identity/order, but every non-series metadata field remains untouched.
 export const enrichLibrary = async (
 	libraryUuid: string,
 	serverId: string,
@@ -904,15 +918,12 @@ export const enrichLibrary = async (
 ) => {
 	const library = await libraryRepository.findByUuid(libraryUuid, serverId);
 	if (!library) throw new NotFoundError("Library not found");
-	if (library.mediaType === "audiobook") {
-		throw new BadRequestError("Audiobook libraries cannot be re-enriched");
-	}
 	await assertNoActiveLibraryMaintenance(library.id);
 
 	const task = await createTask({
 		type: "library-enrich",
 		serverId,
-		label: `Refreshing metadata for ${library.name}`,
+		label: `Rebuilding series for ${library.name}`,
 		userId,
 		libraryId: library.id,
 		payload: {
@@ -941,7 +952,7 @@ export const runLibraryEnrich = async (opts: {
 	try {
 		while (true) {
 			await throwIfTaskCancelled(taskId);
-			const books = await bookRepository.listEbookIdsByLibraryAfter(
+			const books = await bookRepository.listIdsByLibraryAfter(
 				libraryId,
 				lastId,
 				REPROCESS_BATCH_SIZE,
@@ -955,8 +966,9 @@ export const runLibraryEnrich = async (opts: {
 				books.map((b) => ({
 					bookId: b.id,
 					uuid: b.uuid,
+					mediaType: b.mediaType,
 					taskId,
-					refresh: true,
+					seriesOnly: true,
 				})),
 			);
 		}

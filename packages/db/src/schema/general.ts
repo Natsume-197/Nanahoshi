@@ -996,6 +996,12 @@ export const bookMetadata = pgTable(
 		// Store rating for the book (provider-agnostic; source is in fieldSources).
 		rating: doublePrecision("rating"),
 		ratingCount: integer("rating_count"),
+		providerRatings: jsonb("provider_ratings")
+			.$type<
+				{ provider: string; rating: number; ratingCount?: number | null }[]
+			>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		// Per-field provenance: { field: { p: providerId, at: ISO timestamp } }.
 		// Written on every enrichment/manual save; drives the origin inspector.
 		fieldSources: jsonb("field_sources")
@@ -1109,6 +1115,15 @@ export type EnrichmentFailure = {
 	retryAfterMs?: number;
 };
 
+export type EnrichmentRunDiagnostics = {
+	durationMs: number;
+	searches: number;
+	candidates: number;
+	hydrations: number;
+	assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
+	reusedProviderIds: string[];
+};
+
 export const enrichmentState = pgTable(
 	"enrichment_state",
 	{
@@ -1162,6 +1177,35 @@ export const enrichmentState = pgTable(
 		check(
 			"enrichment_state_retryable_status_check",
 			sql`${table.nextRetryAt} IS NULL OR ${table.status} IN ('pending', 'partial')`,
+		),
+	],
+);
+
+/** Immutable operational trace: one compact row for every provider run. */
+export const enrichmentRunDiagnostic = pgTable(
+	"enrichment_run_diagnostic",
+	{
+		id: bigserial({ mode: "number" }).primaryKey().notNull(),
+		bookId: bigint("book_id", { mode: "number" }).notNull(),
+		outcome: text("outcome").notNull(),
+		diagnostics: jsonb("diagnostics")
+			.$type<EnrichmentRunDiagnostics>()
+			.notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.bookId],
+			foreignColumns: [book.id],
+			name: "enrichment_run_diagnostic_book_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("cascade"),
+		index("enrichment_run_diagnostic_book_created_idx").on(
+			table.bookId,
+			table.createdAt,
 		),
 	],
 );

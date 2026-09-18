@@ -88,6 +88,8 @@ export type MetadataEnrichmentTarget = {
 	taskId?: string;
 	force?: boolean;
 	refresh?: boolean;
+	/** Re-resolve only series membership/order; leave every other field untouched. */
+	seriesOnly?: boolean;
 	/** Set by deferred retries; fences the job against its appointment. */
 	retryGeneration?: number;
 };

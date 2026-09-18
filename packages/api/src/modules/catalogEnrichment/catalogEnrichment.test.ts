@@ -63,7 +63,7 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "matched",
 			metadata: {
 				title: "Great Story",
@@ -117,7 +117,7 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "matched",
 			metadata: {
 				title: "Great Story",
@@ -222,7 +222,7 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy: primaryAwarePolicy,
 		});
 
-		expect(result.status === "matched" ? result : null).toEqual({
+		expect(result.status === "matched" ? result : null).toMatchObject({
 			status: "matched",
 			metadata: {
 				title: "Great Story",
@@ -269,7 +269,7 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "no_match",
 			failures: [
 				{
@@ -345,7 +345,7 @@ describe("Catalog Enrichment Pipeline", () => {
 			policy,
 		});
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "no_match",
 			decision: {
 				kind: "ambiguous",

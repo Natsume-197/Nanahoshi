@@ -155,7 +155,8 @@ export function notificationContextLabel(taskType: string, label: string) {
 		"library-upload": /^Uploading to\s+/i,
 		"library-reprocess": /^Reprocessing\s+/i,
 		"library-regroup": /^Rebuilding edition groups for\s+/i,
-		"library-enrich": /^Refreshing metadata for\s+/i,
+		"library-enrich":
+			/^(?:Refreshing (?:metadata|audiobook series)|Rebuilding series) for\s+/i,
 		"send-to-kindle": /^Sending to\s+/i,
 	};
 	return label.replace(prefixByTask[taskType] ?? /$^/, "");
@@ -168,7 +169,9 @@ const SUBJECT_PREFIXES: Record<string, RegExp[]> = {
 	// Only the "for {name}" form carries a name; the bare default
 	// ("Rebuilding edition groups") falls back to the plain title.
 	"library-regroup": [/^Rebuilding edition groups for\s+/i],
-	"library-enrich": [/^Refreshing metadata for\s+/i],
+	"library-enrich": [
+		/^(?:Refreshing (?:metadata|audiobook series)|Rebuilding series) for\s+/i,
+	],
 	"send-to-kindle": [/^Sending to\s+/i],
 	"metadata-enrich": [/^Enrich metadata from\s+/i],
 	"metadata-enrich-retry": [/^Retry failed\s+/i],

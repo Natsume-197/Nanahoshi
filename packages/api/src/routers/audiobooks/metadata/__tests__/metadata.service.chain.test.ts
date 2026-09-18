@@ -41,10 +41,19 @@ const mockAddLockedFields = mock(() => Promise.resolve());
 const mockRemoveLockedFields = mock(() => Promise.resolve());
 const mockSaveOriginalMetadata = mock(() => Promise.resolve(null));
 const mockGetOriginalMetadata = mock(() => Promise.resolve(null));
+const mockFindByBookId = mock(() =>
+	Promise.resolve({
+		bookId: 1,
+		title: "Provider title",
+		description: "Provider description",
+		duration: 100,
+	}),
+);
 
 const repositoryMock = {
 	saveOriginalMetadata: mockSaveOriginalMetadata,
 	getOriginalMetadata: mockGetOriginalMetadata,
+	findByBookId: mockFindByBookId,
 	getLockedFields: mockGetLockedFields,
 	getCoverByBookId: mockGetCoverByBookId,
 	setLockedFields: mockSetLockedFields,
@@ -58,6 +67,7 @@ const repositoryMock = {
 	upsertPublisher: mock(() => Promise.resolve(1)),
 	upsertSeries: mock(() => Promise.resolve(1)),
 	getBookSeriesIds: mock(() => Promise.resolve([])),
+	getBookSeries: mock(() => Promise.resolve([])),
 	getBookAuthorsWithRoles: mock(() => Promise.resolve([])),
 	getSeriesRefreshSnapshot: mock(() =>
 		Promise.resolve(
@@ -78,6 +88,7 @@ const repositoryMock = {
 	linkBookAuthor: mock(() => Promise.resolve()),
 	deleteAuthorIfOrphaned: mock(() => Promise.resolve()),
 	getBookNarrators: mock(() => Promise.resolve([])),
+	getBookGenres: mock(() => Promise.resolve([])),
 	clearBookNarrators: mock(() => Promise.resolve()),
 	upsertNarrator: mock(() => Promise.resolve(1)),
 	linkBookNarrator: mock(() => Promise.resolve()),
@@ -225,9 +236,26 @@ beforeEach(() => {
 	mockSaveOriginalMetadata.mockClear();
 	mockGetOriginalMetadata.mockReset();
 	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
+	mockFindByBookId.mockReset();
+	mockFindByBookId.mockImplementation(() =>
+		Promise.resolve({
+			bookId: 1,
+			title: "Provider title",
+			description: "Provider description",
+			duration: 100,
+		}),
+	);
 	mockResetForRetry.mockClear();
 	repositoryMock.upsertSeries.mockClear();
 	repositoryMock.linkBookSeries.mockClear();
+	repositoryMock.getBookSeries.mockReset();
+	repositoryMock.getBookSeries.mockImplementation(() => Promise.resolve([]));
+	repositoryMock.getBookAuthors.mockReset();
+	repositoryMock.getBookAuthors.mockImplementation(() => Promise.resolve([]));
+	repositoryMock.getBookNarrators.mockReset();
+	repositoryMock.getBookNarrators.mockImplementation(() => Promise.resolve([]));
+	repositoryMock.getBookGenres.mockReset();
+	repositoryMock.getBookGenres.mockImplementation(() => Promise.resolve([]));
 	repositoryMock.applySeriesRefresh.mockClear();
 	repositoryMock.getSeriesRefreshSnapshot.mockReset();
 	repositoryMock.upsertNarrator.mockClear();
@@ -250,6 +278,31 @@ beforeEach(() => {
 	audibleChaptersSpy.mockImplementation(async () => null);
 	itunesSearchSpy.mockImplementation(async () => []);
 	itunesGetByIdSpy.mockImplementation(async () => null);
+});
+
+describe("fillMissingFromLocal", () => {
+	test("preserves catalog fields while refreshing technical audio data", async () => {
+		await audiobookMetadataService.fillMissingFromLocal(1, {
+			title: "Local title",
+			description: "Local description",
+			duration: 240,
+			codec: "aac",
+			authors: [{ name: "Local Author" }],
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.title).toBeUndefined();
+		expect(saved.description).toBeUndefined();
+		expect(saved.duration).toBe(240);
+		expect(saved.codec).toBe("aac");
+		expect(repositoryMock.upsertAuthor).toHaveBeenCalledWith(
+			"Local Author",
+			"server-1",
+		);
+	});
 });
 
 describe("quickMatch provider chain", () => {

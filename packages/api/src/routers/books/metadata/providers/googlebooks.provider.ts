@@ -61,6 +61,8 @@ type VolumeInfo = {
 	printedPageCount?: number;
 	categories?: string[];
 	language?: string;
+	averageRating?: number;
+	ratingsCount?: number;
 	imageLinks?: ImageLinks;
 	canonicalVolumeLink?: string;
 	infoLink?: string;
@@ -356,6 +358,12 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 			...(info.publisher && { publisher: { name: info.publisher.trim() } }),
 			...(series && { series }),
 			...(genres.length > 0 && { genres }),
+			...(typeof info.averageRating === "number" && {
+				rating: info.averageRating,
+			}),
+			...(typeof info.ratingsCount === "number" && {
+				ratingCount: info.ratingsCount,
+			}),
 			cover: this.pickImageLink(info.imageLinks) ?? null,
 		});
 	}

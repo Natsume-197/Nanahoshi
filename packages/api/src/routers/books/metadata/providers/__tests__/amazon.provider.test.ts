@@ -485,14 +485,18 @@ describe("buildSearchUrlVariants", () => {
 		expect(bare).toContain(encodeURIComponent("本好きの下剋上 ふぁんぶっく10"));
 	});
 
-	test("an ISBN collapses every tier to a single URL", () => {
+	test("an ISBN falls back to title+author and then title-only", () => {
 		const urls = variants({
 			title: "タイトル",
 			isbn13: "9784049130129",
 			authors: [{ name: "著者", role: null }],
 		});
-		expect(urls).toHaveLength(1);
+		expect(urls).toHaveLength(3);
 		expect(urls[0]).toContain("9784049130129");
+		expect(urls[1]).toContain(encodeURIComponent("タイトル 著者"));
+		expect(urls[1]).not.toContain("9784049130129");
+		expect(urls[2]).toContain(encodeURIComponent("タイトル"));
+		expect(urls[2]).not.toContain(encodeURIComponent("著者"));
 	});
 });
 
@@ -501,17 +505,15 @@ describe("buildSearchUrlVariants", () => {
 describe("looksLikeBlockPage", () => {
 	const looksBlocked = (html: string) => provider.looksLikeBlockPage(html);
 
-	test("flags the HTTP-200 throttle stub (tiny body)", () => {
-		// Shape of the real anti-bot stub: a few KB of CSA tracking, no content.
+	test("does not flag a small page without an explicit block marker", () => {
 		const stub = `<!doctype html><html><head><script>csa('Config', {});</script></head><body>${"x".repeat(2000)}</body></html>`;
-		expect(looksBlocked(stub)).toBe(true);
+		expect(looksBlocked(stub)).toBe(false);
 	});
 
-	test("flags a small captcha page even though it carries a <title>", () => {
-		// Captcha shells are ~10KB *with* a title — size, not the title, is the tell.
+	test("does not infer a captcha from a small titled page", () => {
 		const captcha = `<html><head><title>Amazon.co.jp</title></head><body>${"y".repeat(10000)}</body></html>`;
 		expect(captcha.length).toBeLessThan(50000);
-		expect(looksBlocked(captcha)).toBe(true);
+		expect(looksBlocked(captcha)).toBe(false);
 	});
 
 	test("flags a large page that still carries a captcha marker", () => {
@@ -1461,6 +1463,55 @@ describe("getMetadata", () => {
 		provider.fetchPage = original;
 	});
 
+	test("retries ISBN with title+author and title-only, stopping on the first hit", async () => {
+		const TITLE = "ISBN fallback title";
+		const AUTHOR = "Mismatched author";
+		const ISBN = "9784049130129";
+		const emptyHtml = `<html><body><span data-component-type="s-search-results"></span></body></html>`;
+		const titleHitHtml = `<html><body><span data-component-type="s-search-results">
+			<div data-asin="B000ISBNA"><div data-cy="title-recipe"><h2>${TITLE}</h2></div></div>
+		</span></body></html>`;
+		const bookHtml = `<html><body><span id="productTitle">${TITLE}</span></body></html>`;
+		const searchUrls: string[] = [];
+
+		const original = provider.fetchPage;
+		provider.fetchPage = mock((url: unknown) => {
+			const value = String(url);
+			if (value.includes("/s?k=")) {
+				searchUrls.push(value);
+				return Promise.resolve(
+					cheerio.load(
+						value.includes(ISBN) || value.includes(encodeURIComponent(AUTHOR))
+							? emptyHtml
+							: titleHitHtml,
+					),
+				);
+			}
+			if (value.includes("/dp/B000ISBNA"))
+				return Promise.resolve(cheerio.load(bookHtml));
+			return Promise.resolve(null);
+		});
+
+		try {
+			const { metadata: result } = await firstMatch(amazonProvider, {
+				title: TITLE,
+				isbn13: ISBN,
+				authors: [{ name: AUTHOR, role: null }],
+				bookId: 1,
+				uuid: "u",
+			});
+
+			expect(result.asin).toBe("B000ISBNA");
+			expect(searchUrls).toHaveLength(3);
+			expect(searchUrls[0]).toContain(ISBN);
+			expect(searchUrls[1]).toContain(encodeURIComponent(`${TITLE} ${AUTHOR}`));
+			expect(searchUrls[2]).toContain(encodeURIComponent(TITLE));
+			expect(searchUrls[2]).not.toContain(encodeURIComponent(AUTHOR));
+		} finally {
+			provider.fetchPage = original;
+		}
+	});
+
 	test("picks the matching series sibling, not a same-length wrong volume", async () => {
 		// Reproduces 青春ブタ野郎はプチデビル後輩…: the box set (全2巻) has no
 		// #productTitle, and a same-length sibling (ハツコイ少女) is also returned.
@@ -2022,6 +2073,26 @@ describe("session cookie capture", () => {
 		expect(headers.cookie).toBe("session-id=abc123");
 	});
 
+	test("browser headers stay coherent across requests", () => {
+		const first = provider.getHeaders("co.jp", undefined) as Record<
+			string,
+			string
+		>;
+		const second = provider.getHeaders("co.jp", undefined) as Record<
+			string,
+			string
+		>;
+
+		expect(second).toEqual(first);
+		expect(first["user-agent"]).toContain("Chrome/151.0.0.0");
+		expect(first["sec-ch-ua"]).toContain('"Chromium";v="151"');
+		expect(first["sec-ch-ua-platform"]).toBe('"macOS"');
+		expect(first["sec-fetch-site"]).toBe("same-origin");
+		expect(first.referer).toBe("https://www.amazon.co.jp/");
+		expect(first.dnt).toBe("1");
+		expect(first["viewport-width"]).toBeUndefined();
+	});
+
 	test("absorbSetCookies keeps name=value and drops attributes", () => {
 		const response = new Response("", {
 			headers: { "set-cookie": "session-id=abc123; Path=/; Secure; HttpOnly" },
@@ -2087,10 +2158,10 @@ describe("adaptive delay factor", () => {
 		}
 	});
 
-	test("a block grows the delay factor and counts a failure", async () => {
+	test("an explicit block grows the delay factor and counts a failure", async () => {
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = mock(() =>
-			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+			Promise.resolve(new Response("Robot Check", { status: 200 })),
 		) as unknown as typeof fetch;
 
 		try {
@@ -2110,13 +2181,60 @@ describe("adaptive delay factor", () => {
 	test("classifies an anti-bot page as a breaker-worthy cooldown", async () => {
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = mock(() =>
-			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+			Promise.resolve(new Response("validateCaptcha", { status: 200 })),
 		) as unknown as typeof fetch;
 
 		try {
 			const error = await provider
 				.fetchPage("https://www.amazon.classify-block.test/dp/X", {
 					domain: "classify-block.test",
+					enabled: true,
+				})
+				.catch((caught: unknown) => caught);
+			expect(error).toMatchObject({
+				code: "anti_bot",
+				opensCircuitBreaker: true,
+				retryAfterMs: 5 * 60 * 1000,
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("classifies a plain 503 as a short server retry without opening the breaker", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("Service unavailable", { status: 503 })),
+		) as unknown as typeof fetch;
+
+		try {
+			const error = await provider
+				.fetchPage("https://www.amazon.classify-503.test/dp/X", {
+					domain: "classify-503.test",
+					enabled: true,
+				})
+				.catch((caught: unknown) => caught);
+			expect(error).toMatchObject({
+				code: "server_error",
+				opensCircuitBreaker: false,
+				retryAfterMs: 30_000,
+			});
+			expect(state("classify-503.test").consecutiveFailures).toBe(0);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("a 503 challenge still opens the anti-bot breaker", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("validateCaptcha", { status: 503 })),
+		) as unknown as typeof fetch;
+
+		try {
+			const error = await provider
+				.fetchPage("https://www.amazon.classify-503-block.test/dp/X", {
+					domain: "classify-503-block.test",
 					enabled: true,
 				})
 				.catch((caught: unknown) => caught);
@@ -2156,7 +2274,7 @@ describe("adaptive delay factor", () => {
 	test("the first anti-bot response fails immediately without more requests", async () => {
 		const originalFetch = globalThis.fetch;
 		const fetchMock = mock(() =>
-			Promise.resolve(new Response("tiny block stub", { status: 200 })),
+			Promise.resolve(new Response("Robot Check", { status: 200 })),
 		) as unknown as typeof fetch;
 		const sleepSpy = spyOn(Bun, "sleep").mockImplementation(() =>
 			Promise.resolve(),

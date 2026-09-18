@@ -54,10 +54,12 @@ async function enrichSingleBook(
 		taskId?: string;
 		force?: boolean;
 		refresh?: boolean;
+		seriesOnly?: boolean;
 		retryGeneration?: number;
 	}>,
 ) {
-	const { bookId, uuid, taskId, force, refresh, retryGeneration } = job.data;
+	const { bookId, uuid, taskId, force, refresh, seriesOnly, retryGeneration } =
+		job.data;
 
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
@@ -65,7 +67,7 @@ async function enrichSingleBook(
 		const ok = await admitted(
 			bookId,
 			{
-				trigger: force || refresh ? "explicit" : "automatic",
+				trigger: force || refresh || seriesOnly ? "explicit" : "automatic",
 				...(retryGeneration != null && { retryGeneration }),
 			},
 			"Book not found for enrichment",
@@ -84,6 +86,11 @@ async function enrichSingleBook(
 			uuid,
 			row as Record<string, unknown>,
 		);
+		if (seriesOnly) {
+			await bookMetadataService.refreshSeries(input);
+			log.info({ uuid }, "Rebuilt book series");
+			return;
+		}
 		const result = await bookMetadataService.enrichFromProviders(
 			input,
 			undefined,
@@ -117,10 +124,13 @@ async function enrichSingleAudiobook(
 		uuid: string;
 		taskId?: string;
 		force?: boolean;
+		refresh?: boolean;
+		seriesOnly?: boolean;
 		retryGeneration?: number;
 	}>,
 ) {
-	const { bookId, uuid, taskId, force, retryGeneration } = job.data;
+	const { bookId, uuid, taskId, force, refresh, seriesOnly, retryGeneration } =
+		job.data;
 
 	try {
 		if (taskId && (await isTaskCancelled(taskId))) return;
@@ -128,12 +138,19 @@ async function enrichSingleAudiobook(
 		const ok = await admitted(
 			bookId,
 			{
-				trigger: force ? "explicit" : "automatic",
+				trigger: force || refresh || seriesOnly ? "explicit" : "automatic",
 				...(retryGeneration != null && { retryGeneration }),
 			},
 			"Audiobook not found for enrichment",
 		);
 		if (!ok) return;
+		if (seriesOnly) {
+			const result = await audiobookMetadataService.refreshSeries(bookId, {
+				apply: true,
+			});
+			log.info({ uuid, status: result.status }, "Refreshed audiobook series");
+			return;
+		}
 
 		// Fetch audiobook metadata + authors from the DB
 		const row = await audiobookMetadataRepository.getEnrichRowByBookId(bookId);

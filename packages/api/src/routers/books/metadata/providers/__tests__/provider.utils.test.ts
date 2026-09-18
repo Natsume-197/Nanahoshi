@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import sharp from "sharp";
 import {
 	deriveIsbnPair,
 	extractIsbnFromText,
 	isbn10To13,
 	isbn13To10,
+	isUsableRemoteCover,
 	normalizePublishedDate,
 	stripHtml,
 } from "../provider.utils";
@@ -29,6 +31,37 @@ describe("isbn10To13", () => {
 		expect(isbn10To13("4048915640")).toBeNull();
 		expect(isbn10To13("123")).toBeNull();
 		expect(isbn10To13("not-an-isbn")).toBeNull();
+	});
+});
+
+describe("isUsableRemoteCover", () => {
+	test("rejects invalid, tiny and blank payloads", async () => {
+		const tiny = await sharp({
+			create: { width: 1, height: 1, channels: 3, background: "red" },
+		})
+			.png()
+			.toBuffer();
+		const blank = await sharp({
+			create: { width: 300, height: 450, channels: 3, background: "white" },
+		})
+			.png()
+			.toBuffer();
+		expect(await isUsableRemoteCover(Buffer.from("not an image"))).toBe(false);
+		expect(await isUsableRemoteCover(tiny)).toBe(false);
+		expect(await isUsableRemoteCover(blank)).toBe(false);
+	});
+
+	test("accepts decodable cover-sized artwork", async () => {
+		const pixels = Buffer.alloc(300 * 450 * 3);
+		for (let index = 0; index < pixels.length; index++) {
+			pixels[index] = (index * 31) % 256;
+		}
+		const cover = await sharp(pixels, {
+			raw: { width: 300, height: 450, channels: 3 },
+		})
+			.jpeg()
+			.toBuffer();
+		expect(await isUsableRemoteCover(cover)).toBe(true);
 	});
 });
 

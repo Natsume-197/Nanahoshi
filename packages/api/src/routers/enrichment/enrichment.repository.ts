@@ -4,7 +4,9 @@ import {
 	type EnrichmentDecision,
 	type EnrichmentFailure,
 	type EnrichmentMatch,
+	type EnrichmentRunDiagnostics,
 	type EnrichmentStatus,
+	enrichmentRunDiagnostic,
 	enrichmentState,
 	library,
 } from "@nanahoshi/db/schema/general";
@@ -63,6 +65,16 @@ export type EnrichmentRun = {
 // amazon_enriched_at / enriched_at flags: every enrichment run records its
 // outcome here, and the worker gates on isTerminal instead of a timestamp.
 export class EnrichmentStateRepository {
+	async recordDiagnostics(
+		bookId: number,
+		outcome: "matched" | "no_match" | "retryable_failure",
+		diagnostics: EnrichmentRunDiagnostics,
+	) {
+		await db
+			.insert(enrichmentRunDiagnostic)
+			.values({ bookId, outcome, diagnostics });
+	}
+
 	async recordRun(bookId: number, run: EnrichmentRun) {
 		const failures = run.failures ?? [];
 		const retryable = run.nextRetryAt != null;

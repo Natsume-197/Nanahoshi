@@ -4,6 +4,7 @@ import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.qu
 import { acquireCoverFromFile } from "../lib/cover-store";
 import { logger } from "../lib/logger";
 import { audiobookMetadataRepository } from "../routers/audiobooks/metadata/metadata.repository";
+import { audiobookMetadataService } from "../routers/audiobooks/metadata/metadata.service";
 import { isValidAsin } from "../routers/audiobooks/metadata/providers/IMetadata.provider";
 import { authorRepository } from "../routers/authors/author.repository";
 import { genreRepository } from "../routers/genres/genre.repository";
@@ -43,7 +44,7 @@ type AudioFileJob = {
 };
 
 export type AudiobookJobData = {
-	action: "add-audiobook";
+	action: "add-audiobook" | "reprocess-audiobook";
 	mediaType: "audiobook";
 	dirPath: string;
 	filename: string;
@@ -74,6 +75,7 @@ export async function processAudiobook(
 	bookId: number,
 	bookUuid: string,
 	data: AudiobookJobData,
+	options: { reprocess?: boolean } = {},
 ): Promise<void> {
 	if (!isFfprobeAvailable()) {
 		throw new Error("ffprobe is not available. Cannot process audiobook.");
@@ -93,14 +95,19 @@ export async function processAudiobook(
 	const tagMetadata = extractTagMetadata(probeResults, data.filename);
 
 	// 4. Find or extract cover art
-	const coverPath = await findOrExtractCover(
-		data.dirPath,
-		firstProbeResult.file.path,
-		bookUuid,
-	);
+	const shouldAcquireCover =
+		!options.reprocess ||
+		!(await audiobookMetadataRepository.getCoverByBookId(bookId));
+	const coverPath = shouldAcquireCover
+		? await findOrExtractCover(
+				data.dirPath,
+				firstProbeResult.file.path,
+				bookUuid,
+			)
+		: null;
 
 	// 5. Insert audiobook_metadata
-	await audiobookMetadataRepository.insertMetadata({
+	const localMetadata = {
 		bookId,
 		title: tagMetadata.title,
 		subtitle: null,
@@ -119,7 +126,10 @@ export async function processAudiobook(
 		abridged: null,
 		publisherId: null,
 		ebookFile: null,
-	});
+	};
+	if (!options.reprocess) {
+		await audiobookMetadataRepository.insertMetadata(localMetadata);
+	}
 
 	// 6. Insert audio_file rows
 	const audioFileRows = probeResults.map((r, index) => ({
@@ -142,13 +152,20 @@ export async function processAudiobook(
 		metaTags: r.probe.tags,
 	}));
 
-	await audiobookMetadataRepository.insertAudioFiles(audioFileRows);
+	if (options.reprocess) {
+		await audiobookMetadataRepository.replaceAudioFiles(bookId, audioFileRows);
+	} else {
+		await audiobookMetadataRepository.insertAudioFiles(audioFileRows);
+	}
 
 	// 7. Insert chapters
 	const chapters = buildChapters(probeResults);
-	await audiobookMetadataRepository.insertChapters(
-		chapters.map((ch) => ({ ...ch, bookId })),
-	);
+	const chapterRows = chapters.map((ch) => ({ ...ch, bookId }));
+	if (options.reprocess) {
+		await audiobookMetadataRepository.replaceChapters(bookId, chapterRows);
+	} else {
+		await audiobookMetadataRepository.insertChapters(chapterRows);
+	}
 
 	// Catalog entities (author/narrator/genre/series) are scoped per-server.
 	const serverId = await libraryRepository.getServerIdByLibraryId(
@@ -166,13 +183,18 @@ export async function processAudiobook(
 				? [data.folderAuthorHint]
 				: [];
 
-	for (const authorName of resolvedAuthors) {
-		const authorId = await authorRepository.upsertByName(authorName, serverId);
-		await audiobookMetadataRepository.linkAuthor(bookId, authorId, "Author");
+	if (!options.reprocess) {
+		for (const authorName of resolvedAuthors) {
+			const authorId = await authorRepository.upsertByName(
+				authorName,
+				serverId,
+			);
+			await audiobookMetadataRepository.linkAuthor(bookId, authorId, "Author");
+		}
 	}
 
 	// 9. Insert narrators
-	if (tagMetadata.narrators.length > 0) {
+	if (!options.reprocess && tagMetadata.narrators.length > 0) {
 		for (const narratorName of tagMetadata.narrators) {
 			const narratorId = await narratorRepository.upsertByName(
 				narratorName,
@@ -183,7 +205,7 @@ export async function processAudiobook(
 	}
 
 	// 10. Insert genres
-	if (tagMetadata.genres.length > 0) {
+	if (!options.reprocess && tagMetadata.genres.length > 0) {
 		for (const genreName of tagMetadata.genres) {
 			const genreId = await genreRepository.upsertByName(genreName, serverId);
 			await audiobookMetadataRepository.linkGenre(bookId, genreId);
@@ -208,7 +230,7 @@ export async function processAudiobook(
 				inferredSeries?.position ??
 				null);
 
-	if (resolvedSeriesName) {
+	if (resolvedSeriesName && !options.reprocess) {
 		// Explicit names (tags/folder) upsert as-is; inferred names go through
 		// exact-name resolution; a shared prefix cannot establish membership.
 		const fromInference =
@@ -229,8 +251,24 @@ export async function processAudiobook(
 		);
 	}
 
+	if (options.reprocess) {
+		await audiobookMetadataService.fillMissingFromLocal(bookId, {
+			...localMetadata,
+			authors: resolvedAuthors.map((name) => ({ name, role: "Author" })),
+			narrators: tagMetadata.narrators.map((name) => ({ name })),
+			genres: tagMetadata.genres,
+			series: resolvedSeriesName
+				? {
+						name: resolvedSeriesName,
+						position: resolvedSeriesPosition,
+						sequence: tagMetadata.seriesSequence,
+					}
+				: undefined,
+		});
+	}
+
 	// 12. Enqueue cover ingest (normalise + colour + warm), off the scan path
-	if (coverPath) {
+	if (coverPath && !options.reprocess) {
 		await coverIngestQueue
 			.add(
 				"ingest",

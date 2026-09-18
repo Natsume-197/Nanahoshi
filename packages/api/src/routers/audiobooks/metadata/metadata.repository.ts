@@ -781,6 +781,13 @@ export class AudiobookMetadataRepository {
 		await db.insert(audioFile).values(rows).onConflictDoNothing();
 	}
 
+	async replaceAudioFiles(bookId: number, rows: AudioFileInsert[]) {
+		await db.transaction(async (tx) => {
+			await tx.delete(audioFile).where(eq(audioFile.bookId, bookId));
+			if (rows.length > 0) await tx.insert(audioFile).values(rows);
+		});
+	}
+
 	async insertChapters(rows: AudiobookChapterInsert[]) {
 		if (rows.length === 0) return;
 		await db.insert(audiobookChapter).values(rows).onConflictDoNothing();

@@ -16,6 +16,7 @@ import { normalizeSeriesAliases } from "./metadata.utils";
 import {
 	bookMetadataIdentityEvidence,
 	type IMetadataProvider,
+	type ISearchableMetadataProvider,
 } from "./providers/IMetadata.provider";
 import {
 	BOOK_PROVIDER_MANIFEST,
@@ -176,6 +177,25 @@ function bookAdapter(
 			if (Object.keys(response.metadata).length === 0) return null;
 			return { metadata: response.metadata, evidence: response.identity };
 		},
+		...(typeof (provider as Partial<ISearchableMetadataProvider>).getById ===
+			"function" && {
+			async lookup(providerId: string, input: BookEnrichmentMetadata) {
+				const metadata = await callProvider(
+					() =>
+						(provider as ISearchableMetadataProvider).getById(providerId, {
+							serverId: input.serverId,
+							amazonDomain: input.amazonDomain,
+							uuid: input.uuid,
+						}),
+					null,
+				);
+				if (!metadata) return null;
+				return {
+					metadata,
+					evidence: bookMetadataIdentityEvidence(metadata),
+				};
+			},
+		}),
 	};
 
 	return withProviderGate(adapter, (metadata) => metadata);
@@ -217,7 +237,26 @@ function bookPolicy(
 		provider: MetadataProviderName,
 	): BookEnrichmentMetadata => {
 		const merged = { ...current };
+		if (
+			typeof incoming.rating === "number" &&
+			providerFieldRank(routing, "rating", provider) !==
+				Number.POSITIVE_INFINITY
+		) {
+			merged.providerRatings = [
+				...(merged.providerRatings ?? []).filter(
+					(entry) => entry.provider !== provider,
+				),
+				{
+					provider,
+					rating: incoming.rating,
+					...(incoming.ratingCount !== undefined && {
+						ratingCount: incoming.ratingCount,
+					}),
+				},
+			];
+		}
 		for (const key of Object.keys(incoming) as (keyof BookMetadata)[]) {
+			if (key === "providerRatings") continue;
 			if (key === "series") {
 				if (!incoming.series) continue;
 				if (accepts(provider, key, incoming.series)) {
@@ -302,6 +341,7 @@ export async function runBookCatalogEnrichment({
 	refresh = false,
 	routing,
 	requiredPrimaryMatch,
+	preferredProviderIds,
 }: {
 	metadata: BookEnrichmentMetadata;
 	providers: readonly {
@@ -315,6 +355,7 @@ export async function runBookCatalogEnrichment({
 		provider: MetadataProviderName;
 		providerId: string;
 	};
+	preferredProviderIds?: Partial<Record<MetadataProviderName, string>>;
 }) {
 	const effectiveRouting: BookRoutingPolicy = routing ?? {
 		order: providers.map(({ name }) => name),
@@ -344,6 +385,7 @@ export async function runBookCatalogEnrichment({
 		requiredPrimaryProvider:
 			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
 		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,
+		preferredProviderIds,
 		protectedFields,
 	});
 	if (result.status !== "matched") return result;

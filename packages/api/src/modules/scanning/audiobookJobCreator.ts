@@ -16,8 +16,9 @@ export async function createAudiobookJobs(opts: {
 	libraryId: number;
 	libraryPathId: number;
 	taskId?: string;
+	reprocess?: boolean;
 }): Promise<number> {
-	const { rootDir, libraryId, libraryPathId, taskId } = opts;
+	const { rootDir, libraryId, libraryPathId, taskId, reprocess = false } = opts;
 	const { batchSize } = scanQueueBudget();
 
 	// Fetch all verified files for this library path
@@ -25,11 +26,13 @@ export async function createAudiobookJobs(opts: {
 	let lastId = 0;
 
 	while (true) {
-		const files = await scannedFileRepository.listVerifiedAfter(
-			libraryPathId,
-			lastId,
-			batchSize,
-		);
+		const files = await (reprocess
+			? scannedFileRepository.listDoneAfter(libraryPathId, lastId, batchSize)
+			: scannedFileRepository.listVerifiedAfter(
+					libraryPathId,
+					lastId,
+					batchSize,
+				));
 
 		const lastFile = files.at(-1);
 		if (!lastFile) break;
@@ -159,7 +162,7 @@ export async function createAudiobookJobs(opts: {
 		jobBatch.push({
 			name: "file-event",
 			data: {
-				action: "add-audiobook",
+				action: reprocess ? "reprocess-audiobook" : "add-audiobook",
 				mediaType: "audiobook" as const,
 				dirPath,
 				filename: dirName,

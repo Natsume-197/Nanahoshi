@@ -2260,5 +2260,20 @@ export class BookRepository {
 			.orderBy(asc(book.id))
 			.limit(limit);
 	}
+
+	/** Paginated catalog ids for provider refreshes, including audiobooks. */
+	async listIdsByLibraryAfter(
+		libraryId: number,
+		lastId: number,
+		limit: number,
+	): Promise<{ id: number; uuid: string; mediaType: "ebook" | "audiobook" }[]> {
+		return db
+			.select({ id: book.id, uuid: book.uuid, mediaType: library.mediaType })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(and(eq(book.libraryId, libraryId), gt(book.id, lastId)))
+			.orderBy(asc(book.id))
+			.limit(limit);
+	}
 }
 export const bookRepository = new BookRepository();

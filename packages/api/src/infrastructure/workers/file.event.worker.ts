@@ -21,6 +21,7 @@ import {
 	isTaskCancelled,
 	reserve,
 } from "../../modules/taskManager";
+import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
 import { bookRepository } from "../../routers/books/book.repository";
 import { removeCatalogBookByRelativePath } from "../../routers/books/book-deletion.service";
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
@@ -228,8 +229,8 @@ async function handleFileEvent(job: Job) {
 			await regroupBookDuplicates(bookId);
 			return { action, bookId };
 		} else if (action === "reprocess") {
-			// Reprocess an already-scanned ebook: no fs walk/hash — re-extract local
-			// metadata (fill-missing), regroup, retry pending enrichment, resync.
+			// Re-read only local EPUB metadata. Edition grouping and provider matches
+			// are separate maintenance actions with their own progress and retries.
 			const bookId = job.data.bookId as number;
 			const bookRow = await bookRepository.getById(bookId);
 			if (!bookRow) {
@@ -249,37 +250,10 @@ async function handleFileEvent(job: Job) {
 					uuid: bookRow.uuid,
 				});
 			}
-
-			await regroupBookDuplicates(bookId).catch(async (err) => {
-				log.error({ err, bookId }, "Regroup failed");
-				await enqueueBookRegroup(bookId);
-			});
-
-			// Hidden copies aren't enriched (one source of truth). For the rest,
-			// re-enqueue whenever a configured provider could still fill a missing
-			// field — the "already enriched" flag alone must not block a retry
-			// (RanobeDB may have run while Amazon failed or was disabled). force
-			// bypasses the enrich worker's already-enriched skip.
-			const isHidden = (await bookRepository.getById(bookId))
-				?.duplicateOfBookId;
-			if (
-				!isHidden &&
-				(await bookMetadataService.needsExternalEnrichment(bookId))
-			) {
-				await enqueueAutoEnrich(
-					taskId,
-					serverId,
-					"enrich-book",
-					bookId,
-					bookRow.uuid,
-					libraryId,
-					{ force: true },
-				);
-			}
-
 			return { action, bookId };
-		} else if (action === "add-audiobook") {
+		} else if (action === "add-audiobook" || action === "reprocess-audiobook") {
 			const audioData = job.data as AudiobookJobData;
+			const reprocess = action === "reprocess-audiobook";
 
 			const markAudioFilesDone = () =>
 				scannedFileRepository.markDoneBatch(
@@ -294,10 +268,22 @@ async function handleFileEvent(job: Job) {
 				libraryPathId,
 			);
 			if (existingBook) {
+				if (reprocess) {
+					await processAudiobook(
+						existingBook.id,
+						existingBook.uuid,
+						audioData,
+						{
+							reprocess: true,
+						},
+					);
+					await markAudioFilesDone();
+					return { path: relativePath, action, reprocessed: true };
+				}
 				const sameContent = existingBook.filehash === fileHash;
 				if (
 					sameContent &&
-					(await bookMetadataRepository.findByBookId(existingBook.id))
+					(await audiobookMetadataRepository.findByBookId(existingBook.id))
 				) {
 					await markAudioFilesDone();
 					return { path: relativePath, action, skipped: "already_exists" };
@@ -410,7 +396,7 @@ fileEventWorker.on("failed", (job, err) => {
 	const paths =
 		action === "add"
 			? [path]
-			: action === "add-audiobook"
+			: action === "add-audiobook" || action === "reprocess-audiobook"
 				? ((job.data as AudiobookJobData).audioFiles?.map((af) => af.path) ??
 					[])
 				: [];

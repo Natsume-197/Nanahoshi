@@ -121,7 +121,7 @@ export function LibraryDetailView({
 
 	const enrichMutation = useMutation({
 		...orpc.libraries.enrichLibrary.mutationOptions(),
-		onSuccess: () => toast.success(m["library.enrich_started"]()),
+		onSuccess: () => toast.success(m["library.series_rebuild_started"]()),
 		onError: (err) => toast.error(err.message),
 	});
 
@@ -455,7 +455,7 @@ export function LibraryDetailView({
 
 						<Disclosure summary={m["library.section_advanced"]()}>
 							<SettingRows>
-								{canScan && library.mediaType !== "audiobook" && (
+								{canScan && (
 									<SettingControlRow
 										label={
 											<AdvancedLabel
@@ -466,6 +466,7 @@ export function LibraryDetailView({
 										description={m["library.maintenance_desc"]()}
 									>
 										<MaintenanceMenu
+											audiobook={library.mediaType === "audiobook"}
 											reprocessPending={reprocessMutation.isPending}
 											regroupPending={regroupMutation.isPending}
 											enrichPending={enrichMutation.isPending}
@@ -481,6 +482,23 @@ export function LibraryDetailView({
 											}
 											onRegroup={() => setRegroupOpen(true)}
 										/>
+									</SettingControlRow>
+								)}
+								{canScan && (
+									<SettingControlRow
+										label={
+											<AdvancedLabel
+												icon={ListMagnifyingGlass}
+												title={m["enrichment.open_match_manager"]()}
+											/>
+										}
+										description={m["library.match_manager_hint"]()}
+									>
+										<Button variant="outline" size="sm" asChild>
+											<Link to="/dashboard/metadata">
+												{m["enrichment.open_match_manager"]()}
+											</Link>
+										</Button>
 									</SettingControlRow>
 								)}
 								{canDelete && (
@@ -870,6 +888,7 @@ function Disclosure({
 }
 
 function MaintenanceMenu({
+	audiobook,
 	reprocessPending,
 	regroupPending,
 	enrichPending,
@@ -877,6 +896,7 @@ function MaintenanceMenu({
 	onEnrich,
 	onRegroup,
 }: {
+	audiobook: boolean;
 	reprocessPending: boolean;
 	regroupPending: boolean;
 	enrichPending: boolean;
@@ -896,6 +916,34 @@ function MaintenanceMenu({
 				className="w-80 max-w-[calc(100vw-2rem)]"
 			>
 				<DropdownMenuGroup>
+					<DropdownMenuItem disabled={enrichPending} onClick={onEnrich}>
+						{enrichPending ? (
+							<CircleNotch className="animate-spin" />
+						) : (
+							<Sparkle />
+						)}
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span>{m["library.rebuild_series"]()}</span>
+							<span className="text-muted-foreground text-xs">
+								{m["library.rebuild_series_hint"]()}
+							</span>
+						</div>
+					</DropdownMenuItem>
+					{!audiobook && (
+						<DropdownMenuItem disabled={regroupPending} onClick={onRegroup}>
+							{regroupPending ? (
+								<CircleNotch className="animate-spin" />
+							) : (
+								<Stack />
+							)}
+							<div className="flex min-w-0 flex-col gap-0.5">
+								<span>{m["library.regroup"]()}</span>
+								<span className="text-muted-foreground text-xs">
+									{m["library.regroup_hint"]()}
+								</span>
+							</div>
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem disabled={reprocessPending} onClick={onReprocess}>
 						{reprocessPending ? (
 							<CircleNotch className="animate-spin" />
@@ -908,38 +956,6 @@ function MaintenanceMenu({
 								{m["library.reprocess_hint"]()}
 							</span>
 						</div>
-					</DropdownMenuItem>
-					<DropdownMenuItem disabled={enrichPending} onClick={onEnrich}>
-						{enrichPending ? (
-							<CircleNotch className="animate-spin" />
-						) : (
-							<Sparkle />
-						)}
-						<div className="flex min-w-0 flex-col gap-0.5">
-							<span>{m["library.enrich"]()}</span>
-							<span className="text-muted-foreground text-xs">
-								{m["library.enrich_hint"]()}
-							</span>
-						</div>
-					</DropdownMenuItem>
-					<DropdownMenuItem disabled={regroupPending} onClick={onRegroup}>
-						{regroupPending ? (
-							<CircleNotch className="animate-spin" />
-						) : (
-							<Stack />
-						)}
-						<div className="flex min-w-0 flex-col gap-0.5">
-							<span>{m["library.regroup"]()}</span>
-							<span className="text-muted-foreground text-xs">
-								{m["library.regroup_hint"]()}
-							</span>
-						</div>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/dashboard/metadata">
-							<ListMagnifyingGlass />
-							<span>{m["enrichment.open_match_manager"]()}</span>
-						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 			</DropdownMenuContent>

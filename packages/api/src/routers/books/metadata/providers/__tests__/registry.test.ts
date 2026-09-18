@@ -81,6 +81,8 @@ describe("book provider manifest/registry", () => {
 				"publisher",
 				"series",
 				"genres",
+				"rating",
+				"ratingCount",
 			],
 			openlibrary: [
 				"description",

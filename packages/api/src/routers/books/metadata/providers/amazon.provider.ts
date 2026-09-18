@@ -77,8 +77,8 @@ const DELAY_GROWTH = 1.8;
 const MIN_DELAY_FACTOR = 0.7;
 const MAX_DELAY_FACTOR = 3;
 
-// Anti-bot wall serves HTTP 200 with a captcha/throttle shell instead of
-// 429/503 — detect it so enrichment raises a rate-limit error, not "no results".
+// Anti-bot walls can be served with HTTP 200 or 503. Only explicit challenge
+// markers open the breaker; response size alone is not evidence of a block.
 const BLOCK_PAGE_MARKERS = [
 	"validateCaptcha",
 	"/errors/validateCaptcha",
@@ -89,55 +89,13 @@ const BLOCK_PAGE_MARKERS = [
 	"Type the characters you see",
 	"Enter the characters you see below",
 ];
-// Real pages are hundreds of KB; the anti-bot shell is a few KB. Size, not the
-// <title> (captcha pages have one), is the reliable block signal.
-const MIN_REAL_PAGE_BYTES = 50000;
 
-const USER_AGENT_POOL: Array<{
-	ua: string;
-	secChUa: string;
-	platform: string;
-	platformVersion: string;
-	mobile: string;
-}> = [
-	{
-		ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-		secChUa:
-			'"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-		platform: '"macOS"',
-		platformVersion: '"14.4.0"',
-		mobile: "?0",
-	},
-	{
-		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-		secChUa:
-			'"Google Chrome";v="125", "Chromium";v="125", "Not/A)Brand";v="24"',
-		platform: '"Windows"',
-		platformVersion: '"15.0.0"',
-		mobile: "?0",
-	},
-	{
-		ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
-		secChUa: '"Not)A;Brand";v="99", "Safari";v="17"',
-		platform: '"macOS"',
-		platformVersion: '"14.5.0"',
-		mobile: "?0",
-	},
-	{
-		ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-		secChUa: '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-		platform: '"Linux"',
-		platformVersion: '"6.5.0"',
-		mobile: "?0",
-	},
-	{
-		ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-		secChUa: '"Firefox";v="126"',
-		platform: '"Windows"',
-		platformVersion: '"10.0.0"',
-		mobile: "?0",
-	},
-];
+const AMAZON_BROWSER_PROFILE = {
+	userAgent:
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+	secChUa: '"Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"',
+	platform: '"macOS"',
+} as const;
 
 const DOMAIN_LOCALE_MAP: Record<string, string> = {
 	"co.jp": "ja-JP,ja;q=0.9,en;q=0.8",
@@ -675,9 +633,10 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		return `https://www.amazon.${domain}/s?k=${encodeURIComponent(query)}&i=digital-text`;
 	}
 
-	// Ordered search URLs from most to least specific: drop author, then the
-	// series tagline, one tier at a time (Amazon's title may omit them). An ISBN
-	// collapses everything to one URL.
+	// Ordered search URLs from most to least specific: ISBN, title + author,
+	// title-only, then the same text tiers without a series tagline. Text
+	// fallbacks deliberately omit ISBN so a stale identifier cannot collapse
+	// every variant to the same URL.
 	private buildSearchUrlVariants(
 		input: Partial<BookMetadata>,
 		domain: string,
@@ -685,13 +644,20 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		const title = input.title ?? undefined;
 		const bareTitle = title ? stripSeriesTagline(title) : undefined;
 		const hasTagline = bareTitle != null && bareTitle !== title;
+		const hasIsbn = Boolean(input.isbn13 || input.isbn10);
+		const textInput = hasIsbn
+			? { ...input, isbn10: undefined, isbn13: undefined }
+			: input;
 
 		const inputs: Partial<BookMetadata>[] = [input];
-		if (input.authors?.length && title) inputs.push({ ...input, authors: [] });
+		if (hasIsbn && (title || input.authors?.length)) inputs.push(textInput);
+		if (textInput.authors?.length && title) {
+			inputs.push({ ...textInput, authors: [] });
+		}
 		if (hasTagline) {
-			inputs.push({ ...input, title: bareTitle });
-			if (input.authors?.length) {
-				inputs.push({ ...input, title: bareTitle, authors: [] });
+			inputs.push({ ...textInput, title: bareTitle });
+			if (textInput.authors?.length) {
+				inputs.push({ ...textInput, title: bareTitle, authors: [] });
 			}
 		}
 
@@ -1385,19 +1351,9 @@ class AmazonProvider implements ISearchableMetadataProvider {
 
 	// ─── HTTP ────────────────────────────────────────────
 
-	private currentUaIndex = Math.floor(Math.random() * USER_AGENT_POOL.length);
-
-	private rotateUserAgent(): void {
-		this.currentUaIndex = (this.currentUaIndex + 1) % USER_AGENT_POOL.length;
-	}
-
-	// Detects an HTTP-200 anti-bot wall (captcha page or tiny throttle stub),
-	// distinct from a legitimate large "no results" page.
+	// Detects explicit anti-bot content independently of the HTTP status.
 	private looksLikeBlockPage(html: string): boolean {
-		if (BLOCK_PAGE_MARKERS.some((m) => html.includes(m))) return true;
-		// Real pages are hundreds of KB; a small 200 body is a block shell,
-		// whether or not it carries a <title> (captcha pages do).
-		return html.length < MIN_REAL_PAGE_BYTES;
+		return BLOCK_PAGE_MARKERS.some((marker) => html.includes(marker));
 	}
 
 	private async fetchPage(
@@ -1412,11 +1368,10 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		try {
 			const response = await fetch(url, { headers, redirect: "follow" });
 
-			const statusBlocked = response.status === 429 || response.status === 503;
-
-			// Read the body up front so we can also catch HTTP-200 block stubs.
-			const html = response.ok ? await response.text() : null;
-			const softBlocked = html != null && this.looksLikeBlockPage(html);
+			// Read non-OK bodies too: Amazon sometimes returns its challenge as 503.
+			const html = await response.text();
+			const statusBlocked = response.status === 429;
+			const softBlocked = this.looksLikeBlockPage(html);
 
 			if (statusBlocked || softBlocked) {
 				state.consecutiveFailures++;
@@ -1428,11 +1383,9 @@ class AmazonProvider implements ISearchableMetadataProvider {
 				// Re-read tenant config after the cooldown: the fix for a
 				// persistent block is usually a fresh cookie.
 				this.configCache.clear();
-				this.rotateUserAgent(); // rotate identity on block
-
 				const reason = statusBlocked
 					? `status ${response.status}`
-					: "block page (HTTP 200)";
+					: `block page (HTTP ${response.status})`;
 				log.warn({ reason }, "Anti-bot block");
 				throw new AmazonTransientError(`Anti-scraping ${reason} for ${url}`, {
 					code: "anti_bot",
@@ -1448,7 +1401,7 @@ class AmazonProvider implements ISearchableMetadataProvider {
 				);
 			}
 
-			if (!response.ok || html == null) {
+			if (!response.ok) {
 				log.warn({ status: response.status, url }, "HTTP error");
 				return null;
 			}
@@ -1487,8 +1440,6 @@ class AmazonProvider implements ISearchableMetadataProvider {
 
 	private getHeaders(domain: string, cookie?: string): Record<string, string> {
 		const acceptLanguage = DOMAIN_LOCALE_MAP[domain] ?? "en-US,en;q=0.9";
-		const profile = USER_AGENT_POOL[this.currentUaIndex];
-		if (!profile) throw new Error("USER_AGENT_POOL is empty");
 
 		const headers: Record<string, string> = {
 			accept:
@@ -1496,18 +1447,17 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			"accept-encoding": "gzip, deflate, br",
 			"accept-language": acceptLanguage,
 			"cache-control": "max-age=0",
-			"user-agent": profile.ua,
-			"sec-ch-ua": profile.secChUa,
-			"sec-ch-ua-mobile": profile.mobile,
-			"sec-ch-ua-platform": profile.platform,
-			"sec-ch-ua-platform-version": profile.platformVersion,
+			"user-agent": AMAZON_BROWSER_PROFILE.userAgent,
+			"sec-ch-ua": AMAZON_BROWSER_PROFILE.secChUa,
+			"sec-ch-ua-mobile": "?0",
+			"sec-ch-ua-platform": AMAZON_BROWSER_PROFILE.platform,
 			"sec-fetch-dest": "document",
 			"sec-fetch-mode": "navigate",
-			"sec-fetch-site": "none",
+			"sec-fetch-site": "same-origin",
 			"sec-fetch-user": "?1",
 			"upgrade-insecure-requests": "1",
-			"viewport-width": String(1280 + Math.floor(Math.random() * 640)),
-			dnt: Math.random() > 0.5 ? "1" : "0",
+			referer: `https://www.amazon.${domain}/`,
+			dnt: "1",
 		};
 
 		// Configured tenant cookie wins over captured session cookies on conflict.

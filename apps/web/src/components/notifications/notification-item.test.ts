@@ -29,6 +29,15 @@ describe("notification presentation", () => {
 		expect(
 			notificationSubject("library-enrich", "Refreshing library metadata"),
 		).toBeNull();
+		expect(
+			notificationSubject("library-enrich", "Rebuilding series for Audiobooks"),
+		).toBe("Audiobooks");
+		expect(
+			notificationContextLabel(
+				"library-enrich",
+				"Rebuilding series for Audiobooks",
+			),
+		).toBe("Audiobooks");
 	});
 
 	it("uses the whole label when it already is the subject", () => {
