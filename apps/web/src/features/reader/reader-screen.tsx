@@ -1,6 +1,11 @@
 import { ebookSourceFormatForFilename } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+	Link,
+	useNavigate,
+	useRouter,
+	useRouterState,
+} from "@tanstack/react-router";
 import {
 	type CSSProperties,
 	type RefObject,
@@ -10,6 +15,7 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
+import { shouldReserveReaderPlayerSpace } from "@/components/audio-player/player-route-visibility";
 import { ReadListenRuntime } from "@/components/read-listen/read-listen-runtime";
 import {
 	useAudioPlayerActions,
@@ -140,11 +146,18 @@ interface ReaderScreenProps {
 
 export function ReaderRoutePending() {
 	const audioPlayerBook = useAudioPlayerBook();
+	const readListenActive = useRouterState({
+		select: ({ location }) =>
+			Boolean((location.search as { pair?: string }).pair),
+	});
 	return (
 		<ReaderLoadingScreen
 			state={{ phase: "loading" }}
 			entering
-			reservePlayerSpace={Boolean(audioPlayerBook)}
+			reservePlayerSpace={shouldReserveReaderPlayerSpace(
+				readListenActive,
+				Boolean(audioPlayerBook),
+			)}
 		/>
 	);
 }
@@ -234,6 +247,10 @@ export function ReaderScreen({
 	const isPdfBook = bookSourceFormat === "pdf";
 	const isAudioPlayerExpanded = useAudioPlayerExpanded();
 	const audioPlayerBook = useAudioPlayerBook();
+	const reservePlayerSpace = shouldReserveReaderPlayerSpace(
+		Boolean(readListenPairUuid),
+		Boolean(audioPlayerBook),
+	);
 	const { stop } = useAudioPlayerActions();
 	const navigate = useNavigate();
 	const router = useRouter();
@@ -1020,7 +1037,7 @@ export function ReaderScreen({
 		galleryOpen,
 		tocOpen,
 		settingsOpen: quickSettingsOpen && isMobile,
-		navigationBlocked: Boolean(audioPlayerBook) && isAudioPlayerExpanded,
+		navigationBlocked: reservePlayerSpace && isAudioPlayerExpanded,
 		onCloseToc: () => setTocOpen(false),
 		onCloseSettings: closeQuickSettings,
 		onChangeChapter: changeChapter,
@@ -1086,7 +1103,7 @@ export function ReaderScreen({
 		return (
 			<ReaderLoadingScreen
 				state={loadState}
-				reservePlayerSpace={Boolean(audioPlayerBook)}
+				reservePlayerSpace={reservePlayerSpace}
 			/>
 		);
 	}
@@ -1128,7 +1145,7 @@ export function ReaderScreen({
 		(presentation.renderer === "text-paginated" ||
 			(presentation.renderer === "text-scroll" &&
 				settings.writingMode === "vertical-rl")) &&
-			Boolean(audioPlayerBook),
+			reservePlayerSpace,
 	].join("|");
 	let currentVisualPage = 1;
 	for (let index = 0; index < data.sections.length; index += 1) {
@@ -1141,7 +1158,7 @@ export function ReaderScreen({
 		<main
 			ref={readerSurfaceRef}
 			data-read-listen-active={Boolean(readListenPairUuid)}
-			inert={Boolean(audioPlayerBook) && isAudioPlayerExpanded}
+			inert={reservePlayerSpace && isAudioPlayerExpanded}
 			aria-label={bookTitle}
 			tabIndex={-1}
 			className={`reader-route-content h-[calc(100dvh-var(--reader-player-reserve-current))] w-dvw overscroll-none font-reader-sans ${
@@ -1157,10 +1174,10 @@ export function ReaderScreen({
 					"--player-height": "88px",
 					"--player-reserve":
 						"calc(var(--player-height) + var(--safe-area-bottom))",
-					"--reader-player-reserve-mobile": audioPlayerBook
+					"--reader-player-reserve-mobile": reservePlayerSpace
 						? "calc(var(--mobile-player-height) + var(--safe-area-bottom))"
 						: "var(--safe-area-bottom)",
-					"--reader-player-reserve-desktop": audioPlayerBook
+					"--reader-player-reserve-desktop": reservePlayerSpace
 						? "var(--player-reserve)"
 						: "var(--safe-area-bottom)",
 				} as CSSProperties
@@ -1218,9 +1235,9 @@ export function ReaderScreen({
 						(quickSettingsOpen && isMobile) ||
 						tocOpen ||
 						galleryOpen ||
-						(Boolean(audioPlayerBook) && isAudioPlayerExpanded)
+						(reservePlayerSpace && isAudioPlayerExpanded)
 					}
-					reservePlayerSpace={Boolean(audioPlayerBook)}
+					reservePlayerSpace={reservePlayerSpace}
 					scrollContainerRef={readerSurfaceRef}
 					controllerRef={(controller: BookReaderApi | null) => {
 						apiRef.current = controller;
@@ -1334,7 +1351,7 @@ export function ReaderScreen({
 					bookCharCount={data.characters}
 					showCharacterCounter={settings.showCharacterCounter}
 					showPercentage={settings.showPercentage}
-					reservePlayerSpace={Boolean(audioPlayerBook)}
+					reservePlayerSpace={reservePlayerSpace}
 					visualProgress={
 						isVisual
 							? {

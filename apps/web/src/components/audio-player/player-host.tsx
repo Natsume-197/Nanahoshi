@@ -10,7 +10,10 @@ import { useAudioPlayerActions } from "@/context/audio-player-context";
 import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { MiniPlayer } from "./mini-player";
+import { isPlayerHiddenRoute } from "./player-route-visibility";
 import type { ReadListenPlayerContext } from "./read-listen-player";
+
+export { isPlayerHiddenRoute } from "./player-route-visibility";
 
 type PublishReadListenContext = (
 	context: ReadListenPlayerContext,
@@ -18,33 +21,26 @@ type PublishReadListenContext = (
 
 const PlayerHostContext = createContext<PublishReadListenContext | null>(null);
 
-/** Pauses playback while settings pages hide the mini player. */
+/** Suspends playback while the current route hides the mini player. */
 function PausePlaybackWhileHidden() {
-	const { pause } = useAudioPlayerActions();
+	const { pause, setExpanded } = useAudioPlayerActions();
 	useMountEffect(() => {
 		pause();
+		setExpanded(false);
 	});
 	return null;
-}
-
-/**
- * Routes where the mini player must not mount: app settings, server
- * settings, and logged-out pages. The dashboard layout reuses this so its
- * bottom-chrome reserve collapses on the same routes instead of leaving an
- * empty row where the bar would be.
- */
-export function isPlayerHiddenRoute(pathname: string): boolean {
-	return /^\/(?:dashboard\/(?:settings|server)|login|sign-up)(?:\/|$)/.test(
-		pathname,
-	);
 }
 
 export function PlayerHostProvider({ children }: { children: ReactNode }) {
 	const pathname = useRouterState({
 		select: ({ location }) => location.pathname,
 	});
+	const readListenActive = useRouterState({
+		select: ({ location }) =>
+			Boolean((location.search as { pair?: string }).pair),
+	});
 	const placement = pathname.startsWith("/reader/") ? "reader" : "dashboard";
-	const hidePlayer = isPlayerHiddenRoute(pathname);
+	const hidePlayer = isPlayerHiddenRoute(pathname, readListenActive);
 	const [readListen, setReadListen] = useState<ReadListenPlayerContext>();
 	const publishReadListen = useCallback<PublishReadListenContext>((context) => {
 		setReadListen(context);
