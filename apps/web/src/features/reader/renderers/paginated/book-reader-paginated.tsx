@@ -893,6 +893,9 @@ export function BookReaderPaginated({
 		}),
 		maxWidth: width ? `${width}px` : undefined,
 		maxHeight: verticalMode && height ? pageHeight : undefined,
+		// Reserve only the page-turn axis on the book surface. Keeping this off
+		// the document root leaves touch scrolling in reader overlays untouched.
+		touchAction: verticalMode ? "pan-x pinch-zoom" : "pan-y pinch-zoom",
 		...({
 			"--book-content-child-width": `${width}px`,
 			"--book-content-child-height": pageHeight,

@@ -206,6 +206,7 @@ describe("BookReaderPaginated image section navigation", () => {
 		const scrollElement = view.container.querySelector(
 			".book-content--paginated",
 		) as HTMLElement;
+		expect(scrollElement.style.touchAction).toBe("pan-x pinch-zoom");
 		await waitFor(() => {
 			// The visible page is 500px tall with a 40px page gap. Landing at
 			// 480px would expose two adjacent pages, exactly the split seen when
@@ -397,6 +398,7 @@ describe("BookReaderPaginated image section navigation", () => {
 		const scrollElement = view.container.querySelector(
 			".book-content--paginated",
 		) as HTMLElement;
+		expect(scrollElement.style.touchAction).toBe("pan-y pinch-zoom");
 		await waitFor(() => {
 			expect(scrollElement.querySelectorAll("svg image")).toHaveLength(2);
 			expect(decodedSvgResources).toBe(2);
