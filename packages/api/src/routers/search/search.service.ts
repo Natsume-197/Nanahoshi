@@ -4,7 +4,6 @@ import type { LibraryScope } from "../_shared/library-scope";
 import * as audiobookService from "../audiobooks/audiobook.service";
 import * as bookService from "../books/book.service";
 import * as collectionsService from "../collections/collections.service";
-import { narratorRepository } from "../narrators/narrator.repository";
 import { readListenService } from "../read-listen/read-listen.service";
 import { usersRepository } from "../users/users.repository";
 import type { TopSearchResults } from "./search.model";
@@ -67,11 +66,14 @@ export async function topResults(input: {
 			accessibleLibraryIds,
 			limit: AUTHOR_POOL,
 		}),
-		narratorRepository.listWithAudiobookCount(
-			serverId,
-			{ query, limit: NARRATOR_POOL, sort: "name" },
-			accessibleLibraryIds,
-		),
+		search
+			.searchNarrators({
+				query,
+				serverId,
+				accessibleLibraryIds,
+				limit: NARRATOR_POOL,
+			})
+			.then(({ narrators }) => narrators),
 		audiobookService.searchAudiobooks({
 			query,
 			limit: input.pageSize ?? AUDIOBOOK_POOL,

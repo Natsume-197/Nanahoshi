@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { orgReadProcedure } from "../../index";
+import { search } from "../../infrastructure/search";
 import { narratorRepository } from "./narrator.repository";
 
 const NARRATOR_PAGE_SIZE = 30;
@@ -23,13 +24,23 @@ export const narratorsRouter = {
 				.optional(),
 		)
 		.handler(async ({ input, context }) => {
+			const query = input?.query?.trim();
+			if (query) {
+				const { narrators } = await search.searchNarrators({
+					query,
+					serverId: context.serverId,
+					accessibleLibraryIds: context.accessibleLibraryIds,
+					limit: input?.limit ?? NARRATOR_PAGE_SIZE,
+					offset: input?.cursor ?? 0,
+				});
+				return narrators.map(({ id: _id, ...row }) => row);
+			}
 			const rows = await narratorRepository.listWithAudiobookCount(
 				context.serverId,
 				{
 					limit: input?.limit ?? NARRATOR_PAGE_SIZE,
 					offset: input?.cursor ?? 0,
 					sort: input?.sort ?? "name",
-					query: input?.query,
 				},
 				context.accessibleLibraryIds,
 			);

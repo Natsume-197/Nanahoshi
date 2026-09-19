@@ -31,6 +31,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 	let describedId: number;
 	let authoredId: number;
 	let narratedId: number;
+	let secondNarratedId: number;
 	let seriesId: number;
 
 	beforeAll(async () => {
@@ -69,6 +70,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		describedId = await insertBook("described.epub", libraryId);
 		authoredId = await insertBook("authored.epub", libraryId);
 		narratedId = await insertBook("narrated.m4b", audioLibraryId);
+		secondNarratedId = await insertBook("narrated-2.m4b", audioLibraryId);
 
 		await db.execute(sql`
 			INSERT INTO book_metadata (book_id, title, description, language_code) VALUES
@@ -86,10 +88,12 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		`);
 
 		await db.execute(sql`
-			INSERT INTO audiobook_metadata (book_id, title) VALUES (${narratedId}, 'audio plain title')
+			INSERT INTO audiobook_metadata (book_id, title) VALUES
+				(${narratedId}, 'audio plain title'),
+				(${secondNarratedId}, 'audio second title')
 		`);
 		const narrator = await db.execute(sql`
-			INSERT INTO narrator (name, server_id) VALUES (${`${token} yukikaji`}, ${orgId}) RETURNING id
+			INSERT INTO narrator (name, server_id) VALUES (${`${token} ＹＵＫＩ―ＫＡＪＩ`}, ${orgId}) RETURNING id
 		`);
 		await db.execute(sql`
 			INSERT INTO book_narrator (book_id, narrator_id)
@@ -109,7 +113,9 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 		`);
 		await db.execute(sql`
 			INSERT INTO audiobook_series (book_id, series_id, position)
-			VALUES (${narratedId}, ${seriesId}, 1)
+			VALUES
+				(${narratedId}, ${seriesId}, 1),
+				(${secondNarratedId}, ${seriesId}, 2)
 		`);
 	});
 
@@ -271,12 +277,55 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 
 	test("audiobooks match on narrator name", async () => {
 		const { audiobooks } = await provider.searchAudiobooks({
-			query: `${token} yukikaji`,
+			query: `${token} YUKI─KAJI`,
 			serverId: orgId,
 			accessibleLibraryIds: "ALL",
 		});
 		expect(audiobooks.length).toBe(1);
 		expect(audiobooks[0]?.title).toBe("audio plain title");
+	});
+
+	test("catalog titles match across typographic dash variants", async () => {
+		await db.execute(
+			sql`UPDATE audiobook_metadata SET title = ${`${token} 86―エイティシックス―`} WHERE book_id = ${secondNarratedId}`,
+		);
+		const { audiobooks } = await provider.searchAudiobooks({
+			query: `${token} 86─エイティシックス─`,
+			serverId: orgId,
+			accessibleLibraryIds: [audioLibraryId],
+		});
+		expect(audiobooks[0]?.title).toBe(`${token} 86―エイティシックス―`);
+	});
+
+	test("narrators and audiobook series use the normalized search provider", async () => {
+		const { narrators } = await provider.searchNarrators({
+			query: `${token} YUKI─KAJI`,
+			serverId: orgId,
+			accessibleLibraryIds: [audioLibraryId],
+		});
+		expect(narrators[0]).toMatchObject({
+			name: `${token} ＹＵＫＩ―ＫＡＪＩ`,
+			audiobookCount: 1,
+		});
+
+		const { series } = await provider.searchSeries({
+			query: seriesAlias,
+			mediaType: "audiobook",
+			serverId: orgId,
+			accessibleLibraryIds: [audioLibraryId],
+		});
+		expect(series[0]).toMatchObject({
+			name: "Canonical Alias Test Series",
+			bookCount: 2,
+		});
+	});
+
+	test("small name tables use the same width and separator normalization", async () => {
+		const { normalizedNameSearchSql } = await import("../../name-search");
+		const result = await db.execute(sql`
+			SELECT ${normalizedNameSearchSql(sql<string>`'Ｊｏｈｎ―Doe'::text`, "john─doe")} AS matched
+		`);
+		expect(result.rows[0]?.matched).toBe(true);
 	});
 
 	test("updates multi-value series aliases without expanding them as a SQL tuple", async () => {
@@ -368,7 +417,7 @@ describe.skipIf(!enabled)("pgroonga provider integration", () => {
 			sort: "title",
 		});
 		const titles = rows.map((r) => r.title);
-		expect(titles.length).toBe(5);
+		expect(titles.length).toBe(6);
 		expect([...titles].sort()).toEqual(titles);
 	});
 

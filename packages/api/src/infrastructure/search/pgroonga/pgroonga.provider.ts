@@ -6,6 +6,7 @@ import {
 } from "../../../routers/_shared/library-scope";
 import { bayesianRatingSql } from "../../../routers/_shared/rating";
 import { withSerialScan } from "../../../routers/_shared/serial-scan";
+import { normalizeCatalogSearchQuery } from "../name-search";
 import type {
 	SearchAudiobookFilters,
 	SearchAudiobookHit,
@@ -18,6 +19,9 @@ import type {
 	SearchBooksRequest,
 	SearchBooksResponse,
 	SearchFilters,
+	SearchNarratorHit,
+	SearchNarratorsRequest,
+	SearchNarratorsResponse,
 	SearchSeriesHit,
 	SearchSeriesRequest,
 	SearchSeriesResponse,
@@ -41,6 +45,13 @@ type AuthorSearchRow = {
 	uuid: string;
 	name: string;
 	bookCount: number;
+};
+
+type NarratorSearchRow = {
+	id: number;
+	uuid: string;
+	name: string;
+	audiobookCount: number;
 };
 
 type SearchAuthorRef = {
@@ -111,6 +122,16 @@ class PGroongaSearch {
 		const offset = Math.max(request.offset ?? 0, 0);
 		const queryText = request.query?.trim();
 		if (!queryText) return { series: [] };
+		const searchText = normalizeCatalogSearchQuery(queryText);
+		const isAudiobook = request.mediaType === "audiobook";
+		const membershipTable = isAudiobook
+			? sql`audiobook_series`
+			: sql`book_series`;
+		const metadataTable = isAudiobook
+			? sql`audiobook_metadata`
+			: sql`book_metadata`;
+		const authorTable = isAudiobook ? sql`audiobook_author` : sql`book_author`;
+		const mediaType = isAudiobook ? "audiobook" : "ebook";
 
 		const orgCondition = request.serverId
 			? sql`AND l.server_id = ${request.serverId}`
@@ -130,10 +151,11 @@ class PGroongaSearch {
 		const seriesEligibility = Array.isArray(request.accessibleLibraryIds)
 			? sql`(
 				SELECT COUNT(*)
-				FROM book_series bs4
-				INNER JOIN book b4 ON b4.id = bs4.book_id
+				FROM ${membershipTable} sm4
+				INNER JOIN book b4 ON b4.id = sm4.book_id
 				INNER JOIN library l4 ON l4.id = b4.library_id
-				WHERE bs4.series_id = s.id
+				WHERE sm4.series_id = s.id
+					AND l4.media_type = ${mediaType}
 					AND ${visibleBookSql("b4")}
 					${eligibilityOrgCondition}
 			) > 1`
@@ -147,41 +169,44 @@ class PGroongaSearch {
 				s.aliases,
 				COUNT(*)::int AS "bookCount",
 				(
-					SELECT jsonb_build_object('cover', bm2.cover, 'color', bm2.main_color)
-					FROM book_series bs2
-					INNER JOIN book b2 ON b2.id = bs2.book_id
-					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
+					SELECT jsonb_build_object('cover', m2.cover, 'color', m2.main_color)
+					FROM ${membershipTable} sm2
+					INNER JOIN book b2 ON b2.id = sm2.book_id
+					INNER JOIN ${metadataTable} m2 ON m2.book_id = b2.id
 					INNER JOIN library l2 ON l2.id = b2.library_id
-						WHERE bs2.series_id = s.id
-							AND bm2.cover IS NOT NULL
+						WHERE sm2.series_id = s.id
+							AND l2.media_type = ${mediaType}
+							AND m2.cover IS NOT NULL
 							AND ${visibleBookSql("b2")}
 							${coverOrgCondition}
 							${accessibleSql(request.accessibleLibraryIds, "b2")}
-					ORDER BY bs2.position ASC NULLS LAST
+					ORDER BY sm2.position ASC NULLS LAST
 					LIMIT 1
 				) AS "coverInfo",
 				ARRAY(
-					SELECT bm2.cover
-					FROM book_series bs2
-					INNER JOIN book b2 ON b2.id = bs2.book_id
-					INNER JOIN book_metadata bm2 ON bm2.book_id = b2.id
+				SELECT m2.cover
+					FROM ${membershipTable} sm2
+					INNER JOIN book b2 ON b2.id = sm2.book_id
+					INNER JOIN ${metadataTable} m2 ON m2.book_id = b2.id
 					INNER JOIN library l2 ON l2.id = b2.library_id
-					WHERE bs2.series_id = s.id
-						AND bm2.cover IS NOT NULL
+					WHERE sm2.series_id = s.id
+						AND l2.media_type = ${mediaType}
+						AND m2.cover IS NOT NULL
 						AND ${visibleBookSql("b2")}
 						${coverOrgCondition}
 						${accessibleSql(request.accessibleLibraryIds, "b2")}
-					ORDER BY bs2.position ASC NULLS LAST, b2.id ASC
+					ORDER BY sm2.position ASC NULLS LAST, b2.id ASC
 					LIMIT 3
 				) AS "previewCovers",
 				(
 					SELECT jsonb_build_object('id', a.id, 'uuid', a.uuid, 'name', a.name)
-					FROM book_series bs3
-					INNER JOIN book b3 ON b3.id = bs3.book_id
+					FROM ${membershipTable} sm3
+					INNER JOIN book b3 ON b3.id = sm3.book_id
 					INNER JOIN library l3 ON l3.id = b3.library_id
-					INNER JOIN book_author ba ON ba.book_id = b3.id
-					INNER JOIN author a ON a.id = ba.author_id
-						WHERE bs3.series_id = s.id
+					INNER JOIN ${authorTable} creator_link ON creator_link.book_id = b3.id
+					INNER JOIN author a ON a.id = creator_link.author_id
+						WHERE sm3.series_id = s.id
+							AND l3.media_type = ${mediaType}
 							AND ${visibleBookSql("b3")}
 							${authorOrgCondition}
 							${accessibleSql(request.accessibleLibraryIds, "b3")}
@@ -191,8 +216,8 @@ class PGroongaSearch {
 				) AS author
 			FROM series s
 			INNER JOIN matched_series ms ON ms.id = s.id
-			INNER JOIN book_series bs ON bs.series_id = s.id
-			INNER JOIN book b ON b.id = bs.book_id
+			INNER JOIN ${membershipTable} sm ON sm.series_id = s.id
+			INNER JOIN book b ON b.id = sm.book_id
 			INNER JOIN library l ON l.id = b.library_id
 		`;
 		// Exact and prefix matches surface first so the best candidate always
@@ -223,15 +248,15 @@ class PGroongaSearch {
 				SELECT id, MAX(match_rank)::int AS match_rank
 				FROM (
 					SELECT id, 2 AS match_rank FROM series
-					WHERE name &@~ ${queryText} ${seriesOrgCondition}
+					WHERE name &@~ ${searchText} ${seriesOrgCondition}
 					UNION ALL
 					SELECT id, 1 AS match_rank FROM series
-					WHERE aliases &@~ ${queryText} ${seriesOrgCondition}
+					WHERE aliases &@~ ${searchText} ${seriesOrgCondition}
 				) matches
 				GROUP BY id
 			)
 			${baseQuery}
-				WHERE ${visibleBookSql("b")} ${orgCondition}
+				WHERE ${visibleBookSql("b")} AND l.media_type = ${mediaType} ${orgCondition}
 				${accessibleSql(request.accessibleLibraryIds)}
 				${groupOrder}
 		`);
@@ -259,7 +284,7 @@ class PGroongaSearch {
 				GROUP BY id
 			)
 			${baseQuery}
-				WHERE ${visibleBookSql("b")} ${orgCondition}
+				WHERE ${visibleBookSql("b")} AND l.media_type = ${mediaType} ${orgCondition}
 				${accessibleSql(request.accessibleLibraryIds)}
 				${groupOrder}
 		`)
@@ -289,6 +314,7 @@ class PGroongaSearch {
 		const limit = Math.min(Math.max(request.limit ?? 5, 1), 10);
 		const queryText = request.query?.trim();
 		if (!queryText) return { authors: [] };
+		const searchText = normalizeCatalogSearchQuery(queryText);
 
 		const orgCondition = request.serverId
 			? sql`AND l.server_id = ${request.serverId}`
@@ -321,7 +347,7 @@ class PGroongaSearch {
 		// PGroonga full-text search (handles Japanese tokenization)
 		const result = await this.executeSerial(sql`
 			${baseQuery}
-				WHERE a.name &@~ ${queryText} AND ${visibleBookSql("b")} ${orgCondition}
+				WHERE a.name &@~ ${searchText} AND ${visibleBookSql("b")} ${orgCondition}
 				${accessibleSql(request.accessibleLibraryIds)}
 				${groupOrder}
 		`);
@@ -350,6 +376,66 @@ class PGroongaSearch {
 		return { authors };
 	}
 
+	async searchNarrators(
+		request: SearchNarratorsRequest,
+	): Promise<SearchNarratorsResponse> {
+		const limit = Math.min(Math.max(request.limit ?? 5, 1), 50);
+		const offset = Math.max(request.offset ?? 0, 0);
+		const queryText = request.query?.trim();
+		if (!queryText) return { narrators: [] };
+		const searchText = normalizeCatalogSearchQuery(queryText);
+
+		const orgCondition = request.serverId
+			? sql`AND l.server_id = ${request.serverId}`
+			: sql``;
+		const baseQuery = sql`
+			SELECT n.id, n.uuid, n.name, COUNT(*)::int AS "audiobookCount"
+			FROM narrator n
+			INNER JOIN book_narrator bn ON bn.narrator_id = n.id
+			INNER JOIN book b ON b.id = bn.book_id
+			INNER JOIN library l ON l.id = b.library_id
+		`;
+		const groupOrder = sql`
+			GROUP BY n.id
+			ORDER BY
+				(lower(n.name) = lower(${queryText}))::int DESC,
+				(n.name ILIKE ${`${queryText}%`})::int DESC,
+				n.name ASC
+			LIMIT ${limit}
+			OFFSET ${offset}
+		`;
+		const result = await this.executeSerial(sql`
+			${baseQuery}
+			WHERE n.name &@~ ${searchText}
+				AND l.media_type = 'audiobook'
+				AND ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+			${groupOrder}
+		`);
+		const rows = (
+			result.rows.length > 0
+				? result.rows
+				: (
+						await this.executeSerial(sql`
+			${baseQuery}
+			WHERE n.name ILIKE ${`%${queryText}%`}
+				AND l.media_type = 'audiobook'
+				AND ${visibleBookSql("b")} ${orgCondition}
+				${accessibleSql(request.accessibleLibraryIds)}
+			${groupOrder}
+		`)
+					).rows
+		) as NarratorSearchRow[];
+
+		const narrators: SearchNarratorHit[] = rows.map((row) => ({
+			id: Number(row.id),
+			uuid: row.uuid,
+			name: row.name,
+			audiobookCount: row.audiobookCount,
+		}));
+		return { narrators };
+	}
+
 	async searchBooks(request: SearchBooksRequest): Promise<SearchBooksResponse> {
 		const limit = Math.min(Math.max(request.limit ?? 20, 1), 50);
 		const queryText = request.query?.trim();
@@ -360,6 +446,7 @@ class PGroongaSearch {
 				? parseVolumeIntent(queryText)
 				: { text: queryText ?? "", volume: null };
 		const matchText = intent.text || queryText || "";
+		const searchText = normalizeCatalogSearchQuery(matchText);
 
 		const conditions: SQL[] = [
 			sql`l.media_type = 'ebook'`,
@@ -466,29 +553,29 @@ class PGroongaSearch {
 			? await this.executeSerial(sql`
 				WITH field_hits AS (
 					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) * 10 AS score
-					FROM book_metadata bm2 WHERE bm2.title &@~ ${matchText}
+					FROM book_metadata bm2 WHERE bm2.title &@~ ${searchText}
 					UNION ALL
 					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) * 5
-					FROM book_metadata bm2 WHERE bm2.title_romaji &@~ ${matchText}
+					FROM book_metadata bm2 WHERE bm2.title_romaji &@~ ${searchText}
 					UNION ALL
 					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) * 3
-					FROM book_metadata bm2 WHERE bm2.subtitle &@~ ${matchText}
+					FROM book_metadata bm2 WHERE bm2.subtitle &@~ ${searchText}
 					UNION ALL
 					SELECT bm2.book_id, pgroonga_score(bm2.tableoid, bm2.ctid) * 2
-					FROM book_metadata bm2 WHERE bm2.description &@~ ${matchText}
+					FROM book_metadata bm2 WHERE bm2.description &@~ ${searchText}
 				), author_hits AS (
 					SELECT ba2.book_id, pgroonga_score(a2.tableoid, a2.ctid) * 8 AS score
 					FROM book_author ba2
 					INNER JOIN author a2 ON a2.id = ba2.author_id
-					WHERE a2.name &@~ ${matchText}
+					WHERE a2.name &@~ ${searchText}
 				), series_matches AS (
 					SELECT id, MAX(score) AS score
 					FROM (
 						SELECT id, pgroonga_score(tableoid, ctid) * 7 AS score FROM series
-						WHERE name &@~ ${matchText} ${seriesOrgCondition}
+						WHERE name &@~ ${searchText} ${seriesOrgCondition}
 						UNION ALL
 						SELECT id, pgroonga_score(tableoid, ctid) * 5 FROM series
-						WHERE aliases &@~ ${matchText} ${seriesOrgCondition}
+						WHERE aliases &@~ ${searchText} ${seriesOrgCondition}
 					) sm
 					GROUP BY id
 				), series_hits AS (
@@ -565,6 +652,7 @@ class PGroongaSearch {
 				? parseVolumeIntent(queryText)
 				: { text: queryText ?? "", volume: null };
 		const matchText = intent.text || queryText || "";
+		const searchText = normalizeCatalogSearchQuery(matchText);
 
 		const conditions: SQL[] = [sql`l.media_type = 'audiobook'`];
 
@@ -672,31 +760,31 @@ class PGroongaSearch {
 			? await this.executeSerial(sql`
 				WITH field_hits AS (
 					SELECT am2.book_id, pgroonga_score(am2.tableoid, am2.ctid) * 10 AS score
-					FROM audiobook_metadata am2 WHERE am2.title &@~ ${matchText}
+					FROM audiobook_metadata am2 WHERE am2.title &@~ ${searchText}
 					UNION ALL
 					SELECT am2.book_id, pgroonga_score(am2.tableoid, am2.ctid) * 3
-					FROM audiobook_metadata am2 WHERE am2.subtitle &@~ ${matchText}
+					FROM audiobook_metadata am2 WHERE am2.subtitle &@~ ${searchText}
 					UNION ALL
 					SELECT am2.book_id, pgroonga_score(am2.tableoid, am2.ctid) * 2
-					FROM audiobook_metadata am2 WHERE am2.description &@~ ${matchText}
+					FROM audiobook_metadata am2 WHERE am2.description &@~ ${searchText}
 				), author_hits AS (
 					SELECT aa2.book_id, pgroonga_score(a2.tableoid, a2.ctid) * 8 AS score
 					FROM audiobook_author aa2
 					INNER JOIN author a2 ON a2.id = aa2.author_id
-					WHERE a2.name &@~ ${matchText}
+					WHERE a2.name &@~ ${searchText}
 				), narrator_hits AS (
 					SELECT bn2.book_id, pgroonga_score(n2.tableoid, n2.ctid) * 6 AS score
 					FROM book_narrator bn2
 					INNER JOIN narrator n2 ON n2.id = bn2.narrator_id
-					WHERE n2.name &@~ ${matchText}
+					WHERE n2.name &@~ ${searchText}
 				), series_matches AS (
 					SELECT id, MAX(score) AS score
 					FROM (
 						SELECT id, pgroonga_score(tableoid, ctid) * 7 AS score FROM series
-						WHERE name &@~ ${matchText} ${seriesOrgCondition}
+						WHERE name &@~ ${searchText} ${seriesOrgCondition}
 						UNION ALL
 						SELECT id, pgroonga_score(tableoid, ctid) * 5 FROM series
-						WHERE aliases &@~ ${matchText} ${seriesOrgCondition}
+						WHERE aliases &@~ ${searchText} ${seriesOrgCondition}
 					) sm
 					GROUP BY id
 				), series_hits AS (

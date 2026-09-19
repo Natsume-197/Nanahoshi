@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { SQL } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
 
 /**
  * Unit tests for AudiobookRepository series listing/count — the pagination,
- * sort, and search (PGroonga with ILIKE fallback) backing the audiobook
- * series page.
+ * sort, and browse query backing the audiobook series page.
  *
  * `db.execute` is mocked to return a queued result per call so we can assert
  * how many queries run (e.g. the search fallback) and what they resolve to.
@@ -31,8 +28,6 @@ mock.module("@nanahoshi/env/server", () => ({
 }));
 
 const { AudiobookRepository } = await import("../audiobook.repository");
-const dialect = new PgDialect();
-
 const seriesRow = {
 	id: 1,
 	name: "Mushoku Tensei",
@@ -68,53 +63,6 @@ describe("AudiobookRepository.listSeriesWithCount", () => {
 				coverColor: "#336699",
 			},
 		]);
-	});
-
-	test("a search query that PGroonga matches runs a single query", async () => {
-		executeQueue = [{ rows: [seriesRow] }];
-
-		const result = await repo.listSeriesWithCount("org-1", {
-			limit: 30,
-			offset: 0,
-			sort: "name",
-			query: "mushoku",
-		});
-
-		expect(mockExecute).toHaveBeenCalledTimes(1);
-		expect(result).toHaveLength(1);
-		const query = dialect.sqlToQuery(mockExecute.mock.calls[0]?.[0] as SQL);
-		expect(query.sql).toContain("s.aliases &@~");
-	});
-
-	test("a search query with no PGroonga hits falls back to ILIKE", async () => {
-		// First (PGroonga) returns nothing → second (ILIKE) returns the row.
-		executeQueue = [{ rows: [] }, { rows: [seriesRow] }];
-
-		const result = await repo.listSeriesWithCount("org-1", {
-			limit: 30,
-			offset: 0,
-			sort: "name",
-			query: "mushok",
-		});
-
-		expect(mockExecute).toHaveBeenCalledTimes(2);
-		expect(result).toHaveLength(1);
-		const fallback = dialect.sqlToQuery(mockExecute.mock.calls[1]?.[0] as SQL);
-		expect(fallback.sql).toContain("unnest(COALESCE(s.aliases");
-	});
-
-	test("a whitespace-only query does not trigger the search path", async () => {
-		executeQueue = [{ rows: [seriesRow] }];
-
-		await repo.listSeriesWithCount("org-1", {
-			limit: 30,
-			offset: 0,
-			sort: "name",
-			query: "   ",
-		});
-
-		// One plain query, no PGroonga + fallback pair.
-		expect(mockExecute).toHaveBeenCalledTimes(1);
 	});
 });
 

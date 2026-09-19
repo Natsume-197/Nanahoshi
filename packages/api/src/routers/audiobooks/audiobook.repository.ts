@@ -40,7 +40,6 @@ interface AudiobookSeriesListOptions {
 	limit?: number;
 	offset?: number;
 	sort?: AudiobookSeriesSort;
-	query?: string;
 }
 
 type SeriesByNameRow = {
@@ -486,12 +485,7 @@ export class AudiobookRepository {
 
 	async listSeriesWithCount(
 		serverId?: string,
-		{
-			limit = 30,
-			offset = 0,
-			sort = "name",
-			query,
-		}: AudiobookSeriesListOptions = {},
+		{ limit = 30, offset = 0, sort = "name" }: AudiobookSeriesListOptions = {},
 		scope: LibraryScope = "ALL",
 	) {
 		const orgCondition = serverId ? sql`AND l.server_id = ${serverId}` : sql``;
@@ -564,41 +558,16 @@ export class AudiobookRepository {
 			INNER JOIN book b ON b.id = abs.book_id
 			INNER JOIN library l ON l.id = b.library_id
 		`;
-		const tail = (nameCondition: SQL) => sql`
-			WHERE l.media_type = 'audiobook' ${orgCondition} ${scopeCondition} ${nameCondition}
+		const tail = sql`
+			WHERE l.media_type = 'audiobook' ${orgCondition} ${scopeCondition}
 			GROUP BY s.id
 			HAVING COUNT(*) > 1
-			ORDER BY ${query ? AUDIOBOOK_SERIES_ORDER_BY.name : AUDIOBOOK_SERIES_ORDER_BY[sort]}
+			ORDER BY ${AUDIOBOOK_SERIES_ORDER_BY[sort]}
 			LIMIT ${limit}
 			OFFSET ${offset}
 		`;
-
-		const trimmed = query?.trim();
-		let rows: SeriesWithCountRow[];
-		if (!trimmed) {
-			rows = (await db.execute(sql`${selectClause} ${tail(sql``)}`))
-				.rows as SeriesWithCountRow[];
-		} else {
-			// PGroonga full-text search (handles Japanese), with an ILIKE fallback
-			// for substring matches — mirrors the ebook series search.
-			rows = (
-				await db.execute(
-					sql`${selectClause} ${tail(sql`AND (s.name &@~ ${trimmed} OR s.aliases &@~ ${trimmed})`)}`,
-				)
-			).rows as SeriesWithCountRow[];
-			if (rows.length === 0) {
-				const pattern = `%${trimmed}%`;
-				rows = (
-					await db.execute(
-						sql`${selectClause} ${tail(sql`AND (s.name ILIKE ${pattern} OR EXISTS (
-							SELECT 1
-							FROM unnest(COALESCE(s.aliases, '{}'::text[])) alias
-							WHERE alias ILIKE ${pattern}
-						))`)}`,
-					)
-				).rows as SeriesWithCountRow[];
-			}
-		}
+		const rows = (await db.execute(sql`${selectClause} ${tail}`))
+			.rows as SeriesWithCountRow[];
 
 		return rows.map((row) => ({
 			id: row.id,

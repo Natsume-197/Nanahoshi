@@ -1,11 +1,11 @@
 import { db } from "@nanahoshi/db";
 import { member, user } from "@nanahoshi/db/schema/auth";
-import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, asc, eq, ne, or } from "drizzle-orm";
+import { normalizedNameSearchSql } from "../../infrastructure/search/name-search";
 
 export class UsersRepository {
 	/** Members of `serverId` whose username/name matches, excluding the viewer. */
 	async search(query: string, serverId: string, viewerId: string, limit = 5) {
-		const pattern = `%${query}%`;
 		return db
 			.select({
 				id: user.id,
@@ -21,9 +21,9 @@ export class UsersRepository {
 					eq(member.organizationId, serverId),
 					ne(user.id, viewerId),
 					or(
-						ilike(user.username, pattern),
-						ilike(user.name, pattern),
-						ilike(user.displayUsername, pattern),
+						normalizedNameSearchSql(user.username, query),
+						normalizedNameSearchSql(user.name, query),
+						normalizedNameSearchSql(user.displayUsername, query),
 					),
 				),
 			)

@@ -20,7 +20,6 @@ interface NarratorListOptions {
 	limit?: number;
 	offset?: number;
 	sort?: NarratorSort;
-	query?: string;
 }
 
 type NarratorWithCountRow = {
@@ -65,27 +64,19 @@ export class NarratorRepository {
 		return retry.id;
 	}
 
-	private buildWhere(
-		serverId?: string,
-		query?: string,
-		scope: LibraryScope = "ALL",
-	) {
+	private buildWhere(serverId?: string, scope: LibraryScope = "ALL") {
 		const filters: SQL[] = [visibleBookSql("b")];
 		if (serverId) {
 			filters.push(sql`l.server_id = ${serverId}`);
 		}
 		const scopePredicate = accessiblePredicateSql(scope);
 		if (scopePredicate) filters.push(scopePredicate);
-		const trimmed = query?.trim();
-		if (trimmed) {
-			filters.push(sql`n.name ILIKE ${`%${trimmed}%`}`);
-		}
 		return filters.length ? sql`WHERE ${sql.join(filters, sql` AND `)}` : sql``;
 	}
 
 	async listWithAudiobookCount(
 		serverId?: string,
-		{ limit = 30, offset = 0, sort = "name", query }: NarratorListOptions = {},
+		{ limit = 30, offset = 0, sort = "name" }: NarratorListOptions = {},
 		scope: LibraryScope = "ALL",
 	) {
 		const result = await db.execute(sql`
@@ -98,7 +89,7 @@ export class NarratorRepository {
 				INNER JOIN book_narrator bn ON bn.narrator_id = n.id
 				INNER JOIN book b ON b.id = bn.book_id
 				INNER JOIN library l ON l.id = b.library_id
-				${this.buildWhere(serverId, query, scope)}
+				${this.buildWhere(serverId, scope)}
 				GROUP BY n.id
 			ORDER BY ${ORDER_BY[sort]}
 			LIMIT ${limit}

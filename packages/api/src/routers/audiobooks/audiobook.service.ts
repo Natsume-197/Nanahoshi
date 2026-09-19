@@ -104,6 +104,28 @@ export const listAudiobookSeries = async (
 	} = {},
 	scope: LibraryScope = "ALL",
 ) => {
+	const query = options.query?.trim();
+	if (query) {
+		const { series } = await search.searchSeries({
+			query,
+			mediaType: "audiobook",
+			serverId,
+			accessibleLibraryIds: scope,
+			limit: options.limit,
+			offset: options.offset,
+		});
+		return series.map(
+			({
+				bookCount,
+				aliases: _aliases,
+				previewCovers: _previewCovers,
+				...row
+			}) => ({
+				...row,
+				audiobookCount: bookCount,
+			}),
+		);
+	}
 	return audiobookRepository.listSeriesWithCount(serverId, options, scope);
 };
 

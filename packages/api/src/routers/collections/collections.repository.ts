@@ -28,6 +28,7 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
+import { normalizedNameSearchSql } from "../../infrastructure/search/name-search";
 import { withSerialScan } from "../_shared/serial-scan";
 import type { DynamicCollectionDefinitionV1 } from "./collection-rules";
 import { compileDynamicCollectionQuery } from "./collection-rules.compiler";
@@ -482,7 +483,6 @@ export class CollectionsRepository {
 	 * joins the owner for display/linking.
 	 */
 	async search(query: string, serverId: string, viewerId: string, limit = 10) {
-		const pattern = `%${query}%`;
 		return db
 			.select({
 				id: collection.id,
@@ -518,7 +518,7 @@ export class CollectionsRepository {
 			.where(
 				and(
 					eq(collection.serverId, serverId),
-					ilike(collection.name, pattern),
+					normalizedNameSearchSql(collection.name, query),
 					or(eq(collection.isPublic, true), eq(collection.userId, viewerId)),
 				),
 			)

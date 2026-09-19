@@ -49,13 +49,12 @@ describe("NarratorRepository.listWithAudiobookCount", () => {
 		]);
 	});
 
-	test("runs a single query when given a search query", async () => {
+	test("runs a single query when browsing", async () => {
 		executeResult = { rows: [] };
 		await repo.listWithAudiobookCount("org-1", {
 			limit: 30,
 			offset: 0,
 			sort: "name",
-			query: "kana",
 		});
 		expect(mockExecute).toHaveBeenCalledTimes(1);
 	});

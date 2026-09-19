@@ -3,6 +3,7 @@ import type { BookComplete } from "../../routers/books/book.model";
 // Series search types
 export interface SearchSeriesRequest {
 	query: string;
+	mediaType?: "ebook" | "audiobook";
 	serverId?: string;
 	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
 	accessibleLibraryIds?: number[] | "ALL";
@@ -46,6 +47,26 @@ export interface SearchAuthorHit {
 
 export interface SearchAuthorsResponse {
 	authors: SearchAuthorHit[];
+}
+
+export interface SearchNarratorsRequest {
+	query: string;
+	serverId?: string;
+	/** Libraries the caller may view; "ALL" (or undefined) means no restriction. */
+	accessibleLibraryIds?: number[] | "ALL";
+	limit?: number;
+	offset?: number;
+}
+
+export interface SearchNarratorHit {
+	id: number;
+	uuid: string;
+	name: string;
+	audiobookCount: number;
+}
+
+export interface SearchNarratorsResponse {
+	narrators: SearchNarratorHit[];
 }
 
 /**

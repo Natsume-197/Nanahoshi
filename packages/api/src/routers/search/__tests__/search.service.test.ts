@@ -68,13 +68,11 @@ mock.module("../../../infrastructure/search", () => ({
 		searchAuthors: async () => ({
 			authors: [{ uuid: "a1", name: "Test author", bookCount: 1 }],
 		}),
+		searchNarrators: async () => ({ narrators: await narrators() }),
 	},
 }));
 mock.module("../../authors/author.repository", () => ({
 	authorRepository: { getVisibleHitsByUuids: authorBatch },
-}));
-mock.module("../../narrators/narrator.repository", () => ({
-	narratorRepository: { listWithAudiobookCount: narrators },
 }));
 mock.module("../../series/series.repository", () => ({
 	seriesRepository: { getVisibleHitsByUuids: seriesBatch },
