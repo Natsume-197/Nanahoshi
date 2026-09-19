@@ -22,6 +22,8 @@ mock.module("@nanahoshi/ebook-parser/node", () => ({ openEbookFile }));
 const {
 	classifyEbookIdentifiers,
 	findFallbackCover,
+	findIsbnInEbookPages,
+	findLabeledIsbn,
 	isBlankCover,
 	measureContentForm,
 	readLocalEbook,
@@ -205,6 +207,20 @@ describe("local ebook catalog adapter", () => {
 				identifiers: [{ value: "3299511152", id: "uid" }],
 			}),
 		).toMatchObject({ embeddedUid: "3299511152" });
+	});
+
+	test("extracts only labelled, checksum-valid ISBNs from publication pages", async () => {
+		expect(findLabeledIsbn("<p>ISBN: 978-4-04-891564-9</p>")).toBe(
+			"9784048915649",
+		);
+		expect(findLabeledIsbn("<p>Order 978-4-04-891564-9</p>")).toBeNull();
+		expect(findLabeledIsbn("<p>ISBN: 978-4-04-891564-0</p>")).toBeNull();
+
+		const chapters = Array.from({ length: 20 }, () => "<p>chapter</p>");
+		chapters[18] = "<p>ISBN-10 0-9752298-0-X</p>";
+		await expect(findIsbnInEbookPages(content(chapters))).resolves.toBe(
+			"097522980X",
+		);
 	});
 
 	test("measures prose and page-image ebooks through HtmlContent", async () => {

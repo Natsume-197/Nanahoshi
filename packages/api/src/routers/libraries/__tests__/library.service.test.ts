@@ -118,6 +118,10 @@ const mockScanPathLibrary = mock(() => Promise.resolve());
 mock.module("../../../modules/scanning/libraryScanner", () => ({
 	scanPathLibrary: mockScanPathLibrary,
 }));
+const mockCreateAudiobookJobs = mock(() => Promise.resolve(0));
+mock.module("../../../modules/scanning/audiobookJobCreator", () => ({
+	createAudiobookJobs: mockCreateAudiobookJobs,
+}));
 
 // Scheduler talks to Redis — stub it so update/delete don't open a connection.
 const mockRegisterSchedule = mock(() => Promise.resolve());
@@ -195,6 +199,10 @@ const mockListEbookIdsByLibraryAfter = spyOn(
 ).mockImplementation(
 	(): Promise<Array<{ id: number; uuid: string }>> => Promise.resolve([]),
 );
+const mockListIdsByLibraryAfter = spyOn(
+	bookRepository,
+	"listIdsByLibraryAfter",
+).mockImplementation(() => Promise.resolve([]));
 const mockClearAutomaticDuplicatePointersByLibrary = spyOn(
 	bookRepository,
 	"clearAutomaticDuplicatePointersByLibrary",
@@ -207,6 +215,7 @@ const repositorySpies = [
 	mockGetIdsByLibraryId,
 	mockGetIdsByLibraryPathId,
 	mockListEbookIdsByLibraryAfter,
+	mockListIdsByLibraryAfter,
 	mockClearAutomaticDuplicatePointersByLibrary,
 	spyOn(bookMetadataRepository, "deleteAuthorIfOrphaned").mockImplementation(
 		() => Promise.resolve(),
@@ -292,12 +301,16 @@ describe("library.service — org-scoped authorization", () => {
 		mockListEbookIdsByLibraryAfter.mockImplementation(() =>
 			Promise.resolve([]),
 		);
+		mockListIdsByLibraryAfter.mockReset();
+		mockListIdsByLibraryAfter.mockImplementation(() => Promise.resolve([]));
 		mockClearAutomaticDuplicatePointersByLibrary.mockReset();
 		mockClearAutomaticDuplicatePointersByLibrary.mockImplementation(() =>
 			Promise.resolve(0),
 		);
 		mockScanPathLibrary.mockReset();
 		mockScanPathLibrary.mockImplementation(() => Promise.resolve());
+		mockCreateAudiobookJobs.mockReset();
+		mockCreateAudiobookJobs.mockImplementation(() => Promise.resolve(0));
 		mockAssertAccessible.mockReset();
 		mockAssertAccessible.mockImplementation(() => Promise.resolve());
 		mockFetchRelatedEntitiesByLibraryId.mockReset();
@@ -1331,6 +1344,7 @@ describe("library.service — org-scoped authorization", () => {
 
 	describe("runLibraryReprocess", () => {
 		test("reserves and enqueues reprocess jobs per batch, then finalizes", async () => {
+			mockFindById.mockImplementation(() => Promise.resolve(makeLibrary()));
 			mockListEbookIdsByLibraryAfter
 				.mockImplementationOnce(() =>
 					Promise.resolve([
@@ -1340,7 +1354,11 @@ describe("library.service — org-scoped authorization", () => {
 				)
 				.mockImplementationOnce(() => Promise.resolve([]));
 
-			await service.runLibraryReprocess({ libraryId: 1, taskId: "t-6" });
+			await service.runLibraryReprocess({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-6",
+			});
 
 			expect(mockReserve).toHaveBeenCalledWith("t-6", 2);
 			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
@@ -1367,6 +1385,7 @@ describe("library.service — org-scoped authorization", () => {
 		});
 
 		test("stops enqueuing when the task is cancelled mid-loop", async () => {
+			mockFindById.mockImplementation(() => Promise.resolve(makeLibrary()));
 			mockListEbookIdsByLibraryAfter.mockImplementation(() =>
 				Promise.resolve([{ id: 1, uuid: "u1" }]),
 			);
@@ -1377,10 +1396,41 @@ describe("library.service — org-scoped authorization", () => {
 					Promise.reject(new TaskCancelledError("t-7")),
 				);
 
-			await service.runLibraryReprocess({ libraryId: 1, taskId: "t-7" });
+			await service.runLibraryReprocess({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-7",
+			});
 
 			expect(mockFileEventAddBulk).toHaveBeenCalledTimes(1);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-7");
+		});
+
+		test("rebuilds audiobook jobs from processed source files", async () => {
+			mockFindById.mockImplementation(() =>
+				Promise.resolve(
+					makeLibrary({
+						mediaType: "audiobook",
+						paths: [{ id: 4, path: "/audio", libraryId: 1, isEnabled: true }],
+					}),
+				),
+			);
+
+			await service.runLibraryReprocess({
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-audio",
+			});
+
+			expect(mockCreateAudiobookJobs).toHaveBeenCalledWith({
+				rootDir: "/audio",
+				libraryId: 1,
+				libraryPathId: 4,
+				taskId: "t-audio",
+				reprocess: true,
+			});
+			expect(mockFileEventAddBulk).not.toHaveBeenCalled();
+			expect(mockFinalizeTask).toHaveBeenCalledWith("t-audio");
 		});
 	});
 
@@ -1466,14 +1516,27 @@ describe("library.service — org-scoped authorization", () => {
 	// ─── enrichLibrary (API-side producer) ───────────────────────────────────
 
 	describe("enrichLibrary", () => {
-		test("rejects audiobook libraries", async () => {
+		test("creates a series-only rebuild task for audiobook libraries", async () => {
 			mockFindByUuid.mockImplementation(() =>
 				Promise.resolve(makeLibrary({ mediaType: "audiobook" })),
 			);
+			mockCreateTask.mockImplementation(() => Promise.resolve({ id: "t-a1" }));
 
-			await expect(
-				service.enrichLibrary("lib-uuid", "org-A"),
-			).rejects.toBeInstanceOf(BadRequestError);
+			await service.enrichLibrary("lib-uuid", "org-A", "user-1");
+
+			expect(mockCreateTask).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "library-enrich",
+					label: "Rebuilding series for Test Library",
+					libraryId: 1,
+				}),
+			);
+			expect(mockScheduledScanAdd).toHaveBeenCalledWith("library-enrich", {
+				op: "enrich",
+				libraryId: 1,
+				serverId: "org-A",
+				taskId: "t-a1",
+			});
 		});
 
 		test("rejects when a metadata refresh is already running for this library", async () => {
@@ -1510,13 +1573,13 @@ describe("library.service — org-scoped authorization", () => {
 	// ─── runLibraryEnrich (worker-side executor) ─────────────────────────────
 
 	describe("runLibraryEnrich", () => {
-		test("fans out refresh-enrich jobs per batch, then finalizes", async () => {
+		test("fans out series-only jobs per batch, then finalizes", async () => {
 			mockMetadataEnrichAddBulk.mockClear();
-			mockListEbookIdsByLibraryAfter
+			mockListIdsByLibraryAfter
 				.mockImplementationOnce(() =>
 					Promise.resolve([
-						{ id: 1, uuid: "u1" },
-						{ id: 2, uuid: "u2" },
+						{ id: 1, uuid: "u1", mediaType: "ebook" },
+						{ id: 2, uuid: "u2", mediaType: "ebook" },
 					]),
 				)
 				.mockImplementationOnce(() => Promise.resolve([]));
@@ -1530,16 +1593,43 @@ describe("library.service — org-scoped authorization", () => {
 			}>;
 			expect(jobs.map((j) => j.name)).toEqual(["enrich-book", "enrich-book"]);
 			expect(jobs.map((j) => j.data)).toEqual([
-				{ bookId: 1, uuid: "u1", taskId: "t-e2", refresh: true },
-				{ bookId: 2, uuid: "u2", taskId: "t-e2", refresh: true },
+				{ bookId: 1, uuid: "u1", taskId: "t-e2", seriesOnly: true },
+				{ bookId: 2, uuid: "u2", taskId: "t-e2", seriesOnly: true },
 			]);
 			expect(mockFinalizeTask).toHaveBeenCalledWith("t-e2");
 		});
 
+		test("routes audiobook rebuilds through the series-only worker path", async () => {
+			mockMetadataEnrichAddBulk.mockClear();
+			mockListIdsByLibraryAfter
+				.mockImplementationOnce(() =>
+					Promise.resolve([{ id: 3, uuid: "a1", mediaType: "audiobook" }]),
+				)
+				.mockImplementationOnce(() => Promise.resolve([]));
+
+			await service.runLibraryEnrich({ libraryId: 1, taskId: "t-a2" });
+
+			const jobs = mockMetadataEnrichAddBulk.mock.calls[0]?.[0] as Array<{
+				name: string;
+				data: Record<string, unknown>;
+			}>;
+			expect(jobs).toEqual([
+				expect.objectContaining({
+					name: "enrich-audiobook",
+					data: {
+						bookId: 3,
+						uuid: "a1",
+						taskId: "t-a2",
+						seriesOnly: true,
+					},
+				}),
+			]);
+		});
+
 		test("stops enqueuing when the task is cancelled mid-loop", async () => {
 			mockMetadataEnrichAddBulk.mockClear();
-			mockListEbookIdsByLibraryAfter.mockImplementation(() =>
-				Promise.resolve([{ id: 1, uuid: "u1" }]),
+			mockListIdsByLibraryAfter.mockImplementation(() =>
+				Promise.resolve([{ id: 1, uuid: "u1", mediaType: "ebook" }]),
 			);
 			mockThrowIfTaskCancelled
 				.mockImplementationOnce(() => Promise.resolve())

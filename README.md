@@ -76,7 +76,7 @@ Open your configured URL (default `http://localhost:7331`), create your account 
 
 ## Local development
 
-Requirements: Bun 1.4.0, Docker and Docker Compose.
+Requirements: Bun 1.4.2, Docker and Docker Compose.
 
 ```bash
 cp .env.example apps/server/.env

@@ -34,6 +34,10 @@ const mockRecordRun = spyOn(
 	enrichmentStateRepository,
 	"recordRun",
 ).mockImplementation(() => Promise.resolve());
+const mockRecordDiagnostics = spyOn(
+	enrichmentStateRepository,
+	"recordDiagnostics",
+).mockImplementation(() => Promise.resolve());
 const mockGetEnrichmentState = spyOn(
 	enrichmentStateRepository,
 	"get",
@@ -153,6 +157,7 @@ const mockRemoveLockedFields = spyOn(
 
 const repoSpies = [
 	mockRecordRun,
+	mockRecordDiagnostics,
 	mockGetEnrichmentState,
 	mockRecordFailures,
 	mockMarkCompleted,
@@ -363,6 +368,7 @@ beforeEach(() => {
 	ranobedbSpy.mockReset();
 	localSpy.mockReset();
 	mockRecordRun.mockClear();
+	mockRecordDiagnostics.mockClear();
 	mockGetEnrichmentState.mockReset();
 	mockGetEnrichmentState.mockImplementation(() => Promise.resolve(null));
 	mockRecordFailures.mockClear();
@@ -958,6 +964,27 @@ describe("enrichFromProviders", () => {
 	});
 
 	describe("refresh mode", () => {
+		test("series rebuild applies only series metadata", async () => {
+			ranobedbSpy.mockImplementation(async () =>
+				acceptedProviderResult(
+					{
+						description: "must stay untouched",
+						series: { name: "Fresh Series", position: 2 },
+					},
+					FULL_INPUT,
+				),
+			);
+
+			await bookMetadataService.refreshSeries({ ...FULL_INPUT });
+
+			expect(mockLinkBookSeries).toHaveBeenCalledWith(1, 1, 2);
+			const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+				number,
+				Record<string, unknown>,
+			];
+			expect(saved.description).toBeUndefined();
+		});
+
 		test("re-consults providers even when every field is already filled", async () => {
 			ranobedbSpy.mockImplementation(async () => emptyMetadataProviderResult());
 			amazonSpy.mockImplementation(async () =>
@@ -1434,6 +1461,7 @@ describe("locked fields (manual-edit protection)", () => {
 			mainColor: null,
 			rating: null,
 			ratingCount: null,
+			providerRatings: [],
 			fieldSources: {},
 		});
 		const [, saved] = mockUpsertMetadata.mock.calls.at(-1) as unknown as [

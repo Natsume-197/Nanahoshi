@@ -76,6 +76,8 @@ const RICH_VOLUME = {
 		printedPageCount: 280,
 		categories: ["Fiction / Fantasy / General", "Fiction / Light Novel"],
 		language: "ja",
+		averageRating: 4.25,
+		ratingsCount: 120,
 		imageLinks: {
 			thumbnail:
 				"http://books.google.com/books/content?id=x&zoom=5&edge=curl&source=gbs",
@@ -128,6 +130,8 @@ describe("getMetadata", () => {
 			name: "ソードアート・オンライン",
 			position: 3,
 		});
+		expect(result.rating).toBe(4.25);
+		expect(result.ratingCount).toBe(120);
 	});
 
 	test("falls back to intitle/inauthor search without ISBN", async () => {

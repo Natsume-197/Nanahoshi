@@ -150,6 +150,9 @@ const { bookRepository } = await import(
 const { bookMetadataRepository } = await import(
 	"../../../routers/books/metadata/metadata.repository"
 );
+const { audiobookMetadataRepository } = await import(
+	"../../../routers/audiobooks/metadata/metadata.repository"
+);
 const { bookMetadataService } = await import(
 	"../../../routers/books/metadata/metadata.service"
 );
@@ -196,6 +199,7 @@ const restorers = [
 	patchMethods(scannedFileRepository, { markDone, markDoneBatch, markFailed }),
 	patchMethods(bookRepository, { getByRelativePath, updateFileInfo, getById }),
 	patchMethods(bookMetadataRepository, { findByBookId, isAmazonEnriched }),
+	patchMethods(audiobookMetadataRepository, { findByBookId }),
 	patchMethods(bookMetadataService, {
 		enrichAndSaveMetadata,
 		fillMissingFromLocal,
@@ -430,7 +434,7 @@ describe("file.event.worker", () => {
 			expect(regroupBookDuplicates).not.toHaveBeenCalled();
 		});
 
-		test("a book with metadata gets fill-missing and regrouping", async () => {
+		test("a book with metadata only fills missing local fields", async () => {
 			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
 			metadataRowResult = { bookId: 7 };
 
@@ -441,19 +445,8 @@ describe("file.event.worker", () => {
 				uuid: "u7",
 			});
 			expect(enrichAndSaveMetadata).not.toHaveBeenCalled();
-			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
-		});
-
-		test("a transient immediate regroup failure schedules durable reconciliation", async () => {
-			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
-			metadataRowResult = { bookId: 7 };
-			regroupBookDuplicates.mockImplementationOnce(() =>
-				Promise.reject(new Error("temporary database pressure")),
-			);
-
-			await processJob(reprocessJob());
-
-			expect(enqueueBookRegroup).toHaveBeenCalledWith(7);
+			expect(regroupBookDuplicates).not.toHaveBeenCalled();
+			expect(needsExternalEnrichment).not.toHaveBeenCalled();
 		});
 
 		test("a book without any metadata row runs the full local extraction (repair)", async () => {
@@ -464,27 +457,37 @@ describe("file.event.worker", () => {
 
 			expect(enrichAndSaveMetadata).toHaveBeenCalledTimes(1);
 			expect(fillMissingFromLocal).not.toHaveBeenCalled();
-			expect(regroupBookDuplicates).toHaveBeenCalledWith(7);
+			expect(regroupBookDuplicates).not.toHaveBeenCalled();
 		});
 
-		test("a book hidden behind a canonical skips the enrichment check", async () => {
-			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: 3 };
-			metadataRowResult = { bookId: 7 };
-
-			await processJob(reprocessJob());
-
-			expect(needsExternalEnrichment).not.toHaveBeenCalled();
-		});
-
-		test("a visible book checks for provider gaps, not the enriched flag", async () => {
+		test("does not consult providers or change edition groups", async () => {
 			getByIdResult = { id: 7, uuid: "u7", duplicateOfBookId: null };
 			metadataRowResult = { bookId: 7 };
 
 			await processJob(reprocessJob());
 
-			expect(needsExternalEnrichment).toHaveBeenCalledWith(7);
-			// The old gate: an "already enriched" book must no longer be skipped.
-			expect(isAmazonEnriched).not.toHaveBeenCalled();
+			expect(needsExternalEnrichment).not.toHaveBeenCalled();
+			expect(regroupBookDuplicates).not.toHaveBeenCalled();
+			expect(enqueueBookRegroup).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("reprocess-audiobook — local files only", () => {
+		test("forces local extraction for an existing audiobook", async () => {
+			existingBookResult = { id: 9, uuid: "u9", filehash: "hash-1" };
+
+			const result = await processJob(
+				audiobookJob({ action: "reprocess-audiobook" }),
+			);
+
+			expect(processAudiobook).toHaveBeenCalledWith(
+				9,
+				"u9",
+				expect.any(Object),
+				{ reprocess: true },
+			);
+			expect(result.reprocessed).toBe(true);
+			expect(markDoneBatch).toHaveBeenCalledTimes(1);
 		});
 	});
 

@@ -126,6 +126,57 @@ describe("official Audible series fallback", () => {
 		series: [{ title: "DanMachi", sequence: "3" }],
 		product_images: { "500": "https://example.com/cover.jpg" },
 	};
+	test.each([
+		[
+			"B0B4VBKBJJ",
+			"現実でラブコメできないとだれが決めた？",
+			"B0CPY25W93",
+			"現実でラブコメできないとだれが決めた？",
+		],
+		[
+			"B0BP115KP9",
+			"育ちざかりの教え子がやけにエモい",
+			"B0D6FZMK6R",
+			"育ちざかりの教え子がやけにエモい",
+		],
+	])(
+		"recovers early volume %s from its official series when Audnexus omits it",
+		async (bookAsin, title, seriesAsin, seriesName) => {
+			fetchResponder = (url) =>
+				url.includes("audnex.us")
+					? Response.json({
+							...AUDNEXUS_BOOK,
+							asin: bookAsin,
+							title,
+							seriesPrimary: null,
+						})
+					: Response.json({
+							product: {
+								asin: bookAsin,
+								series: [
+									{
+										asin: seriesAsin,
+										title: seriesName,
+										sequence: "1",
+									},
+								],
+							},
+						});
+
+			expect(
+				(await audibleProvider.getById(bookAsin, { region: "jp" }))?.series,
+			).toEqual({
+				name: seriesName,
+				position: 1,
+				sequence: "1",
+				identity: {
+					provider: "audible",
+					providerId: seriesAsin,
+					region: "jp",
+				},
+			});
+		},
+	);
 	test("fills missing Audnexus series without replacing rich metadata", async () => {
 		fetchResponder = (url) =>
 			Response.json(

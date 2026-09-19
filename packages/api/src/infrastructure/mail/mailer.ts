@@ -1,5 +1,5 @@
 import { env } from "@nanahoshi/env/server";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
 
 /** SMTP is optional: only Send to Kindle needs it (email invitations were removed). */
@@ -15,9 +15,9 @@ export class MailerNotConfiguredError extends Error {
 	}
 }
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
 	if (!isMailerConfigured()) throw new MailerNotConfiguredError();
 	transporter ??= nodemailer.createTransport({
 		host: env.SMTP_HOST,

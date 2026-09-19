@@ -14,7 +14,7 @@ docker build -t nanahoshi:ci .
 bash scripts/ci-container-smoke.sh
 ```
 
-Use Bun 1.4.0 and install Chrome or Chromium. The script detects the browser;
+Use Bun 1.4.2 and install Chrome or Chromium. The script detects the browser;
 for a custom location, set `INSTALLATION_E2E_BROWSER` to the actual executable.
 It checks this before starting containers. The smoke test creates and removes
 its own database, Redis and application volumes. It checks setup, login, book

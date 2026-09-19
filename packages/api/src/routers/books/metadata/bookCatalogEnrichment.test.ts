@@ -5,6 +5,7 @@ import type { BookMetadata } from "./book.metadata.model";
 import { runBookCatalogEnrichment } from "./bookCatalogEnrichment";
 import {
 	type IMetadataProvider,
+	type ISearchableMetadataProvider,
 	metadataProviderResult,
 } from "./providers/IMetadata.provider";
 import { ProviderTransientError } from "./providers/provider.utils";
@@ -61,6 +62,7 @@ describe("Book Catalog Enrichment", () => {
 			description: "First description",
 			authors: [{ name: "Known Author", role: "Author" }],
 			rating: 4.5,
+			providerRatings: [{ provider: "amazon", rating: 4.5 }],
 		});
 	});
 
@@ -343,6 +345,47 @@ describe("Book Catalog Enrichment", () => {
 		expect(result.status === "matched" ? result.matches[0]?.manual : null).toBe(
 			true,
 		);
+	});
+
+	test("revalidates a confirmed provider id without running discovery", async () => {
+		const hydratedIds: string[] = [];
+		let discoveryCalls = 0;
+		const rememberedProvider: IMetadataProvider &
+			Pick<ISearchableMetadataProvider, "getById"> = {
+			discoverCandidates: async () => {
+				discoveryCalls++;
+				return [];
+			},
+			hydrateCandidate: async () => {
+				throw new Error("preferred ids must use direct lookup");
+			},
+			getById: async (providerId) => {
+				hydratedIds.push(providerId);
+				return {
+					title: "Great Story 1",
+					authors: [{ name: "Known Author", role: "Author" }],
+					description: "Reused",
+				};
+			},
+		};
+		const result = await runBookCatalogEnrichment({
+			metadata: {
+				bookId: 1,
+				uuid: "book-1",
+				title: "Great Story 1",
+				authors: [{ name: "Known Author", role: "Author" }],
+			},
+			providers: [{ name: "ranobedb", provider: rememberedProvider }],
+			preferredProviderIds: { ranobedb: "remembered-42" },
+		});
+
+		expect(discoveryCalls).toBe(0);
+		expect(hydratedIds).toEqual(["remembered-42"]);
+		expect(result).toMatchObject({
+			status: "matched",
+			primaryProviderId: "remembered-42",
+			diagnostics: { reusedProviderIds: ["ranobedb"], searches: 0 },
+		});
 	});
 
 	test("uses the shared Discovery Projection when the raw title finds nothing", async () => {
@@ -675,7 +718,7 @@ describe("Book Catalog Enrichment", () => {
 				],
 			});
 
-			expect(result).toEqual({
+			expect(result).toMatchObject({
 				status: "no_match",
 				decision: {
 					kind: "ambiguous",

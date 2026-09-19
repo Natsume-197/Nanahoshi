@@ -111,6 +111,8 @@ export const BOOK_PROVIDER_MANIFEST: Record<
 			"publisher",
 			"series",
 			"genres",
+			"rating",
+			"ratingCount",
 		],
 	},
 	openlibrary: {

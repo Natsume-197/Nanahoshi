@@ -33,6 +33,9 @@ const CONTENT_FORM_SAMPLE_DOCUMENTS = 12;
 const COVER_CANDIDATE_SECTIONS = 6;
 const COVER_CANDIDATE_LIMIT = 24;
 const COVER_ANALYSIS_MAX_EDGE = 512;
+const ISBN_SCAN_HEAD_SECTIONS = 10;
+const ISBN_SCAN_TAIL_SECTIONS = 5;
+const ISBN_SCAN_MAX_HTML_BYTES = 2 * 1024 * 1024;
 
 export interface LocalEbookMetadata {
 	title: string;
@@ -60,9 +63,14 @@ export async function readLocalEbook(
 	try {
 		const metadata = ebook.metadata;
 		const identifiers = classifyEbookIdentifiers(metadata);
-		const [cover, contentForm] = await Promise.all([
+		const [cover, contentForm, pageIsbn] = await Promise.all([
 			acquireEbookCover(ebook.openCover(), ebook.content, bookUuid, options),
 			measureContentForm(ebook.content, metadata),
+			!identifiers.isbn10 &&
+			!identifiers.isbn13 &&
+			ebook.content.kind === "html"
+				? findIsbnInEbookPages(ebook.content)
+				: null,
 		]);
 
 		return {
@@ -74,6 +82,11 @@ export async function readLocalEbook(
 			publishedDate: normalizePublishedDate(metadata.published) ?? undefined,
 			description: metadata.description || null,
 			...identifiers,
+			...(pageIsbn?.length === 13
+				? { isbn13: pageIsbn, embeddedUid: null }
+				: pageIsbn
+					? { isbn10: pageIsbn, embeddedUid: null }
+					: {}),
 			cover,
 			contentForm,
 			pageCount:
@@ -82,6 +95,44 @@ export async function readLocalEbook(
 	} finally {
 		await ebook.close();
 	}
+}
+
+/** Scans likely copyright/front/back matter; only labelled, checksum-valid ISBNs pass. */
+export async function findIsbnInEbookPages(
+	content: HtmlContent,
+): Promise<string | null> {
+	const sections = [
+		...content.sections.slice(0, ISBN_SCAN_HEAD_SECTIONS),
+		...content.sections.slice(-ISBN_SCAN_TAIL_SECTIONS),
+	];
+	const seen = new Set<string>();
+	let isbn10: string | null = null;
+	for (const section of sections) {
+		if (seen.has(section.id)) continue;
+		seen.add(section.id);
+		try {
+			const html = (await content.openSection(section.id))?.html ?? "";
+			const found = findLabeledIsbn(html.slice(0, ISBN_SCAN_MAX_HTML_BYTES));
+			if (found?.length === 13) return found;
+			isbn10 ??= found;
+		} catch {
+			// A broken optional section must not make local metadata extraction fail.
+		}
+	}
+	return isbn10;
+}
+
+export function findLabeledIsbn(html: string): string | null {
+	const text = load(html).text();
+	let isbn10: string | null = null;
+	for (const match of text.matchAll(
+		/\bISBN(?:-1[03])?\s*:?\s*((?:97[89][\s-]?)?(?:\d[\s-]?){8,11}[\dXx])/gi,
+	)) {
+		const value = normalizeIsbn(match[1] ?? "");
+		if (isValidIsbn13(value)) return value;
+		if (!isbn10 && isValidIsbn10(value)) isbn10 = value;
+	}
+	return isbn10;
 }
 
 async function acquireEbookCover(

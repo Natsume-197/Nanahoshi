@@ -1,4 +1,5 @@
 import path from "node:path";
+import sharp from "sharp";
 import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
@@ -179,6 +180,7 @@ export async function downloadCoverImage(
 
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
+		if (!(await isUsableRemoteCover(buffer))) return null;
 
 		// Acquire only — the cover-ingest worker normalises it off the scan path.
 		const urlExt = path.extname(new URL(imageUrl).pathname);
@@ -186,6 +188,30 @@ export async function downloadCoverImage(
 	} catch (error) {
 		log.warn({ err: error }, "Cover download failed");
 		return null;
+	}
+}
+
+/** Rejects HTML/error payloads, tracking pixels and visually blank placeholders. */
+export async function isUsableRemoteCover(buffer: Buffer): Promise<boolean> {
+	try {
+		const image = sharp(buffer);
+		const [metadata, stats] = await Promise.all([
+			image.metadata(),
+			image.stats(),
+		]);
+		const width = metadata.width ?? 0;
+		const height = metadata.height ?? 0;
+		const mean =
+			stats.channels.reduce((sum, channel) => sum + channel.mean, 0) /
+			stats.channels.length;
+		return (
+			width >= 80 &&
+			height >= 100 &&
+			stats.entropy >= 0.2 &&
+			!(mean > 252 && stats.entropy < 0.5)
+		);
+	} catch {
+		return false;
 	}
 }
 

@@ -166,7 +166,7 @@ export class BookMetadataService {
 			amazonDomain?: string;
 		},
 		order?: MetadataProviderName[],
-		options?: { refresh?: boolean },
+		options?: { refresh?: boolean; seriesOnly?: boolean },
 	) {
 		const routing = await this.resolveRoutingPolicy(input.bookId, order);
 		const providerOrder = routing.order;
@@ -209,6 +209,16 @@ export class BookMetadataService {
 		) {
 			return null;
 		}
+		const preferredProviderIds = Object.fromEntries(
+			(state?.matched ?? []).flatMap((match) =>
+				!match.manual &&
+				match.providerId &&
+				isBookProviderName(match.provider) &&
+				providerOrder.includes(match.provider)
+					? [[match.provider, match.providerId]]
+					: [],
+			),
+		) as Partial<Record<MetadataProviderName, string>>;
 		const result = await runBookCatalogEnrichment({
 			metadata: { ...input, serverId, amazonDomain },
 			providers: providerOrder.map((name) => ({
@@ -224,10 +234,16 @@ export class BookMetadataService {
 						providerId: manualMatch.providerId,
 					}
 				: undefined,
+			preferredProviderIds,
 		});
 
 		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
 			result.failures,
+		);
+		await enrichmentStateRepository.recordDiagnostics(
+			input.bookId,
+			result.status,
+			result.diagnostics,
 		);
 		if (result.status === "retryable_failure") {
 			log.warn({ failures: result.failures }, "Book enrichment is retryable");
@@ -262,7 +278,10 @@ export class BookMetadataService {
 				"Book enrichment completed with provider failures",
 			);
 		}
-		const saved = await this.saveMetadata(result.metadata, input.bookId, {
+		const metadata = options?.seriesOnly
+			? { series: result.metadata.series }
+			: result.metadata;
+		const saved = await this.saveMetadata(metadata, input.bookId, {
 			providerTag: result.authorsProvider
 				? bookProviderTag(result.authorsProvider)
 				: "LOCAL",
@@ -284,6 +303,21 @@ export class BookMetadataService {
 			});
 		}
 		return saved;
+	}
+
+	/** Re-resolve series without applying any other provider metadata. */
+	async refreshSeries(
+		input: Partial<BookMetadata> & {
+			bookId: number;
+			uuid: string;
+			serverId?: string | null;
+			amazonDomain?: string;
+		},
+	) {
+		return this.enrichFromProviders(input, undefined, {
+			refresh: true,
+			seriesOnly: true,
+		});
 	}
 
 	// Back-compat alias (worker + manual endpoint); runs the full provider chain.
@@ -398,6 +432,7 @@ export class BookMetadataService {
 			mainColor: null,
 			rating: null,
 			ratingCount: null,
+			providerRatings: [],
 			fieldSources: {},
 		});
 

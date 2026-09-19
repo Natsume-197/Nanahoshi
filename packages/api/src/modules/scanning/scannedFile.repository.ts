@@ -233,6 +233,26 @@ export class ScannedFileRepository {
 			.limit(limit);
 	}
 
+	/** Paginated processed rows used to rebuild existing audiobook jobs. */
+	async listDoneAfter(
+		libraryPathId: number,
+		lastId: number,
+		limit: number,
+	): Promise<ScannedFileRow[]> {
+		return db
+			.select()
+			.from(scannedFile)
+			.where(
+				and(
+					eq(scannedFile.status, "done"),
+					eq(scannedFile.libraryPathId, libraryPathId),
+					gt(scannedFile.id, lastId),
+				),
+			)
+			.orderBy(scannedFile.id)
+			.limit(limit);
+	}
+
 	/** Marks rows as "failed" after a terminal job failure; rescans retry them. */
 	async markFailed(paths: string[], libraryPathId: number): Promise<void> {
 		if (paths.length === 0) return;

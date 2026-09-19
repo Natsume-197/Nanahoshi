@@ -51,6 +51,15 @@ export const MetadataInfoSchema = z.object({
 	tags: z.array(z.string()).nullable().optional(),
 	rating: z.number().nullable().optional(),
 	ratingCount: z.number().int().nullable().optional(),
+	providerRatings: z
+		.array(
+			z.object({
+				provider: z.string(),
+				rating: z.number(),
+				ratingCount: z.number().int().nullable().optional(),
+			}),
+		)
+		.optional(),
 });
 
 // ─── Manual edit (field locking) ─────────────────────────

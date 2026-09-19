@@ -24,7 +24,11 @@ export const scheduledScanWorker = new Worker(
 		const { libraryId, serverId, taskId, op, mode } = job.data;
 		if (op === "reprocess" && taskId) {
 			log.info({ libraryId, taskId }, "Running library reprocess");
-			return await libraryService.runLibraryReprocess({ libraryId, taskId });
+			return await libraryService.runLibraryReprocess({
+				libraryId,
+				serverId,
+				taskId,
+			});
 		}
 		if (op === "regroup" && taskId) {
 			log.info({ libraryId, taskId }, "Running library edition regroup");

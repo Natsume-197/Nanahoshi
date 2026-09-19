@@ -194,6 +194,63 @@ export class AudiobookMetadataService {
 		return saved;
 	}
 
+	/** Refresh technical data and fill missing catalog fields from local files. */
+	async fillMissingFromLocal(
+		bookId: number,
+		local: Partial<AudiobookMetadata> & {
+			codec?: string | null;
+			bitRate?: number | null;
+			channels?: number | null;
+			sampleRate?: number | null;
+		},
+	) {
+		const current = await audiobookMetadataRepository.findByBookId(bookId);
+		if (!current) return null;
+		const [authors, narrators, series, genres] = await Promise.all([
+			audiobookMetadataRepository.getBookAuthors(bookId),
+			audiobookMetadataRepository.getBookNarrators(bookId),
+			audiobookMetadataRepository.getBookSeries(bookId),
+			audiobookMetadataRepository.getBookGenres(bookId),
+		]);
+		const fill: Record<string, unknown> = {};
+		for (const key of [
+			"title",
+			"subtitle",
+			"description",
+			"publishedDate",
+			"languageCode",
+			"isbn",
+			"asin",
+			"cover",
+		] as const) {
+			if (
+				this.isFieldMissing(current[key]) &&
+				!this.isFieldMissing(local[key])
+			) {
+				fill[key] = local[key];
+			}
+		}
+		for (const key of [
+			"duration",
+			"codec",
+			"bitRate",
+			"channels",
+			"sampleRate",
+		] as const) {
+			if (!this.isFieldMissing(local[key])) fill[key] = local[key];
+		}
+		if (authors.length === 0 && local.authors?.length)
+			fill.authors = local.authors;
+		if (narrators.length === 0 && local.narrators?.length)
+			fill.narrators = local.narrators;
+		if (series.length === 0 && local.series) fill.series = local.series;
+		if (genres.length === 0 && local.genres?.length) fill.genres = local.genres;
+		if (Object.keys(fill).length === 0) return null;
+		return this.saveMetadata(fill as Partial<AudiobookMetadata>, bookId, {
+			source: "local",
+		});
+	}
+
 	// Search a single provider for matching audiobooks; returns lightweight
 	// candidates for the user to pick from.
 	async searchProvider(

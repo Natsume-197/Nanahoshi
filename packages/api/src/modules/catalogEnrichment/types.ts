@@ -28,6 +28,11 @@ export type CatalogProviderAdapter<
 		candidate: CatalogEnrichmentCandidate<TMetadata>,
 		metadata: TMetadata,
 	): Promise<HydratedCatalogCandidate<TMetadata> | null>;
+	/** Direct provider-id lookup used to revalidate a previously confirmed match. */
+	lookup?(
+		providerId: string,
+		metadata: TMetadata,
+	): Promise<HydratedCatalogCandidate<TMetadata> | null>;
 };
 
 export type CatalogEnrichmentPolicy<
@@ -70,6 +75,15 @@ export type CatalogEnrichmentFailure<TProvider extends string> = {
 	retryAfterMs?: number;
 };
 
+export type CatalogEnrichmentDiagnostics<TProvider extends string> = {
+	durationMs: number;
+	searches: number;
+	candidates: number;
+	hydrations: number;
+	assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
+	reusedProviderIds: TProvider[];
+};
+
 export type CatalogEnrichmentMatch<TProvider extends string> = {
 	provider: TProvider;
 	providerId: string;
@@ -107,15 +121,18 @@ export type CatalogEnrichmentResult<
 			fieldSources: Record<string, TProvider>;
 			failures: CatalogEnrichmentFailure<TProvider>[];
 			retryable: boolean;
+			diagnostics: CatalogEnrichmentDiagnostics<TProvider>;
 	  }
 	| {
 			status: "no_match";
 			decision?: CatalogEnrichmentDecision<TProvider>;
 			failures: CatalogEnrichmentFailure<TProvider>[];
+			diagnostics: CatalogEnrichmentDiagnostics<TProvider>;
 	  }
 	| {
 			status: "retryable_failure";
 			failures: CatalogEnrichmentFailure<TProvider>[];
+			diagnostics: CatalogEnrichmentDiagnostics<TProvider>;
 	  };
 
 export type CatalogEnrichmentInput<
@@ -133,6 +150,8 @@ export type CatalogEnrichmentInput<
 	requiredPrimaryProvider?: TProvider;
 	/** Exact human-selected record that may establish the primary identity. */
 	requiredPrimaryProviderId?: string;
+	/** Previously confirmed ids. Each is re-hydrated and revalidated before use. */
+	preferredProviderIds?: Partial<Record<TProvider, string>>;
 	protectedFields?: readonly (keyof TMetadata)[];
 	maxHydrationsPerProvider?: number;
 	/** Observe identity diagnostics without changing acceptance or retry policy. */

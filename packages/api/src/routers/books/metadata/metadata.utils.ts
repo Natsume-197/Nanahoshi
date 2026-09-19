@@ -45,13 +45,23 @@ export function buildEnrichInput(
 		bookId,
 		uuid,
 		title: (row.title as string | null) ?? undefined,
+		titleRomaji: (row.titleRomaji as string | null) ?? undefined,
 		subtitle: (row.subtitle as string | null) ?? undefined,
 		description: (row.description as string | null) ?? undefined,
 		isbn10: (row.isbn10 as string | null) ?? undefined,
 		isbn13: (row.isbn13 as string | null) ?? undefined,
 		asin: (row.asin as string | null) ?? undefined,
+		embeddedUid: (row.embeddedUid as string | null) ?? undefined,
 		languageCode: (row.languageCode as string | null) ?? undefined,
+		publishedDate: (row.publishedDate as string | null) ?? undefined,
+		pageCount: (row.pageCount as number | null) ?? undefined,
+		amountChars: (row.amountChars as number | null) ?? undefined,
 		cover: (row.cover as string | null) ?? undefined,
+		rating: (row.rating as number | null) ?? undefined,
+		ratingCount: (row.ratingCount as number | null) ?? undefined,
+		providerRatings:
+			(row.providerRatings as BookMetadata["providerRatings"] | null) ??
+			undefined,
 		// Decides which providers are worth asking at all, so it must survive the
 		// trip from the row into the enrichment chain.
 		contentForm:
