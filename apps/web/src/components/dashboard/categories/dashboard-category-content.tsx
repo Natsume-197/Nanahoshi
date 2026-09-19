@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { type JSX, useState } from "react";
 import { DashboardHomeContent } from "@/components/dashboard/home/dashboard-home-content";
 import { CategorySelector } from "@/components/shared/category-selector";
+import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { MediaCategoryContent } from "./media-category-content";
 
 type DashboardCategory = "home" | "books" | "audiobooks";
+const DASHBOARD_CATEGORY_STORAGE_KEY = "nanahoshi-dashboard-category";
 
 const categories = [
 	{ value: "home", label: m["nav.home"] },
@@ -19,6 +21,26 @@ const categories = [
 
 export function DashboardCategoryContent(): JSX.Element {
 	const [category, setCategory] = useState<DashboardCategory>("home");
+	useIsomorphicLayoutEffect(() => {
+		try {
+			const stored = window.localStorage.getItem(
+				DASHBOARD_CATEGORY_STORAGE_KEY,
+			);
+			if (stored === "home" || stored === "books" || stored === "audiobooks") {
+				setCategory(stored);
+			}
+		} catch {
+			// Storage can be unavailable in private mode.
+		}
+	}, []);
+	const selectCategory = (next: DashboardCategory) => {
+		setCategory(next);
+		try {
+			window.localStorage.setItem(DASHBOARD_CATEGORY_STORAGE_KEY, next);
+		} catch {
+			// The current visit still remembers the selection in component state.
+		}
+	};
 
 	const { data: libraries } = useQuery(
 		orpc.libraries.getLibraries.queryOptions(),
@@ -43,7 +65,7 @@ export function DashboardCategoryContent(): JSX.Element {
 				<CategorySelector
 					value={activeCategory}
 					items={availableCategories}
-					onValueChange={setCategory}
+					onValueChange={selectCategory}
 					ariaLabel={m["nav.library"]()}
 				/>
 			)}

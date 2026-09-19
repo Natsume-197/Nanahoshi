@@ -20,7 +20,10 @@ mock.module("./media-category-content", () => ({
 const { DashboardCategoryContent } = await import(
 	"./dashboard-category-content"
 );
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	localStorage.clear();
+});
 
 test("hides category selectors without libraries, including initial loading", () => {
 	for (const value of [undefined, []]) {
@@ -38,8 +41,18 @@ test("only shows library media types and falls back to home when a category disa
 	expect(view.queryAllByRole("button")).toHaveLength(2);
 	fireEvent.click(view.getByRole("button", { name: "Books", exact: true }));
 	expect(view.getByText("books content")).toBeTruthy();
+	expect(localStorage.getItem("nanahoshi-dashboard-category")).toBe("books");
 	libraries = [];
 	view.rerender(<DashboardCategoryContent />);
 	expect(view.getByText("home content")).toBeTruthy();
 	expect(view.queryAllByRole("button")).toHaveLength(0);
+});
+
+test("restores the selected category after mounting again", () => {
+	libraries = [{ mediaType: "ebook" }, { mediaType: "audiobook" }];
+	localStorage.setItem("nanahoshi-dashboard-category", "audiobooks");
+
+	const view = render(<DashboardCategoryContent />);
+
+	expect(view.getByText("audiobooks content")).toBeTruthy();
 });
