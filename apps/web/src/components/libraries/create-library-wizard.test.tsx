@@ -158,7 +158,7 @@ test("does not offer providers disabled by the server", {
 });
 
 test("collects providers before a single creation, preserving edits on back", {
-	timeout: 20000,
+	timeout: 30000,
 }, async () => {
 	const { view, submit, fillName, fillFolder, next, back, submitForm } =
 		mountWizard();

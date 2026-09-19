@@ -264,29 +264,6 @@ export function ActiveReadListenCue({
 			cleanupHighlight =
 				installReadListenActiveHighlight(resolved) ?? undefined;
 			installedSection = section;
-			if (followText) {
-				const segment = resolved.segments[0];
-				const range = document.createRange();
-				if (segment) {
-					range.setStart(segment.node, segment.startOffset);
-					range.setEnd(
-						segment.node,
-						Math.min(segment.endOffset, segment.startOffset + 1),
-					);
-					const rect = range.getBoundingClientRect();
-					console.debug(
-						"[DEBUG-page-follow]",
-						JSON.stringify({
-							id: cue.id,
-							anchor: readerApiRef.current?.resolveTextAnchor?.(readerAnchor),
-							x: rect.x,
-							y: rect.y,
-							width: window.innerWidth,
-							height: window.innerHeight,
-						}),
-					);
-				}
-			}
 			if (
 				followText &&
 				!readerOwnsFollowNavigation &&
