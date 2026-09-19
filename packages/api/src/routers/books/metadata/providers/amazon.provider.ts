@@ -1371,7 +1371,8 @@ class AmazonProvider implements ISearchableMetadataProvider {
 			// Read non-OK bodies too: Amazon sometimes returns its challenge as 503.
 			const html = await response.text();
 			const statusBlocked = response.status === 429;
-			const softBlocked = this.looksLikeBlockPage(html);
+			const softBlocked =
+				response.status !== 404 && this.looksLikeBlockPage(html);
 
 			if (statusBlocked || softBlocked) {
 				state.consecutiveFailures++;

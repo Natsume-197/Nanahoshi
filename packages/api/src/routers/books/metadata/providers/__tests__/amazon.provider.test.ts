@@ -2201,6 +2201,28 @@ describe("adaptive delay factor", () => {
 		}
 	});
 
+	test("treats a 404 product page with generic block wording as not found", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response("自動アクセスについて api-services-support@amazon.com", {
+					status: 404,
+				}),
+			),
+		) as unknown as typeof fetch;
+
+		try {
+			const result = await provider.fetchPage(
+				"https://www.amazon.classify-404.test/dp/MISSING",
+				{ domain: "classify-404.test", enabled: true },
+			);
+			expect(result).toBeNull();
+			expect(state("classify-404.test").consecutiveFailures).toBe(0);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test("classifies a plain 503 as a short server retry without opening the breaker", async () => {
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = mock(() =>
