@@ -45,6 +45,16 @@ const PAGE_SIZE = 20;
 
 const unreadCountKey = orpc.notifications.unreadCount.queryOptions().queryKey;
 const listKey = orpc.notifications.list.key();
+const notificationListOptions = () =>
+	orpc.notifications.list.infiniteOptions({
+		input: (pageParam: number | undefined) => ({
+			limit: PAGE_SIZE,
+			cursor: pageParam,
+		}),
+		getNextPageParam: (lastPage) =>
+			lastPage.length === PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
+		initialPageParam: undefined as number | undefined,
+	});
 
 interface NotificationBellProps {
 	open: boolean;
@@ -59,6 +69,7 @@ export function NotificationBell({
 	const { data: unread } = useQuery(
 		orpc.notifications.unreadCount.queryOptions(),
 	);
+	useInfiniteQuery(notificationListOptions());
 	const count = unread?.count ?? 0;
 
 	return (
@@ -213,15 +224,7 @@ function NotificationPanel({
 
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
-			...orpc.notifications.list.infiniteOptions({
-				input: (pageParam: number | undefined) => ({
-					limit: PAGE_SIZE,
-					cursor: pageParam,
-				}),
-				getNextPageParam: (lastPage) =>
-					lastPage.length === PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
-				initialPageParam: undefined as number | undefined,
-			}),
+			...notificationListOptions(),
 			enabled: active,
 			subscribed: active,
 		});
@@ -610,7 +613,9 @@ const TaskProgressRow = memo(function TaskProgressRow({
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline justify-between gap-2">
-					<p className="truncate text-sm leading-tight">{task.label}</p>
+					<p className="min-w-0 break-words text-sm leading-tight">
+						{task.label}
+					</p>
 					<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
 						{progress.total > 0
 							? `${progress.percent}%`

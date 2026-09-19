@@ -1,6 +1,6 @@
 import { CircleNotch, DownloadSimple, Pencil } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
@@ -213,39 +213,14 @@ function SeriesVolumePairings({
 		enabled: paired,
 		staleTime: 30_000,
 	});
-	if (!paired)
-		return (
-			<p className="mt-2 text-muted-foreground text-sm">
-				No confirmed audio pair
-			</p>
-		);
-	if (isLoading)
-		return <p className="mt-2 text-muted-foreground text-sm">Loading audio…</p>;
-	if (isError)
-		return (
-			<p className="mt-2 text-muted-foreground text-sm">
-				Could not load audio pair
-			</p>
-		);
+	if (!paired || isLoading || isError) return null;
+	const ready = data?.pairings.some(
+		(pairing) => pairing.alignment.status === "ready",
+	);
+	if (!ready) return null;
 	return (
-		<div className="mt-2 space-y-2">
-			{data?.pairings.map((pairing) => (
-				<Link
-					key={pairing.id}
-					to="/dashboard/audiobooks/$uuid"
-					params={{ uuid: pairing.audiobook.uuid }}
-					className="block rounded text-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-				>
-					<span className="block">{pairing.audiobook.title}</span>
-					<span className="text-muted-foreground">
-						{pairing.alignment.status === "ready"
-							? m["read_listen.status_ready"]()
-							: pairing.alignment.status === "stale"
-								? m["read_listen.status_stale"]()
-								: m["read_listen.status_not_imported"]()}
-					</span>
-				</Link>
-			))}
-		</div>
+		<p className="mt-2 text-muted-foreground text-sm">
+			{m["read_listen.status_ready"]()}
+		</p>
 	);
 }

@@ -236,6 +236,7 @@ export function BookDetailPage() {
 										coverSrcSet={coverSrcSet}
 										title={title}
 										aspectRatio="2/3"
+										tint={book.mainColor}
 										fallback={
 											<div className="relative aspect-[2/3] w-full bg-muted">
 												<BookOpen

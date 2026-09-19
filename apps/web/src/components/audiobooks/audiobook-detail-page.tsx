@@ -229,6 +229,7 @@ export function AudiobookDetailPage() {
 										coverSrcSet={coverSrcSet}
 										title={title}
 										aspectRatio="square"
+										tint={audiobook.mainColor}
 										fallback={
 											<div className="relative aspect-square w-full bg-muted">
 												<Headphones

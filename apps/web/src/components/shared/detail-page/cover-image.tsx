@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { getMutedAccentSurfaceColor } from "@/utils/color";
 import { COVER_EDGE, coverPresets } from "@/utils/covers";
 
 export function CoverImage({
@@ -8,6 +9,7 @@ export function CoverImage({
 	coverSrcSet,
 	title,
 	aspectRatio,
+	tint,
 	fallback,
 	onCoverClick,
 	progressBar,
@@ -16,6 +18,7 @@ export function CoverImage({
 	coverSrcSet?: string;
 	title: string;
 	aspectRatio: "2/3" | "square";
+	tint?: string | null;
 	fallback: ReactNode;
 	onCoverClick: () => void;
 	progressBar?: ReactNode;
@@ -49,6 +52,11 @@ export function CoverImage({
 					aspectClass,
 					COVER_EDGE,
 				)}
+				style={
+					tint
+						? { backgroundColor: getMutedAccentSurfaceColor(tint) ?? undefined }
+						: undefined
+				}
 			>
 				{/* No JS-driven fade-in here: the page is server-rendered, so the
 				    artwork routinely finishes loading before React hydrates and any

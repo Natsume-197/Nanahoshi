@@ -238,7 +238,7 @@ function UserProfilePage() {
 					Public Collections
 				</h2>
 				{publicCollectionsQuery.isLoading ? (
-					<div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+					<div className="grid grid-cols-2 gap-5 sm:grid-cols-[repeat(auto-fill,minmax(168px,200px))]">
 						{[
 							"collection-1",
 							"collection-2",
@@ -249,7 +249,7 @@ function UserProfilePage() {
 						))}
 					</div>
 				) : (
-					<div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+					<div className="grid grid-cols-2 gap-5 sm:grid-cols-[repeat(auto-fill,minmax(168px,200px))]">
 						{publicCollectionsQuery.data?.map((collection) => {
 							const preview = resolveCollectionPreview(
 								collection,
