@@ -14,6 +14,7 @@
 			"privacy": "プライバシー",
 			"appearance": "外観",
 			"language": "言語",
+			"about": "Nanahoshiについて",
 			"metadata_system": "メタデータ",
 			"honomiya": "Honomiya",
 			"overview": "概要",
@@ -279,6 +280,18 @@
 			"rebuild_recommendations": "おすすめを更新",
 			"rebuild_recommendations_desc": "おすすめが有効なすべての組織で、おすすめを再生成します",
 			"rebuild": "再構築"
+		},
+		"about": {
+			"tagline": "書籍とオーディオブックのためのモダンなセルフホスト型ライブラリサーバー。自分だけのサーバーを構築して、コレクションを共有できます。",
+			"source_code": "GitHubでプロジェクトを見る",
+			"whats_new": "新着情報",
+			"report_issue": "問題を報告",
+			"build_info": "ビルド情報",
+			"release": "リリース",
+			"commit": "コミット",
+			"development": "開発ビルド",
+			"unavailable": "利用できません",
+			"license": "ライセンス"
 		},
 		"profile": {
 			"desc": "プロフィールはすべてのコミュニティで共有されます。",

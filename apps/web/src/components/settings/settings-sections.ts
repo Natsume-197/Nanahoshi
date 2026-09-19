@@ -5,6 +5,7 @@ export const SETTINGS_SECTIONS = [
 	"integrations",
 	"appearance",
 	"language",
+	"about",
 	"overview",
 	"users",
 	"servers",

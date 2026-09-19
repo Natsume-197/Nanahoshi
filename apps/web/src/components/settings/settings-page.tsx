@@ -3,6 +3,7 @@ import {
 	Buildings,
 	Database,
 	HardDrives,
+	Info,
 	ListChecks,
 	ListMagnifyingGlass,
 	LockKey,
@@ -17,6 +18,7 @@ import {
 	Waveform,
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
+import { AboutSettings } from "@/components/settings/sections/about";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { DataBackupsSettings } from "@/components/settings/sections/data-backups";
@@ -52,6 +54,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	integrations: PlugsConnected,
 	appearance: PaintBrush,
 	language: Translate,
+	about: Info,
 	overview: HardDrives,
 	users: Users,
 	servers: Buildings,
@@ -71,6 +74,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	integrations: m["settings.nav.integrations"],
 	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
+	about: m["settings.nav.about"],
 	overview: m["settings.nav.overview"],
 	users: m["settings.nav.users"],
 	servers: m["settings.nav.servers"],
@@ -143,6 +147,11 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 			},
 		);
 	}
+
+	groups.push({
+		label: "Nanahoshi",
+		items: [item("about")],
+	});
 
 	return groups;
 }
@@ -254,6 +263,8 @@ function SettingsContent({
 			return <AppearanceSettings onCustomize={onCustomizeTheme} />;
 		case "language":
 			return <LanguageSettings />;
+		case "about":
+			return <AboutSettings />;
 		case "overview":
 			return <AdminSystem />;
 		case "users":

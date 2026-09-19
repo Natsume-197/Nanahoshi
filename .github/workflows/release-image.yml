@@ -39,7 +39,11 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Build amd64 application image
-        run: docker buildx build --platform linux/amd64 --load -t nanahoshi:ci .
+        run: >-
+          docker buildx build --platform linux/amd64 --load
+          --build-arg NANAHOSHI_RELEASE="$RELEASE_TAG"
+          --build-arg NANAHOSHI_COMMIT="$GITHUB_SHA"
+          -t nanahoshi:ci .
       - name: Test packaged application
         run: bash scripts/ci-container-smoke.sh
         env:
@@ -58,6 +62,8 @@ jobs:
           fi
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
+            --build-arg NANAHOSHI_RELEASE="$RELEASE_TAG" \
+            --build-arg NANAHOSHI_COMMIT="$GITHUB_SHA" \
             "${release_tags[@]}" \
             --push .
       - name: Check anonymous image access

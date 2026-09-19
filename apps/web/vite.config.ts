@@ -1,10 +1,28 @@
+import { execFileSync } from "node:child_process";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+function currentCommit() {
+	if (process.env.NANAHOSHI_COMMIT) return process.env.NANAHOSHI_COMMIT;
+	try {
+		return execFileSync("git", ["rev-parse", "HEAD"], {
+			encoding: "utf8",
+		}).trim();
+	} catch {
+		return "";
+	}
+}
+
 export default defineConfig(({ command }) => ({
+	define: {
+		"import.meta.env.VITE_NANAHOSHI_RELEASE": JSON.stringify(
+			process.env.NANAHOSHI_RELEASE ?? "development",
+		),
+		"import.meta.env.VITE_NANAHOSHI_COMMIT": JSON.stringify(currentCommit()),
+	},
 	plugins: [
 		// Compiles ./messages/{locale}.json into ./src/paraglide on dev/build.
 		// Locale comes from the `locale` cookie (no URL prefix), resolved per

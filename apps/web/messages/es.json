@@ -14,6 +14,7 @@
 			"privacy": "Privacidad",
 			"appearance": "Apariencia",
 			"language": "Idioma",
+			"about": "Acerca de",
 			"metadata_system": "Metadatos",
 			"honomiya": "Honomiya",
 			"overview": "Resumen",
@@ -279,6 +280,18 @@
 			"rebuild_recommendations": "Actualizar recomendaciones",
 			"rebuild_recommendations_desc": "Regenera las recomendaciones de todas las organizaciones que las tengan habilitadas",
 			"rebuild": "Regenerar"
+		},
+		"about": {
+			"tagline": "Un servidor de biblioteca moderno y autohospedado para libros y audiolibros. Crea el tuyo y comparte tu colección.",
+			"source_code": "Ver proyecto en GitHub",
+			"whats_new": "Novedades",
+			"report_issue": "Reportar un problema",
+			"build_info": "Información de la compilación",
+			"release": "Release",
+			"commit": "Commit",
+			"development": "Compilación de desarrollo",
+			"unavailable": "No disponible",
+			"license": "Licencia"
 		},
 		"profile": {
 			"desc": "Tu perfil se comparte en todas las comunidades.",

@@ -156,8 +156,13 @@ export function OrgSwitcher({
 			{/* flex-initial, not flex-1: growing the label would park the caret at the
 			    far edge of the bar instead of right after the name. It still shrinks,
 			    so a long name truncates against the button's max width. */}
-			<span className="min-w-0 flex-initial truncate text-start font-semibold text-sm md:text-base">
-				{activeName}
+			<span className="min-w-0 flex-initial text-start">
+				<span className="block truncate font-semibold text-sm leading-tight md:text-base">
+					{activeName}
+				</span>
+				<span className="block truncate font-medium text-[10px] text-muted-foreground tracking-wide md:text-[11px]">
+					Nanahoshi
+				</span>
 			</span>
 			<CaretDown weight="bold" className="size-3.5 shrink-0 text-foreground" />
 		</Button>

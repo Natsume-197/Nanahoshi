@@ -14,6 +14,7 @@
 			"privacy": "Privacy",
 			"appearance": "Appearance",
 			"language": "Language",
+			"about": "About",
 			"metadata_system": "Metadata",
 			"honomiya": "Honomiya",
 			"overview": "Overview",
@@ -279,6 +280,18 @@
 			"rebuild_recommendations": "Update recommendations",
 			"rebuild_recommendations_desc": "Regenerate recommendations for every organization where they are enabled",
 			"rebuild": "Rebuild"
+		},
+		"about": {
+			"tagline": "A modern and self-hosted library server for books and audiobooks, setup your own and share your collection.",
+			"source_code": "View project on GitHub",
+			"whats_new": "What's new",
+			"report_issue": "Report an issue",
+			"build_info": "Build information",
+			"release": "Release",
+			"commit": "Commit",
+			"development": "Development build",
+			"unavailable": "Unavailable",
+			"license": "License"
 		},
 		"profile": {
 			"desc": "Your profile is shared across all communities.",

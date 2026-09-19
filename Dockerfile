@@ -45,9 +45,14 @@ WORKDIR /app/apps/web
 # Public browser ingestion key, not a personal or project secret API key.
 ARG PUBLIC_POSTHOG_KEY=""
 ARG VITE_POSTHOG_HOST=""
+ARG NANAHOSHI_RELEASE="development"
+ARG NANAHOSHI_COMMIT=""
 ENV VITE_SERVER_URL="" \
 	VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST}
-RUN VITE_POSTHOG_PROJECT_TOKEN="$PUBLIC_POSTHOG_KEY" bun run build
+RUN VITE_POSTHOG_PROJECT_TOKEN="$PUBLIC_POSTHOG_KEY" \
+	NANAHOSHI_RELEASE="$NANAHOSHI_RELEASE" \
+	NANAHOSHI_COMMIT="$NANAHOSHI_COMMIT" \
+	bun run build
 
 # ── Production dependencies ─────────────────────────────────────────
 FROM manifests AS production-deps

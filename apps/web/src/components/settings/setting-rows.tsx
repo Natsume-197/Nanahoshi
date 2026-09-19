@@ -18,7 +18,7 @@ export function SettingRow({
 	editLabel,
 }: {
 	label: string;
-	value: string;
+	value: ReactNode;
 	loading?: boolean;
 	onEdit?: () => void;
 	editLabel?: string;
