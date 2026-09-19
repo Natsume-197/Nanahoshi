@@ -155,6 +155,9 @@ function createHarness() {
 			),
 		),
 		listPairRows: mock(() => Promise.resolve([] as ReadListenPairRow[])),
+		listPairRowsByPublicationIds: mock(() =>
+			Promise.resolve([] as ReadListenPairRow[]),
+		),
 		listAllPairRows: mock(() => Promise.resolve([] as ReadListenPairRow[])),
 		getPairRow: mock(() => Promise.resolve(pairRow)),
 		listAlignmentRows: mock(() =>
@@ -297,6 +300,43 @@ describe("ReadListenService", () => {
 			31,
 			"ready",
 		);
+	});
+
+	test("searches old pairs through catalog search with normalized title punctuation", async () => {
+		const { service, store, searchPort } = createHarness();
+		const seriesEbook = { ...ebook, title: "86─エイティシックス─" };
+		const seriesAudiobook = {
+			...audiobook,
+			title: "[1巻] 86‐エイティシックス‐",
+		};
+		searchPort.searchBooks.mockResolvedValue({
+			books: [{ uuid: seriesEbook.uuid }],
+			pagination: { hasMore: false, totalHits: 1, totalHitsRelation: "eq" },
+		} as never);
+		searchPort.searchAudiobooks.mockResolvedValue({
+			audiobooks: [{ uuid: seriesAudiobook.uuid }],
+			pagination: { hasMore: false, totalHits: 1, totalHitsRelation: "eq" },
+		} as never);
+		store.listPublicationsByUuids.mockResolvedValue([
+			seriesEbook,
+			seriesAudiobook,
+		]);
+		store.listPairRowsByPublicationIds.mockResolvedValue([pairRow]);
+		store.listPublicationsByIds.mockResolvedValue([
+			seriesEbook,
+			seriesAudiobook,
+		]);
+
+		const result = await service.searchPairings({
+			query: "86―エイティシックス―",
+			limit: 20,
+			serverId: "server-1",
+			scope: "ALL",
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0]?.ebook.title).toBe("86─エイティシックス─");
+		expect(store.listAllPairRows).not.toHaveBeenCalled();
 	});
 
 	test("canonicalizes the endpoints when association starts from an audiobook", async () => {

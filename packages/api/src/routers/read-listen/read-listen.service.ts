@@ -49,6 +49,7 @@ type ReadListenStore = Pick<
 	| "listPublicationsByIds"
 	| "listPublicationsByUuids"
 	| "listPairRows"
+	| "listPairRowsByPublicationIds"
 	| "listAllPairRows"
 	| "getPairRow"
 	| "listAlignmentRows"
@@ -358,6 +359,14 @@ export class ReadListenService {
 			page.limit ?? 50,
 			page.alignment ?? "any",
 		);
+		return this.buildPairings(rows, serverId, scope);
+	}
+
+	private async buildPairings(
+		rows: ReadListenPairRow[],
+		serverId: string,
+		scope: LibraryScope,
+	) {
 		const pairIds = rows.map((row) => row.id);
 		const publicationIds = [
 			...new Set(rows.flatMap((row) => [row.ebookBookId, row.audiobookBookId])),
@@ -395,45 +404,54 @@ export class ReadListenService {
 		serverId: string;
 		scope: LibraryScope;
 	}) {
-		const normalizedQuery = input.query.toLocaleLowerCase();
-		const pairings = await this.listPairings(input.serverId, input.scope, {
-			limit: 200,
-		});
+		const request = {
+			query: input.query,
+			limit: 50,
+			serverId: input.serverId,
+			accessibleLibraryIds: input.scope,
+			compact: true,
+		};
+		const [books, audiobooks] = await Promise.all([
+			this.searchPort.searchBooks(request),
+			this.searchPort.searchAudiobooks(request),
+		]);
+		const candidateUuids = [
+			...books.books.map((book) => book.uuid),
+			...audiobooks.audiobooks.map((item) => item.uuid),
+		];
+		const candidates = await this.store.listPublicationsByUuids(
+			candidateUuids,
+			input.serverId,
+			input.scope,
+		);
+		const rows = await this.store.listPairRowsByPublicationIds(
+			candidates.map((candidate) => candidate.id),
+			input.serverId,
+		);
+		const pairings = await this.buildPairings(
+			rows,
+			input.serverId,
+			input.scope,
+		);
 
-		return pairings
-			.filter((pairing) =>
-				[
-					pairing.ebook.title,
-					pairing.ebook.filename,
-					...pairing.ebook.authors.map((author) => author.name),
-					pairing.audiobook.title,
-					pairing.audiobook.filename,
-					...pairing.audiobook.authors.map((author) => author.name),
-					...pairing.audiobook.narrators.map((narrator) => narrator.name),
-				]
-					.join(" ")
-					.toLocaleLowerCase()
-					.includes(normalizedQuery),
-			)
-			.slice(0, input.limit)
-			.map(({ id, ebook, audiobook }) => ({
-				id,
-				ebook: {
-					uuid: ebook.uuid,
-					title: ebook.title,
-					filename: ebook.filename,
-					cover: ebook.cover,
-					authors: ebook.authors.map(({ name }) => ({ name })),
-				},
-				audiobook: {
-					uuid: audiobook.uuid,
-					title: audiobook.title,
-					filename: audiobook.filename,
-					cover: audiobook.cover,
-					authors: audiobook.authors.map(({ name }) => ({ name })),
-					narrators: audiobook.narrators.map(({ name }) => ({ name })),
-				},
-			}));
+		return pairings.slice(0, input.limit).map(({ id, ebook, audiobook }) => ({
+			id,
+			ebook: {
+				uuid: ebook.uuid,
+				title: ebook.title,
+				filename: ebook.filename,
+				cover: ebook.cover,
+				authors: ebook.authors.map(({ name }) => ({ name })),
+			},
+			audiobook: {
+				uuid: audiobook.uuid,
+				title: audiobook.title,
+				filename: audiobook.filename,
+				cover: audiobook.cover,
+				authors: audiobook.authors.map(({ name }) => ({ name })),
+				narrators: audiobook.narrators.map(({ name }) => ({ name })),
+			},
+		}));
 	}
 
 	async searchCandidates(input: {

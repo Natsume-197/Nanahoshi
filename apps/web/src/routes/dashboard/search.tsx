@@ -27,6 +27,7 @@ import {
 	BookContextMenuRoot,
 	BookContextMenuTrigger,
 } from "@/components/books/book-context-menu";
+import { SeriesSection } from "@/components/dashboard/home/series-section";
 import { HitLink } from "@/components/dashboard/search/top-results-hit-link";
 import { useScrollContainerRef } from "@/components/layout/scroll-container-context";
 import { CategorySelector } from "@/components/shared/category-selector";
@@ -599,21 +600,6 @@ function SearchEmptyState({
 
 type ReadListenSearchResult = Extract<TopHit, { type: "read-listen" }>;
 
-function pairingMatchesQuery(pairing: ReadListenSearchResult, query: string) {
-	const haystack = [
-		pairing.ebook.title,
-		pairing.ebook.filename,
-		...pairing.ebook.authors.map((author) => author.name),
-		pairing.audiobook.title,
-		pairing.audiobook.filename,
-		...pairing.audiobook.authors.map((author) => author.name),
-		...(pairing.audiobook.narrators ?? []).map((narrator) => narrator.name),
-	]
-		.join(" ")
-		.toLocaleLowerCase();
-	return haystack.includes(query.toLocaleLowerCase());
-}
-
 function ReadListenArtwork({ pairing }: { pairing: ReadListenSearchResult }) {
 	const ebookCover = getCoverFilename(pairing.ebook.cover);
 	const audiobookCover = getCoverFilename(pairing.audiobook.cover);
@@ -919,10 +905,11 @@ function SearchPage() {
 	const collections = collectionsData ?? [];
 	const matchingReadListenPairings = useMemo(
 		() =>
-			(readListenPairings ?? [])
-				.map((pairing) => ({ ...pairing, type: "read-listen" as const }))
-				.filter((pairing) => pairingMatchesQuery(pairing, normalizedQuery)),
-		[readListenPairings, normalizedQuery],
+			(readListenPairings ?? []).map((pairing) => ({
+				...pairing,
+				type: "read-listen" as const,
+			})),
+		[readListenPairings],
 	);
 	const booksTotal = booksData?.pages[0]?.pagination.totalHits ?? books.length;
 	const audiobooksTotal =
@@ -1151,16 +1138,21 @@ function SearchPage() {
 					(isAudiobookSeriesLoading ? (
 						<ResultListSkeleton title={m["home.audiobook_series"]()} />
 					) : audiobookSeries.length > 0 ? (
-						<ResultSection
-							id="search-audiobook-series"
+						<SeriesSection
 							title={m["home.audiobook_series"]()}
-						>
-							{audiobookSeries.map((entry) => (
-								<li key={searchResultKey(entry)}>
-									<RankedResultRow hit={entry} />
-								</li>
-							))}
-						</ResultSection>
+							seriesDetailPath="/dashboard/audiobooks/series/$uuid"
+							series={audiobookSeries.map((entry) => ({
+								uuid: entry.uuid,
+								name: entry.name,
+								count: entry.bookCount,
+								cover: entry.cover,
+								color: entry.coverColor,
+								author: entry.author,
+							}))}
+							restoreId="search-audiobook-series"
+							aspectRatio="square"
+							countMessage={m["home.series_audiobook_count"]}
+						/>
 					) : null)}
 
 				{filter === "audiobooks" &&

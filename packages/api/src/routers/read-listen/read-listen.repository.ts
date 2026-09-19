@@ -359,6 +359,26 @@ export class ReadListenRepository {
 			.orderBy(readListenPair.createdAt);
 	}
 
+	async listPairRowsByPublicationIds(
+		publicationIds: number[],
+		serverId: string,
+	): Promise<ReadListenPairRow[]> {
+		if (publicationIds.length === 0) return [];
+		return await db
+			.select()
+			.from(readListenPair)
+			.where(
+				and(
+					eq(readListenPair.serverId, serverId),
+					or(
+						inArray(readListenPair.ebookBookId, publicationIds),
+						inArray(readListenPair.audiobookBookId, publicationIds),
+					),
+				),
+			)
+			.orderBy(desc(readListenPair.updatedAt));
+	}
+
 	async listAllPairRows(
 		serverId: string,
 		offset = 0,
