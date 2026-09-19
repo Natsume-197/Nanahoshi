@@ -446,3 +446,63 @@ describe("BookReaderContinuous vertical padding", () => {
 		expect(api.getPosition?.()?.exploredCharCount).toBe(3);
 	});
 });
+
+test("commits the narrated character before any scroll event or reflow", async () => {
+	let readerApi: BookReaderApi | null = null;
+	const view = render(
+		<BookReaderContinuous
+			{...defaultReaderSettings}
+			htmlContent='<div id="chapter"><p>前前対象</p></div>'
+			verticalMode={true}
+			theme={getReaderTheme(defaultReaderSettings.theme)}
+			autoPositionOnResize
+			reservePlayerSpace={false}
+			scrollContainerRef={{ current: document.documentElement }}
+			navigationBlocked={false}
+			sections={[
+				{
+					reference: "chapter",
+					startCharacter: 0,
+					characters: 4,
+					charactersWeight: 4,
+				},
+			]}
+			onPositionChange={() => {}}
+			onSectionProgressChange={() => {}}
+			apiRef={(api) => {
+				readerApi = api;
+			}}
+		/>,
+	);
+	await waitFor(() =>
+		expect(
+			view.container.querySelector("[data-reader-position-overlay]"),
+		).toBeNull(),
+	);
+	act(() =>
+		readerApi?.navigateToTextAnchor?.({
+			kind: "text-quote",
+			sectionReference: "chapter",
+			exact: "対象",
+		}),
+	);
+	expect(readerApi?.getPosition()?.exploredCharCount).toBe(2);
+	const measure = spyOn(
+		CharacterStatsCalculator.prototype,
+		"getReadingEdgeScrollPos",
+	).mockReturnValue(1234);
+	try {
+		act(() =>
+			readerApi?.navigateToTextAnchor?.({
+				kind: "text-quote",
+				sectionReference: "chapter",
+				exact: "前前",
+			}),
+		);
+		expect(readerApi?.getPosition()?.exploredCharCount).toBe(0);
+		expect(measure).toHaveBeenCalledWith(0);
+		expect(document.documentElement.scrollLeft).toBe(1234);
+	} finally {
+		measure.mockRestore();
+	}
+});

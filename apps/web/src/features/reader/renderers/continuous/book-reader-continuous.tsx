@@ -2,6 +2,7 @@ import { type CSSProperties, type RefObject, useRef, useState } from "react";
 import { refitImageWidths } from "@/features/reader/document/processing/image-dimensions";
 import {
 	type ReaderPosition,
+	type ReaderTextAnchor,
 	SECTION_REFERENCE_PREFIX,
 	type SectionWithProgress,
 } from "@/features/reader/document/types";
@@ -15,6 +16,7 @@ import {
 	horizontalMouseWheel,
 	PageManagerContinuous,
 } from "@/features/reader/renderers/continuous/continuous-primitives";
+import { resolveReaderTextAnchorOffset } from "@/features/reader/renderers/paginated/text-anchor";
 import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
 import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
 import {
@@ -376,6 +378,11 @@ export function BookReaderContinuous({
 	const scrollToReadingPos = (position: ReaderPosition) => {
 		const s = internalsRef.current;
 		if (!s.calculator || !s.pageManager) return;
+		// Explicit navigation supersedes scroll observations still waiting to
+		// commit; a following resize must restore this destination.
+		clearTimeout(s.preciseScrollTimer);
+		s.preciseScrollTimer = undefined;
+		s.uncommittedUserPosition = false;
 		// With the same rendered document, the recorded pixel coordinate is the
 		// only lossless position inside an image. Prefer it when it still maps to
 		// the saved character. The chapter locator is a cross-layout fallback,
@@ -395,8 +402,9 @@ export function BookReaderContinuous({
 		// the jump.
 		s.prevIntendedCharCount = exploredCharCount;
 
-		// Count 0 = the very start of the book; no paragraph to anchor.
-		if (!exploredCharCount) {
+		// Horizontal text begins at scroll zero. A vertical strip can start
+		// at a positive offset inside a horizontal route scroller.
+		if (!exploredCharCount && !verticalMode) {
 			s.isProgrammaticScroll = true;
 			s.pageManager.scrollTo(0);
 			return;
@@ -408,6 +416,32 @@ export function BookReaderContinuous({
 		s.pageManager.scrollTo(
 			s.calculator.getReadingEdgeScrollPos(exploredCharCount),
 		);
+	};
+
+	const resolveTextAnchor = (anchor: ReaderTextAnchor) => {
+		const section = document.getElementById(anchor.sectionReference);
+		const content = contentElRef.current;
+		if (!section || !content?.contains(section)) return undefined;
+		const start =
+			sections.find((entry) => entry.reference === anchor.sectionReference)
+				?.startCharacter ??
+			resolveReaderTextAnchorOffset(content, {
+				kind: "fragment",
+				sectionReference: anchor.sectionReference,
+				fragmentId: anchor.sectionReference,
+			});
+		if (start === undefined) return undefined;
+		const offset = resolveReaderTextAnchorOffset(section, anchor);
+		return offset === undefined ? undefined : start + offset;
+	};
+
+	const navigateToTextAnchor = (anchor: ReaderTextAnchor) => {
+		const character = resolveTextAnchor(anchor);
+		if (character === undefined) return;
+		// Commit narration's semantic position before resize can cancel the
+		// throttled scroll observation and restore an older reading point.
+		scrollToReadingPos(textSession.positionFor(character));
+		reportIntendedPosition();
 	};
 
 	useMountEffect(() => {
@@ -626,6 +660,8 @@ export function BookReaderContinuous({
 			nextPage: () => s.pageManager?.nextPage(),
 			prevPage: () => s.pageManager?.prevPage(),
 			navigateToSection,
+			navigateToTextAnchor,
+			resolveTextAnchor,
 			// prevIntendedCharCount is the canonical semantic anchor. Re-sampling a
 			// line after reflow would return that line's new first character and
 			// slowly move the saved position on every viewport or font change.

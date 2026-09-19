@@ -16,6 +16,9 @@ function normalizedSectionText(nodes: readonly Node[]) {
 	let previousWasSpace = false;
 	for (const node of nodes) {
 		if (node.nodeType !== Node.TEXT_NODE) continue;
+		// Ruby fallback punctuation is absent from the narrated quote and from
+		// its highlight. Keep it out of matching without changing reader counts.
+		if (node.parentElement?.closest("rp")) continue;
 		const textNode = node as Text;
 		for (
 			let sourceOffset = 0;

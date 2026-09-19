@@ -7,6 +7,11 @@ import {
 	render,
 	waitFor,
 } from "@testing-library/react";
+import type { LazyHtmlBook } from "@/features/reader/document/lazy-html-book";
+import {
+	defaultReaderSettings,
+	getReaderTheme,
+} from "@/features/reader/presentation/settings";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
 import {
 	BookReaderPaginated,
@@ -506,5 +511,134 @@ describe("BookReaderPaginated wheel navigation", () => {
 		} finally {
 			overlay.remove();
 		}
+	});
+});
+
+test("lazy narration navigation wins over startup and an older pending chapter", async () => {
+	HTMLElement.prototype.scrollTo = function (options) {
+		if (typeof options === "object") {
+			this.scrollLeft = options.left ?? this.scrollLeft;
+			this.scrollTop = options.top ?? this.scrollTop;
+		}
+	};
+	let readerApi: BookReaderApi | null = null;
+	let releaseFonts = () => {};
+	const previousFonts = document.fonts;
+	Object.defineProperty(document, "fonts", {
+		configurable: true,
+		value: {
+			ready: new Promise<void>((resolve) => {
+				releaseFonts = resolve;
+			}),
+		},
+	});
+	let releaseChapter = () => {};
+	const pendingChapter = new Promise<void>((resolve) => {
+		releaseChapter = resolve;
+	});
+	const lazyBook = {
+		sectionCharacterCounts: [4, 4],
+		async loadSection(index: number) {
+			if (index === 0) await pendingChapter;
+			return { elementHtml: "<p>前前対象</p>", styleSheet: "", objectUrls: [] };
+		},
+	} as unknown as LazyHtmlBook;
+	try {
+		const view = render(
+			<BookReaderPaginated
+				{...defaultReaderSettings}
+				htmlContent=""
+				verticalMode={false}
+				theme={getReaderTheme(defaultReaderSettings.theme)}
+				lazyBook={lazyBook}
+				reservePlayerSpace={false}
+				navigationBlocked={false}
+				sections={[0, 1].map((index) => ({
+					reference: `nanahoshi-epub-${index}`,
+					characters: 4,
+					charactersWeight: 4,
+					startCharacter: index * 4,
+				}))}
+				onPositionChange={() => {}}
+				onSectionProgressChange={() => {}}
+				apiRef={(api) => {
+					readerApi = api;
+				}}
+			/>,
+		);
+		await waitFor(() => expect(readerApi).not.toBeNull());
+		const target = {
+			kind: "text-quote" as const,
+			sectionReference: "nanahoshi-epub-1",
+			exact: "対象",
+		};
+		act(() => {
+			readerApi?.navigateToTextAnchor?.(target);
+			releaseFonts();
+		});
+		await waitFor(() =>
+			expect(readerApi?.getPosition()?.exploredCharCount).toBe(6),
+		);
+		expect(
+			view.container.querySelector("[data-reader-position-overlay]"),
+		).toBeNull();
+		act(() => {
+			readerApi?.navigateToTextAnchor?.({
+				...target,
+				sectionReference: "nanahoshi-epub-0",
+			});
+			readerApi?.navigateToTextAnchor?.(target);
+			releaseChapter();
+		});
+		await act(async () => {
+			await pendingChapter;
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+		expect(view.container.querySelector(".book-content-container")?.id).toBe(
+			"nanahoshi-epub-1",
+		);
+		expect(readerApi?.getPosition()?.exploredCharCount).toBe(6);
+	} finally {
+		releaseFonts();
+		releaseChapter();
+		cleanup();
+		Object.defineProperty(document, "fonts", {
+			configurable: true,
+			value: previousFonts,
+		});
+	}
+});
+
+test("loads the initial page after an effect cleanup and restart", async () => {
+	HTMLElement.prototype.scrollTo = () => {};
+	const view = render(
+		<BookReaderPaginated
+			{...defaultReaderSettings}
+			htmlContent='<div id="nanahoshi-epub-0"><p>本文です。</p></div>'
+			verticalMode={false}
+			theme={getReaderTheme(defaultReaderSettings.theme)}
+			reservePlayerSpace={false}
+			navigationBlocked={false}
+			sections={[
+				{
+					reference: "nanahoshi-epub-0",
+					characters: 5,
+					charactersWeight: 5,
+					startCharacter: 0,
+				},
+			]}
+			onPositionChange={() => {}}
+			onSectionProgressChange={() => {}}
+			apiRef={() => {}}
+		/>,
+		{ reactStrictMode: true },
+	);
+	await waitFor(() => {
+		expect(
+			view.container.querySelector(".book-content-container")?.textContent,
+		).toBe("本文です。");
+		expect(
+			view.container.querySelector("[data-reader-position-overlay]"),
+		).toBeNull();
 	});
 });

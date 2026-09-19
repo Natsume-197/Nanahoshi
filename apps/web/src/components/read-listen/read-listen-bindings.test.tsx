@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import type { ComponentProps } from "react";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
@@ -200,7 +200,7 @@ describe("Read & Listen player bindings", () => {
 		}
 	});
 
-	test("finishes following into the next horizontal multi-column spread", () => {
+	test("does not undo a sentence page turn by centering its multi-page paragraph", () => {
 		document.body.innerHTML =
 			'<main class="book-content book-content--paginated"><div class="book-content-container" style="column-count: 2"><section id="nanahoshi-epub-chapter-xhtml"><p>次の文です。</p></section></div></main>';
 		const navigateToTextAnchor = mock(() => {});
@@ -243,8 +243,8 @@ describe("Read & Listen player bindings", () => {
 
 			pendingFrames.shift()?.(0);
 			expect(navigateToTextAnchor).toHaveBeenCalledTimes(1);
-			expect(scrollIntoView).toHaveBeenCalledTimes(1);
-			expect(snapToPage).toHaveBeenCalledTimes(1);
+			expect(scrollIntoView).not.toHaveBeenCalled();
+			expect(snapToPage).not.toHaveBeenCalled();
 		} finally {
 			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
 		}
@@ -565,4 +565,114 @@ describe("Read & Listen player bindings", () => {
 
 		expect(seekTo).toHaveBeenCalledWith(9);
 	});
+});
+
+describe("active highlight document lifecycle", () => {
+	for (const followText of [true, false]) {
+		for (const scenario of [
+			"late section",
+			"replaced text",
+			"replaced section",
+		] as const) {
+			test(`recovers the current sentence after ${scenario} (follow=${followText})`, async () => {
+				document.body.innerHTML = '<main id="surface"></main>';
+				const surface = document.getElementById("surface");
+				if (!surface) throw new Error("Missing fixture surface");
+				const markup =
+					'<section id="nanahoshi-epub-chapter-xhtml"><p>現在の文。</p></section>';
+				if (scenario !== "late section") surface.innerHTML = markup;
+				const highlights = new Map<string, Set<Range>>();
+				Object.defineProperty(window, "CSS", {
+					configurable: true,
+					value: { highlights },
+				});
+				Object.defineProperty(window, "Highlight", {
+					configurable: true,
+					value: class extends Set<Range> {
+						constructor(...ranges: Range[]) {
+							super(ranges);
+						}
+					},
+				});
+				const frames = new Map<number, FrameRequestCallback>();
+				let frameId = 0;
+				const originalRequest = globalThis.requestAnimationFrame;
+				const originalCancel = globalThis.cancelAnimationFrame;
+				globalThis.requestAnimationFrame = (callback) => {
+					frames.set(++frameId, callback);
+					return frameId;
+				};
+				globalThis.cancelAnimationFrame = (id) => {
+					frames.delete(id);
+				};
+				const flushFrame = async () => {
+					await act(async () => {
+						const pending = [...frames.values()];
+						frames.clear();
+						for (const callback of pending) callback(0);
+						await Promise.resolve();
+					});
+				};
+				const cue = {
+					id: "current",
+					text: {
+						kind: "text-quote" as const,
+						sectionRef: "chapter.xhtml",
+						exact: "現在の文。",
+					},
+					audioFileIndex: 0,
+					startMs: 0,
+					endMs: 10000,
+					globalStartMs: 0,
+					globalEndMs: 10000,
+				};
+				const navigateToTextAnchor = mock(() => {});
+				try {
+					render(
+						<ActiveReadListenCue
+							cue={cue}
+							sectionTargets={[{ anchor: cue.text, value: cue }]}
+							followText={followText}
+							sourceFormat="epub"
+							readerApiRef={{
+								current: { navigateToTextAnchor } as unknown as BookReaderApi,
+							}}
+						/>,
+					);
+					for (let frame = 0; frame < 40; frame++) await flushFrame();
+					await act(async () => {
+						if (scenario !== "replaced text") surface.innerHTML = markup;
+						else {
+							const paragraph = surface.querySelector("p");
+							if (!paragraph) throw new Error("Missing fixture paragraph");
+							paragraph.textContent = "現在の文。";
+						}
+						await Promise.resolve();
+					});
+					await flushFrame();
+					await flushFrame();
+					const ranges = [...(highlights.get("read-listen-active") ?? [])];
+					expect(ranges.map((range) => range.toString()).join("")).toBe(
+						cue.text.exact,
+					);
+					expect(
+						ranges.every((range) => range.startContainer.isConnected),
+					).toBe(true);
+					expect(navigateToTextAnchor).toHaveBeenCalledTimes(
+						followText ? 1 : 0,
+					);
+					cleanup();
+					surface.innerHTML = markup;
+					await flushFrame();
+					await flushFrame();
+					expect(highlights.has("read-listen-active")).toBe(false);
+					expect(frames.size).toBe(0);
+				} finally {
+					cleanup();
+					globalThis.requestAnimationFrame = originalRequest;
+					globalThis.cancelAnimationFrame = originalCancel;
+				}
+			});
+		}
+	}
 });

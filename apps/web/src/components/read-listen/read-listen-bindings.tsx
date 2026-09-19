@@ -118,25 +118,6 @@ function shouldMoveActiveCue(
 	return vertical.scroll || horizontal.scroll;
 }
 
-function isHorizontalMultiColumnPagination(
-	resolved: Parameters<typeof installReadListenActiveHighlight>[0],
-) {
-	const content = resolved.segments[0]?.node.parentElement?.closest(
-		".book-content--paginated:not(.book-content--writing-vertical-rl)",
-	);
-	const container = content?.querySelector<HTMLElement>(
-		".book-content-container",
-	);
-	if (!container) return false;
-	return (
-		Number.parseInt(
-			container.ownerDocument.defaultView?.getComputedStyle(container)
-				.columnCount ?? "1",
-			10,
-		) > 1
-	);
-}
-
 function semanticReaderAnchor(
 	target: ReadListenTimelineCue["text"],
 	sectionReference: string,
@@ -219,6 +200,7 @@ export function ActiveReadListenCue({
 		let cleanupHighlight: (() => void) | undefined;
 		let attempts = 0;
 		let readerOwnsFollowNavigation = false;
+		let installedSection: HTMLElement | null = null;
 		const sectionReference = toReaderSectionReference(
 			cue.text.sectionRef,
 			sourceFormat,
@@ -245,6 +227,9 @@ export function ActiveReadListenCue({
 			if (
 				followText &&
 				attempts === 0 &&
+				!document
+					.getElementById(sectionReference)
+					?.closest(".book-content--continuous") &&
 				readerApiRef.current?.navigateToTextAnchor
 			) {
 				readerOwnsFollowNavigation = true;
@@ -275,29 +260,76 @@ export function ActiveReadListenCue({
 				}
 				return;
 			}
+			cleanupHighlight?.();
 			cleanupHighlight =
 				installReadListenActiveHighlight(resolved) ?? undefined;
-			const horizontalMultiColumn = isHorizontalMultiColumnPagination(resolved);
+			installedSection = section;
+			if (followText) {
+				const segment = resolved.segments[0];
+				const range = document.createRange();
+				if (segment) {
+					range.setStart(segment.node, segment.startOffset);
+					range.setEnd(
+						segment.node,
+						Math.min(segment.endOffset, segment.startOffset + 1),
+					);
+					const rect = range.getBoundingClientRect();
+					console.debug(
+						"[DEBUG-page-follow]",
+						JSON.stringify({
+							id: cue.id,
+							anchor: readerApiRef.current?.resolveTextAnchor?.(readerAnchor),
+							x: rect.x,
+							y: rect.y,
+							width: window.innerWidth,
+							height: window.innerHeight,
+						}),
+					);
+				}
+			}
 			if (
 				followText &&
-				(!readerOwnsFollowNavigation || horizontalMultiColumn) &&
+				!readerOwnsFollowNavigation &&
 				shouldMoveActiveCue(resolved, forceFollow)
 			) {
-				// In a horizontal multi-column spread, range geometry is only stable
-				// after the paginated API has mounted its target. Let the browser make
-				// that final visual page change from the resolved sentence.
-				resolved.segments[0]?.node.parentElement?.scrollIntoView({
-					behavior: horizontalMultiColumn ? "auto" : followScrollBehavior(),
-					block: "center",
-					inline: "center",
-				});
-				if (horizontalMultiColumn) readerApiRef.current?.snapToPage?.();
+				// A paginated reader already aligned the sentence to its spread.
+				// Centering its parent paragraph can undo that navigation when the
+				// paragraph spans several pages.
+				if (readerApiRef.current?.navigateToTextAnchor) {
+					readerApiRef.current.navigateToTextAnchor(readerAnchor);
+				} else {
+					resolved.segments[0]?.node.parentElement?.scrollIntoView({
+						behavior: followScrollBehavior(),
+						block: "center",
+						inline: "center",
+					});
+				}
 			}
 			if (followText) onFollowSettled?.();
 		}
 
+		// A section can arrive after the frame retry budget, or be replaced while
+		// the same cue is active. Rebind to its live text without navigating again.
+		const observer = new window.MutationObserver((mutations) => {
+			const section = document.getElementById(sectionReference);
+			if (!section) return;
+			if (
+				section === installedSection &&
+				!mutations.some((mutation) => section.contains(mutation.target))
+			)
+				return;
+			invalidateReadListenPositionIndex(section, sectionTargets);
+			cancelAnimationFrame(animationFrame);
+			animationFrame = requestAnimationFrame(install);
+		});
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+		});
 		install();
 		return () => {
+			observer.disconnect();
 			cancelled = true;
 			cancelAnimationFrame(animationFrame);
 			cleanupHighlight?.();

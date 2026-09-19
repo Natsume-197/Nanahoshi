@@ -61,3 +61,16 @@ describe("reader text anchors", () => {
 		).toBe(1);
 	});
 });
+
+test("finds a narrated sentence across ruby fallback parentheses", () => {
+	const section = sectionFromHtml(
+		"<p>前文。</p><p>遠くの<ruby>山々<rp>（</rp><rt>やまやま</rt><rp>）</rp></ruby>が見える。</p>",
+	);
+	expect(
+		resolveReaderTextAnchorOffset(section, {
+			kind: "text-quote",
+			sectionReference: "chapter",
+			exact: "遠くの山々が見える。",
+		}),
+	).toBe(2);
+});

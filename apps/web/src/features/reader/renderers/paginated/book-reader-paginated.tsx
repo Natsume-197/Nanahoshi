@@ -495,6 +495,7 @@ export function BookReaderPaginated({
 				// freshly mounted section at page zero before a backwards/restore
 				// transition places its real page, making the footer briefly jump.
 				onRendered?.();
+				setAllowDisplay(true);
 				scheduleAdjacentStaging(index);
 			});
 		});
@@ -522,7 +523,16 @@ export function BookReaderPaginated({
 		const sectionIndex = findSectionIndex(anchor.sectionReference);
 		const section = s.sectionEls[sectionIndex];
 		if (sectionIndex < 0 || !section || !s.calculator) return undefined;
-		const sectionOffset = resolveReaderTextAnchorOffset(section, anchor);
+		// Lazy section descriptors contain no text. Resolve against the mounted
+		// section once its asynchronous load has completed.
+		const mounted = contentElRef.current;
+		const source =
+			s.sectionIndex === sectionIndex &&
+			mounted?.hasChildNodes() &&
+			mounted.id === section.id
+				? mounted
+				: section;
+		const sectionOffset = resolveReaderTextAnchorOffset(source, anchor);
 		return sectionOffset === undefined
 			? undefined
 			: s.calculator.getSectionStartCharCount(sectionIndex) + sectionOffset;
@@ -531,20 +541,24 @@ export function BookReaderPaginated({
 	const navigateToTextAnchor = (anchor: ReaderTextAnchor) => {
 		const s = internalsRef.current;
 		const sectionIndex = findSectionIndex(anchor.sectionReference);
-		const targetCharacter = resolveTextAnchor(anchor);
-		if (sectionIndex < 0 || targetCharacter === undefined) {
-			navigateToSection(anchor.sectionReference);
-			return;
-		}
+		if (sectionIndex < 0) return;
 
 		const scrollToAnchor = () => {
+			const targetCharacter = resolveTextAnchor(anchor);
+			if (targetCharacter === undefined) return;
 			const position = s.calculator?.getScrollPosByCharCount(targetCharacter);
 			if (position === undefined || position < 0) return;
 			s.previousIntendedCount = targetCharacter;
 			s.pageManager?.scrollTo(position, false);
 			reportExplored(targetCharacter);
 		};
-		if (s.sectionIndex === sectionIndex) {
+		if (
+			s.sectionIndex === sectionIndex &&
+			contentElRef.current?.hasChildNodes() &&
+			contentElRef.current.id === s.sectionEls[sectionIndex]?.id
+		) {
+			// A newer cue in the mounted chapter cancels an older pending jump.
+			s.renderGeneration += 1;
 			scrollToAnchor();
 		} else {
 			renderSection(sectionIndex, scrollToAnchor);
@@ -558,6 +572,7 @@ export function BookReaderPaginated({
 
 		const s = internalsRef.current;
 		let cancelled = false;
+		const initialRenderGeneration = s.renderGeneration;
 		const layoutScheduler = createReaderLayoutScheduler({
 			run: (transaction) => {
 				document.fonts.ready.then(() => {
@@ -759,6 +774,12 @@ export function BookReaderPaginated({
 
 			// load-time widths assume a full-height page
 			refitImages();
+			// The API is available before fonts settle. A requested cue owns the
+			// destination if narration already navigated during startup.
+			if (s.renderGeneration !== initialRenderGeneration) {
+				scheduleRelayout();
+				return;
+			}
 
 			// `exploredCharCount` is the canonical coordinate shared by every
 			// renderer. A chapter locator remains useful for cross-document restore,
@@ -778,7 +799,6 @@ export function BookReaderPaginated({
 					}
 				}
 				reportExplored(s.previousIntendedCount);
-				setAllowDisplay(true);
 			});
 		};
 

@@ -103,7 +103,13 @@ export function bindReadListenManualFollowPause({
 		paused = true;
 		onPause();
 	};
+	const isPaginatedTouch = (event: Event) =>
+		isReaderTextEvent(surface, event.target) &&
+		Boolean(
+			eventElement(surface, event.target)?.closest(".book-content--paginated"),
+		);
 	const onPointerMove = (event: PointerEvent) => {
+		if (event.pointerType === "touch" && isPaginatedTouch(event)) return;
 		if (
 			event.buttons === 1 &&
 			(event.movementX !== 0 || event.movementY !== 0) &&
@@ -116,7 +122,13 @@ export function bindReadListenManualFollowPause({
 		if (isReaderTextEvent(surface, event.target)) pause();
 	};
 	const onTouchMove = (event: TouchEvent) => {
-		if (isReaderTextEvent(surface, event.target)) pause();
+		if (!isPaginatedTouch(event) && isReaderTextEvent(surface, event.target))
+			pause();
+	};
+	const onTouchEnd = (event: TouchEvent) => {
+		// The paginated renderer consumes touchend after recognizing a page
+		// swipe. Touch/pointer movement alone may just be jitter during a tap.
+		if (event.defaultPrevented && isPaginatedTouch(event)) pause();
 	};
 	const onKeyDown = (event: KeyboardEvent) => {
 		if (
@@ -138,11 +150,13 @@ export function bindReadListenManualFollowPause({
 	surface.addEventListener("pointermove", onPointerMove, { passive: true });
 	surface.addEventListener("wheel", onWheel, { passive: true });
 	surface.addEventListener("touchmove", onTouchMove, { passive: true });
+	surface.addEventListener("touchend", onTouchEnd, { passive: true });
 	surface.ownerDocument.addEventListener("keydown", onKeyDown, true);
 	return () => {
 		surface.removeEventListener("pointermove", onPointerMove);
 		surface.removeEventListener("wheel", onWheel);
 		surface.removeEventListener("touchmove", onTouchMove);
+		surface.removeEventListener("touchend", onTouchEnd);
 		surface.ownerDocument.removeEventListener("keydown", onKeyDown, true);
 	};
 }
