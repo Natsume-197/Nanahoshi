@@ -36,7 +36,10 @@ export const pathAccess = {
 	async assertAccessible(paths: string[]) {
 		for (const p of paths) {
 			try {
-				await fs.access(path.normalize(p));
+				const target = path.normalize(p);
+				const stat = await fs.stat(target);
+				if (!stat.isDirectory()) throw new Error("Not a directory");
+				await fs.access(target, fs.constants.R_OK | fs.constants.X_OK);
 			} catch {
 				throw new BadRequestError(
 					`Folder is not accessible on the server: ${p} — check the path (and, on Docker, that it is mounted into the container).`,
@@ -71,7 +74,7 @@ export const pathAccess = {
 					return { state: "not_a_directory", reason: "Not a folder" };
 				}
 				try {
-					await fs.access(target, fs.constants.R_OK);
+					await fs.access(target, fs.constants.R_OK | fs.constants.X_OK);
 				} catch (error) {
 					const code = (error as NodeJS.ErrnoException).code;
 					return { state: "unreadable", reason: `Not readable (${code})` };

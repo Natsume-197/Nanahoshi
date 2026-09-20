@@ -32,6 +32,9 @@ set_cleanup_defaults() {
 	export DB_NAME="${DB_NAME:-nanahoshi_ci}"
 	export REDIS_PASSWORD="${REDIS_PASSWORD:-cleanup-only}"
 	export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-cleanup-only-secret-with-32-characters}"
+	export PUID="${PUID:-1000}"
+	export PGID="${PGID:-1000}"
+	export CI_BOOKS_PATH="${CI_BOOKS_PATH:-/tmp}"
 }
 
 compose() {
@@ -88,6 +91,11 @@ export DB_PASSWORD="$(random_hex 24)"
 export DB_NAME="nanahoshi_ci_$(random_hex 4)"
 export REDIS_PASSWORD="$(random_hex 24)"
 export BETTER_AUTH_SECRET="$(random_hex 32)"
+export PUID="$(id -u)"
+export PGID="$(id -g)"
+books_state_dir="$(mktemp -d)"
+cp scripts/fixtures/installation.epub "$books_state_dir/installation.epub"
+export CI_BOOKS_PATH="$books_state_dir"
 
 for secret in \
 	"$NAMESPACE_UUID" "$DOWNLOAD_SECRET" "$DB_USER" "$DB_PASSWORD" \
@@ -119,6 +127,7 @@ finish() {
 	set +e
 	capture_diagnostics "$status"
 	if [[ -n "${browser_state_dir:-}" ]]; then rm -rf "$browser_state_dir"; fi
+	if [[ -n "${books_state_dir:-}" ]]; then rm -rf "$books_state_dir"; fi
 	compose down --volumes --remove-orphans >/dev/null 2>&1
 	local cleanup_status=$?
 	if (( cleanup_status != 0 )); then
@@ -187,20 +196,25 @@ if compose logs --no-color server 2>&1 | grep -Eiq \
 	exit 1
 fi
 
-# Both supervised processes must run as the unprivileged application user.
+# Both supervised processes must run as the configured host identity.
 compose exec -T server sh -eu -c '
 for service in api worker; do
   pid=$(/command/s6-svstat -o pid /run/service/$service)
   uid=$(awk "/^Uid:/ {print \$2}" /proc/$pid/status)
-  test "$uid" = "$(id -u nanahoshi)"
+  gid=$(awk "/^Gid:/ {print \$2}" /proc/$pid/status)
+  test "$uid" = "$PUID"
+  test "$gid" = "$PGID"
   test "$uid" != 0
-done'
+done
+/command/s6-applyuidgid -u "$PUID" -g "$PGID" -G "$PGID" sh -eu -c '\''
+  touch /books/.nanahoshi-smoke-write /app/apps/server/data/.nanahoshi-smoke-write
+  rm /books/.nanahoshi-smoke-write /app/apps/server/data/.nanahoshi-smoke-write
+'\'''
 
 browser_state_dir="$(mktemp -d)"
 export INSTALLATION_E2E_URL="http://127.0.0.1:${api_port}"
 export INSTALLATION_E2E_STATE="$browser_state_dir/state.json"
 export INSTALLATION_E2E_DISPOSABLE=yes
-compose exec -T server mkdir -p /app/apps/server/data/books
 bun --no-env-file run scripts/installation-e2e.ts
 compose up -d --force-recreate --wait --wait-timeout 120 server
 INSTALLATION_E2E_PHASE=verify bun --no-env-file run scripts/installation-e2e.ts

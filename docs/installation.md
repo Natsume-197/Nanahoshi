@@ -3,7 +3,7 @@
 Nanahoshi runs with Docker and Docker Compose v2. The stack contains the application
 (web + API and a background worker in one container), PostgreSQL/PGroonga and Redis.
 [s6-overlay](https://github.com/just-containers/s6-overlay) supervises the two
-application processes, which run as the unprivileged `nanahoshi` user.
+application processes, which run unprivileged as the configured `PUID:PGID`.
 The release workflow publishes Linux amd64 and arm64 images.
 
 ## First installation
@@ -13,6 +13,13 @@ Create a folder and save these two files in it:
 - [`docker-compose.yml`](../docker-compose.yml)
 - [`.env.example`](../.env.example), renamed to `.env`
 
+Create the default host library folder before starting Docker so it belongs to
+your user:
+
+```sh
+mkdir -p books
+```
+
 Edit `.env` with your public URL:
 
 ```dotenv
@@ -20,9 +27,10 @@ APP_PORT=7331
 APP_URL=http://localhost:7331
 ```
 
-In `docker-compose.yml`, replace `./books` in `./books:/books:ro` with your host
-book directory. `APP_PORT` selects the host port; the container continues to use
-its internal port `3000`.
+The local `./books` directory is mounted read/write at `/books`, so scans,
+uploads and file management all use the same location. To use another host
+directory, replace `./books` in `docker-compose.yml`. `APP_PORT` selects the host
+port; the container continues to use its internal port `3000`.
 
 For access from a phone or another computer, set `APP_URL` to your server's LAN
 address, for example `http://192.168.1.20:7331`. Changing `APP_PORT` also requires
@@ -64,20 +72,25 @@ PostgreSQL, application data and Redis queues use named volumes. Keep the Compos
 project name when upgrading an existing installation so it uses the same volumes.
 Do not use `docker compose down -v` unless you intend to erase this installation.
 
-The external books mount is read-only by default. Allow directory traversal and
-file reads for the container user on the host/NAS; an inaccessible mount cannot be
-scanned. Uploads write to the selected library folder, so `/books:ro` cannot accept
-uploads. To upload into your host book folder, change the mount to `./books:/books`
-and grant write access to the container user.
-
-Alternatively, keep the external mount read-only and create a folder in the
-application volume:
+On Linux and NAS installations, set `PUID` and `PGID` to the numeric owner of
+the host books directory. They default to `1000:1000`; find the correct values
+with:
 
 ```sh
-docker compose exec server mkdir -p /app/apps/server/data/books
+id -u
+id -g
 ```
 
-Create a library pointing to `/app/apps/server/data/books` and upload there.
+Nanahoshi starts as root only long enough to repair ownership of its internal
+`server_data` volume, then API and worker run as `PUID:PGID`. It never changes
+ownership of `/books`, because that directory may be shared with other programs.
+Startup fails with an actionable error when `/books` is not writable by the
+configured identity. Fix the host folder ownership or ACLs, or choose the correct
+IDs; do not use `chmod 777`.
+
+Existing installations that previously mounted `/books:ro` must remove `:ro`,
+set `PUID` and `PGID`, then recreate the server container with `docker compose
+up -d`.
 
 Check startup and installation problems with:
 

@@ -2,4 +2,5 @@
 set -eu
 cd /app/apps/server
 export PROCESS_ROLE=worker
-exec bun --smol run dist/worker.mjs
+exec /command/s6-applyuidgid -u "${PUID:-1000}" -g "${PGID:-1000}" -G "${PGID:-1000}" \
+	bun --smol run dist/worker.mjs

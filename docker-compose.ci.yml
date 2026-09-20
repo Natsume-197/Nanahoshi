@@ -48,9 +48,11 @@ services:
       REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}"
       BETTER_AUTH_URL: http://127.0.0.1:${CI_API_PORT:?CI_API_PORT is required}
+      PUID: "${PUID:?PUID is required}"
+      PGID: "${PGID:?PGID is required}"
     volumes:
       - app-data:/app/apps/server/data
-      - ./scripts/fixtures/installation.epub:/books/installation.epub:ro
+      - ${CI_BOOKS_PATH:?CI_BOOKS_PATH is required}:/books
     depends_on:
       postgres:
         condition: service_healthy

@@ -58,3 +58,20 @@ describe("pathAccess.probe", () => {
 		expect(await pathAccess.probe(messy)).toEqual({ state: "ok" });
 	});
 });
+
+describe("pathAccess.assertAccessible", () => {
+	test.skipIf(process.getuid?.() === 0)(
+		"rejects a folder that exists but cannot be traversed",
+		async () => {
+			const locked = path.join(root, "library");
+			await fs.chmod(locked, 0o000);
+			try {
+				await expect(pathAccess.assertAccessible([locked])).rejects.toThrow(
+					"Folder is not accessible",
+				);
+			} finally {
+				await fs.chmod(locked, 0o755);
+			}
+		},
+	);
+});

@@ -9,7 +9,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
 1. Create a folder:
 
    ```sh
-   mkdir nanahoshi && cd nanahoshi
+   mkdir -p nanahoshi/books && cd nanahoshi
    ```
 
 2. Inside create `docker-compose.yml` with this content:
@@ -23,10 +23,13 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
        image: ghcr.io/natsume-197/nanahoshi:latest
        restart: unless-stopped
        env_file: .env
+       environment:
+         PUID: ${PUID:-1000}
+         PGID: ${PGID:-1000}
        ports: ["${APP_PORT:-7331}:3000"]
        volumes:
          - server_data:/app/apps/server/data
-         - ./books:/books:ro
+         - ./books:/books
        depends_on:
          postgres: { condition: service_healthy }
          redis: { condition: service_healthy }
@@ -66,7 +69,9 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
      redis_data:
    ```
 
-3. Save [`.env.example`](.env.example) as `.env`, fill in your URL and required secrets, then start:
+3. Save [`.env.example`](.env.example) as `.env`, fill in your URL and required
+   secrets, and set `PUID` and `PGID` when their defaults do not match the owner
+   of your books folder. Then start:
 
    ```sh
    docker compose up -d

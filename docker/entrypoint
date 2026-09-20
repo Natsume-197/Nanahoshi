@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+
+app_uid="${PUID:-1000}"
+app_gid="${PGID:-1000}"
+
+validate_id() {
+	name="$1"
+	value="$2"
+	case "$value" in
+		'' | *[!0-9]*)
+			echo "Nanahoshi: $name must be a positive numeric ID." >&2
+			exit 2
+			;;
+	esac
+	if [ "$value" -eq 0 ]; then
+		echo "Nanahoshi: $name must be a positive numeric ID." >&2
+		exit 2
+	fi
+}
+
+check_writable() {
+	directory="$1"
+	if ! /command/s6-applyuidgid -u "$app_uid" -g "$app_gid" -G "$app_gid" \
+		sh -c 'touch "$1/.nanahoshi-permission-test" && rm -f "$1/.nanahoshi-permission-test"' sh "$directory"; then
+		echo "Nanahoshi: $directory is not writable by PUID:PGID $app_uid:$app_gid." >&2
+		echo "Set PUID/PGID to the owner of the host folder, or fix its ownership/ACLs." >&2
+		exit 1
+	fi
+}
+
+validate_id PUID "$app_uid"
+validate_id PGID "$app_gid"
+
+# Only Nanahoshi-owned state is repaired automatically. Never chown /books:
+# it may be an existing library shared with other applications.
+mkdir -p /app/apps/server/data/books /app/apps/server/data/converted /home/nanahoshi
+chown -R "$app_uid:$app_gid" /app/apps/server/data /home/nanahoshi
+check_writable /app/apps/server/data
+
+# The standard Compose mount is intentionally read/write. If it is present,
+# fail at startup with a useful error instead of producing half-processed books.
+if [ -e /books ]; then
+	if [ ! -d /books ]; then
+		echo "Nanahoshi: /books exists but is not a directory." >&2
+		exit 1
+	fi
+	check_writable /books
+fi
+
+exec /init

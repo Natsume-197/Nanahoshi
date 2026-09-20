@@ -136,7 +136,9 @@ WORKDIR /app/apps/server
 RUN mkdir -p data/converted \
 	&& chown -R nanahoshi:nanahoshi /app/apps/server /home/nanahoshi
 ENV ENVIRONMENT=production \
-	HOME=/home/nanahoshi
+	HOME=/home/nanahoshi \
+	PUID=1000 \
+	PGID=1000
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
@@ -168,11 +170,10 @@ COPY --chmod=755 docker/s6/worker-run /etc/services.d/worker/run
 COPY --chmod=755 docker/s6/finish /etc/services.d/api/finish
 COPY --chmod=755 docker/s6/finish /etc/services.d/worker/finish
 COPY --chmod=755 docker/s6/healthcheck /usr/local/bin/nanahoshi-healthcheck
-RUN chown nanahoshi:nanahoshi /run
+COPY --chmod=755 docker/entrypoint /usr/local/bin/nanahoshi-entrypoint
 ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2 S6_SERVICES_GRACETIME=30000
-USER nanahoshi
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 	CMD ["/usr/local/bin/nanahoshi-healthcheck"]
-ENTRYPOINT ["/init"]
+ENTRYPOINT ["/usr/local/bin/nanahoshi-entrypoint"]
 CMD []
