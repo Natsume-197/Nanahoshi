@@ -28,6 +28,8 @@ export async function clearOfflineCaches(): Promise<void> {
 	readerStorage.clearReaderStorage();
 	try {
 		window.localStorage.removeItem("nanahoshi:recent-searches");
+		window.localStorage.removeItem("nanahoshi:recent-search-items");
+		window.localStorage.removeItem("nanahoshi:search-history");
 		window.localStorage.removeItem("kindle-email");
 	} catch {
 		// no-op (private mode)

@@ -10,6 +10,7 @@ import {
 	Headphones,
 	MagnifyingGlass,
 	User,
+	X,
 } from "@phosphor-icons/react";
 import {
 	useInfiniteQuery,
@@ -41,7 +42,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
-import { useRecentSearches } from "@/hooks/use-recent-searches";
+import {
+	searchHistoryEntryKey,
+	useSearchHistory,
+} from "@/hooks/use-search-history";
 import { PAGE_GUTTER } from "@/lib/page-layout";
 import {
 	getLocationRestoreKey,
@@ -354,6 +358,7 @@ function MediaResultRow({
 	cover,
 	authors,
 	mediaType,
+	onSelect,
 }: {
 	uuid: string;
 	title: string | null;
@@ -361,6 +366,7 @@ function MediaResultRow({
 	cover: string | null;
 	authors?: { name: string }[] | null;
 	mediaType: "ebook" | "audiobook";
+	onSelect?: () => void;
 }) {
 	const isAudiobook = mediaType === "audiobook";
 	const displayTitle = title ?? filename;
@@ -371,6 +377,7 @@ function MediaResultRow({
 			params={{ uuid }}
 			preload="intent"
 			className={rowClassName}
+			onClick={onSelect}
 		>
 			<ResultRowContent
 				artwork={
@@ -396,6 +403,7 @@ function MediaResultRow({
 			params={{ uuid }}
 			preload="intent"
 			className={rowClassName}
+			onClick={onSelect}
 		>
 			<ResultRowContent
 				artwork={
@@ -427,7 +435,13 @@ function MediaResultRow({
 	);
 }
 
-function RankedResultRow({ hit }: { hit: TopHit }) {
+function RankedResultRow({
+	hit,
+	onSelect,
+}: {
+	hit: TopHit;
+	onSelect?: (hit: TopHit) => void;
+}) {
 	if (hit.type === "book" || hit.type === "audiobook") {
 		return (
 			<MediaResultRow
@@ -437,11 +451,14 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 				cover={hit.cover}
 				authors={hit.authors}
 				mediaType={hit.type === "book" ? "ebook" : "audiobook"}
+				onSelect={() => onSelect?.(hit)}
 			/>
 		);
 	}
 	if (hit.type === "read-listen") {
-		return <ReadListenResultRow pairing={hit} />;
+		return (
+			<ReadListenResultRow pairing={hit} onSelect={() => onSelect?.(hit)} />
+		);
 	}
 
 	let artwork: ReactNode;
@@ -521,7 +538,7 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 	}
 
 	return (
-		<HitLink hit={hit} className={rowClassName}>
+		<HitLink hit={hit} className={rowClassName} onClick={() => onSelect?.(hit)}>
 			<ResultRowContent
 				artwork={artwork}
 				title={title}
@@ -532,7 +549,22 @@ function RankedResultRow({ hit }: { hit: TopHit }) {
 	);
 }
 
-const renderRankedResult = (hit: TopHit) => <RankedResultRow hit={hit} />;
+function hitTitle(hit: TopHit): string {
+	switch (hit.type) {
+		case "book":
+		case "audiobook":
+			return hit.title ?? hit.filename;
+		case "read-listen":
+			return hit.audiobook.title;
+		case "series":
+		case "author":
+		case "narrator":
+		case "collection":
+			return hit.name;
+		case "user":
+			return hit.displayUsername ?? hit.name;
+	}
+}
 
 function InfiniteResultsLoader({
 	hasNextPage,
@@ -657,7 +689,13 @@ function ReadListenArtwork({ pairing }: { pairing: ReadListenSearchResult }) {
 	);
 }
 
-function ReadListenResultRow({ pairing }: { pairing: ReadListenSearchResult }) {
+function ReadListenResultRow({
+	pairing,
+	onSelect,
+}: {
+	pairing: ReadListenSearchResult;
+	onSelect?: () => void;
+}) {
 	const title = pairing.audiobook.title;
 	const authorText = formatNames(pairing.audiobook.authors);
 
@@ -672,6 +710,7 @@ function ReadListenResultRow({ pairing }: { pairing: ReadListenSearchResult }) {
 				params={{ uuid: pairing.audiobook.uuid }}
 				preload="intent"
 				className={rowClassName}
+				onClick={onSelect}
 			>
 				<ResultRowContent
 					artwork={<ReadListenArtwork pairing={pairing} />}
@@ -729,7 +768,7 @@ function SearchPage() {
 	const { q } = Route.useSearch();
 	const normalizedQuery = q.trim();
 	const shouldSearch = normalizedQuery.length >= SEARCH_MIN_QUERY_LENGTH;
-	const { recent: recentSearches, add: addRecentSearch } = useRecentSearches();
+	const { history, addQuery, addHit, remove } = useSearchHistory();
 	const router = useRouter();
 	const [filterSnapshotKey] = useState(
 		() => `${getLocationRestoreKey(router.latestLocation)}:search-filter`,
@@ -744,7 +783,7 @@ function SearchPage() {
 		setFilter("all");
 	}
 	const submitSearch = (nextQuery: string) => {
-		if (nextQuery) addRecentSearch(nextQuery);
+		if (nextQuery) addQuery(nextQuery);
 		void router.navigate({
 			to: "/dashboard/search",
 			search: { q: nextQuery },
@@ -982,6 +1021,14 @@ function SearchPage() {
 			topSearch?.hits ?? [],
 		);
 	}, [booksData, audiobooksData, normalizedQuery, topSearch]);
+	const addSearchHit = useCallback(
+		(hit: TopHit) => addHit(hit, normalizedQuery),
+		[addHit, normalizedQuery],
+	);
+	const renderRankedResult = useCallback(
+		(hit: TopHit) => <RankedResultRow hit={hit} onSelect={addSearchHit} />,
+		[addSearchHit],
+	);
 	const resultCounts: Record<SearchTypeFilter, number> = {
 		all: rankedResults.length,
 		books: booksTotal,
@@ -1119,6 +1166,16 @@ function SearchPage() {
 											cover={book.cover ?? null}
 											authors={book.authors}
 											mediaType="ebook"
+											onSelect={() =>
+												addSearchHit({
+													type: "book",
+													uuid: book.uuid,
+													title: book.title ?? null,
+													filename: book.filename,
+													cover: book.cover ?? null,
+													authors: book.authors ?? [],
+												})
+											}
 										/>
 									)}
 								/>
@@ -1152,6 +1209,23 @@ function SearchPage() {
 							restoreId="search-audiobook-series"
 							aspectRatio="square"
 							countMessage={m["home.series_audiobook_count"]}
+							onSeriesClick={(entry) =>
+								addSearchHit({
+									type: "series",
+									mediaType: "audiobook",
+									uuid: entry.uuid,
+									name: entry.name,
+									cover: entry.cover,
+									previewCovers: entry.cover ? [entry.cover] : [],
+									bookCount: entry.count,
+									author: entry.author
+										? {
+												uuid: entry.author.uuid ?? "",
+												name: entry.author.name,
+											}
+										: null,
+								})
+							}
 						/>
 					) : null)}
 
@@ -1177,6 +1251,16 @@ function SearchPage() {
 											cover={audiobook.cover ?? null}
 											authors={audiobook.authors}
 											mediaType="audiobook"
+											onSelect={() =>
+												addSearchHit({
+													type: "audiobook",
+													uuid: audiobook.uuid,
+													title: audiobook.title ?? null,
+													filename: audiobook.filename,
+													cover: audiobook.cover ?? null,
+													authors: audiobook.authors ?? [],
+												})
+											}
 										/>
 									)}
 								/>
@@ -1203,7 +1287,10 @@ function SearchPage() {
 							<BookContextMenuRoot mediaType="audiobook">
 								{matchingReadListenPairings.map((pairing) => (
 									<li key={pairing.id}>
-										<ReadListenResultRow pairing={pairing} />
+										<ReadListenResultRow
+											pairing={pairing}
+											onSelect={() => addSearchHit(pairing)}
+										/>
 									</li>
 								))}
 							</BookContextMenuRoot>
@@ -1217,7 +1304,7 @@ function SearchPage() {
 						<ResultSection id="search-series" title={m["nav.series"]()}>
 							{series.map((entry) => (
 								<li key={searchResultKey(entry)}>
-									<RankedResultRow hit={entry} />
+									<RankedResultRow hit={entry} onSelect={addSearchHit} />
 								</li>
 							))}
 						</ResultSection>
@@ -1230,11 +1317,10 @@ function SearchPage() {
 						<ResultSection id="search-authors" title={m["search.authors"]()}>
 							{authors.map((author) => (
 								<li key={author.uuid}>
-									<Link
-										to="/dashboard/authors/$uuid"
-										params={{ uuid: author.uuid }}
-										preload="intent"
+									<HitLink
+										hit={{ type: "author", ...author }}
 										className={rowClassName}
+										onClick={() => addSearchHit({ type: "author", ...author })}
 									>
 										<ResultRowContent
 											artwork={<PortraitArtwork name={author.name} />}
@@ -1243,7 +1329,7 @@ function SearchPage() {
 												count: author.bookCount,
 											})}
 										/>
-									</Link>
+									</HitLink>
 								</li>
 							))}
 						</ResultSection>
@@ -1259,6 +1345,9 @@ function SearchPage() {
 									<HitLink
 										hit={{ type: "narrator", ...narrator }}
 										className={rowClassName}
+										onClick={() =>
+											addSearchHit({ type: "narrator", ...narrator })
+										}
 									>
 										<ResultRowContent
 											artwork={<PortraitArtwork name={narrator.name} />}
@@ -1283,11 +1372,12 @@ function SearchPage() {
 						>
 							{collections.map((collection) => (
 								<li key={collection.id}>
-									<Link
-										to="/dashboard/collections/$collectionId"
-										params={{ collectionId: collection.id }}
-										preload="intent"
+									<HitLink
+										hit={{ type: "collection", ...collection }}
 										className={rowClassName}
+										onClick={() =>
+											addSearchHit({ type: "collection", ...collection })
+										}
 									>
 										<ResultRowContent
 											artwork={
@@ -1308,7 +1398,7 @@ function SearchPage() {
 											})}
 											meta={m["search.collections"]()}
 										/>
-									</Link>
+									</HitLink>
 								</li>
 							))}
 						</ResultSection>
@@ -1321,11 +1411,10 @@ function SearchPage() {
 						<ResultSection id="search-users" title={m["search.users"]()}>
 							{users.map((user) => (
 								<li key={user.username}>
-									<Link
-										to="/dashboard/user/$username"
-										params={{ username: user.username }}
-										preload="intent"
+									<HitLink
+										hit={{ type: "user", ...user }}
 										className={rowClassName}
+										onClick={() => addSearchHit({ type: "user", ...user })}
 									>
 										<ResultRowContent
 											artwork={
@@ -1338,7 +1427,7 @@ function SearchPage() {
 											subtitle={`@${user.username}`}
 											meta={m["search.users"]()}
 										/>
-									</Link>
+									</HitLink>
 								</li>
 							))}
 						</ResultSection>
@@ -1354,7 +1443,7 @@ function SearchPage() {
 				)}
 
 				{!normalizedQuery &&
-					(recentSearches.length > 0 ? (
+					(history.length > 0 ? (
 						<section className="space-y-2" aria-labelledby="recent-searches">
 							<h2
 								id="recent-searches"
@@ -1362,33 +1451,59 @@ function SearchPage() {
 							>
 								{m["search.recent_searches"]()}
 							</h2>
-							<ul className="divide-y divide-border/60">
-								{recentSearches.map((term) => (
-									<li key={term}>
-										<Link
-											to="/dashboard/search"
-											search={{ q: term }}
-											title={term}
-											className={compactRowClassName}
-										>
-											<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
-												<Clock
-													aria-hidden="true"
-													className="size-5 text-muted-foreground"
-												/>
-											</div>
-											<p className="min-w-0 flex-1 truncate font-medium">
-												{term}
-											</p>
-											<CaretRight
-												aria-hidden="true"
-												className="size-4 text-muted-foreground rtl:-scale-x-100"
-												weight="bold"
-											/>
-										</Link>
-									</li>
-								))}
-							</ul>
+							<BookContextMenuRoot>
+								<ul className="divide-y divide-border/60">
+									{history.map((entry) => {
+										const label =
+											entry.kind === "query"
+												? entry.query
+												: hitTitle(entry.hit);
+										return (
+											<li
+												key={searchHistoryEntryKey(entry)}
+												className="group relative"
+											>
+												{entry.kind === "hit" ? (
+													<RankedResultRow hit={entry.hit} onSelect={addHit} />
+												) : (
+													<Link
+														to="/dashboard/search"
+														search={{ q: entry.query }}
+														title={entry.query}
+														className={compactRowClassName}
+														onClick={() => addQuery(entry.query)}
+													>
+														<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
+															<Clock
+																aria-hidden="true"
+																className="size-5 text-muted-foreground"
+															/>
+														</div>
+														<p className="min-w-0 flex-1 truncate pe-10 font-medium">
+															{entry.query}
+														</p>
+														<CaretRight
+															aria-hidden="true"
+															className="size-4 text-muted-foreground rtl:-scale-x-100"
+															weight="bold"
+														/>
+													</Link>
+												)}
+												<button
+													type="button"
+													aria-label={m["search.remove_recent"]({
+														query: label,
+													})}
+													onClick={() => remove(entry)}
+													className="absolute end-8 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-100 backdrop-blur-sm hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+												>
+													<X aria-hidden="true" className="size-4" />
+												</button>
+											</li>
+										);
+									})}
+								</ul>
+							</BookContextMenuRoot>
 						</section>
 					) : (
 						<SearchEmptyState

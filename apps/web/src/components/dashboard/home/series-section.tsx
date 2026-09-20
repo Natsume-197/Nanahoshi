@@ -56,6 +56,7 @@ type SeriesSectionProps = {
 	aspectRatio?: "square" | "book";
 	/** Localized "{count} book(s)" plural message (e.g. m.home_series_book_count). */
 	countMessage: (inputs: { count: number }) => string;
+	onSeriesClick?: (series: SeriesEntry) => void;
 };
 
 export const SeriesSection = memo(function SeriesSection({
@@ -67,6 +68,7 @@ export const SeriesSection = memo(function SeriesSection({
 	restoreId,
 	aspectRatio = "book",
 	countMessage,
+	onSeriesClick,
 }: SeriesSectionProps): JSX.Element | null {
 	if (series.length === 0) {
 		return null;
@@ -98,6 +100,7 @@ export const SeriesSection = memo(function SeriesSection({
 								to: seriesDetailPath,
 								params: { uuid: s.uuid },
 								preload: "intent",
+								onClick: () => onSeriesClick?.(s),
 							}}
 							ariaLabel={s.name}
 							coverFilename={getCoverFilename(s.cover) ?? undefined}

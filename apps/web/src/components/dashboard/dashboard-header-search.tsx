@@ -21,7 +21,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { useRecentSearches } from "@/hooks/use-recent-searches";
+import {
+	searchHistoryEntryKey,
+	useSearchHistory,
+} from "@/hooks/use-search-history";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -77,7 +80,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 export function DashboardHeaderSearch() {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { recent, add: addRecent, remove: removeRecent } = useRecentSearches();
+	const { history, addQuery, addHit, remove } = useSearchHistory();
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
@@ -129,7 +132,11 @@ export function DashboardHeaderSearch() {
 	// Flat options list drives keyboard navigation; render order matches it.
 	const options: SearchOption[] =
 		mode === "recent"
-			? recent.map((q) => ({ kind: "recent", query: q }))
+			? history.map((entry) =>
+					entry.kind === "hit"
+						? { kind: "hit", hit: entry.hit }
+						: { kind: "recent", query: entry.query },
+				)
 			: hasResults
 				? [
 						...hits.map((hit) => ({ kind: "hit" as const, hit })),
@@ -139,7 +146,7 @@ export function DashboardHeaderSearch() {
 	const totalOptions = options.length;
 
 	const showDropdown =
-		open && (normalizedQuery.length > 0 || recent.length > 0);
+		open && (normalizedQuery.length > 0 || history.length > 0);
 
 	const prevDebouncedQueryRef = useRef(debouncedQuery);
 	if (debouncedQuery !== prevDebouncedQueryRef.current) {
@@ -207,7 +214,7 @@ export function DashboardHeaderSearch() {
 	function runSearch(value: string) {
 		const q = value.trim();
 		if (!q) return;
-		addRecent(q);
+		addQuery(q);
 		setOpen(false);
 		setActiveIndex(-1);
 		navigate({ to: "/dashboard/search", search: { q } });
@@ -219,6 +226,8 @@ export function DashboardHeaderSearch() {
 	}
 
 	function commitHit(hit: TopHit) {
+		if (hit.type === "user" && !hit.username) return;
+		addHit(hit, normalizedQuery || undefined);
 		switch (hit.type) {
 			case "book":
 				handleBookClick(hit.uuid);
@@ -273,7 +282,7 @@ export function DashboardHeaderSearch() {
 				});
 				break;
 			case "user":
-				if (!hit.username) break;
+				if (!hit.username) return;
 				resetAndClose();
 				navigate({
 					to: "/dashboard/user/$username",
@@ -542,48 +551,98 @@ export function DashboardHeaderSearch() {
 			className="absolute inset-x-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-black/20 shadow-xl"
 		>
 			{/* Recent searches (empty query) */}
-			{mode === "recent" && recent.length > 0 && (
+			{mode === "recent" && history.length > 0 && (
 				<div className="py-1.5">
 					<div className="px-3 pt-1 pb-1">
 						<span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 							{m["search.recent_searches"]()}
 						</span>
 					</div>
-					{recent.map((q, index) => (
-						<div
-							key={q}
-							className={cn(
-								"group flex items-center transition-colors",
-								index === activeIndex
-									? "bg-accent text-accent-foreground"
-									: "hover:bg-accent hover:text-accent-foreground",
-							)}
-						>
-							<button
-								id={`search-option-${index}`}
-								role="option"
-								aria-selected={index === activeIndex}
-								type="button"
-								onClick={() => runSearch(q)}
-								onPointerEnter={() => setActiveIndex(index)}
-								className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left"
-							>
-								<Clock className="size-4 shrink-0 text-muted-foreground/60" />
-								<span className="min-w-0 flex-1 truncate text-sm">{q}</span>
-							</button>
-							<button
-								type="button"
-								aria-label={m["search.remove_recent"]({ query: q })}
-								onClick={() => removeRecent(q)}
+					{history.map((entry, index) => {
+						if (entry.kind === "hit") {
+							const { title, subtitle } = hitTexts(entry.hit);
+							return (
+								<div
+									key={searchHistoryEntryKey(entry)}
+									className={cn(
+										"group flex items-center transition-colors",
+										index === activeIndex
+											? "bg-accent text-accent-foreground"
+											: "hover:bg-accent hover:text-accent-foreground",
+									)}
+								>
+									<button
+										id={`search-option-${index}`}
+										role="option"
+										aria-selected={index === activeIndex}
+										type="button"
+										onClick={() => commitHit(entry.hit)}
+										onPointerEnter={() => setActiveIndex(index)}
+										className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left"
+									>
+										{hitVisual(entry.hit)}
+										<div className="min-w-0 flex-1">
+											<p className="truncate font-medium text-sm">{title}</p>
+											<p className="truncate text-muted-foreground text-xs">
+												{subtitle}
+											</p>
+										</div>
+									</button>
+									<button
+										type="button"
+										aria-label={m["search.remove_recent"]({ query: title })}
+										onClick={() => remove(entry)}
+										className={cn(
+											"me-2 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-[background-color,color,opacity] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+											index === activeIndex && "opacity-100",
+										)}
+									>
+										<X aria-hidden="true" className="size-4" />
+									</button>
+								</div>
+							);
+						}
+
+						return (
+							<div
+								key={searchHistoryEntryKey(entry)}
 								className={cn(
-									"me-2 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-[background-color,color,opacity] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-									index === activeIndex && "opacity-100",
+									"group flex items-center transition-colors",
+									index === activeIndex
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-accent hover:text-accent-foreground",
 								)}
 							>
-								<X aria-hidden="true" className="size-4" />
-							</button>
-						</div>
-					))}
+								<button
+									id={`search-option-${index}`}
+									role="option"
+									aria-selected={index === activeIndex}
+									type="button"
+									onClick={() => runSearch(entry.query)}
+									onPointerEnter={() => setActiveIndex(index)}
+									className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left"
+								>
+									<Clock className="size-4 shrink-0 text-muted-foreground/60" />
+									<span className="min-w-0 flex-1 truncate text-sm">
+										{entry.query}
+									</span>
+								</button>
+								<button
+									type="button"
+									aria-label={m["search.remove_recent"]({
+										query: entry.query,
+									})}
+									onClick={() => remove(entry)}
+									className={cn(
+										"me-2 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-[background-color,color,opacity] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+										index === activeIndex && "opacity-100",
+									)}
+								>
+									<X aria-hidden="true" className="size-4" />
+								</button>
+							</div>
+						);
+					})}
 				</div>
 			)}
 

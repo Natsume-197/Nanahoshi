@@ -4,13 +4,15 @@ import { Link } from "@tanstack/react-router";
 export function HitLink({
 	hit,
 	className,
+	onClick,
 	children,
 }: {
 	hit: TopHit;
 	className?: string;
+	onClick?: () => void;
 	children: React.ReactNode;
 }) {
-	const shared = { preload: "intent", className } as const;
+	const shared = { preload: "intent", className, onClick } as const;
 	switch (hit.type) {
 		case "book":
 			return (

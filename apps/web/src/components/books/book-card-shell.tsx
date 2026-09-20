@@ -27,6 +27,7 @@ interface CardLinkProps {
 	params?: Record<string, string>;
 	search?: Record<string, unknown>;
 	preload?: "intent" | "viewport" | "render" | false;
+	onClick?: ComponentProps<"a">["onClick"];
 }
 
 interface BookCardShellProps {
