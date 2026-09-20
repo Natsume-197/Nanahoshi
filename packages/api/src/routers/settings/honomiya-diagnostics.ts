@@ -38,9 +38,7 @@ async function inspectCli(
 	config: HonomiyaConfig,
 ): Promise<HonomiyaDiagnostics["cli"]> {
 	try {
-		const cliPath = await resolveHonomiyaCliPath(
-			config.cliPath ?? process.env.HONOMIYA_CLI_PATH,
-		);
+		const cliPath = await resolveHonomiyaCliPath(config.cliPath ?? undefined);
 		const version = await readCliVersion(cliPath);
 		return { available: version !== null, version };
 	} catch {

@@ -136,8 +136,7 @@ WORKDIR /app/apps/server
 RUN mkdir -p data/converted \
 	&& chown -R nanahoshi:nanahoshi /app/apps/server /home/nanahoshi
 ENV ENVIRONMENT=production \
-	HOME=/home/nanahoshi \
-	HONOMIYA_CLI_PATH=/opt/honomiya/cli.js
+	HOME=/home/nanahoshi
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \

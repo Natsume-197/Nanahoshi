@@ -193,9 +193,7 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 				"Honomiya generation was disabled before this job started",
 			);
 		}
-		const cliPath = await resolveHonomiyaCliPath(
-			settings.cliPath ?? process.env.HONOMIYA_CLI_PATH,
-		);
+		const cliPath = await resolveHonomiyaCliPath(settings.cliPath ?? undefined);
 		if (mode === "timed-text" && !timedTextPaths?.length) {
 			throw new Error("Timed-text generation lost its validated SRT sources");
 		}

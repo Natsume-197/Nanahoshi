@@ -36,9 +36,7 @@ export async function resolveHonomiyaCliPath(
 		current = parent;
 	}
 
-	throw new Error(
-		"Honomiya CLI was not found; set HONOMIYA_CLI_PATH to its src/cli.ts",
-	);
+	throw new Error("Honomiya CLI was not found in bundled or sibling locations");
 }
 
 export function createHonomiyaAlignCommand(input: {
