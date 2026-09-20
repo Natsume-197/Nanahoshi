@@ -103,8 +103,8 @@ export class SectionCharacterStatsCalculator {
 		if (preciseRect) {
 			const viewportRect = this.scrollEl.getBoundingClientRect();
 			const renderedOffset = this.verticalMode
-				? preciseRect.top - viewportRect.top
-				: preciseRect.left - viewportRect.left;
+				? (preciseRect.top + preciseRect.bottom) / 2 - viewportRect.top
+				: (preciseRect.left + preciseRect.right) / 2 - viewportRect.left;
 			const preciseScroll = this.getVirtualScrollPos() + renderedOffset;
 			return Math.max(
 				0,

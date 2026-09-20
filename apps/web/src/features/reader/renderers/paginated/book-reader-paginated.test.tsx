@@ -33,11 +33,12 @@ Object.defineProperty(window, "innerHeight", {
 	value: 700,
 });
 let verticalAnchorTop: number | undefined;
+let horizontalAnchorLeft = 976;
 Object.defineProperty(window.Range.prototype, "getBoundingClientRect", {
 	configurable: true,
 	value: function getBoundingClientRect(this: Range) {
 		const isSecondPageAnchor = this.toString() === "対";
-		const left = isSecondPageAnchor ? 976 : 0;
+		const left = isSecondPageAnchor ? horizontalAnchorLeft : 0;
 		const top = isSecondPageAnchor ? (verticalAnchorTop ?? 0) : 0;
 		const width = isSecondPageAnchor ? 10 : 0;
 		return {
@@ -70,6 +71,7 @@ const originalClientHeight = Object.getOwnPropertyDescriptor(
 afterEach(() => {
 	cleanup();
 	verticalAnchorTop = undefined;
+	horizontalAnchorLeft = 976;
 	HTMLElement.prototype.scrollTo = originalScrollTo;
 	HTMLImageElement.prototype.decode = originalDecode;
 	Element.prototype.replaceChildren = originalReplaceChildren;
@@ -221,6 +223,9 @@ describe("BookReaderPaginated image section navigation", () => {
 	});
 
 	test("keeps the global coordinate when mounting after another layout", async () => {
+		// Chromium can place the first glyph of the next CSS column a fraction of a
+		// pixel before the theoretical page stride. It still belongs to page two.
+		horizontalAnchorLeft = 975.5;
 		let svgArtworkReady = false;
 		let decodedSvgResources = 0;
 		let imageSectionNeedsPositioning = false;
