@@ -31,6 +31,7 @@ const positionIndexCache = new WeakMap<
 	Element,
 	WeakMap<object, CachedPositionIndex>
 >();
+const fallbackHighlights = new WeakMap<Document, HTMLElement>();
 
 const IGNORED_SELECTOR =
 	'script,style,noscript,svg,nav,rt,rp,[hidden],[aria-hidden="true"]';
@@ -429,8 +430,81 @@ function installCssHighlight(
 	};
 }
 
+function installFallbackHighlight(
+	resolved: ResolvedReadListenAnchor,
+): (() => void) | null {
+	const document = resolved.segments[0]?.node.ownerDocument;
+	const view = document?.defaultView;
+	if (!document?.body || !view) return null;
+
+	fallbackHighlights.get(document)?.remove();
+	const layer = document.createElement("span");
+	layer.dataset.readListenHighlightFallback = "";
+	layer.className = "read-listen-active-fallback";
+	layer.setAttribute("aria-hidden", "true");
+	const source = resolved.segments[0]?.node.parentElement;
+	if (source) {
+		const style = view.getComputedStyle(source);
+		layer.style.color = style.color;
+		layer.style.setProperty(
+			"--book-content-selection-background-color",
+			style.getPropertyValue("--book-content-selection-background-color"),
+		);
+	}
+	document.body.append(layer);
+	fallbackHighlights.set(document, layer);
+
+	let animationFrame = 0;
+	const draw = () => {
+		animationFrame = 0;
+		layer.replaceChildren();
+		for (const segment of resolved.segments) {
+			if (!segment.node.isConnected) continue;
+			const range = document.createRange();
+			range.setStart(segment.node, segment.startOffset);
+			range.setEnd(segment.node, segment.endOffset);
+			const rects =
+				typeof range.getClientRects === "function"
+					? Array.from(range.getClientRects())
+					: segment.node.parentElement
+						? [segment.node.parentElement.getBoundingClientRect()]
+						: [];
+			for (const rect of rects) {
+				if (rect.width <= 0 || rect.height <= 0) continue;
+				const marker = document.createElement("span");
+				marker.className = "read-listen-active-fallback-segment";
+				marker.style.left = `${rect.left}px`;
+				marker.style.top = `${rect.top}px`;
+				marker.style.width = `${rect.width}px`;
+				marker.style.height = `${rect.height}px`;
+				layer.append(marker);
+			}
+		}
+	};
+	const scheduleDraw = () => {
+		if (animationFrame) return;
+		animationFrame = view.requestAnimationFrame(draw);
+	};
+	draw();
+	view.addEventListener("resize", scheduleDraw);
+	document.addEventListener("scroll", scheduleDraw, true);
+
+	return () => {
+		view.removeEventListener("resize", scheduleDraw);
+		document.removeEventListener("scroll", scheduleDraw, true);
+		if (animationFrame) view.cancelAnimationFrame(animationFrame);
+		if (fallbackHighlights.get(document) === layer) {
+			fallbackHighlights.delete(document);
+			layer.remove();
+		}
+	};
+}
+
 export function installReadListenActiveHighlight(
 	resolved: ResolvedReadListenAnchor,
 ): (() => void) | null {
-	return installCssHighlight("read-listen-active", resolved);
+	return (
+		installCssHighlight("read-listen-active", resolved) ??
+		installFallbackHighlight(resolved)
+	);
 }

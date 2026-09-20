@@ -200,6 +200,117 @@ describe("Read & Listen player bindings", () => {
 		}
 	});
 
+	test("enters the narrated page when the paginated reader API mounts late", () => {
+		document.body.innerHTML = "";
+		const navigateToTextAnchor = mock(() => {});
+		const pendingFrames: FrameRequestCallback[] = [];
+		const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = (callback) => {
+			pendingFrames.push(callback);
+			return pendingFrames.length;
+		};
+		const cue = {
+			id: "dashboard-entry",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter-8.xhtml",
+				exact: "The currently narrated sentence.",
+			},
+			audioFileIndex: 0,
+			startMs: 90_000,
+			endMs: 91_000,
+			globalStartMs: 90_000,
+			globalEndMs: 91_000,
+		};
+		const readerApiRef = {
+			current: null,
+		} as ComponentProps<typeof ActiveReadListenCue>["readerApiRef"];
+
+		try {
+			render(
+				<ActiveReadListenCue
+					cue={cue}
+					sectionTargets={[{ anchor: cue.text, value: cue }]}
+					followText
+					sourceFormat="epub"
+					readerApiRef={readerApiRef}
+				/>,
+			);
+			readerApiRef.current = {
+				navigateToTextAnchor,
+			} as unknown as BookReaderApi;
+			pendingFrames.shift()?.(0);
+			pendingFrames.shift()?.(1);
+
+			expect(navigateToTextAnchor).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sectionReference: "nanahoshi-epub-chapter-8-xhtml",
+				}),
+			);
+			expect(navigateToTextAnchor).toHaveBeenCalledTimes(1);
+		} finally {
+			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+		}
+	});
+
+	test("retries entry navigation when paginated startup discards the first jump", () => {
+		document.body.innerHTML =
+			'<main class="book-content book-content--paginated"><section id="previous-section">Stored reader page.</section></main>';
+		const pendingFrames: FrameRequestCallback[] = [];
+		const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+		globalThis.requestAnimationFrame = (callback) => {
+			pendingFrames.push(callback);
+			return pendingFrames.length;
+		};
+		const cue = {
+			id: "discarded-dashboard-entry",
+			text: {
+				kind: "text-quote" as const,
+				sectionRef: "chapter-8.xhtml",
+				exact: "The currently narrated sentence.",
+			},
+			audioFileIndex: 0,
+			startMs: 90_000,
+			endMs: 91_000,
+			globalStartMs: 90_000,
+			globalEndMs: 91_000,
+		};
+		const navigateToTextAnchor = mock(() => {
+			if (navigateToTextAnchor.mock.calls.length !== 2) return;
+			document.querySelector("main")?.replaceChildren();
+			document
+				.querySelector("main")
+				?.insertAdjacentHTML(
+					"beforeend",
+					'<section id="nanahoshi-epub-chapter-8-xhtml">The currently narrated sentence.</section>',
+				);
+		});
+
+		try {
+			render(
+				<ActiveReadListenCue
+					cue={cue}
+					sectionTargets={[{ anchor: cue.text, value: cue }]}
+					followText
+					sourceFormat="epub"
+					readerApiRef={{
+						current: { navigateToTextAnchor } as unknown as BookReaderApi,
+					}}
+				/>,
+			);
+			for (let frame = 0; frame < 12; frame += 1) {
+				pendingFrames.shift()?.(frame);
+			}
+
+			expect(navigateToTextAnchor).toHaveBeenCalledTimes(2);
+			expect(
+				document.getElementById("nanahoshi-epub-chapter-8-xhtml")?.textContent,
+			).toBe(cue.text.exact);
+		} finally {
+			globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+		}
+	});
+
 	test("does not undo a sentence page turn by centering its multi-page paragraph", () => {
 		document.body.innerHTML =
 			'<main class="book-content book-content--paginated"><div class="book-content-container" style="column-count: 2"><section id="nanahoshi-epub-chapter-xhtml"><p>次の文です。</p></section></div></main>';
@@ -658,9 +769,11 @@ describe("active highlight document lifecycle", () => {
 					expect(
 						ranges.every((range) => range.startContainer.isConnected),
 					).toBe(true);
-					expect(navigateToTextAnchor).toHaveBeenCalledTimes(
-						followText ? 1 : 0,
-					);
+					if (followText) {
+						expect(navigateToTextAnchor).toHaveBeenCalled();
+					} else {
+						expect(navigateToTextAnchor).not.toHaveBeenCalled();
+					}
 					cleanup();
 					surface.innerHTML = markup;
 					await flushFrame();

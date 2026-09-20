@@ -552,7 +552,7 @@ describe("ReadListenRuntime", () => {
 		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
 
-	test("restores the exact synchronized text after a reload when playback has not moved", () => {
+	test("keeps the player authoritative when entering from an audiobook", () => {
 		playerTime = 9;
 		rememberReadListenReaderEntry({
 			pairUuid: "pair-1",
@@ -594,7 +594,8 @@ describe("ReadListenRuntime", () => {
 			/>,
 		);
 
-		expect(seekTo).toHaveBeenLastCalledWith(9);
+		expect(seekTo).not.toHaveBeenCalled();
+		expect(playerTime).toBe(9);
 	});
 
 	test("keeps playback alive when leaving the synchronized reader", () => {

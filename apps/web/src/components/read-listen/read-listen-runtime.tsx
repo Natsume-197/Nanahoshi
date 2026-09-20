@@ -26,10 +26,6 @@ import {
 	FOCUS_SENTENCE_NAVIGATION_EVENT,
 	type FocusSentenceNavigationDetail,
 } from "@/features/reader/renderers/focus/focus-navigation";
-import {
-	loadReadListenReaderSession,
-	resolveReadListenReaderPosition,
-} from "@/lib/read-listen/reader-session";
 import { findReadListenCueNearCharacter } from "@/lib/read-listen/text-position";
 import {
 	type ReadListenTimelineCue,
@@ -256,17 +252,12 @@ export function ReadListenRuntime({
 		};
 	}, [ebookUuid, pairUuid]);
 
-	const storedReaderSession = useMemo(
-		() => loadReadListenReaderSession({ pairUuid }),
-		[pairUuid],
-	);
 	const [followText, setFollowText] = useState(true);
 	const [manualFollowSuspended, setManualFollowSuspended] = useState(false);
 	const [forceFollowCueId, setForceFollowCueId] = useState<string>();
 	const [seekFromText, setSeekFromText] = useState(false);
 	const [isInitialTextSeekPending, setIsInitialTextSeekPending] = useState(
-		initialTextPosition !== undefined ||
-			storedReaderSession?.position !== undefined,
+		initialTextPosition !== undefined,
 	);
 	const [initialSeekCue, setInitialSeekCue] = useState<
 		{ cueId: string; playbackReachedCue: boolean } | undefined
@@ -285,18 +276,7 @@ export function ReadListenRuntime({
 		statusText: currentText,
 	} = session;
 	if (playheadRef) playheadRef.current = globalCurrentTime;
-	const restoredPosition = isAudiobookLoaded
-		? resolveReadListenReaderPosition({
-				livePosition: undefined,
-				exploredCharCount: -1,
-				rememberedPosition: storedReaderSession?.position,
-				rememberedPlayheadSeconds: storedReaderSession?.positionPlayheadSeconds,
-				currentPlayheadSeconds: globalCurrentTime,
-				bookCharCount: 0,
-			})
-		: undefined;
-	const entryTextPosition =
-		initialTextPosition ?? restoredPosition?.exploredCharCount;
+	const entryTextPosition = initialTextPosition;
 	if (
 		isInitialTextSeekPending &&
 		isAudiobookLoaded &&

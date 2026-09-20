@@ -30,6 +30,7 @@ import {
 import type { client } from "@/utils/orpc";
 
 const MAX_ANCHOR_FRAMES = 30;
+const ENTRY_NAVIGATION_RETRY_FRAMES = 8;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 function followScrollBehavior(): ScrollBehavior {
@@ -200,6 +201,7 @@ export function ActiveReadListenCue({
 		let cleanupHighlight: (() => void) | undefined;
 		let attempts = 0;
 		let readerOwnsFollowNavigation = false;
+		let lastNavigationAttempt = Number.NEGATIVE_INFINITY;
 		let installedSection: HTMLElement | null = null;
 		const sectionReference = toReaderSectionReference(
 			cue.text.sectionRef,
@@ -224,26 +226,35 @@ export function ActiveReadListenCue({
 
 		function install() {
 			if (cancelled) return;
+			// Startup restoration can overwrite a semantic jump after the reader API
+			// registers. Retry sparingly until the narrated section is actually live.
+			const canAttemptNavigation =
+				!readerOwnsFollowNavigation ||
+				attempts - lastNavigationAttempt >= ENTRY_NAVIGATION_RETRY_FRAMES;
+			// Paginated and Focus register their semantic navigation after their
+			// document is ready. Claim the first available API, not the first frame.
 			if (
 				followText &&
-				attempts === 0 &&
+				canAttemptNavigation &&
 				!document
 					.getElementById(sectionReference)
 					?.closest(".book-content--continuous") &&
 				readerApiRef.current?.navigateToTextAnchor
 			) {
 				readerOwnsFollowNavigation = true;
+				lastNavigationAttempt = attempts;
 				readerApiRef.current.navigateToTextAnchor(readerAnchor);
 				retryInstall();
 				return;
 			}
 			const section = document.getElementById(sectionReference);
 			if (!section) {
-				if (followText && attempts === 0) {
+				if (followText && !readerOwnsFollowNavigation) {
 					if (readerApiRef.current?.navigateToTextAnchor) {
 						readerOwnsFollowNavigation = true;
 						readerApiRef.current.navigateToTextAnchor(readerAnchor);
-					} else {
+					} else if (readerApiRef.current) {
+						readerOwnsFollowNavigation = true;
 						readerApiRef.current?.navigateToSection(sectionReference);
 					}
 				}

@@ -732,6 +732,23 @@
 	text-underline-offset: 0.16em;
 }
 
+.read-listen-active-fallback {
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	pointer-events: none;
+}
+
+.read-listen-active-fallback-segment {
+	position: fixed;
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 42%,
+		transparent
+	);
+	box-shadow: inset 0 -0.08em color-mix(in oklab, currentColor 42%, transparent);
+}
+
 @media (prefers-contrast: more) {
 	::highlight(read-listen-active) {
 		background-color: color-mix(
@@ -741,6 +758,15 @@
 		);
 		text-decoration-color: currentColor;
 	}
+
+	.read-listen-active-fallback-segment {
+		background-color: color-mix(
+			in oklab,
+			var(--book-content-selection-background-color) 64%,
+			transparent
+		);
+		box-shadow: inset 0 -0.08em currentColor;
+	}
 }
 
 @media (forced-colors: active) {
@@ -748,6 +774,11 @@
 		background-color: Highlight;
 		color: HighlightText;
 		text-decoration-color: HighlightText;
+	}
+
+	.read-listen-active-fallback-segment {
+		background-color: Highlight;
+		box-shadow: inset 0 -0.08em HighlightText;
 	}
 }
 

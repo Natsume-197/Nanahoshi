@@ -324,6 +324,9 @@ export function ReaderScreen({
 		? loadReadListenReaderSession({ pairUuid: readListenPairUuid })
 		: undefined;
 	const readListenPositionRef = useRef<ReaderPosition | undefined>(undefined);
+	// Only the reader's own mode toggle may make text authoritative on entry.
+	// Positions remembered for exit/restoration must never seek an audiobook.
+	const readListenEntryCharacterRef = useRef<number | undefined>(undefined);
 	const readListenPlayheadRef = useRef<number | undefined>(
 		initialReadListenSession?.positionPlayheadSeconds,
 	);
@@ -362,6 +365,7 @@ export function ReaderScreen({
 		setPdfDocumentPageCount(null);
 		overlayEntryPositionRef.current = undefined;
 		readListenPositionRef.current = undefined;
+		readListenEntryCharacterRef.current = undefined;
 		readListenPlayheadRef.current = undefined;
 	}
 
@@ -382,6 +386,7 @@ export function ReaderScreen({
 
 	const toggleReadListen = () => {
 		if (readListenPairUuid) {
+			readListenEntryCharacterRef.current = undefined;
 			void disableReadListenReader({
 				getCurrentPosition: () =>
 					resolveReadListenReaderPosition({
@@ -409,6 +414,7 @@ export function ReaderScreen({
 		});
 		if (position) {
 			readListenPositionRef.current = position;
+			readListenEntryCharacterRef.current = position.exploredCharCount;
 		}
 		void navigateReadListenReaderMode({
 			navigate: (options) => navigate(options),
@@ -417,6 +423,7 @@ export function ReaderScreen({
 		});
 	};
 	const exitReadListen = useCallback(() => {
+		readListenEntryCharacterRef.current = undefined;
 		void disableReadListenReader({
 			getCurrentPosition: () =>
 				resolveReadListenReaderPosition({
@@ -1075,6 +1082,7 @@ export function ReaderScreen({
 	};
 
 	const exitReader = () => {
+		readListenEntryCharacterRef.current = undefined;
 		const exit = () =>
 			navigate({ to: "/dashboard/books/$uuid", params: { uuid } });
 		if (!readListenPairUuid) {
@@ -1117,8 +1125,7 @@ export function ReaderScreen({
 					sections: createPdfSections(pdfDocumentPageCount),
 				}
 			: loadedData;
-	const readListenEntryCharacter =
-		readListenPositionRef.current?.exploredCharCount;
+	const readListenEntryCharacter = readListenEntryCharacterRef.current;
 	// Structural remounts (view/writing mode change) restore the position the
 	// reader was at, not the original load-time position.
 	const initialPosition =

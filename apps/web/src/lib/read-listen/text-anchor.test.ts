@@ -153,6 +153,49 @@ describe("Read & Listen text anchors", () => {
 		expect(highlights.has("read-listen-active")).toBe(false);
 	});
 
+	test("falls back to an overlay when CSS Highlights is unavailable", () => {
+		const dom = new JSDOM("<section><p>First sentence.</p></section>");
+		const section = dom.window.document.querySelector("section");
+		if (!section) throw new Error("fixture section missing");
+		const resolved = resolveReadListenAnchor(section, {
+			kind: "text-quote",
+			sectionRef: "chapter.xhtml",
+			exact: "First sentence.",
+		});
+		if (!resolved) throw new Error("fixture quote missing");
+		Object.defineProperty(dom.window.Range.prototype, "getClientRects", {
+			configurable: true,
+			value: () => [
+				{
+					bottom: 30,
+					height: 20,
+					left: 10,
+					right: 110,
+					top: 10,
+					width: 100,
+					x: 10,
+					y: 10,
+				},
+			],
+		});
+		const markup = section.innerHTML;
+
+		const cleanup = installReadListenActiveHighlight(resolved);
+
+		expect(
+			dom.window.document.querySelectorAll(
+				"[data-read-listen-highlight-fallback]",
+			),
+		).toHaveLength(1);
+		expect(section.innerHTML).toBe(markup);
+		cleanup?.();
+		expect(
+			dom.window.document.querySelectorAll(
+				"[data-read-listen-highlight-fallback]",
+			),
+		).toHaveLength(0);
+	});
+
 	test("does not let an older cue clear a newer active highlight", () => {
 		const dom = new JSDOM(
 			"<section><p>First sentence. Second sentence.</p></section>",
