@@ -212,7 +212,7 @@ export type HardcoverConfig = { enabled: boolean; apiToken?: string };
 
 const googleBooksStore = createOrgProviderConfig<GoogleBooksConfig>(
 	"googlebooks",
-	{ enabled: true },
+	{ enabled: false },
 );
 const openLibraryStore = createOrgProviderConfig<OpenLibraryConfig>(
 	"openlibrary",
@@ -222,18 +222,48 @@ const goodreadsStore = createOrgProviderConfig<GoodreadsConfig>("goodreads", {
 	enabled: true,
 });
 const comicvineStore = createOrgProviderConfig<ComicvineConfig>("comicvine", {
-	enabled: true,
+	enabled: false,
 });
 const hardcoverStore = createOrgProviderConfig<HardcoverConfig>("hardcover", {
-	enabled: true,
+	enabled: false,
 });
 
-export const getGoogleBooksConfig = (serverId: string) =>
-	googleBooksStore.get(serverId);
-export const setGoogleBooksConfig = (
+function normalizeCredentialConfig<T extends { enabled: boolean }>(
+	config: T,
+	credential: keyof T,
+): T {
+	const value =
+		typeof config[credential] === "string"
+			? String(config[credential]).trim() || undefined
+			: undefined;
+	return {
+		...config,
+		[credential]: value,
+		enabled: config.enabled && value != null,
+	};
+}
+
+const normalizeGoogleBooksConfig = (config: GoogleBooksConfig) =>
+	normalizeCredentialConfig(config, "apiKey");
+const normalizeComicvineConfig = (config: ComicvineConfig) =>
+	normalizeCredentialConfig(config, "apiKey");
+const normalizeHardcoverConfig = (config: HardcoverConfig) =>
+	normalizeCredentialConfig(config, "apiToken");
+
+export const getGoogleBooksConfig = async (serverId: string) =>
+	normalizeGoogleBooksConfig(await googleBooksStore.get(serverId));
+export const setGoogleBooksConfig = async (
 	serverId: string,
 	patch: Partial<GoogleBooksConfig>,
-) => googleBooksStore.set(serverId, patch);
+) => {
+	const current = normalizeGoogleBooksConfig(
+		await googleBooksStore.get(serverId),
+	);
+	return googleBooksStore.set(
+		serverId,
+		normalizeGoogleBooksConfig({ ...current, ...patch }),
+	);
+};
 
 export const getOpenLibraryConfig = (serverId: string) =>
 	openLibraryStore.get(serverId);
@@ -249,19 +279,31 @@ export const setGoodreadsConfig = (
 	patch: Partial<GoodreadsConfig>,
 ) => goodreadsStore.set(serverId, patch);
 
-export const getComicvineConfig = (serverId: string) =>
-	comicvineStore.get(serverId);
-export const setComicvineConfig = (
+export const getComicvineConfig = async (serverId: string) =>
+	normalizeComicvineConfig(await comicvineStore.get(serverId));
+export const setComicvineConfig = async (
 	serverId: string,
 	patch: Partial<ComicvineConfig>,
-) => comicvineStore.set(serverId, patch);
+) => {
+	const current = await comicvineStore.get(serverId);
+	return comicvineStore.set(
+		serverId,
+		normalizeComicvineConfig({ ...current, ...patch }),
+	);
+};
 
-export const getHardcoverConfig = (serverId: string) =>
-	hardcoverStore.get(serverId);
-export const setHardcoverConfig = (
+export const getHardcoverConfig = async (serverId: string) =>
+	normalizeHardcoverConfig(await hardcoverStore.get(serverId));
+export const setHardcoverConfig = async (
 	serverId: string,
 	patch: Partial<HardcoverConfig>,
-) => hardcoverStore.set(serverId, patch);
+) => {
+	const current = await hardcoverStore.get(serverId);
+	return hardcoverStore.set(
+		serverId,
+		normalizeHardcoverConfig({ ...current, ...patch }),
+	);
+};
 
 /** Capability flags for library routing; credentials never leave settings. */
 export async function getMetadataProviderAvailability(serverId: string) {

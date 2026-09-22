@@ -175,6 +175,14 @@ describe("EnrichmentStateRepository decision projection", () => {
 		await enrichmentStateRepository.detail("server-1", "book-1");
 		expect(compiledExecutedSql()).toContain("es.decision");
 	});
+
+	test("returns a newest-first history bounded to the retained 20 runs", async () => {
+		await enrichmentStateRepository.detail("server-1", "book-1");
+		const query = compiledExecutedSql();
+		expect(query).toContain('AS "recentRuns"');
+		expect(query).toContain("ORDER BY erd.created_at DESC");
+		expect(query).toContain("LIMIT 20");
+	});
 });
 
 describe("EnrichmentStateRepository duplicate release", () => {

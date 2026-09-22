@@ -856,6 +856,39 @@ describe("Book Catalog Enrichment", () => {
 			expect(result.status).toBe("matched");
 			if (result.status !== "matched") return;
 			expect(result.metadata.description).toBe("From the next provider");
+			expect(result.failures).toEqual([
+				expect.objectContaining({
+					provider: "ranobedb",
+					phase: "discovery",
+					kind: "permanent",
+					code: "provider_failed",
+				}),
+			]);
+		});
+
+		test("a recovered preferred provider replaces a persisted fallback value", async () => {
+			const result = await runBookCatalogEnrichment({
+				metadata: {
+					...input,
+					description: "Fallback from Amazon",
+				},
+				fieldSources: { description: "amazon" },
+				routing: {
+					order: ["ranobedb", "amazon"],
+					fields: { description: ["ranobedb", "amazon"] },
+				},
+				providers: [
+					{
+						name: "ranobedb",
+						provider: provider({ description: "Recovered authority" }),
+					},
+				],
+			});
+
+			expect(result.status).toBe("matched");
+			if (result.status !== "matched") return;
+			expect(result.metadata.description).toBe("Recovered authority");
+			expect(result.fieldSources.description).toBe("ranobedb");
 		});
 
 		test("a rate-limit failure while hydrating trips the shared breaker", async () => {

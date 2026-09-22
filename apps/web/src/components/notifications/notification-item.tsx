@@ -302,6 +302,17 @@ export function NotificationItem({
 							</span>
 						</>
 					)}
+					{(data.deferredJobs ?? 0) > 0 && (
+						<>
+							{" "}
+							·{" "}
+							<span className="font-medium text-warning">
+								{m["notifications.task_deferred"]({
+									deferred: data.deferredJobs ?? 0,
+								})}
+							</span>
+						</>
+					)}
 				</p>
 				{data.error && (
 					<details className="mt-2 text-xs">

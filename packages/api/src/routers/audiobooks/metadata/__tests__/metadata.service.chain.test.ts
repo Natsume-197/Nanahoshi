@@ -137,6 +137,10 @@ const mockRecordFailures = spyOn(
 	enrichmentStateRepository,
 	"recordFailures",
 ).mockImplementation(() => Promise.resolve());
+const mockRecordDiagnostics = spyOn(
+	enrichmentStateRepository,
+	"recordDiagnostics",
+).mockImplementation(() => Promise.resolve());
 const mockResetForRetry = spyOn(
 	enrichmentStateRepository,
 	"resetForRetry",
@@ -163,6 +167,7 @@ afterAll(() => {
 	itunesGetByIdSpy.mockRestore();
 	mockGetEnrichmentState.mockRestore();
 	mockResetForRetry.mockRestore();
+	mockRecordDiagnostics.mockRestore();
 });
 
 const BASE_INPUT = { bookId: 1, uuid: "uuid-1", title: "Great Story" };
@@ -224,6 +229,7 @@ beforeEach(() => {
 	mockGetEnrichmentState.mockImplementation(() => Promise.resolve(null));
 	mockRecordPartialMatch.mockClear();
 	mockRecordFailures.mockClear();
+	mockRecordDiagnostics.mockClear();
 	mockMergeFieldSources.mockClear();
 	mockUpsertMetadata.mockClear();
 	mockReplaceChapters.mockClear();
@@ -323,6 +329,7 @@ describe("quickMatch provider chain", () => {
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0ASIN", {
 			region: "us",
 			bookUuid: undefined,
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -337,6 +344,7 @@ describe("quickMatch provider chain", () => {
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0ASIN", {
 			region: "us",
 			bookUuid: "uuid-1",
+			signal: expect.any(AbortSignal),
 		});
 		expect(mockReplaceChapters).toHaveBeenCalledWith(1, [
 			{ index: 0, title: "Ch 1", startTime: 0, endTime: 100 },
@@ -623,11 +631,12 @@ describe("quickMatch provider chain", () => {
 
 		expect(audibleSearchSpy).toHaveBeenCalledWith(
 			{ title: "Great Story", authors: undefined },
-			{ region: "jp" },
+			{ region: "jp", signal: expect.any(AbortSignal) },
 		);
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0ASIN", {
 			region: "jp",
 			bookUuid: "uuid-1",
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -665,6 +674,7 @@ describe("quickMatch provider chain", () => {
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0MANUAL01", {
 			region: "us",
 			bookUuid: "uuid-1",
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -681,6 +691,7 @@ describe("quickMatch provider chain", () => {
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B0ASIN1234", {
 			region: "us",
 			bookUuid: "uuid-1",
+			signal: expect.any(AbortSignal),
 		});
 		expect(audibleSearchSpy).not.toHaveBeenCalled();
 		expect(mockRecordRun).toHaveBeenCalledWith(
@@ -811,7 +822,7 @@ describe("quickMatch provider chain", () => {
 		expect(result).toEqual({ bookId: 1 });
 		expect(audibleSearchSpy).toHaveBeenCalledWith(
 			{ title: "Great Story", authors: undefined },
-			{ region: "us" },
+			{ region: "us", signal: expect.any(AbortSignal) },
 		);
 		expect(audibleGetByIdSpy).toHaveBeenCalledTimes(2);
 	});
@@ -1108,6 +1119,30 @@ describe("enrichFromProvider", () => {
 		);
 	});
 
+	test("selective apply writes only chosen audiobook fields", async () => {
+		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
+		audibleChaptersSpy.mockImplementation(async () => CHAPTERS);
+
+		await audiobookMetadataService.enrichFromProvider(
+			"audible",
+			{ ...BASE_INPUT, providerId: "B0ASIN" },
+			undefined,
+			["description", "narrators"],
+		);
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBe("audible desc");
+		expect(saved.title).toBeUndefined();
+		expect(repositoryMock.upsertNarrator).toHaveBeenCalledWith(
+			"Narrator N",
+			"server-1",
+		);
+		expect(mockReplaceChapters).not.toHaveBeenCalled();
+	});
+
 	test("enrichFromAudible alias keeps working with an asin", async () => {
 		audibleGetByIdSpy.mockImplementation(async () => AUDIBLE_FULL);
 		audibleChaptersSpy.mockImplementation(async () => CHAPTERS);
@@ -1395,6 +1430,7 @@ describe("series-only refresh", () => {
 		expect(audibleGetByIdSpy).toHaveBeenCalledWith("B07BBHFJTX", {
 			region: "us",
 			bookUuid: undefined,
+			signal: expect.any(AbortSignal),
 		});
 	});
 	test("applies only series and ASIN and preserves the old metadata snapshot", async () => {

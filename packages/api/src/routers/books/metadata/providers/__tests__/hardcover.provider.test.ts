@@ -271,13 +271,14 @@ describe("getMetadata", () => {
 		);
 	});
 
-	test("fails soft on permanent GraphQL errors", async () => {
+	test("does not turn GraphQL errors into no results", async () => {
 		graphqlHandler = () => ({ errors: [{ message: "field not found" }] });
-		const { metadata: result } = await firstMatch(hardcoverProvider, {
-			title: "test",
-			serverId: "org-1",
-		});
-		expect(result).toEqual({});
+		await expect(
+			firstMatch(hardcoverProvider, {
+				title: "test",
+				serverId: "org-1",
+			}),
+		).rejects.toThrow(/GraphQL/);
 	});
 
 	test("throws ProviderTransientError when Hardcover reports throttling", async () => {

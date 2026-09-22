@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BadRequestError } from "../../errors";
+import { BadRequestError, TooManyRequestsError } from "../../errors";
 import { adminProcedure, requirePermission } from "../../index";
 import { ranobedbImportQueue } from "../../infrastructure/queue/queues/ranobedb-import.queue";
 import { isRanobedbReady } from "../../infrastructure/ranobedb/ranobedb.client";
@@ -30,8 +30,17 @@ import {
 	startServerRecommendationRebuild,
 } from "../../modules/recommendations/recommendation.tasks";
 import { createTask, deleteTask } from "../../modules/taskManager";
+import {
+	ProviderCredentialError,
+	ProviderTransientError,
+} from "../books/metadata/providers/provider.utils";
 import { diagnoseHonomiya } from "./honomiya-diagnostics";
 import { modalCredentialStore } from "./modal-credentials";
+import {
+	validateComicvineCredential,
+	validateGoogleBooksCredential,
+	validateHardcoverCredential,
+} from "./provider-credential.validator";
 import {
 	UpdateAmazonInput,
 	UpdateBookLinkPreviewInput,
@@ -78,6 +87,25 @@ const normalizeSecret = (value?: string) => {
 	const cleaned = value?.trim();
 	return cleaned && cleaned.length > 0 ? cleaned : undefined;
 };
+
+async function validateProviderCredential(
+	provider: string,
+	validate: () => Promise<void>,
+) {
+	try {
+		await validate();
+	} catch (error) {
+		if (error instanceof ProviderTransientError) {
+			throw new TooManyRequestsError(
+				`${provider} could not validate the credential right now. Try again later.`,
+			);
+		}
+		if (error instanceof ProviderCredentialError) {
+			throw new BadRequestError(`${provider} rejected the credential.`);
+		}
+		throw new BadRequestError(`${provider} could not validate the credential.`);
+	}
+}
 
 export const settingsRouter = {
 	getBackups: adminProcedure
@@ -214,13 +242,23 @@ export const settingsRouter = {
 
 	updateGoogleBooks: requirePermission("settings", "update")
 		.input(UpdateGoogleBooksInput)
-		.handler(async ({ context, input }) =>
-			setGoogleBooksConfig(context.serverId, {
+		.handler(async ({ context, input }) => {
+			const normalized = {
 				...input,
 				apiKey: normalizeSecret(input.apiKey),
 				langRestrict: normalizeSecret(input.langRestrict),
-			}),
-		),
+			};
+			const candidate = {
+				...(await getGoogleBooksConfig(context.serverId)),
+				...normalized,
+			};
+			if (candidate.enabled && candidate.apiKey) {
+				await validateProviderCredential("Google Books", () =>
+					validateGoogleBooksCredential(candidate.apiKey as string),
+				);
+			}
+			return setGoogleBooksConfig(context.serverId, normalized);
+		}),
 
 	getOpenLibrary: requirePermission("settings", "read").handler(
 		async ({ context }) => getOpenLibraryConfig(context.serverId),
@@ -248,12 +286,22 @@ export const settingsRouter = {
 
 	updateComicvine: requirePermission("settings", "update")
 		.input(UpdateComicvineInput)
-		.handler(async ({ context, input }) =>
-			setComicvineConfig(context.serverId, {
+		.handler(async ({ context, input }) => {
+			const normalized = {
 				...input,
 				apiKey: normalizeSecret(input.apiKey),
-			}),
-		),
+			};
+			const candidate = {
+				...(await getComicvineConfig(context.serverId)),
+				...normalized,
+			};
+			if (candidate.enabled && candidate.apiKey) {
+				await validateProviderCredential("Comicvine", () =>
+					validateComicvineCredential(candidate.apiKey as string),
+				);
+			}
+			return setComicvineConfig(context.serverId, normalized);
+		}),
 
 	getHardcover: requirePermission("settings", "read").handler(
 		async ({ context }) => getHardcoverConfig(context.serverId),
@@ -261,12 +309,22 @@ export const settingsRouter = {
 
 	updateHardcover: requirePermission("settings", "update")
 		.input(UpdateHardcoverInput)
-		.handler(async ({ context, input }) =>
-			setHardcoverConfig(context.serverId, {
+		.handler(async ({ context, input }) => {
+			const normalized = {
 				...input,
 				apiToken: normalizeSecret(input.apiToken),
-			}),
-		),
+			};
+			const candidate = {
+				...(await getHardcoverConfig(context.serverId)),
+				...normalized,
+			};
+			if (candidate.enabled && candidate.apiToken) {
+				await validateProviderCredential("Hardcover", () =>
+					validateHardcoverCredential(candidate.apiToken as string),
+				);
+			}
+			return setHardcoverConfig(context.serverId, normalized);
+		}),
 
 	// ── Recommendations toggle (per-organization) ───────────
 	getRecommendations: requirePermission("settings", "read").handler(

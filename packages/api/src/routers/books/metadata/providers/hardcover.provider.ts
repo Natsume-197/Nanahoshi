@@ -13,13 +13,14 @@ import {
 } from "./IMetadata.provider";
 import {
 	CANDIDATE_LIMIT,
-	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
 	hydratedProviderResult,
 	normalizePublishedDate,
+	ProviderCredentialError,
+	ProviderResponseError,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
@@ -35,7 +36,8 @@ const GRAPHQL_ENDPOINT = "https://api.hardcover.app/v1/graphql";
 const SEARCH_RESULT_LIMIT = 8;
 const MAX_GENRES = 10;
 
-const pace = createRequestPacer(1200);
+const REQUEST_INTERVAL_MS = process.env.NODE_ENV === "test" ? 0 : 1200;
+type ScopedHardcoverConfig = HardcoverConfig & { quotaScope: string };
 
 // Selection shared by the ISBN and by-id lookups; editions carry the
 // identifiers/publisher/language, the book carries description/series/tags.
@@ -106,6 +108,19 @@ type SearchDocument = {
 };
 
 class HardcoverProvider implements ISearchableMetadataProvider {
+	async quotaScope(serverId: string | null | undefined) {
+		return (await this.getConfig(serverId)).quotaScope;
+	}
+
+	async readiness(serverId: string | null | undefined) {
+		const config = await this.getConfig(serverId);
+		return !config.enabled
+			? ("disabled" as const)
+			: config.apiToken
+				? ("ready" as const)
+				: ("missing_credentials" as const);
+	}
+
 	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
 		const config = await this.getConfig(serverId);
 		return config.enabled && Boolean(config.apiToken);
@@ -204,9 +219,16 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error }, "Search failed");
-			return [];
+			throw new ProviderResponseError("Hardcover", "search failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -241,9 +263,16 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error, providerId }, "getById failed");
-			return null;
+			throw new ProviderResponseError("Hardcover", "lookup failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -252,9 +281,13 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 	private async executeQuery<T>(
 		query: string,
 		variables: Record<string, unknown>,
-		config: HardcoverConfig,
+		config: ScopedHardcoverConfig,
 	): Promise<T | null> {
-		await pace();
+		await providerGate.waitForSlot(
+			"hardcover",
+			config.quotaScope,
+			REQUEST_INTERVAL_MS,
+		);
 		const response = await fetchOrTransient("Hardcover", GRAPHQL_ENDPOINT, {
 			method: "POST",
 			headers: {
@@ -273,18 +306,26 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 		};
 		if (payload.errors?.length) {
 			// Hardcover reports throttling as a GraphQL error, not an HTTP status.
-			if (JSON.stringify(payload.errors).toLowerCase().includes("throttl")) {
+			const errorText = JSON.stringify(payload.errors).toLowerCase();
+			if (errorText.includes("throttl")) {
 				throw new ProviderTransientError("Hardcover is throttling requests");
 			}
+			if (
+				["jwt", "auth", "permission", "token"].some((marker) =>
+					errorText.includes(marker),
+				)
+			) {
+				throw new ProviderCredentialError("Hardcover");
+			}
 			log.warn({ errors: payload.errors }, "Hardcover GraphQL errors");
-			return null;
+			throw new ProviderResponseError("Hardcover", "GraphQL errors");
 		}
 		return payload.data ?? null;
 	}
 
 	private async fetchByIsbn(
 		isbn: string,
-		config: HardcoverConfig,
+		config: ScopedHardcoverConfig,
 	): Promise<HardcoverBook | null> {
 		const data = await this.executeQuery<{ books?: HardcoverBook[] }>(
 			`query BookByIsbn($isbn: String!) {
@@ -300,7 +341,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 
 	private async fetchByBookId(
 		bookId: string,
-		config: HardcoverConfig,
+		config: ScopedHardcoverConfig,
 	): Promise<HardcoverBook | null> {
 		const data = await this.executeQuery<{ books_by_pk?: HardcoverBook }>(
 			`query BookById($id: Int!) {
@@ -317,7 +358,7 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 	private async searchDocuments(
 		title: string,
 		author: string | undefined,
-		config: HardcoverConfig,
+		config: ScopedHardcoverConfig,
 	): Promise<SearchDocument[]> {
 		const query = [cleanSearchTerm(title), author?.trim()]
 			.filter(Boolean)
@@ -486,11 +527,21 @@ class HardcoverProvider implements ISearchableMetadataProvider {
 
 	private async getConfig(
 		serverId: string | null | undefined,
-	): Promise<HardcoverConfig> {
+	): Promise<ScopedHardcoverConfig> {
 		// No org → no API token stored → provider inactive.
-		if (!serverId) return { enabled: false };
-		return getHardcoverConfig(serverId);
+		if (!serverId) return { enabled: false, quotaScope: "org:instance" };
+		const config = await getHardcoverConfig(serverId);
+		return {
+			...config,
+			quotaScope: providerQuotaScope("hardcover", {
+				serverId,
+				credential: config.apiToken,
+			}),
+		};
 	}
 }
 
 export const hardcoverProvider = new HardcoverProvider();
+
+import { providerGate } from "../../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";

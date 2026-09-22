@@ -25,6 +25,12 @@ export const enrichmentRouter = {
 			return enrichmentService.actionableCounts(context.serverId, input);
 		}),
 
+	approvalPreview: requirePermission("library", "scan")
+		.input(TargetSelection)
+		.handler(async ({ input, context }) => {
+			return enrichmentService.approvalPreview(context.serverId, input);
+		}),
+
 	detail: requirePermission("library", "scan")
 		.input(EnrichmentDetailInput)
 		.handler(async ({ input, context }) => {

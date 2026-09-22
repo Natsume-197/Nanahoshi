@@ -4,7 +4,11 @@ import {
 	type IMetadataProvider,
 	type MetadataProviderResult,
 } from "../IMetadata.provider";
-import { ProviderTransientError } from "../provider.utils";
+import {
+	ProviderCredentialError,
+	ProviderResponseError,
+	ProviderTransientError,
+} from "../provider.utils";
 
 /**
  * Discovers and hydrates a provider's top candidate — what the enrichment
@@ -34,7 +38,12 @@ export async function firstMatch(
 			if (hydrated) return hydrated;
 		}
 	} catch (error) {
-		if (error instanceof ProviderTransientError) throw error;
+		if (
+			error instanceof ProviderTransientError ||
+			error instanceof ProviderCredentialError ||
+			error instanceof ProviderResponseError
+		)
+			throw error;
 	}
 	return emptyMetadataProviderResult();
 }

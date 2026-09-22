@@ -3,12 +3,71 @@ import sharp from "sharp";
 import {
 	deriveIsbnPair,
 	extractIsbnFromText,
+	fetchOrTransient,
 	isbn10To13,
 	isbn13To10,
 	isUsableRemoteCover,
 	normalizePublishedDate,
+	ProviderCredentialError,
 	stripHtml,
 } from "../provider.utils";
+
+describe("fetchOrTransient", () => {
+	test("aborts a provider request at its deadline", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () =>
+					reject(new DOMException("aborted", "AbortError")),
+				);
+			})) as typeof fetch;
+		try {
+			await expect(
+				fetchOrTransient("Test", "https://example.invalid", undefined, 10),
+			).rejects.toMatchObject({ code: "provider_timeout" });
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test("uses Retry-After for a rate-limit cooldown", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(null, {
+				status: 429,
+				headers: { "Retry-After": "12" },
+			})) as typeof fetch;
+		try {
+			await expect(
+				fetchOrTransient("Test", "https://example.invalid"),
+			).rejects.toMatchObject({
+				code: "rate_limited",
+				retryAfterMs: 12_000,
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test.each([401, 403])(
+		"types HTTP %s as invalid provider credentials",
+		async (status) => {
+			const originalFetch = globalThis.fetch;
+			globalThis.fetch = (async () =>
+				new Response(null, { status })) as typeof fetch;
+			try {
+				await expect(
+					fetchOrTransient("Test", "https://example.invalid"),
+				).rejects.toBeInstanceOf(ProviderCredentialError);
+				await expect(
+					fetchOrTransient("Test", "https://example.invalid"),
+				).rejects.toMatchObject({ code: "invalid_credentials", status });
+			} finally {
+				globalThis.fetch = originalFetch;
+			}
+		},
+	);
+});
 
 // ─── ISBN-10 ↔ ISBN-13 ──────────────────────────────────
 

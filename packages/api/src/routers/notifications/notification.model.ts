@@ -18,6 +18,7 @@ export const NotificationData = z.object({
 	totalJobs: z.number(),
 	completedJobs: z.number(),
 	failedJobs: z.number(),
+	deferredJobs: z.number().optional(),
 	error: z.string().max(2_000).optional(),
 	// Present only for enrichment-producing library tasks with items to review.
 	attention: EnrichmentAttention.optional(),

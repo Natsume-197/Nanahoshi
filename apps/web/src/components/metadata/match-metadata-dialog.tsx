@@ -3,7 +3,9 @@ import {
 	BookOpen,
 	CircleNotch,
 	Headphones,
+	LockSimple,
 	MagnifyingGlass,
+	X,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -14,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatReadingTime, getErrorMessage } from "@/utils/format";
@@ -23,7 +24,7 @@ import { client, orpc } from "@/utils/orpc";
 // Fix match: search an external source for the correct entry and replace this
 // item's metadata with it. Locked (hand-edited) fields survive server-side.
 
-type MatchCandidate = {
+export type MatchCandidate = {
 	provider: string;
 	providerId: string;
 	title: string;
@@ -35,12 +36,138 @@ type MatchCandidate = {
 	url?: string | null;
 };
 
-type ProviderOption = {
+export type ProviderOption = {
 	id: string;
 	label: string;
 	/** Shows the optional ASIN field when this source is selected. */
 	supportsAsin?: boolean;
 };
+
+export type MetadataPreview = {
+	metadata: Record<string, unknown>;
+	lockedFields: string[];
+};
+
+type ProviderSearchStatus =
+	| "found"
+	| "no_results"
+	| "rate_limited"
+	| "invalid_credentials"
+	| "failed";
+
+type ProviderSearchOutcome = {
+	provider: string;
+	status: ProviderSearchStatus;
+	count: number;
+	durationMs: number;
+};
+
+function providerFailureStatus(error: unknown): ProviderSearchStatus {
+	const details =
+		typeof error === "object" && error
+			? (error as { code?: unknown; message?: unknown; cause?: unknown })
+			: null;
+	const cause =
+		typeof details?.cause === "object" && details.cause
+			? (details.cause as { code?: unknown; message?: unknown })
+			: null;
+	const text = [details?.code, details?.message, cause?.code, cause?.message]
+		.filter((value): value is string => typeof value === "string")
+		.join(" ")
+		.toLowerCase();
+	if (
+		text.includes("too_many_requests") ||
+		text.includes("rate limit") ||
+		text.includes("cooldown")
+	) {
+		return "rate_limited";
+	}
+	if (
+		text.includes("unauthorized") ||
+		text.includes("invalid credential") ||
+		text.includes("invalid api") ||
+		text.includes("api key")
+	) {
+		return "invalid_credentials";
+	}
+	return "failed";
+}
+
+function providerOutcomeText(outcome: ProviderSearchOutcome): string {
+	switch (outcome.status) {
+		case "found":
+			return m["match.outcome_found"]({ count: outcome.count });
+		case "no_results":
+			return m["match.outcome_no_results"]();
+		case "rate_limited":
+			return m["match.outcome_rate_limited"]();
+		case "invalid_credentials":
+			return m["match.outcome_invalid_credentials"]();
+		case "failed":
+			return m["match.outcome_failed"]();
+	}
+}
+
+const PREVIEW_FIELDS = [
+	"title",
+	"titleRomaji",
+	"subtitle",
+	"description",
+	"publishedDate",
+	"languageCode",
+	"pageCount",
+	"isbn10",
+	"isbn13",
+	"asin",
+	"cover",
+	"authors",
+	"publisher",
+	"series",
+	"genres",
+	"tags",
+] as const;
+
+const AUDIOBOOK_PREVIEW_FIELDS = [
+	"title",
+	"subtitle",
+	"description",
+	"publishedDate",
+	"languageCode",
+	"isbn",
+	"asin",
+	"cover",
+	"explicit",
+	"abridged",
+	"authors",
+	"narrators",
+	"publisher",
+	"series",
+	"genres",
+	"tags",
+] as const;
+
+function displayMetadataValue(value: unknown): string {
+	if (value == null || value === "") return "—";
+	if (Array.isArray(value)) {
+		return value
+			.map((entry) =>
+				typeof entry === "string"
+					? entry
+					: String((entry as { name?: unknown }).name ?? ""),
+			)
+			.filter(Boolean)
+			.join(", ");
+	}
+	if (typeof value === "object") {
+		return String((value as { name?: unknown }).name ?? JSON.stringify(value));
+	}
+	return String(value);
+}
+
+function displayFieldName(field: string): string {
+	const spaced = field.replace(/([A-Z])/g, " $1").replaceAll("_", " ");
+	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 function CandidateRow({
 	candidate,
@@ -100,6 +227,9 @@ function CandidateRow({
 				cover
 			)}
 			<div className="min-w-0 flex-1 space-y-0.5">
+				<p className="font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
+					{candidate.provider}
+				</p>
 				{candidate.url ? (
 					<a
 						href={candidate.url}
@@ -147,7 +277,7 @@ function ResultsPlaceholder({ icon, text }: { icon: ReactNode; text: string }) {
 	);
 }
 
-function FixMatchDialog({
+export function FixMatchDialog({
 	open,
 	onOpenChange,
 	providers,
@@ -157,6 +287,9 @@ function FixMatchDialog({
 	coverClass,
 	fallbackIcon,
 	search,
+	preview,
+	previewFields = PREVIEW_FIELDS,
+	current,
 	apply,
 }: {
 	open: boolean;
@@ -173,35 +306,125 @@ function FixMatchDialog({
 		author?: string;
 		asin?: string;
 	}) => Promise<MatchCandidate[]>;
-	apply: (candidate: MatchCandidate) => Promise<boolean>;
+	preview?: (candidate: MatchCandidate) => Promise<MetadataPreview | null>;
+	previewFields?: readonly string[];
+	current?: Record<string, unknown>;
+	apply: (candidate: MatchCandidate, fields?: string[]) => Promise<boolean>;
 }) {
 	const router = useRouter();
-	const [provider, setProvider] = useState(providers[0]?.id ?? "");
+	const [selectedProviders, setSelectedProviders] = useState(
+		() => new Set(providers.map(({ id }) => id)),
+	);
 	const [title, setTitle] = useState(initialTitle);
 	const [author, setAuthor] = useState(initialAuthor ?? "");
 	const [asin, setAsin] = useState(initialAsin ?? "");
 	const [results, setResults] = useState<MatchCandidate[] | null>(null);
+	const [providerOutcomes, setProviderOutcomes] = useState<
+		ProviderSearchOutcome[]
+	>([]);
+	const [previewCandidate, setPreviewCandidate] =
+		useState<MatchCandidate | null>(null);
+	const [previewData, setPreviewData] = useState<Record<
+		string,
+		unknown
+	> | null>(null);
+	const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
+	const [lockedFields, setLockedFields] = useState<Set<string>>(new Set());
 
-	const providerOption = providers.find((p) => p.id === provider);
-	const showAsin = providerOption?.supportsAsin ?? false;
-	const canSearch = title.trim() !== "" || (showAsin && asin.trim() !== "");
+	const showAsin = providers.some(
+		(option) => selectedProviders.has(option.id) && option.supportsAsin,
+	);
+	const canSearch =
+		selectedProviders.size > 0 &&
+		(title.trim() !== "" || (showAsin && asin.trim() !== ""));
 
 	const searchMutation = useMutation({
-		mutationFn: () =>
-			search({
-				provider,
-				title: title.trim() || undefined,
-				author: author.trim() || undefined,
-				asin: showAsin ? asin.trim() || undefined : undefined,
-			}),
-		onSuccess: (candidates) => setResults(candidates),
+		mutationFn: async () => {
+			const ids = [...selectedProviders];
+			const settled = await Promise.allSettled(
+				ids.map(async (provider) => {
+					const startedAt = performance.now();
+					const candidates = await search({
+						provider,
+						title: title.trim() || undefined,
+						author: author.trim() || undefined,
+						asin: showAsin ? asin.trim() || undefined : undefined,
+					});
+					return {
+						provider,
+						candidates,
+						durationMs: Math.round(performance.now() - startedAt),
+					};
+				}),
+			);
+			return {
+				candidates: settled.flatMap((entry) =>
+					entry.status === "fulfilled" ? entry.value.candidates : [],
+				),
+				outcomes: settled.map((entry, index): ProviderSearchOutcome => {
+					const provider = ids[index] ?? "provider";
+					if (entry.status === "rejected") {
+						return {
+							provider,
+							status: providerFailureStatus(entry.reason),
+							count: 0,
+							durationMs: 0,
+						};
+					}
+					return {
+						provider,
+						status: entry.value.candidates.length > 0 ? "found" : "no_results",
+						count: entry.value.candidates.length,
+						durationMs: entry.value.durationMs,
+					};
+				}),
+			};
+		},
+		onSuccess: ({ candidates, outcomes }) => {
+			setResults(candidates);
+			setProviderOutcomes(outcomes);
+		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, m["match.failed"]()));
 		},
 	});
 
+	const previewMutation = useMutation({
+		mutationFn: async (candidate: MatchCandidate) => ({
+			candidate,
+			data: preview ? await preview(candidate) : null,
+		}),
+		onSuccess: ({ candidate, data }) => {
+			if (!data) {
+				toast.info(m["match.no_data"]());
+				return;
+			}
+			setPreviewCandidate(candidate);
+			setPreviewData(data.metadata);
+			setLockedFields(new Set(data.lockedFields));
+			setSelectedFields(
+				new Set(
+					previewFields.filter(
+						(field) =>
+							!data.lockedFields.includes(field) &&
+							data.metadata[field] != null &&
+							(current?.[field] == null || current[field] === ""),
+					),
+				),
+			);
+		},
+		onError: (error) =>
+			toast.error(getErrorMessage(error, m["match.failed"]())),
+	});
+
 	const applyMutation = useMutation({
-		mutationFn: (candidate: MatchCandidate) => apply(candidate),
+		mutationFn: ({
+			candidate,
+			fields,
+		}: {
+			candidate: MatchCandidate;
+			fields?: string[];
+		}) => apply(candidate, fields),
 		onSuccess: async (applied) => {
 			if (applied) {
 				toast.success(m["match.applied"]());
@@ -216,7 +439,10 @@ function FixMatchDialog({
 		},
 	});
 
-	const busy = searchMutation.isPending || applyMutation.isPending;
+	const busy =
+		searchMutation.isPending ||
+		previewMutation.isPending ||
+		applyMutation.isPending;
 
 	return (
 		<Modal
@@ -231,138 +457,264 @@ function FixMatchDialog({
 			}}
 		>
 			<div className="space-y-4">
-				{providers.length > 1 && (
+				{providers.length > 1 && !previewData && (
 					<div className="space-y-1.5">
 						<Label className="text-muted-foreground text-xs">
 							{m["match.source"]()}
 						</Label>
-						<Tabs
-							value={provider}
-							onValueChange={(v) => setProvider(String(v))}
-						>
-							<TabsList>
-								{providers.map((p) => (
-									<TabsTrigger key={p.id} value={p.id} className="px-4">
-										{p.label}
-									</TabsTrigger>
-								))}
-							</TabsList>
-						</Tabs>
+						<div className="flex flex-wrap gap-1.5">
+							{providers.map((option) => (
+								<Button
+									key={option.id}
+									type="button"
+									size="sm"
+									variant={
+										selectedProviders.has(option.id) ? "default" : "outline"
+									}
+									onClick={() => {
+										setSelectedProviders((previous) => {
+											const next = new Set(previous);
+											if (next.has(option.id)) next.delete(option.id);
+											else next.add(option.id);
+											return next;
+										});
+									}}
+								>
+									{option.label}
+								</Button>
+							))}
+						</div>
 					</div>
 				)}
 
-				<div className="flex flex-col gap-3 sm:flex-row">
-					<div className="flex-1 space-y-1.5">
-						<Label
-							htmlFor="fix-match-title"
-							className="text-muted-foreground text-xs"
-						>
-							{m["match.field_title"]()}
-						</Label>
-						<Input
-							id="fix-match-title"
-							value={title}
-							onChange={(e) => setTitle(e.target.value)}
-							autoFocus
-						/>
-					</div>
-					<div className="space-y-1.5 sm:w-44">
-						<Label
-							htmlFor="fix-match-author"
-							className="text-muted-foreground text-xs"
-						>
-							{m["match.field_author"]()}{" "}
-							<span className="opacity-60">({m["match.optional"]()})</span>
-						</Label>
-						<Input
-							id="fix-match-author"
-							value={author}
-							onChange={(e) => setAuthor(e.target.value)}
-						/>
-					</div>
-				</div>
-
-				<div className="flex items-end gap-3">
-					{showAsin ? (
-						<div className="space-y-1.5">
-							<Label
-								htmlFor="fix-match-asin"
-								className="text-muted-foreground text-xs"
+				{previewData && previewCandidate ? (
+					<div className="space-y-3">
+						<div className="flex items-center justify-between gap-3">
+							<p className="font-medium">{previewCandidate.title}</p>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									setPreviewData(null);
+									setPreviewCandidate(null);
+									setLockedFields(new Set());
+								}}
 							>
-								{m["match.field_asin"]()}{" "}
-								<span className="opacity-60">({m["match.optional"]()})</span>
-							</Label>
-							<Input
-								id="fix-match-asin"
-								value={asin}
-								onChange={(e) => setAsin(e.target.value)}
-								className="font-mono sm:w-44"
-								title={m["match.asin_hint"]()}
-							/>
+								<X />
+								{m["match.back"]()}
+							</Button>
 						</div>
-					) : (
-						<div className="flex-1" />
-					)}
-					<Button
-						type="submit"
-						disabled={busy || !canSearch}
-						className={cn(showAsin && "ml-auto")}
-					>
-						{searchMutation.isPending ? (
-							<CircleNotch className="size-4 animate-spin" />
-						) : (
-							<MagnifyingGlass className="size-4" />
-						)}
-						{m["match.search"]()}
-					</Button>
-				</div>
-
-				<div className="rounded-lg border border-border/60 bg-muted/20">
-					{searchMutation.isPending ? (
-						<ul className="space-y-2 p-3">
-							{[0, 1, 2].map((i) => (
-								<li key={i} className="flex items-center gap-3 p-1">
-									<Skeleton className={cn("shrink-0 rounded", coverClass)} />
-									<div className="flex-1 space-y-2">
-										<Skeleton className="h-4 w-3/4" />
-										<Skeleton className="h-3 w-1/2" />
-									</div>
-								</li>
-							))}
-						</ul>
-					) : results === null ? (
-						<ResultsPlaceholder
-							icon={
-								<MagnifyingGlass className="size-6 text-muted-foreground/40" />
+						<div className="max-h-[48vh] overflow-y-auto rounded-lg border">
+							<div className="grid grid-cols-[auto_7rem_1fr_1fr] gap-2 border-b bg-muted/40 p-2 text-muted-foreground text-xs">
+								<span />
+								<span>{m["match.field"]()}</span>
+								<span>{m["match.current_value"]()}</span>
+								<span>{m["match.incoming_value"]()}</span>
+							</div>
+							{previewFields
+								.filter((field) => previewData[field] != null)
+								.map((field) => (
+									<label
+										key={field}
+										className={cn(
+											"grid grid-cols-[auto_7rem_1fr_1fr] items-start gap-2 border-b p-2 text-xs last:border-b-0",
+											lockedFields.has(field)
+												? "cursor-not-allowed bg-muted/30 text-muted-foreground"
+												: "cursor-pointer",
+										)}
+										title={
+											lockedFields.has(field)
+												? m["match.locked_field"]()
+												: undefined
+										}
+									>
+										<input
+											type="checkbox"
+											checked={selectedFields.has(field)}
+											disabled={lockedFields.has(field)}
+											onChange={() =>
+												setSelectedFields((previous) => {
+													const next = new Set(previous);
+													if (next.has(field)) next.delete(field);
+													else next.add(field);
+													return next;
+												})
+											}
+										/>
+										<span className="flex items-center gap-1 font-medium">
+											{lockedFields.has(field) && <LockSimple aria-hidden />}
+											{displayFieldName(field)}
+										</span>
+										<span className="text-muted-foreground">
+											{displayMetadataValue(current?.[field])}
+										</span>
+										<span>{displayMetadataValue(previewData[field])}</span>
+									</label>
+								))}
+						</div>
+						<Button
+							type="button"
+							disabled={selectedFields.size === 0 || busy}
+							onClick={() =>
+								applyMutation.mutate({
+									candidate: previewCandidate,
+									fields: [...selectedFields],
+								})
 							}
-							text={m["match.initial_hint"]()}
-						/>
-					) : results.length === 0 ? (
-						<ResultsPlaceholder
-							icon={
-								<MagnifyingGlass className="size-6 text-muted-foreground/40" />
-							}
-							text={m["match.no_results"]()}
-						/>
-					) : (
-						<ul className="max-h-[45vh] space-y-2 overflow-y-auto p-3">
-							{results.map((candidate) => (
-								<CandidateRow
-									key={`${candidate.provider}-${candidate.providerId}`}
-									candidate={candidate}
-									coverClass={coverClass}
-									fallbackIcon={fallbackIcon}
-									applying={
-										applyMutation.isPending &&
-										applyMutation.variables?.providerId === candidate.providerId
-									}
-									disabled={busy}
-									onApply={() => applyMutation.mutate(candidate)}
+						>
+							{m["match.use_this"]()} ({selectedFields.size})
+						</Button>
+					</div>
+				) : (
+					<>
+						<div className="flex flex-col gap-3 sm:flex-row">
+							<div className="flex-1 space-y-1.5">
+								<Label
+									htmlFor="fix-match-title"
+									className="text-muted-foreground text-xs"
+								>
+									{m["match.field_title"]()}
+								</Label>
+								<Input
+									id="fix-match-title"
+									value={title}
+									onChange={(e) => setTitle(e.target.value)}
+									autoFocus
 								/>
-							))}
-						</ul>
-					)}
-				</div>
+							</div>
+							<div className="space-y-1.5 sm:w-44">
+								<Label
+									htmlFor="fix-match-author"
+									className="text-muted-foreground text-xs"
+								>
+									{m["match.field_author"]()}{" "}
+									<span className="opacity-60">({m["match.optional"]()})</span>
+								</Label>
+								<Input
+									id="fix-match-author"
+									value={author}
+									onChange={(e) => setAuthor(e.target.value)}
+								/>
+							</div>
+						</div>
+						{providerOutcomes.length > 0 && (
+							<ul
+								className="flex flex-wrap gap-x-3 gap-y-1 text-xs"
+								aria-label={m["match.provider_outcomes"]()}
+							>
+								{providerOutcomes.map((outcome) => (
+									<li
+										key={outcome.provider}
+										className={cn(
+											outcome.status === "found" && "text-success",
+											outcome.status === "no_results" &&
+												"text-muted-foreground",
+											!["found", "no_results"].includes(outcome.status) &&
+												"text-warning",
+										)}
+										title={`${outcome.durationMs} ms`}
+									>
+										{providers.find(({ id }) => id === outcome.provider)
+											?.label ?? outcome.provider}
+										: {providerOutcomeText(outcome)}
+									</li>
+								))}
+							</ul>
+						)}
+
+						<div className="flex items-end gap-3">
+							{showAsin ? (
+								<div className="space-y-1.5">
+									<Label
+										htmlFor="fix-match-asin"
+										className="text-muted-foreground text-xs"
+									>
+										{m["match.field_asin"]()}{" "}
+										<span className="opacity-60">
+											({m["match.optional"]()})
+										</span>
+									</Label>
+									<Input
+										id="fix-match-asin"
+										value={asin}
+										onChange={(e) => setAsin(e.target.value)}
+										className="font-mono sm:w-44"
+										title={m["match.asin_hint"]()}
+									/>
+								</div>
+							) : (
+								<div className="flex-1" />
+							)}
+							<Button
+								type="submit"
+								disabled={busy || !canSearch}
+								className={cn(showAsin && "ml-auto")}
+							>
+								{searchMutation.isPending ? (
+									<CircleNotch className="size-4 animate-spin" />
+								) : (
+									<MagnifyingGlass className="size-4" />
+								)}
+								{m["match.search"]()}
+							</Button>
+						</div>
+
+						<div className="rounded-lg border border-border/60 bg-muted/20">
+							{searchMutation.isPending ? (
+								<ul className="space-y-2 p-3">
+									{[0, 1, 2].map((i) => (
+										<li key={i} className="flex items-center gap-3 p-1">
+											<Skeleton
+												className={cn("shrink-0 rounded", coverClass)}
+											/>
+											<div className="flex-1 space-y-2">
+												<Skeleton className="h-4 w-3/4" />
+												<Skeleton className="h-3 w-1/2" />
+											</div>
+										</li>
+									))}
+								</ul>
+							) : results === null ? (
+								<ResultsPlaceholder
+									icon={
+										<MagnifyingGlass className="size-6 text-muted-foreground/40" />
+									}
+									text={m["match.initial_hint"]()}
+								/>
+							) : results.length === 0 ? (
+								<ResultsPlaceholder
+									icon={
+										<MagnifyingGlass className="size-6 text-muted-foreground/40" />
+									}
+									text={m["match.no_results"]()}
+								/>
+							) : (
+								<ul className="max-h-[45vh] space-y-2 overflow-y-auto p-3">
+									{results.map((candidate) => (
+										<CandidateRow
+											key={`${candidate.provider}-${candidate.providerId}`}
+											candidate={candidate}
+											coverClass={coverClass}
+											fallbackIcon={fallbackIcon}
+											applying={
+												applyMutation.isPending &&
+												applyMutation.variables?.candidate.providerId ===
+													candidate.providerId
+											}
+											disabled={busy}
+											onApply={() =>
+												preview
+													? previewMutation.mutate(candidate)
+													: applyMutation.mutate({ candidate })
+											}
+										/>
+									))}
+								</ul>
+							)}
+						</div>
+					</>
+				)}
 			</div>
 		</Modal>
 	);
@@ -432,6 +784,12 @@ export function BookMatchDialog({
 			staleTime: 5 * 60 * 1000,
 		}),
 	);
+	const { data: current } = useQuery(
+		orpc.books.getBookWithMetadata.queryOptions({
+			input: { uuid: bookUuid },
+			enabled: open,
+		}),
+	);
 
 	const providers = BOOK_PROVIDER_OPTIONS.filter((p) =>
 		available?.some((name) => name === p.id),
@@ -450,6 +808,7 @@ export function BookMatchDialog({
 			initialAsin={initialAsin}
 			coverClass="h-16 w-11"
 			fallbackIcon={<BookOpen className="size-5 text-muted-foreground/40" />}
+			current={current as Record<string, unknown> | undefined}
 			search={async ({ provider, title, author, asin }) => {
 				const candidates = await client.books.searchMetadata({
 					uuid: bookUuid,
@@ -468,11 +827,21 @@ export function BookMatchDialog({
 					url: c.url,
 				}));
 			}}
-			apply={async (candidate) => {
+			preview={async (candidate) =>
+				client.books.previewMetadata({
+					uuid: bookUuid,
+					provider: candidate.provider as BookProviderId,
+					providerId: candidate.providerId,
+				})
+			}
+			apply={async (candidate, fields) => {
 				const result = await client.books.applyMetadata({
 					uuid: bookUuid,
 					provider: candidate.provider as BookProviderId,
 					providerId: candidate.providerId,
+					fields: fields as Parameters<
+						typeof client.books.applyMetadata
+					>[0]["fields"],
 				});
 				return result.success;
 			}}
@@ -529,6 +898,12 @@ export function AudiobookMatchDialog({
 	initialAuthor?: string;
 	initialAsin?: string | null;
 }) {
+	const { data: current } = useQuery(
+		orpc.audiobooks.getDetails.queryOptions({
+			input: { uuid: audiobookUuid },
+			enabled: open,
+		}),
+	);
 	return (
 		<FixMatchDialog
 			open={open}
@@ -542,6 +917,8 @@ export function AudiobookMatchDialog({
 			initialAsin={initialAsin}
 			coverClass="size-14"
 			fallbackIcon={<Headphones className="size-5 text-muted-foreground/40" />}
+			previewFields={AUDIOBOOK_PREVIEW_FIELDS}
+			current={current as Record<string, unknown> | undefined}
 			search={async ({ provider, title, author, asin }) => {
 				const candidates = await client.audiobooks.searchMetadata({
 					uuid: audiobookUuid,
@@ -559,11 +936,21 @@ export function AudiobookMatchDialog({
 					url: c.url,
 				}));
 			}}
-			apply={async (candidate) => {
+			preview={async (candidate) =>
+				client.audiobooks.previewMetadata({
+					uuid: audiobookUuid,
+					provider: candidate.provider as "audible" | "itunes",
+					providerId: candidate.providerId,
+				})
+			}
+			apply={async (candidate, fields) => {
 				const result = await client.audiobooks.applyMetadata({
 					uuid: audiobookUuid,
 					provider: candidate.provider as "audible" | "itunes",
 					providerId: candidate.providerId,
+					fields: fields as Parameters<
+						typeof client.audiobooks.applyMetadata
+					>[0]["fields"],
 				});
 				return result !== null;
 			}}

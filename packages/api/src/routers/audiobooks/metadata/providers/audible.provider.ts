@@ -1,3 +1,4 @@
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";
 import { upgradeAmazonImageUrl } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import { parseProviderSeriesPosition } from "../../../../modules/audiobookSeriesOrder";
@@ -23,7 +24,11 @@ const AUDNEXUS_BASE = "https://api.audnex.us";
 const AUDIBLE_CATALOG_BASE = "https://api.audible";
 
 /** Minimum delay between requests to avoid rate limiting (100 req/min on Audnexus) */
-const fetchJson = createThrottledFetchJson({ minDelayMs: 650, log });
+const fetchJson = createThrottledFetchJson({
+	provider: "audible",
+	minDelayMs: process.env.NODE_ENV === "test" ? 0 : 650,
+	log,
+});
 
 const REGION_TLD_MAP: Record<string, string> = {
 	us: ".com",
@@ -117,13 +122,19 @@ async function searchAudibleCatalog(
 	});
 
 	const url = `${AUDIBLE_CATALOG_BASE}${tld}/1.0/catalog/products?${params}`;
-	const data = await fetchJson<{ products?: AudibleCatalogProduct[] }>(url);
+	const data = await fetchJson<{ products?: AudibleCatalogProduct[] }>(
+		url,
+		providerQuotaScope("audible", { region }),
+	);
 	return data?.products ?? [];
 }
 
 async function getCatalogProduct(asin: string, region: string) {
 	const url = `${AUDIBLE_CATALOG_BASE}${getTld(region)}/1.0/catalog/products/${encodeURIComponent(asin)}?response_groups=product_attrs,contributors,series,media`;
-	const data = await fetchJson<{ product?: AudibleCatalogProduct }>(url);
+	const data = await fetchJson<{ product?: AudibleCatalogProduct }>(
+		url,
+		providerQuotaScope("audible", { region }),
+	);
 	// Never hydrate the requested book with a substituted or malformed result.
 	return data?.product?.asin?.toUpperCase() === asin.toUpperCase()
 		? data.product
@@ -137,7 +148,10 @@ async function getAudnexusBook(
 	region: string,
 ): Promise<AudnexusBook | null> {
 	const url = `${AUDNEXUS_BASE}/books/${encodeURIComponent(asin)}?region=${region}`;
-	return fetchJson<AudnexusBook>(url);
+	return fetchJson<AudnexusBook>(
+		url,
+		providerQuotaScope("audible", { region }),
+	);
 }
 
 async function getAudnexusChapters(
@@ -145,7 +159,10 @@ async function getAudnexusChapters(
 	region: string,
 ): Promise<AudnexusChapters | null> {
 	const url = `${AUDNEXUS_BASE}/books/${encodeURIComponent(asin)}/chapters?region=${region}`;
-	return fetchJson<AudnexusChapters>(url);
+	return fetchJson<AudnexusChapters>(
+		url,
+		providerQuotaScope("audible", { region }),
+	);
 }
 
 // ─── Map to AudiobookMetadata ────────────────────────────

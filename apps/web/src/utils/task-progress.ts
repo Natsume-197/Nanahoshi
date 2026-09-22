@@ -9,7 +9,7 @@ export type TaskJobProgress = {
 
 /** Uses the producer's known final total while the queue is still being fed. */
 export function getTaskJobProgress(task: Task): TaskJobProgress {
-	const done = task.completedJobs + task.failedJobs;
+	const done = task.completedJobs + task.failedJobs + (task.deferredJobs ?? 0);
 	const total = Math.max(task.totalJobs, task.plannedJobs ?? 0);
 	const operationPercent =
 		task.status === "running" && task.operationProgress

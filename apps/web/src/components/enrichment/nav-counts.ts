@@ -22,5 +22,12 @@ export function lifecycleNavCount(
 	_counts: BucketCounts,
 	lifecycleCounts: LifecycleCounts,
 ): number | undefined {
+	if (lifecycle === "review" && lifecycleCounts) {
+		return (
+			(lifecycleCounts.review ?? 0) +
+			(lifecycleCounts.unresolved ?? 0) +
+			(lifecycleCounts.partial ?? 0)
+		);
+	}
 	return lifecycleCounts?.[lifecycle];
 }

@@ -14,7 +14,12 @@ export type EnrichmentLifecycle =
 
 export type EnrichmentBucket = "in_progress" | "attention" | "completed";
 
-export type EnrichmentSort = "recent" | "oldest" | "title";
+export type EnrichmentSortField = "title" | "updated";
+export type EnrichmentSortDirection = "asc" | "desc";
+type EnrichmentSortPart = `${EnrichmentSortField}.${EnrichmentSortDirection}`;
+export type EnrichmentSort =
+	| EnrichmentSortPart
+	| `${EnrichmentSortPart},${EnrichmentSortPart}`;
 export type MediaTypeFilter = "ebook" | "audiobook" | typeof ALL_TYPES;
 
 /** Sidebar root: every bucket at once. */
@@ -25,7 +30,7 @@ export const PAGE_SIZE = 50;
 export const ALL_LIBRARIES = "__all__";
 export const ALL_TYPES = "__all_types__" as const;
 export const DEFAULT_BUCKET: BucketFilter = ALL_BUCKETS;
-export const DEFAULT_SORT: EnrichmentSort = "recent";
+export const DEFAULT_SORT: EnrichmentSort = "updated.desc";
 
 // Mirror of LIFECYCLE_BUCKET in the API's enrichment-lifecycle module: every
 // lifecycle lives in exactly one bucket, which is what lets the sidebar jump
@@ -48,7 +53,27 @@ export type TraySearch = {
 	type?: "ebook" | "audiobook";
 	sort?: EnrichmentSort;
 	failures?: boolean;
+	q?: string;
+	page?: number;
 };
+
+export function parseEnrichmentSort(
+	sort?: string,
+): { field: EnrichmentSortField; direction: EnrichmentSortDirection }[] {
+	const parsed = (sort ?? DEFAULT_SORT).split(",").flatMap((entry) => {
+		const [field, direction] = entry.split(".");
+		return (field === "title" || field === "updated") &&
+			(direction === "asc" || direction === "desc")
+			? [
+					{
+						field: field as EnrichmentSortField,
+						direction: direction as EnrichmentSortDirection,
+					},
+				]
+			: [];
+	});
+	return parsed.length > 0 ? parsed.slice(0, 2) : parseEnrichmentSort();
+}
 
 /**
  * The list query's input for a set of URL filters. A lifecycle only narrows the
@@ -73,9 +98,9 @@ export function listInputFromSearch(
 				: undefined,
 		mediaType: search.type,
 		withFailures: search.failures || undefined,
-		query: extra.query?.trim() || undefined,
-		sort: search.sort ?? DEFAULT_SORT,
+		query: extra.query?.trim() || search.q?.trim() || undefined,
+		sort: parseEnrichmentSort(search.sort),
 		limit: PAGE_SIZE,
-		offset: extra.offset ?? 0,
+		offset: extra.offset ?? ((search.page ?? 1) - 1) * PAGE_SIZE,
 	};
 }

@@ -23,3 +23,24 @@ export const BOOK_PROVIDERS: Record<
 	hardcover: hardcoverProvider,
 	comicvine: comicvineProvider,
 };
+
+export async function resolveBookProviderQuotaScope(
+	provider: MetadataProviderName,
+	context: ProviderQuotaContext,
+): Promise<string> {
+	const fallback = providerQuotaScope(provider, context);
+	try {
+		return (
+			(await BOOK_PROVIDERS[provider].quotaScope?.(context.serverId)) ??
+			fallback
+		);
+	} catch {
+		// Diagnostics and cooldown checks must remain available while the settings
+		// store is booting (and in isolated tests). The tenant scope is conservative:
+		// it never shares quota across organizations or exposes a credential.
+		return fallback;
+	}
+}
+
+import type { ProviderQuotaContext } from "../../../../infrastructure/providerQuotaScope";
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";

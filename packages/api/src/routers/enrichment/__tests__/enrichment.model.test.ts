@@ -30,6 +30,16 @@ describe("TargetSelection (shared target selection)", () => {
 });
 
 describe("ListEnrichmentInput", () => {
+	test("accepts up to two server-side sort criteria", () => {
+		expect(
+			ListEnrichmentInput.parse({
+				sort: [
+					{ field: "title", direction: "asc" },
+					{ field: "updated", direction: "desc" },
+				],
+			}).sort,
+		).toHaveLength(2);
+	});
 	test("defaults limit/offset and accepts a bucket filter", () => {
 		const parsed = ListEnrichmentInput.parse({ bucket: "attention" });
 		expect(parsed.limit).toBe(50);

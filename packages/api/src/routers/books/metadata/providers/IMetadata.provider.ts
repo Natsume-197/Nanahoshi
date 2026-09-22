@@ -63,9 +63,13 @@ export type ProviderCandidate = {
  * Rejected, and can tell that a match came down to a tie.
  */
 export interface IMetadataProvider {
+	/** Non-secret identity of the external quota bucket used by this provider. */
+	quotaScope?(serverId: string | null | undefined): Promise<string>;
+
 	/** Ranked candidates for the pipeline to assess, best first. */
 	discoverCandidates(
 		input: Partial<BookMetadata>,
+		signal?: AbortSignal,
 	): Promise<ProviderCandidate[]>;
 
 	/**
@@ -75,6 +79,7 @@ export interface IMetadataProvider {
 	hydrateCandidate(
 		candidate: ProviderCandidate,
 		input: Partial<BookMetadata>,
+		signal?: AbortSignal,
 	): Promise<MetadataProviderResult | null>;
 }
 
@@ -96,6 +101,10 @@ export type BookSearchCandidate = {
 };
 
 export interface ISearchableMetadataProvider extends IMetadataProvider {
+	/** Actionable setup reason used by the effective provider plan. */
+	readiness?(
+		serverId: string | null | undefined,
+	): Promise<"ready" | "disabled" | "missing_credentials">;
 	/**
 	 * Whether the provider can actually serve requests for this tenant:
 	 * enabled AND carrying any required credential. Drives which fix-match
@@ -104,7 +113,11 @@ export interface ISearchableMetadataProvider extends IMetadataProvider {
 	isAvailable(serverId: string | null | undefined): Promise<boolean>;
 	search(
 		input: { title?: string; author?: string },
-		options?: { serverId?: string | null; amazonDomain?: string },
+		options?: {
+			serverId?: string | null;
+			amazonDomain?: string;
+			signal?: AbortSignal;
+		},
 	): Promise<BookSearchCandidate[]>;
 	getById(
 		providerId: string,
@@ -112,6 +125,7 @@ export interface ISearchableMetadataProvider extends IMetadataProvider {
 			serverId?: string | null;
 			amazonDomain?: string;
 			uuid?: string;
+			signal?: AbortSignal;
 			// Candidate previews only: keeps `cover` as the remote URL instead of
 			// downloading it. Never save a result fetched with this flag.
 			keepRemoteCover?: boolean;

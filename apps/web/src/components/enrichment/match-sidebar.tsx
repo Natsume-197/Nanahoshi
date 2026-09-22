@@ -44,10 +44,9 @@ const NAV_LIFECYCLE_LABELS: Partial<Record<Lifecycle, () => string>> = {
 // it — one node per concept reads faster and removes the duplicate labels.
 const NAV_TREE: { bucket: Bucket; children: Lifecycle[] }[] = [
 	{ bucket: "in_progress", children: ["running", "scheduled"] },
-	{
-		bucket: "attention",
-		children: ["unresolved", "no_match", "review", "partial", "failed"],
-	},
+	// Keep the useful distinction between a questionable match and no match at
+	// all, while hiding the ambiguous/partial implementation states.
+	{ bucket: "attention", children: ["review", "no_match", "failed"] },
 	{ bucket: "completed", children: [] },
 ];
 
@@ -134,7 +133,10 @@ export function MatchSidebar({
 				{NAV_TREE.map((node) => (
 					<div key={node.bucket} className="flex flex-col gap-0.5">
 						<NavRow
-							active={bucket === node.bucket && lifecycle == null}
+							active={
+								bucket === node.bucket &&
+								(lifecycle == null || !node.children.includes(lifecycle))
+							}
 							label={BUCKET_LABELS[node.bucket]()}
 							count={counts?.[node.bucket]}
 							icon={BUCKET_ICONS[node.bucket]}

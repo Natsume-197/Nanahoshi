@@ -7,6 +7,7 @@ export type MatchDecisionCandidate = {
 	provider: string;
 	providerId: string;
 	title?: string;
+	previewCover?: string | null;
 	reasons?: string[];
 };
 
@@ -34,6 +35,7 @@ export type MatchRow = {
 		providerId?: string | null;
 		manual?: boolean;
 		title?: string;
+		previewCover?: string | null;
 		reasons?: string[];
 	}[];
 	decision: MatchDecision | null;

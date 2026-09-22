@@ -49,4 +49,16 @@ describe("task progress", () => {
 			}).percent,
 		).toBe(100);
 	});
+
+	test("counts provider-deferred jobs as processed without calling them completed", () => {
+		expect(
+			getTaskJobProgress({
+				...task,
+				totalJobs: 2,
+				plannedJobs: 2,
+				completedJobs: 1,
+				deferredJobs: 1,
+			}),
+		).toEqual({ done: 2, total: 2, remaining: 0, percent: 100 });
+	});
 });

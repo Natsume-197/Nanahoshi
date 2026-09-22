@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
+import { providerRequestSignal } from "../../../../infrastructure/providerAbort";
 import { logger } from "../../../../lib/logger";
 import {
 	assessCatalogIdentity,
@@ -1366,7 +1367,11 @@ class AmazonProvider implements ISearchableMetadataProvider {
 		const headers = this.getHeaders(config.domain, config.cookie);
 
 		try {
-			const response = await fetch(url, { headers, redirect: "follow" });
+			const response = await fetch(url, {
+				headers,
+				redirect: "follow",
+				signal: providerRequestSignal(undefined, 15_000),
+			});
 
 			// Read non-OK bodies too: Amazon sometimes returns its challenge as 503.
 			const html = await response.text();

@@ -25,6 +25,8 @@ import {
 } from "./providers/provider.manifest";
 import {
 	deriveIsbnPair,
+	ProviderCredentialError,
+	ProviderResponseError,
 	ProviderTransientError,
 } from "./providers/provider.utils";
 
@@ -65,50 +67,74 @@ function isMissing(value: unknown): boolean {
 // authors always outrank the EPUB-extracted ones — better identification.
 function seedFieldRanks(
 	metadata: Partial<BookMetadata>,
+	routing: BookRoutingPolicy,
+	fieldSources: Readonly<Record<string, MetadataProviderName>>,
 ): Record<string, number> {
 	const ranks: Record<string, number> = {};
 	for (const [key, value] of Object.entries(metadata)) {
-		if (key === "authors") continue;
-		if (!isMissing(value)) ranks[key] = -1;
+		if (isMissing(value)) continue;
+		const source = fieldSources[key];
+		if (key === "authors" && !source) continue;
+		ranks[key] = source ? providerFieldRank(routing, key, source) : -1;
 	}
 	return ranks;
 }
 
-function providerHasGap(
+export function bookProviderHasOpportunity(
 	provider: MetadataProviderName,
 	metadata: Partial<BookMetadata>,
 	routing: BookRoutingPolicy,
+	fieldSources: Readonly<Record<string, MetadataProviderName>> = {},
+	protectedFields: readonly (keyof BookMetadata)[] = [],
+	refresh = false,
 ): boolean {
-	return BOOK_PROVIDER_MANIFEST[provider].fields.some(
-		(field) =>
-			providerFieldRank(routing, field, provider) !==
-				Number.POSITIVE_INFINITY &&
-			(isMissing(metadata[field]) ||
-				routing.updates?.[field] === "if_provided"),
-	);
+	return BOOK_PROVIDER_MANIFEST[provider].fields.some((field) => {
+		if (
+			protectedFields.includes(field) ||
+			providerFieldRank(routing, field, provider) === Number.POSITIVE_INFINITY
+		) {
+			return false;
+		}
+		if (
+			refresh ||
+			isMissing(metadata[field]) ||
+			routing.updates?.[field] === "if_provided"
+		) {
+			return true;
+		}
+		const currentSource = fieldSources[field];
+		return (
+			currentSource != null &&
+			providerFieldRank(routing, field, provider) <
+				providerFieldRank(routing, field, currentSource)
+		);
+	});
 }
 
 export function needsBookCatalogEnrichment(
 	metadata: Partial<BookMetadata>,
 	routing: BookRoutingPolicy,
+	fieldSources: Readonly<Record<string, MetadataProviderName>> = {},
 ): boolean {
-	return routing.order.some((provider) =>
-		providerHasGap(provider, metadata, routing),
-	);
+	return routing.order.some((provider) => {
+		return bookProviderHasOpportunity(
+			provider,
+			metadata,
+			routing,
+			fieldSources,
+		);
+	});
 }
 
 function bookAdapter(
 	name: MetadataProviderName,
 	provider: IMetadataProvider,
+	quotaScope?: string,
 ): CatalogProviderAdapter<MetadataProviderName, BookEnrichmentMetadata> {
 	// A transient provider error becomes a typed failure the gate can act on.
-	// Anything else (a parse failure, an unexpected payload) is this provider's
-	// problem alone: it contributes nothing and the chain moves on, rather than
-	// failing the whole enrichment run.
-	const callProvider = async <T>(
-		call: () => Promise<T>,
-		fallback: T,
-	): Promise<T> => {
+	// Every provider failure crosses this boundary with an explicit taxonomy so
+	// the chain can continue while diagnostics retain the real cause.
+	const callProvider = async <T>(call: () => Promise<T>): Promise<T> => {
 		try {
 			return await call();
 		} catch (error) {
@@ -119,8 +145,20 @@ function bookAdapter(
 					opensCircuitBreaker: error.opensCircuitBreaker,
 				});
 			}
+			if (error instanceof ProviderCredentialError) {
+				throw new CatalogProviderError("permanent", error.code, {
+					cause: error,
+				});
+			}
+			if (error instanceof ProviderResponseError) {
+				throw new CatalogProviderError("permanent", error.code, {
+					cause: error,
+				});
+			}
 			log.warn({ err: error, provider: name }, "Provider call failed");
-			return fallback;
+			throw new CatalogProviderError("permanent", "provider_failed", {
+				cause: error,
+			});
 		}
 	};
 
@@ -129,7 +167,7 @@ function bookAdapter(
 		BookEnrichmentMetadata
 	> = {
 		id: name,
-		async discover(query, metadata) {
+		async discover(query, metadata, signal) {
 			const projectedMetadata: BookEnrichmentMetadata = {
 				...metadata,
 				...(query.title !== undefined && { title: query.title }),
@@ -150,28 +188,27 @@ function bookAdapter(
 						})),
 					}),
 			};
-			const candidates = await callProvider(
-				() => provider.discoverCandidates(projectedMetadata),
-				[],
+			const candidates = await callProvider(() =>
+				provider.discoverCandidates(projectedMetadata, signal),
 			);
 			return candidates.map((candidate) => ({
 				providerId: candidate.providerId,
 				metadata: candidate.metadata ?? {},
 				evidence: candidate.identity,
+				previewCover: candidate.metadata?.cover ?? null,
 			}));
 		},
-		async hydrate(candidate, input) {
-			const response = await callProvider(
-				() =>
-					provider.hydrateCandidate(
-						{
-							providerId: candidate.providerId,
-							identity: candidate.evidence,
-							metadata: candidate.metadata,
-						},
-						input,
-					),
-				null,
+		async hydrate(candidate, input, signal) {
+			const response = await callProvider(() =>
+				provider.hydrateCandidate(
+					{
+						providerId: candidate.providerId,
+						identity: candidate.evidence,
+						metadata: candidate.metadata,
+					},
+					input,
+					signal,
+				),
 			);
 			if (!response?.identity) return null;
 			if (Object.keys(response.metadata).length === 0) return null;
@@ -179,15 +216,18 @@ function bookAdapter(
 		},
 		...(typeof (provider as Partial<ISearchableMetadataProvider>).getById ===
 			"function" && {
-			async lookup(providerId: string, input: BookEnrichmentMetadata) {
-				const metadata = await callProvider(
-					() =>
-						(provider as ISearchableMetadataProvider).getById(providerId, {
-							serverId: input.serverId,
-							amazonDomain: input.amazonDomain,
-							uuid: input.uuid,
-						}),
-					null,
+			async lookup(
+				providerId: string,
+				input: BookEnrichmentMetadata,
+				signal?: AbortSignal,
+			) {
+				const metadata = await callProvider(() =>
+					(provider as ISearchableMetadataProvider).getById(providerId, {
+						serverId: input.serverId,
+						amazonDomain: input.amazonDomain,
+						uuid: input.uuid,
+						signal,
+					}),
 				);
 				if (!metadata) return null;
 				return {
@@ -198,7 +238,7 @@ function bookAdapter(
 		}),
 	};
 
-	return withProviderGate(adapter, (metadata) => metadata);
+	return withProviderGate(adapter, (metadata) => ({ ...metadata, quotaScope }));
 }
 
 // Per-run policy: fields accept a provider's value when the provider outranks
@@ -209,8 +249,9 @@ function bookPolicy(
 	refresh: boolean,
 	routing: BookRoutingPolicy,
 	initialMetadata: BookEnrichmentMetadata,
+	fieldSources: Readonly<Record<string, MetadataProviderName>>,
 ): CatalogEnrichmentPolicy<BookEnrichmentMetadata, MetadataProviderName> {
-	const currentRank = seedFieldRanks(initialMetadata);
+	const currentRank = seedFieldRanks(initialMetadata, routing, fieldSources);
 	for (const [field, mode] of Object.entries(routing.updates ?? {})) {
 		if (
 			mode === "if_provided" ||
@@ -342,11 +383,13 @@ export async function runBookCatalogEnrichment({
 	routing,
 	requiredPrimaryMatch,
 	preferredProviderIds,
+	fieldSources = {},
 }: {
 	metadata: BookEnrichmentMetadata;
 	providers: readonly {
 		name: MetadataProviderName;
 		provider: IMetadataProvider;
+		quotaScope?: string;
 	}[];
 	protectedFields?: readonly (keyof BookMetadata)[];
 	refresh?: boolean;
@@ -356,6 +399,7 @@ export async function runBookCatalogEnrichment({
 		providerId: string;
 	};
 	preferredProviderIds?: Partial<Record<MetadataProviderName, string>>;
+	fieldSources?: Readonly<Record<string, MetadataProviderName>>;
 }) {
 	const effectiveRouting: BookRoutingPolicy = routing ?? {
 		order: providers.map(({ name }) => name),
@@ -378,10 +422,15 @@ export async function runBookCatalogEnrichment({
 	const result = await runCatalogEnrichment({
 		initialMetadata,
 		initialEvidence,
-		providers: providers.map(({ name, provider }) =>
-			bookAdapter(name, provider),
+		providers: providers.map(({ name, provider, quotaScope }) =>
+			bookAdapter(name, provider, quotaScope),
 		),
-		policy: bookPolicy(refresh, effectiveRouting, initialMetadata),
+		policy: bookPolicy(
+			refresh,
+			effectiveRouting,
+			initialMetadata,
+			fieldSources,
+		),
 		requiredPrimaryProvider:
 			requiredPrimaryMatch?.provider ?? effectiveRouting.primary,
 		requiredPrimaryProviderId: requiredPrimaryMatch?.providerId,

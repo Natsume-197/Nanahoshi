@@ -1,0 +1,11 @@
+[
+	{
+		"name": "The Hobbit",
+		"query": { "title": "The Hobbit", "author": "J. R. R. Tolkien" },
+		"expected": {
+			"kind": "book",
+			"title": "The Hobbit",
+			"creators": [{ "name": "J. R. R. Tolkien", "role": "Author" }]
+		}
+	}
+]

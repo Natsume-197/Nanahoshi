@@ -2,6 +2,7 @@ import { Job, type Queue, QueueEvents } from "bullmq";
 import { logger } from "../../lib/logger";
 import {
 	bumpCompleted,
+	bumpDeferred,
 	bumpFailed,
 	reconcileActiveTasks,
 } from "../../modules/taskManager";
@@ -42,7 +43,10 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "read-listen-match-analysis", queue: readListenMatchAnalysisQueue },
 ];
 
-function readTaskId(returnvalue: unknown): string | undefined {
+function readTaskResult(returnvalue: unknown): {
+	taskId?: string;
+	outcome?: string;
+} {
 	// QueueEvents already JSON-parses `completed` return values, but stay
 	// defensive in case a raw string slips through.
 	let value = returnvalue;
@@ -50,11 +54,14 @@ function readTaskId(returnvalue: unknown): string | undefined {
 		try {
 			value = JSON.parse(value);
 		} catch {
-			return undefined;
+			return {};
 		}
 	}
-	const taskId = (value as { taskId?: unknown } | null)?.taskId;
-	return typeof taskId === "string" ? taskId : undefined;
+	const result = value as { taskId?: unknown; outcome?: unknown } | null;
+	return {
+		...(typeof result?.taskId === "string" && { taskId: result.taskId }),
+		...(typeof result?.outcome === "string" && { outcome: result.outcome }),
+	};
 }
 
 /**
@@ -98,10 +105,14 @@ export async function startTaskProgressListeners(): Promise<{
 
 		qe.on("completed", ({ jobId, returnvalue }, id) => {
 			lastIds.set(name, id);
-			const taskId = readTaskId(returnvalue);
+			const { taskId, outcome } = readTaskResult(returnvalue);
 			if (!taskId) return; // untracked job, or a self-counting orchestrator
-			bumpCompleted(taskId, jobId).catch((err) =>
-				log.error({ err, jobId, queue: name }, "bumpCompleted failed"),
+			const record = outcome === "deferred" ? bumpDeferred : bumpCompleted;
+			record(taskId, jobId).catch((err) =>
+				log.error(
+					{ err, jobId, queue: name },
+					"Recording terminal task outcome failed",
+				),
 			);
 		});
 

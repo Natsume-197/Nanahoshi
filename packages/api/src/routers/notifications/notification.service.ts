@@ -81,6 +81,7 @@ export const emitTaskFinished = async (task: Task) => {
 		totalJobs: task.totalJobs,
 		completedJobs: task.completedJobs,
 		failedJobs: task.failedJobs,
+		...(task.deferredJobs && { deferredJobs: task.deferredJobs }),
 		...(task.failureReason && { error: task.failureReason }),
 		...(attention && { attention }),
 	};

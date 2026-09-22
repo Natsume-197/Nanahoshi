@@ -151,6 +151,10 @@ mock.module("../auth/access.repository", () => ({
 		pc: permissionContext,
 		accessibleLibraryIds,
 	})),
+	resolveBookScope: mock(async () => ({
+		serverId: "org-A",
+		scope: accessibleLibraryIds,
+	})),
 	resolveLibraryAccess: mock(async () => null),
 	canAccessBookAction: mock(
 		async (_session: unknown, uuid: string) =>
@@ -223,6 +227,10 @@ const readListenTestService = {
 
 const { libraryRouter } = await import("../routers/libraries/library.router");
 const { fileRouter } = await import("../routers/files/file.router");
+const { bookRouter } = await import("../routers/books/book.router");
+const { audiobooksRouter } = await import(
+	"../routers/audiobooks/audiobook.router"
+);
 const { createReadListenRouter } = await import(
 	"../routers/read-listen/read-listen.router"
 );
@@ -318,6 +326,87 @@ describe("middleware authorization gates", () => {
 	});
 
 	describe("book:editMetadata — readListenRouter.associate", () => {
+		test("a viewer cannot use the legacy Audible search endpoint", async () => {
+			permissionContext = {
+				...permissionContext,
+				isOrgOwner: false,
+				hasAdministrator: false,
+				globalPerms: { book: ["view"] },
+			};
+			try {
+				await expectRejectsWithCode(
+					callAs(
+						audiobooksRouter.searchAudible,
+						{ title: "Dune" },
+						{ role: "user", activeOrganizationId: "org-A" },
+					),
+					"FORBIDDEN",
+				);
+			} finally {
+				permissionContext = { ...permissionContext, globalPerms: {} };
+			}
+		});
+
+		test.each([
+			[
+				"book providers",
+				bookRouter.availableMetadataProviders,
+				{ uuid: readListenPair.ebook.uuid },
+			],
+			[
+				"book search",
+				bookRouter.searchMetadata,
+				{
+					uuid: readListenPair.ebook.uuid,
+					provider: "googlebooks",
+					title: "Dune",
+				},
+			],
+			[
+				"book preview",
+				bookRouter.previewMetadata,
+				{
+					uuid: readListenPair.ebook.uuid,
+					provider: "googlebooks",
+					providerId: "volume-1",
+				},
+			],
+			[
+				"audiobook search",
+				audiobooksRouter.searchMetadata,
+				{
+					uuid: readListenPair.audiobook.uuid,
+					provider: "audible",
+					title: "Dune",
+				},
+			],
+			[
+				"audiobook preview",
+				audiobooksRouter.previewMetadata,
+				{
+					uuid: readListenPair.audiobook.uuid,
+					provider: "audible",
+					providerId: "B000000001",
+				},
+			],
+		] as const)(
+			"a viewer cannot consume provider quota through %s",
+			async (_name, procedure, input) => {
+				canAccessBookActionResult = false;
+				try {
+					await expectRejectsWithCode(
+						callAs(procedure, input, {
+							role: "user",
+							activeOrganizationId: "org-A",
+						}),
+						"FORBIDDEN",
+					);
+				} finally {
+					canAccessBookActionResult = true;
+				}
+			},
+		);
+
 		test("6. a viewer cannot associate two visible publications", async () => {
 			canAccessBookActionResult = false;
 			try {

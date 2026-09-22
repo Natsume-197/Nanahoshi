@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { providerGate } from "../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../infrastructure/providerQuotaScope";
 import { CatalogProviderError } from "../catalogEnrichment";
 import { withProviderGate } from "../provider-gate.adapter";
 import type { CatalogProviderAdapter } from "../types";
@@ -59,6 +60,33 @@ describe("cooldown is enforced on every phase", () => {
 });
 
 describe("only breaker-worthy transient failures open the breaker", () => {
+	test("a provider phase has a bounded deadline and remains retryable", async () => {
+		let observedAbort = false;
+		const gated = withProviderGate(
+			stubAdapter({
+				discover: (_query, _metadata, signal) =>
+					new Promise((_resolve, reject) => {
+						signal?.addEventListener(
+							"abort",
+							() => {
+								observedAbort = true;
+								reject(signal.reason);
+							},
+							{ once: true },
+						);
+					}),
+			}),
+			() => ({ serverId: "acme" }),
+			10,
+		);
+
+		await expect(gated.discover({ kind: "book" }, {})).rejects.toMatchObject({
+			kind: "transient",
+			code: "provider_timeout",
+		});
+		expect(observedAbort).toBe(true);
+	});
+
 	test("a network failure stays retryable without cooling down the provider", async () => {
 		const gated = withProviderGate(
 			stubAdapter({
@@ -158,6 +186,25 @@ describe("only breaker-worthy transient failures open the breaker", () => {
 });
 
 describe("scoping", () => {
+	test("credential quotas follow the effective credential without exposing it", () => {
+		const first = providerQuotaScope("googlebooks", {
+			serverId: "one",
+			credential: "shared-secret",
+		});
+		const second = providerQuotaScope("googlebooks", {
+			serverId: "two",
+			credential: "shared-secret",
+		});
+		const other = providerQuotaScope("googlebooks", {
+			serverId: "one",
+			credential: "another-secret",
+		});
+
+		expect(first).toBe(second);
+		expect(first).not.toBe(other);
+		expect(first).not.toContain("shared-secret");
+	});
+
 	test("a permanent failure leaves the breaker closed", async () => {
 		const gated = withProviderGate(
 			stubAdapter({
@@ -189,5 +236,26 @@ describe("scoping", () => {
 		expect(
 			await gated.discover({ kind: "book" }, { serverId: "other" }),
 		).toEqual([]);
+	});
+});
+
+describe("distributed request pacing", () => {
+	test("reserves one ordered slot for concurrent callers in the same quota scope", async () => {
+		const startedAt = Date.now();
+		const calls = await Promise.all(
+			Array.from({ length: 3 }, async () => {
+				await providerGate.waitForSlot("googlebooks", "org:acme", 25);
+				return Date.now() - startedAt;
+			}),
+		);
+		expect((calls[1] ?? 0) - (calls[0] ?? 0)).toBeGreaterThanOrEqual(15);
+		expect((calls[2] ?? 0) - (calls[1] ?? 0)).toBeGreaterThanOrEqual(15);
+	});
+
+	test("does not serialize independent quota scopes", async () => {
+		await providerGate.waitForSlot("googlebooks", "org:acme", 100);
+		const startedAt = Date.now();
+		await providerGate.waitForSlot("googlebooks", "org:other", 100);
+		expect(Date.now() - startedAt).toBeLessThan(50);
 	});
 });

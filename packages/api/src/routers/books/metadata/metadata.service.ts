@@ -1,9 +1,6 @@
-import { TooManyRequestsError } from "../../../errors";
+import { BadRequestError, TooManyRequestsError } from "../../../errors";
 import { providerGate } from "../../../infrastructure/providerGate";
-import {
-	type ProviderQuotaContext,
-	providerQuotaScope,
-} from "../../../infrastructure/providerQuotaScope";
+import type { ProviderQuotaContext } from "../../../infrastructure/providerQuotaScope";
 import { coverIngestQueue } from "../../../infrastructure/queue/queues/cover-ingest.queue";
 import { logger } from "../../../lib/logger";
 import {
@@ -14,12 +11,14 @@ import {
 } from "../../../modules/metadataEnrichment/enrichment-outcome";
 import {
 	normalizeProviderPolicy,
+	providerAllowedForField,
 	type RawProviderConfig,
 } from "../../../modules/providerPolicy";
 import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
 import type { BookMetadata, ManualBookMetadata } from "./book.metadata.model";
 import {
 	type BookRoutingPolicy,
+	bookProviderHasOpportunity,
 	type MetadataProviderName,
 	needsBookCatalogEnrichment,
 	runBookCatalogEnrichment,
@@ -31,12 +30,20 @@ import type { BookSearchCandidate } from "./providers/IMetadata.provider";
 import { localProvider } from "./providers/local.provider";
 import {
 	BOOK_PROVIDER_IDS,
+	BOOK_PROVIDER_MANIFEST,
 	type BookProviderTag,
 	bookProviderTag,
 	isBookProviderName,
+	providerCoversContentForm,
 } from "./providers/provider.manifest";
-import { ProviderTransientError } from "./providers/provider.utils";
-import { BOOK_PROVIDERS } from "./providers/registry";
+import {
+	ProviderCredentialError,
+	ProviderTransientError,
+} from "./providers/provider.utils";
+import {
+	BOOK_PROVIDERS,
+	resolveBookProviderQuotaScope,
+} from "./providers/registry";
 
 export type { MetadataProviderName } from "./providers/provider.manifest";
 
@@ -164,17 +171,30 @@ export class BookMetadataService {
 			uuid: string;
 			serverId?: string | null;
 			amazonDomain?: string;
+			fieldSources?: Record<string, { p?: string }>;
 		},
 		order?: MetadataProviderName[],
 		options?: { refresh?: boolean; seriesOnly?: boolean },
 	) {
-		const routing = await this.resolveRoutingPolicy(input.bookId, order);
+		const { fieldSources: storedFieldSources, ...metadataInput } = input;
+		const fieldSources = Object.fromEntries(
+			Object.entries(storedFieldSources ?? {}).flatMap(([field, source]) =>
+				source.p && isBookProviderName(source.p) ? [[field, source.p]] : [],
+			),
+		) as Record<string, MetadataProviderName>;
+		const routing = await this.resolveRoutingPolicy(
+			metadataInput.bookId,
+			order,
+		);
 		const providerOrder = routing.order;
 
 		// Nothing this chain could still contribute: finish without touching any
 		// provider, and without recording a misleading "no_match".
-		if (!options?.refresh && !needsBookCatalogEnrichment(input, routing)) {
-			await enrichmentStateRepository.markCompleted(input.bookId);
+		if (
+			!options?.refresh &&
+			!needsBookCatalogEnrichment(metadataInput, routing, fieldSources)
+		) {
+			await enrichmentStateRepository.markCompleted(metadataInput.bookId);
 			return null;
 		}
 
@@ -182,19 +202,19 @@ export class BookMetadataService {
 		// (Amazon domain/cookie, RanobeDB toggle). Library-less books fall back to
 		// defaults; runs in a worker, so it can't come from session context.
 		const serverId =
-			input.serverId ??
-			(await bookMetadataRepository.getServerIdByBookId(input.bookId));
+			metadataInput.serverId ??
+			(await bookMetadataRepository.getServerIdByBookId(metadataInput.bookId));
 
 		// Per-library override layered over the org default: Amazon store.
 		// Undefined lets the provider fall back to the org default.
 		const libraryConfig = await bookMetadataRepository.getLibraryMetadataConfig(
-			input.bookId,
+			metadataInput.bookId,
 		);
 		const amazonDomain = libraryConfig?.amazon?.domain;
 		const protectedFields = await bookMetadataRepository.getLockedFields(
-			input.bookId,
+			metadataInput.bookId,
 		);
-		const state = await enrichmentStateRepository.get(input.bookId);
+		const state = await enrichmentStateRepository.get(metadataInput.bookId);
 		const manualMatch = state?.matched.find(
 			(match) => match.manual && match.providerId,
 		);
@@ -219,12 +239,65 @@ export class BookMetadataService {
 					: [],
 			),
 		) as Partial<Record<MetadataProviderName, string>>;
+		const providerPlan = await Promise.all(
+			providerOrder.map(async (provider) => {
+				const fields = BOOK_PROVIDER_MANIFEST[provider].fields.filter((field) =>
+					providerAllowedForField(routing, field, provider),
+				);
+				const available = await BOOK_PROVIDERS[provider]
+					.isAvailable(serverId)
+					.catch(() => false);
+				const configured = available
+					? ("ready" as const)
+					: await (
+							BOOK_PROVIDERS[provider].readiness?.(serverId) ??
+							Promise.resolve("unavailable" as const)
+						).catch(() => "unavailable" as const);
+				const quotaScope = await resolveBookProviderQuotaScope(provider, {
+					serverId,
+					amazonDomain,
+				});
+				const cooldown = await providerGate.cooldownRemainingMs(
+					provider,
+					quotaScope,
+				);
+				return {
+					provider,
+					status: !providerCoversContentForm(
+						provider,
+						metadataInput.contentForm,
+					)
+						? ("outside_coverage" as const)
+						: fields.length === 0
+							? ("not_routed" as const)
+							: !bookProviderHasOpportunity(
+										provider,
+										metadataInput,
+										routing,
+										fieldSources,
+										protectedFields as (keyof BookMetadata)[],
+										options?.refresh,
+									)
+								? ("no_fields_pending" as const)
+								: configured !== "ready"
+									? configured
+									: cooldown != null
+										? ("cooldown" as const)
+										: ("ready" as const),
+					fields,
+					quotaScope,
+				};
+			}),
+		);
 		const result = await runBookCatalogEnrichment({
-			metadata: { ...input, serverId, amazonDomain },
-			providers: providerOrder.map((name) => ({
-				name,
-				provider: BOOK_PROVIDERS[name],
-			})),
+			metadata: { ...metadataInput, serverId, amazonDomain },
+			providers: providerPlan
+				.filter(({ status }) => status === "ready" || status === "cooldown")
+				.map(({ provider: name, quotaScope }) => ({
+					name,
+					provider: BOOK_PROVIDERS[name],
+					quotaScope,
+				})),
 			protectedFields: protectedFields as (keyof BookMetadata)[],
 			refresh: options?.refresh,
 			routing,
@@ -235,22 +308,35 @@ export class BookMetadataService {
 					}
 				: undefined,
 			preferredProviderIds,
+			fieldSources,
 		});
 
 		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
 			result.failures,
 		);
+		const effectiveProviderPlan = providerPlan.map(
+			({ quotaScope: _quotaScope, ...entry }) => {
+				const run = result.diagnostics.providerRuns.find(
+					(candidate) => candidate.provider === entry.provider,
+				);
+				return run?.status === "skipped"
+					? { ...entry, status: "blocked_by_authority" as const }
+					: run?.status === "missing_credentials" || run?.status === "cooldown"
+						? { ...entry, status: run.status }
+						: entry;
+			},
+		);
 		await enrichmentStateRepository.recordDiagnostics(
-			input.bookId,
+			metadataInput.bookId,
 			result.status,
-			result.diagnostics,
+			{ ...result.diagnostics, providers: effectiveProviderPlan },
 		);
 		if (result.status === "retryable_failure") {
 			log.warn({ failures: result.failures }, "Book enrichment is retryable");
 			// Keep whatever status the book had — the run produced nothing new —
 			// but surface the per-provider failures to the match manager.
 			await enrichmentStateRepository.recordFailures(
-				input.bookId,
+				metadataInput.bookId,
 				failures,
 				nextRetryAt,
 			);
@@ -265,7 +351,7 @@ export class BookMetadataService {
 					"Book enrichment completed without a match",
 				);
 			}
-			await enrichmentStateRepository.recordRun(input.bookId, {
+			await enrichmentStateRepository.recordRun(metadataInput.bookId, {
 				status: "no_match",
 				decision: result.decision,
 				failures,
@@ -281,7 +367,7 @@ export class BookMetadataService {
 		const metadata = options?.seriesOnly
 			? { series: result.metadata.series }
 			: result.metadata;
-		const saved = await this.saveMetadata(metadata, input.bookId, {
+		const saved = await this.saveMetadata(metadata, metadataInput.bookId, {
 			providerTag: result.authorsProvider
 				? bookProviderTag(result.authorsProvider)
 				: "LOCAL",
@@ -289,14 +375,14 @@ export class BookMetadataService {
 		});
 		const outcome = resolveMatchOutcome(result, BOOK_OUTCOME_POLICY);
 		if (outcome.kind === "run") {
-			await enrichmentStateRepository.recordRun(input.bookId, {
+			await enrichmentStateRepository.recordRun(metadataInput.bookId, {
 				status: outcome.status,
 				matched: result.matches,
 				failures,
 				nextRetryAt: result.retryable ? nextRetryAt : null,
 			});
 		} else {
-			await enrichmentStateRepository.recordPartialMatch(input.bookId, {
+			await enrichmentStateRepository.recordPartialMatch(metadataInput.bookId, {
 				matched: result.matches,
 				failures,
 				nextRetryAt,
@@ -359,14 +445,20 @@ export class BookMetadataService {
 		const gaps = await bookMetadataRepository.getEnrichmentGaps(bookId);
 		if (!gaps) return false;
 		const routing = await this.resolveRoutingPolicy(bookId);
+		const { fieldSources: storedFieldSources, ...gapValues } = gaps;
 		const values: Record<string, unknown> = {
-			...gaps,
+			...gapValues,
 			authors: gaps.hasAuthors ? [true] : [],
 			series: gaps.hasSeries ? {} : null,
 			genres: gaps.hasGenres ? [true] : [],
 			tags: gaps.hasTags ? [true] : [],
 		};
-		return needsBookCatalogEnrichment(values, routing);
+		const fieldSources = Object.fromEntries(
+			Object.entries(storedFieldSources).flatMap(([field, source]) =>
+				source.p && isBookProviderName(source.p) ? [[field, source.p]] : [],
+			),
+		) as Record<string, MetadataProviderName>;
+		return needsBookCatalogEnrichment(values, routing, fieldSources);
 	}
 
 	private isFieldMissing(value: unknown): boolean {
@@ -531,7 +623,7 @@ export class BookMetadataService {
 	) {
 		const cooldownMs = await providerGate.cooldownRemainingMs(
 			name,
-			providerQuotaScope(name, context),
+			await resolveBookProviderQuotaScope(name, context),
 		);
 		if (cooldownMs != null) {
 			throw new TooManyRequestsError(
@@ -552,10 +644,13 @@ export class BookMetadataService {
 				await providerGate.trip(
 					name,
 					error.retryAfterMs,
-					providerQuotaScope(name, context),
+					await resolveBookProviderQuotaScope(name, context),
 				);
 			}
 			throw new TooManyRequestsError(`${error.message}. Try again later.`);
+		}
+		if (error instanceof ProviderCredentialError) {
+			throw new BadRequestError(error.message);
 		}
 		throw error;
 	}
@@ -585,13 +680,10 @@ export class BookMetadataService {
 		return guardedCall();
 	}
 
-	// Manual fix-match apply: fetch the chosen candidate's full record by id and
-	// save it. The picked record's entities replace the current ones (that's the
-	// point of re-matching), but locked fields still win — a manual field edit
-	// outranks a manual re-match.
-	async applyFromProvider(
+	private async getProviderRecord(
 		name: MetadataProviderName,
 		input: { bookId: number; uuid: string; providerId: string },
+		keepRemoteCover: boolean,
 	) {
 		const provider = BOOK_PROVIDERS[name];
 		const serverId = await bookMetadataRepository.getServerIdByBookId(
@@ -604,17 +696,55 @@ export class BookMetadataService {
 			serverId,
 			amazonDomain: libraryConfig?.amazon?.domain,
 		};
-		const result = await this.runProviderCall(name, quotaContext, () =>
+		return this.runProviderCall(name, quotaContext, () =>
 			provider.getById(input.providerId, {
 				...quotaContext,
 				uuid: input.uuid,
+				keepRemoteCover,
 			}),
 		);
-		if (!result || Object.keys(result).length === 0) return null;
+	}
 
-		const saved = await this.saveMetadata(result, input.bookId, {
+	async previewFromProvider(
+		name: MetadataProviderName,
+		input: { bookId: number; uuid: string; providerId: string },
+	) {
+		const [metadata, lockedFields] = await Promise.all([
+			this.getProviderRecord(name, input, true),
+			bookMetadataRepository.getLockedFields(input.bookId),
+		]);
+		return metadata ? { metadata, lockedFields } : null;
+	}
+
+	// Manual fix-match apply: fetch the chosen candidate's full record by id and
+	// save it. The picked record's entities replace the current ones (that's the
+	// point of re-matching), but locked fields still win — a manual field edit
+	// outranks a manual re-match.
+	async applyFromProvider(
+		name: MetadataProviderName,
+		input: {
+			bookId: number;
+			uuid: string;
+			providerId: string;
+			fields?: string[];
+		},
+	) {
+		const result = await this.getProviderRecord(name, input, false);
+		if (!result || Object.keys(result).length === 0) return null;
+		const selected = input.fields?.length
+			? (Object.fromEntries(
+					Object.entries(result).filter(([field]) =>
+						input.fields?.includes(field),
+					),
+				) as Partial<BookMetadata>)
+			: result;
+		if (Object.keys(selected).length === 0) return null;
+
+		const saved = await this.saveMetadata(selected, input.bookId, {
 			providerTag: bookProviderTag(name),
-			source: name,
+			fieldSources: Object.fromEntries(
+				Object.keys(selected).map((field) => [field, name]),
+			),
 		});
 		await enrichmentStateRepository.recordRun(input.bookId, {
 			status: "enriched",

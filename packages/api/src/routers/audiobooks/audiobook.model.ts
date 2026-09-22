@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCKABLE_AUDIOBOOK_FIELDS } from "./metadata/audiobook-metadata.model";
 import { AUDIOBOOK_PROVIDER_IDS } from "./metadata/providers/provider.manifest";
 
 export const GetAudiobookInput = z.object({
@@ -109,6 +110,14 @@ export const ApplyAudiobookMetadataInput = z.object({
 	uuid: z.string(),
 	provider: AudiobookProviderEnum,
 	// ASIN for Audible, collectionId for iTunes
+	providerId: z.string(),
+	region: z.string().optional(),
+	fields: z.array(z.enum(LOCKABLE_AUDIOBOOK_FIELDS)).min(1).optional(),
+});
+
+export const PreviewAudiobookMetadataInput = z.object({
+	uuid: z.string(),
+	provider: AudiobookProviderEnum,
 	providerId: z.string(),
 	region: z.string().optional(),
 });

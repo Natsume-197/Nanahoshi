@@ -1,3 +1,4 @@
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";
 import { COVER_STORE_MAX_DIM } from "../../../../lib/cover-ladder";
 import { logger } from "../../../../lib/logger";
 import type { AudiobookMetadata } from "../audiobook-metadata.model";
@@ -17,7 +18,11 @@ const log = logger.child({ component: "itunes-provider" });
 const ITUNES_BASE = "https://itunes.apple.com";
 
 /** Apple caps the Search API at ~20 req/min */
-const fetchJson = createThrottledFetchJson({ minDelayMs: 3_100, log });
+const fetchJson = createThrottledFetchJson({
+	provider: "itunes",
+	minDelayMs: process.env.NODE_ENV === "test" ? 0 : 3_100,
+	log,
+});
 
 // Audible region → iTunes storefront country
 const REGION_COUNTRY_MAP: Record<string, string> = {
@@ -102,6 +107,7 @@ class ITunesProvider implements IAudiobookMetadataProvider {
 
 		const data = await fetchJson<{ results?: ITunesAudiobook[] }>(
 			`${ITUNES_BASE}/search?${params}`,
+			providerQuotaScope("itunes", { region: options?.region }),
 		);
 		return (data?.results ?? [])
 			.filter((r) => r.collectionId != null)
@@ -118,6 +124,7 @@ class ITunesProvider implements IAudiobookMetadataProvider {
 
 		const data = await fetchJson<{ results?: ITunesAudiobook[] }>(
 			`${ITUNES_BASE}/lookup?${params}`,
+			providerQuotaScope("itunes", { region: options?.region }),
 		);
 		const item = data?.results?.[0];
 		if (!item) return null;

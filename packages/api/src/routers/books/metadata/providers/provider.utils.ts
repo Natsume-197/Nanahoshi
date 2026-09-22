@@ -1,5 +1,6 @@
 import path from "node:path";
 import sharp from "sharp";
+import { providerRequestSignal } from "../../../../infrastructure/providerAbort";
 import { acquireCover } from "../../../../lib/cover-store";
 import { logger } from "../../../../lib/logger";
 import {
@@ -41,15 +42,54 @@ export class ProviderTransientError extends Error {
 	}
 }
 
+/** A configured credential was explicitly rejected by the upstream API. */
+export class ProviderCredentialError extends Error {
+	readonly code = "invalid_credentials";
+
+	constructor(
+		provider: string,
+		readonly status?: 401 | 403,
+	) {
+		super(
+			`${provider} rejected its configured credentials${status ? ` (HTTP ${status})` : ""}`,
+		);
+		this.name = "ProviderCredentialError";
+	}
+}
+
+export class ProviderResponseError extends Error {
+	readonly code = "invalid_response";
+
+	constructor(provider: string, detail: string, options?: ErrorOptions) {
+		super(`${provider} returned an invalid response: ${detail}`, options);
+		this.name = "ProviderResponseError";
+	}
+}
+
+const DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
+
+function retryAfterMs(response: Response): number | undefined {
+	const value = response.headers.get("retry-after")?.trim();
+	if (!value) return undefined;
+	const seconds = Number(value);
+	if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+	const at = Date.parse(value);
+	return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
+}
+
 /** Throws ProviderTransientError for rate-limit/server-side statuses (420 is Comicvine's throttle). */
-function throwIfTransientStatus(status: number, provider: string): void {
+function throwIfTransientStatus(response: Response, provider: string): void {
+	const { status } = response;
+	if (status === 401 || status === 403) {
+		throw new ProviderCredentialError(provider, status);
+	}
 	if (status === 429 || status === 420 || status >= 500) {
 		throw new ProviderTransientError(
 			`${provider} is temporarily unavailable (HTTP ${status})`,
 			status === 429 || status === 420
 				? {
 						code: "rate_limited",
-						retryAfterMs: 5 * 60 * 1000,
+						retryAfterMs: retryAfterMs(response) ?? 5 * 60 * 1000,
 						opensCircuitBreaker: true,
 					}
 				: { code: "server_error", retryAfterMs: 30_000 },
@@ -66,17 +106,38 @@ export async function fetchOrTransient(
 	provider: string,
 	url: string | URL,
 	init?: RequestInit,
+	timeoutMs = DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
 	let response: Response;
+	const controller = new AbortController();
+	let timedOut = false;
+	const timeout = setTimeout(() => {
+		timedOut = true;
+		controller.abort();
+	}, timeoutMs);
+	const upstreamSignal = providerRequestSignal(init?.signal);
+	const forwardAbort = () => controller.abort(upstreamSignal?.reason);
+	upstreamSignal?.addEventListener("abort", forwardAbort, { once: true });
+	if (upstreamSignal?.aborted) forwardAbort();
 	try {
-		response = await fetch(url, init);
+		response = await fetch(url, { ...init, signal: controller.signal });
 	} catch (error) {
+		if (timedOut) {
+			throw new ProviderTransientError(`${provider} request timed out`, {
+				code: "provider_timeout",
+				retryAfterMs: 30_000,
+				cause: error,
+			});
+		}
 		throw new ProviderTransientError(
 			`${provider} is unreachable: ${(error as Error).message}`,
 			{ code: "network_error", retryAfterMs: 15_000, cause: error },
 		);
+	} finally {
+		clearTimeout(timeout);
+		upstreamSignal?.removeEventListener("abort", forwardAbort);
 	}
-	throwIfTransientStatus(response.status, provider);
+	throwIfTransientStatus(response, provider);
 	return response;
 }
 
@@ -167,6 +228,10 @@ export async function downloadCoverImage(
 		const response = await fetch(imageUrl, {
 			redirect: "error",
 			headers: options?.headers,
+			signal: providerRequestSignal(
+				undefined,
+				DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+			),
 		});
 		if (!response.ok) return null;
 
@@ -213,20 +278,6 @@ export async function isUsableRemoteCover(buffer: Buffer): Promise<boolean> {
 	} catch {
 		return false;
 	}
-}
-
-// ─── Request pacing ──────────────────────────────────────
-// Minimum-interval gate per external API (module-level state per provider).
-
-export function createRequestPacer(minIntervalMs: number): () => Promise<void> {
-	// bun test sets NODE_ENV=test; mocked fetches shouldn't pay real delays.
-	if (process.env.NODE_ENV === "test") return async () => {};
-	let lastRequestAt = 0;
-	return async () => {
-		const wait = lastRequestAt + minIntervalMs - Date.now();
-		if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-		lastRequestAt = Date.now();
-	};
 }
 
 // ─── Text/date normalization ─────────────────────────────

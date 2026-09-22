@@ -1,3 +1,4 @@
+import { withProviderSignal } from "../../infrastructure/providerAbort";
 import { providerGate } from "../../infrastructure/providerGate";
 import {
 	type ProviderQuotaContext,
@@ -5,6 +6,8 @@ import {
 } from "../../infrastructure/providerQuotaScope";
 import { CatalogProviderError } from "./catalogEnrichment";
 import type { CatalogProviderAdapter } from "./types";
+
+const DEFAULT_PROVIDER_PHASE_TIMEOUT_MS = 20_000;
 
 /**
  * Applies the shared circuit breaker to every phase of an adapter.
@@ -23,12 +26,38 @@ export function withProviderGate<
 	TMetadata extends object,
 >(
 	adapter: CatalogProviderAdapter<TProvider, TMetadata>,
-	quotaContext: (metadata: TMetadata) => ProviderQuotaContext,
+	quotaContext: (
+		metadata: TMetadata,
+	) => ProviderQuotaContext | Promise<ProviderQuotaContext>,
+	timeoutMs = DEFAULT_PROVIDER_PHASE_TIMEOUT_MS,
 ): CatalogProviderAdapter<TProvider, TMetadata> {
 	const lookup = adapter.lookup;
+	const withDeadline = <T>(
+		call: (signal: AbortSignal) => Promise<T>,
+	): Promise<T> => {
+		const controller = new AbortController();
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeout = new Promise<never>((_resolve, reject) => {
+			timer = setTimeout(() => {
+				const error = new CatalogProviderError(
+					"transient",
+					"provider_timeout",
+					{ retryAfterMs: 30_000 },
+				);
+				controller.abort(error);
+				reject(error);
+			}, timeoutMs);
+		});
+		return Promise.race([
+			withProviderSignal(controller.signal, () => call(controller.signal)),
+			timeout,
+		]).finally(() => {
+			if (timer) clearTimeout(timer);
+		});
+	};
 	const guard = async <T>(
 		context: ProviderQuotaContext,
-		call: () => Promise<T>,
+		call: (signal: AbortSignal) => Promise<T>,
 	): Promise<T> => {
 		const scope = providerQuotaScope(adapter.id, context);
 		const guardedCall = async () => {
@@ -44,7 +73,7 @@ export function withProviderGate<
 				});
 			}
 			try {
-				return await call();
+				return await withDeadline(call);
 			} catch (error) {
 				if (!(error instanceof CatalogProviderError)) throw error;
 				// Retryable is not synonymous with provider-wide throttling. Network
@@ -72,19 +101,19 @@ export function withProviderGate<
 	return {
 		id: adapter.id,
 		async discover(query, metadata) {
-			return guard(quotaContext(metadata), () =>
-				adapter.discover(query, metadata),
+			return guard(await quotaContext(metadata), (signal) =>
+				adapter.discover(query, metadata, signal),
 			);
 		},
 		async hydrate(candidate, metadata) {
-			return guard(quotaContext(metadata), () =>
-				adapter.hydrate(candidate, metadata),
+			return guard(await quotaContext(metadata), (signal) =>
+				adapter.hydrate(candidate, metadata, signal),
 			);
 		},
 		...(lookup && {
 			async lookup(providerId: string, metadata: TMetadata) {
-				return guard(quotaContext(metadata), () =>
-					lookup(providerId, metadata),
+				return guard(await quotaContext(metadata), (signal) =>
+					lookup(providerId, metadata, signal),
 				);
 			},
 		}),

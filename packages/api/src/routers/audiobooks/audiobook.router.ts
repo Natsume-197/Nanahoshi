@@ -3,7 +3,11 @@ import {
 	resolveBookScope,
 } from "../../auth/access.repository";
 import { ForbiddenError } from "../../errors";
-import { protectedProcedure, publicProcedure } from "../../index";
+import {
+	protectedProcedure,
+	publicProcedure,
+	requirePermission,
+} from "../../index";
 import {
 	ApplyAudiobookMetadataInput,
 	AudiobookSharePreviewInput,
@@ -15,6 +19,7 @@ import {
 	ListAudiobooksInput,
 	ListRandomAudiobooksInput,
 	ListRecentAudiobooksInput,
+	PreviewAudiobookMetadataInput,
 	SearchAudibleInput,
 	SearchAudiobookMetadataInput,
 	SearchAudiobooksInput,
@@ -176,7 +181,7 @@ export const audiobooksRouter = {
 		return audiobookService.countAudiobookSeries(serverId, scope);
 	}),
 
-	searchAudible: protectedProcedure
+	searchAudible: requirePermission("book", "editMetadata")
 		.input(SearchAudibleInput)
 		.handler(async ({ input }) => {
 			return audiobookMetadataService.searchAudible(
@@ -191,6 +196,16 @@ export const audiobooksRouter = {
 	searchMetadata: protectedProcedure
 		.input(SearchAudiobookMetadataInput)
 		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
 			const { serverId, scope } = await resolveBookScope(context.session);
 			const details = await audiobookService.getAudiobookDetails(
 				input.uuid,
@@ -207,6 +222,33 @@ export const audiobooksRouter = {
 					authors: input.author ? [{ name: input.author }] : undefined,
 					asin: input.asin,
 				},
+				input.region,
+			);
+		}),
+
+	previewMetadata: protectedProcedure
+		.input(PreviewAudiobookMetadataInput)
+		.handler(async ({ input, context }) => {
+			if (
+				!(await canAccessBookAction(
+					context.session,
+					input.uuid,
+					"book",
+					"editMetadata",
+				))
+			) {
+				throw new ForbiddenError("You cannot edit this audiobook's metadata");
+			}
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const details = await audiobookService.getAudiobookDetails(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return audiobookMetadataService.previewFromProvider(
+				input.provider,
+				details.id,
+				input.providerId,
 				input.region,
 			);
 		}),
@@ -279,6 +321,7 @@ export const audiobooksRouter = {
 					})),
 				},
 				input.region,
+				input.fields,
 			);
 		}),
 

@@ -533,6 +533,7 @@ export class BookMetadataRepository {
 				hasSeries: boolean;
 				hasGenres: boolean;
 				hasTags: boolean;
+				fieldSources: Record<string, { p?: string }>;
 		  })
 		| undefined
 	> {
@@ -550,6 +551,7 @@ export class BookMetadataRepository {
 				bm.cover,
 				bm.rating AS "rating",
 				bm.rating_count AS "ratingCount",
+				COALESCE(bm.field_sources, '{}'::jsonb) AS "fieldSources",
 				p.name AS "publisher",
 				EXISTS (SELECT 1 FROM book_author ba WHERE ba.book_id = b.id) AS "hasAuthors",
 				EXISTS (SELECT 1 FROM book_series bs WHERE bs.book_id = b.id) AS "hasSeries",

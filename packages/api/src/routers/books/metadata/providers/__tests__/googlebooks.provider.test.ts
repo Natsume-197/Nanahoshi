@@ -6,7 +6,7 @@ let googleBooksConfig: {
 	enabled: boolean;
 	apiKey?: string;
 	langRestrict?: string;
-} = { enabled: true };
+} = { enabled: true, apiKey: "test-key" };
 
 // Includes every provider-config getter so this mock doesn't break the other
 // provider test files sharing the same Bun process.
@@ -51,7 +51,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-	googleBooksConfig = { enabled: true };
+	googleBooksConfig = { enabled: true, apiKey: "test-key" };
 	fetchCalls = [];
 	fetchHandler = () => ({ items: [] });
 	installFetch();
@@ -100,11 +100,28 @@ describe("getMetadata", () => {
 		expect(fetchCalls.length).toBe(0);
 	});
 
+	test("returns empty instead of calling Google without an API key", async () => {
+		googleBooksConfig = { enabled: true };
+		const response = await firstMatch(googlebooksProvider, {
+			title: "test",
+			serverId: "org-1",
+		});
+		expect(response).toEqual({ metadata: {}, identity: null });
+		expect(fetchCalls).toHaveLength(0);
+	});
+
+	test("is unavailable without an organization or API key", async () => {
+		expect(await googlebooksProvider.isAvailable(undefined)).toBe(false);
+		googleBooksConfig = { enabled: true };
+		expect(await googlebooksProvider.isAvailable("org-1")).toBe(false);
+	});
+
 	test("searches by ISBN first and maps the volume", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
 		const response = await firstMatch(googlebooksProvider, {
 			isbn13: "9784048915649",
 			title: "existing title",
+			serverId: "org-1",
 		});
 		const result = response.metadata;
 
@@ -140,6 +157,7 @@ describe("getMetadata", () => {
 			title: "ソードアート・オンライン 3",
 			authors: [{ name: "川原 礫", role: "Author" }],
 			uuid: undefined,
+			serverId: "org-1",
 		});
 		expect(fetchCalls[0]).toContain("intitle%3A");
 		expect(fetchCalls[0]).toContain("inauthor%3A");
@@ -161,6 +179,7 @@ describe("getMetadata", () => {
 		});
 		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "ソードアート・オンライン 3",
+			serverId: "org-1",
 		});
 		expect(result.isbn10).toBe("4048915649");
 		expect(result.isbn13).toBe("9784048915649");
@@ -172,6 +191,7 @@ describe("getMetadata", () => {
 		});
 		const { metadata: result } = await firstMatch(googlebooksProvider, {
 			title: "Junk",
+			serverId: "org-1",
 		});
 		expect(result).toEqual({});
 	});
@@ -182,31 +202,47 @@ describe("getMetadata", () => {
 			title: "ソードアート・オンライン 3",
 			cover: "data/covers/existing.jpg",
 			uuid: "book-uuid",
+			serverId: "org-1",
 		});
 		expect(result.cover).toBeUndefined();
 	});
 
-	test("fails soft on permanent HTTP errors (4xx)", async () => {
+	test("does not turn a protocol HTTP error into no results", async () => {
 		fetchHandler = () => new Response("bad request", { status: 400 });
-		const { metadata: result } = await firstMatch(googlebooksProvider, {
-			title: "test",
-		});
-		expect(result).toEqual({});
+		await expect(
+			firstMatch(googlebooksProvider, {
+				title: "test",
+				serverId: "org-1",
+			}),
+		).rejects.toThrow(/HTTP 400/);
 	});
 
 	test("throws ProviderTransientError on 5xx so the gap is retried", async () => {
 		fetchHandler = () => new Response("error", { status: 500 });
 		await expect(
-			firstMatch(googlebooksProvider, { title: "test" }),
+			firstMatch(googlebooksProvider, { title: "test", serverId: "org-1" }),
 		).rejects.toThrow(/temporarily unavailable/);
 	});
 
 	test("throws ProviderTransientError on 429 rate limiting", async () => {
 		fetchHandler = () => new Response("slow down", { status: 429 });
 		await expect(
-			firstMatch(googlebooksProvider, { title: "test" }),
+			firstMatch(googlebooksProvider, { title: "test", serverId: "org-1" }),
 		).rejects.toThrow(/temporarily unavailable/);
 	});
+
+	test.each([401, 403])(
+		"does not turn HTTP %s into a false no-match",
+		async (status) => {
+			fetchHandler = () => new Response("invalid key", { status });
+			await expect(
+				firstMatch(googlebooksProvider, {
+					title: "test",
+					serverId: "org-1",
+				}),
+			).rejects.toMatchObject({ code: "invalid_credentials", status });
+		},
+	);
 
 	test("applies langRestrict and API key from config", async () => {
 		googleBooksConfig = {
@@ -229,9 +265,12 @@ describe("getMetadata", () => {
 describe("search", () => {
 	test("maps volumes to candidates", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
-		const candidates = await googlebooksProvider.search({
-			title: "ソードアート・オンライン",
-		});
+		const candidates = await googlebooksProvider.search(
+			{
+				title: "ソードアート・オンライン",
+			},
+			{ serverId: "org-1" },
+		);
 
 		expect(candidates.length).toBe(1);
 		const candidate = candidates[0];
@@ -248,7 +287,10 @@ describe("search", () => {
 
 	test("resolves a pasted ISBN via isbn query", async () => {
 		fetchHandler = () => ({ items: [RICH_VOLUME] });
-		await googlebooksProvider.search({ title: "978-4-04-891564-9" });
+		await googlebooksProvider.search(
+			{ title: "978-4-04-891564-9" },
+			{ serverId: "org-1" },
+		);
 		expect(fetchCalls[0]).toContain("isbn%3A9784048915649");
 	});
 
@@ -256,9 +298,9 @@ describe("search", () => {
 		fetchHandler = () => {
 			throw new Error("network down");
 		};
-		await expect(googlebooksProvider.search({ title: "test" })).rejects.toThrow(
-			/unreachable/,
-		);
+		await expect(
+			googlebooksProvider.search({ title: "test" }, { serverId: "org-1" }),
+		).rejects.toThrow(/unreachable/);
 	});
 });
 
@@ -269,6 +311,7 @@ describe("getById", () => {
 		fetchHandler = () => RICH_VOLUME;
 		const result = await googlebooksProvider.getById("vol-1", {
 			keepRemoteCover: true,
+			serverId: "org-1",
 		});
 		expect(fetchCalls[0]).toContain("/volumes/vol-1");
 		expect(result?.title).toBe("ソードアート・オンライン, Vol. 3");
@@ -277,13 +320,17 @@ describe("getById", () => {
 
 	test("returns null when the volume is missing", async () => {
 		fetchHandler = () => new Response("not found", { status: 404 });
-		const result = await googlebooksProvider.getById("missing");
+		const result = await googlebooksProvider.getById("missing", {
+			serverId: "org-1",
+		});
 		expect(result).toBeNull();
 	});
 
 	test("strips the remote cover without keepRemoteCover", async () => {
 		fetchHandler = () => RICH_VOLUME;
-		const result = await googlebooksProvider.getById("vol-1");
+		const result = await googlebooksProvider.getById("vol-1", {
+			serverId: "org-1",
+		});
 		expect(result?.cover).toBeUndefined();
 	});
 });

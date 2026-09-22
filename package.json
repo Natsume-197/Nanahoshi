@@ -40,6 +40,7 @@
 		"db:down": "turbo -F @nanahoshi/db db:down",
 		"recs:evaluate": "cd apps/server && bun run ../../packages/api/scripts/recs-offline-evaluate.ts",
 		"metadata:evaluate": "bun run packages/api/scripts/metadata-identity-evaluate.ts",
+		"metadata:benchmark": "bun --env-file=apps/server/.env run packages/api/scripts/metadata-provider-benchmark.ts",
 		"scan:benchmark": "bun run packages/api/scripts/scan-processing-benchmark.ts",
 		"scan:acceptance": "bun run packages/api/scripts/scan-acceptance.ts",
 		"backend:baseline": "bun run scripts/backend-resource-baseline.ts",

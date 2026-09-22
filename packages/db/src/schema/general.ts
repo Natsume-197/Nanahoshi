@@ -1074,6 +1074,8 @@ export type EnrichmentMatch = {
 	 * recorded.
 	 */
 	title?: string;
+	/** Remote thumbnail used only to distinguish candidates during review. */
+	previewCover?: string | null;
 	/**
 	 * Catalog Identity Verdict reasons that confirmed the primary match, so a
 	 * reviewer can tell an ISBN hit from a title-similarity bridge. Only set on
@@ -1122,6 +1124,39 @@ export type EnrichmentRunDiagnostics = {
 	hydrations: number;
 	assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
 	reusedProviderIds: string[];
+	providerRuns?: {
+		provider: string;
+		status:
+			| "matched"
+			| "fallback"
+			| "queried"
+			| "no_candidates"
+			| "rejected"
+			| "cooldown"
+			| "missing_credentials"
+			| "failed"
+			| "skipped";
+		searches: number;
+		candidates: number;
+		hydrations: number;
+		assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
+		failureCodes: string[];
+	}[];
+	providers?: {
+		provider: string;
+		status:
+			| "ready"
+			| "disabled"
+			| "missing_credentials"
+			| "cooldown"
+			| "no_eligible_fields"
+			| "not_routed"
+			| "outside_coverage"
+			| "no_fields_pending"
+			| "blocked_by_authority"
+			| "unavailable";
+		fields: string[];
+	}[];
 };
 
 export const enrichmentState = pgTable(

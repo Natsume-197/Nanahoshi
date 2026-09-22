@@ -31,10 +31,13 @@ const TrayFilter = z.object({
 	query: z.string().trim().min(1).max(255).optional(),
 });
 
-export const EnrichmentSortEnum = z.enum(["recent", "oldest", "title"]);
+export const EnrichmentSortEnum = z.object({
+	field: z.enum(["title", "updated"]),
+	direction: z.enum(["asc", "desc"]),
+});
 
 export const ListEnrichmentInput = TrayFilter.extend({
-	sort: EnrichmentSortEnum.optional(),
+	sort: z.array(EnrichmentSortEnum).max(2).optional(),
 	limit: z.number().int().min(1).max(100).default(50),
 	offset: z.number().int().min(0).default(0),
 });

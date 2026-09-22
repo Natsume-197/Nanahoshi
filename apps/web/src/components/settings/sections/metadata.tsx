@@ -100,7 +100,7 @@ type ProviderStatus = {
 	label: string;
 };
 
-function ProviderCard({
+export function ProviderCard({
 	provider,
 	enabled,
 	isLoading,
@@ -115,7 +115,7 @@ function ProviderCard({
 	isLoading: boolean;
 	isPending: boolean;
 	onToggle: (enabled: boolean) => void;
-	onConfigure?: () => void;
+	onConfigure?: (enableAfterSave?: boolean) => void;
 	configurationRequired?: boolean;
 	status?: ProviderStatus;
 }) {
@@ -123,6 +123,13 @@ function ProviderCard({
 	const view = PROVIDER_VIEW[provider];
 	const titleId = `metadata-provider-${provider}-title`;
 	const descriptionId = `metadata-provider-${provider}-description`;
+	const toggle = (next: boolean) => {
+		if (next && configurationRequired && onConfigure) {
+			onConfigure(true);
+			return;
+		}
+		onToggle(next);
+	};
 
 	return (
 		<Card
@@ -150,7 +157,7 @@ function ProviderCard({
 					) : (
 						<Switch
 							checked={enabled}
-							onCheckedChange={onToggle}
+							onCheckedChange={toggle}
 							disabled={isPending}
 							aria-label={m["library.provider_enable"]({ name: info.label })}
 							aria-describedby={descriptionId}
@@ -171,7 +178,7 @@ function ProviderCard({
 					<Button
 						type="button"
 						variant="ghost"
-						onClick={onConfigure}
+						onClick={() => onConfigure()}
 						disabled={isLoading || isPending}
 						className="h-12 w-full justify-start rounded-none px-5 text-foreground/70 hover:bg-foreground/[0.04] hover:text-foreground"
 					>
@@ -544,10 +551,12 @@ function GoogleBooksProvider() {
 	const [open, setOpen] = useState(false);
 	const [apiKey, setApiKey] = useState("");
 	const [langRestrict, setLangRestrict] = useState("");
+	const [enableAfterSave, setEnableAfterSave] = useState(false);
 
-	const openConfiguration = () => {
+	const openConfiguration = (enable = false) => {
 		setApiKey(config?.apiKey ?? "");
 		setLangRestrict(config?.langRestrict ?? "");
+		setEnableAfterSave(enable);
 		setOpen(true);
 	};
 
@@ -555,11 +564,12 @@ function GoogleBooksProvider() {
 		<>
 			<ProviderCard
 				provider="googlebooks"
-				enabled={config?.enabled ?? true}
+				enabled={config?.enabled ?? false}
 				isLoading={isLoading}
 				isPending={mutation.isPending}
 				onToggle={(enabled) => mutation.mutate({ enabled })}
 				onConfigure={openConfiguration}
+				configurationRequired={!config?.apiKey?.trim()}
 			/>
 			<Modal
 				open={open}
@@ -573,7 +583,11 @@ function GoogleBooksProvider() {
 				onSubmit={(event) => {
 					event.preventDefault();
 					mutation.mutate(
-						{ apiKey, langRestrict },
+						{
+							apiKey,
+							langRestrict,
+							...(enableAfterSave && apiKey.trim() && { enabled: true }),
+						},
 						{ onSuccess: () => setOpen(false) },
 					);
 				}}
@@ -681,11 +695,13 @@ function CredentialProvider({
 	});
 	const [open, setOpen] = useState(false);
 	const [credential, setCredential] = useState("");
+	const [enableAfterSave, setEnableAfterSave] = useState(false);
 	const configured = Boolean(config && readCredential(config).trim());
 	const info = PROVIDER_INFO[provider];
 
-	const openConfiguration = () => {
+	const openConfiguration = (enable = false) => {
 		setCredential(config ? readCredential(config) : "");
+		setEnableAfterSave(enable);
 		setOpen(true);
 	};
 
@@ -693,7 +709,7 @@ function CredentialProvider({
 		<>
 			<ProviderCard
 				provider={provider}
-				enabled={config?.enabled ?? true}
+				enabled={config?.enabled ?? false}
 				isLoading={isLoading}
 				isPending={mutation.isPending}
 				onToggle={(enabled) => mutation.mutate({ enabled })}
@@ -711,7 +727,13 @@ function CredentialProvider({
 				description={PROVIDER_VIEW[provider].description()}
 				onSubmit={(event) => {
 					event.preventDefault();
-					mutation.mutate({ credential }, { onSuccess: () => setOpen(false) });
+					mutation.mutate(
+						{
+							credential,
+							...(enableAfterSave && credential.trim() && { enabled: true }),
+						},
+						{ onSuccess: () => setOpen(false) },
+					);
 				}}
 				footer={
 					<>

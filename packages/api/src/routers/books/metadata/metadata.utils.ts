@@ -34,7 +34,11 @@ export function buildEnrichInput(
 	bookId: number,
 	uuid: string,
 	row: Record<string, unknown>,
-): Partial<BookMetadata> & { bookId: number; uuid: string } {
+): Partial<BookMetadata> & {
+	bookId: number;
+	uuid: string;
+	fieldSources?: Record<string, { p?: string }>;
+} {
 	const publisherObj = row.publisher as Record<string, unknown> | null;
 	const authorsArr = (row.authors ?? []) as Array<{
 		name: string;
@@ -62,6 +66,8 @@ export function buildEnrichInput(
 		providerRatings:
 			(row.providerRatings as BookMetadata["providerRatings"] | null) ??
 			undefined,
+		fieldSources:
+			(row.fieldSources as Record<string, { p?: string }> | null) ?? undefined,
 		// Decides which providers are worth asking at all, so it must survive the
 		// trip from the row into the enrichment chain.
 		contentForm:

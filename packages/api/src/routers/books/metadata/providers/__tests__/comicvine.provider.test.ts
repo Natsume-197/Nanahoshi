@@ -22,6 +22,7 @@ mock.module("../../../../settings/settings.service", () => ({
 }));
 
 const { comicvineProvider } = await import("../comicvine.provider");
+const { ProviderCredentialError } = await import("../provider.utils");
 
 import { firstMatch } from "./first-match";
 
@@ -231,13 +232,24 @@ describe("getMetadata", () => {
 		expect(headers["User-Agent"]).toContain("Nanahoshi");
 	});
 
-	test("fails soft on Comicvine API errors", async () => {
+	test("surfaces Comicvine credential errors", async () => {
 		fetchHandler = () => ({ status_code: 100, error: "Invalid API Key" });
-		const { metadata: result } = await firstMatch(comicvineProvider, {
-			title: "Saga",
-			serverId: "org-1",
-		});
-		expect(result).toEqual({});
+		expect(
+			firstMatch(comicvineProvider, {
+				title: "Saga",
+				serverId: "org-1",
+			}),
+		).rejects.toBeInstanceOf(ProviderCredentialError);
+	});
+
+	test("does not turn Comicvine API errors into no results", async () => {
+		fetchHandler = () => ({ status_code: 107, error: "Object not found" });
+		await expect(
+			firstMatch(comicvineProvider, {
+				title: "Saga",
+				serverId: "org-1",
+			}),
+		).rejects.toThrow(/status 107/);
 	});
 });
 

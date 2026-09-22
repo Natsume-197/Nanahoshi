@@ -191,15 +191,16 @@ describe("getMetadata", () => {
 		expect(result.publisher).toEqual({ name: "Seven Seas" });
 	});
 
-	test("fails soft on GraphQL errors", async () => {
+	test("does not turn GraphQL errors into no results", async () => {
 		fetchHandler = (url) => {
 			if (url.includes("auto_complete")) return jsonResponse(AUTOCOMPLETE);
 			return jsonResponse({ errors: [{ message: "boom" }] });
 		};
-		const { metadata: result } = await firstMatch(goodreadsProvider, {
-			title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
-		});
-		expect(result).toEqual({});
+		await expect(
+			firstMatch(goodreadsProvider, {
+				title: "Mushoku Tensei Jobless Reincarnation Vol. 1",
+			}),
+		).rejects.toThrow(/GraphQL/);
 	});
 });
 

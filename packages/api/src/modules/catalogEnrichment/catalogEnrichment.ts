@@ -93,6 +93,14 @@ export async function runCatalogEnrichment<
 	let hydrations = 0;
 	const assessments = { confirmed: 0, indeterminate: 0, rejected: 0 };
 	const reusedProviderIds: TProvider[] = [];
+	const providerRuns: Array<{
+		provider: TProvider;
+		searches: number;
+		candidates: number;
+		hydrations: number;
+		assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
+	}> = [];
+	let currentProviderRun: (typeof providerRuns)[number] | undefined;
 	const diagnostics = () => ({
 		durationMs: Math.round(performance.now() - startedAt),
 		searches,
@@ -100,12 +108,41 @@ export async function runCatalogEnrichment<
 		hydrations,
 		assessments,
 		reusedProviderIds,
+		providerRuns: providerRuns.map((run, runIndex) => {
+			const failureCodes = failures
+				.filter(({ provider }) => provider === run.provider)
+				.map(({ code }) => code);
+			const contributionIndex = contributingProviders.indexOf(run.provider);
+			const status =
+				contributionIndex === 0
+					? runIndex === 0
+						? ("matched" as const)
+						: ("fallback" as const)
+					: contributionIndex > 0
+						? ("fallback" as const)
+						: failureCodes.includes("provider_cooldown") ||
+								failureCodes.includes("rate_limited")
+							? ("cooldown" as const)
+							: failureCodes.includes("invalid_credentials")
+								? ("missing_credentials" as const)
+								: failureCodes.length > 0
+									? ("failed" as const)
+									: run.searches === 0 && run.hydrations === 0
+										? ("skipped" as const)
+										: run.candidates === 0
+											? ("no_candidates" as const)
+											: run.assessments.rejected > 0
+												? ("rejected" as const)
+												: ("queried" as const);
+			return { ...run, status, failureCodes };
+		}),
 	});
 	let metadata = initialMetadata;
 	const acceptedEvidence = [initialEvidence];
 	const assess = (evidence: CatalogIdentityEvidence) => {
 		const verdict = assessGroupMembership(evidence, acceptedEvidence);
 		assessments[verdict.status]++;
+		if (currentProviderRun) currentProviderRun.assessments[verdict.status]++;
 		onAssessment?.(verdict);
 		return verdict;
 	};
@@ -145,6 +182,9 @@ export async function runCatalogEnrichment<
 			providerId: candidate.providerId,
 			...(primary && requiredPrimaryProviderId ? { manual: true } : {}),
 			...(describedAs && { title: describedAs }),
+			...(candidate.previewCover && {
+				previewCover: candidate.previewCover,
+			}),
 			...(primary && { reasons: [...reasons] }),
 		});
 		if (primary) {
@@ -154,6 +194,14 @@ export async function runCatalogEnrichment<
 	};
 
 	providerLoop: for (const provider of providers) {
+		currentProviderRun = {
+			provider: provider.id,
+			searches: 0,
+			candidates: 0,
+			hydrations: 0,
+			assessments: { confirmed: 0, indeterminate: 0, rejected: 0 },
+		};
+		providerRuns.push(currentProviderRun);
 		if (
 			requiredPrimaryProvider &&
 			contributingProviders.length === 0 &&
@@ -178,6 +226,7 @@ export async function runCatalogEnrichment<
 				evidence: initialEvidence,
 			};
 			hydrations++;
+			currentProviderRun.hydrations++;
 			let hydrated: HydratedCatalogCandidate<TMetadata> | null;
 			try {
 				hydrated = provider.lookup
@@ -223,12 +272,14 @@ export async function runCatalogEnrichment<
 				let candidates: readonly CatalogEnrichmentCandidate<TMetadata>[];
 				try {
 					searches++;
+					currentProviderRun.searches++;
 					candidates = await provider.discover(query, metadata);
 				} catch (error) {
 					failures.push(providerFailure(provider.id, "discovery", error));
 					continue providerLoop;
 				}
 				candidateCount += candidates.length;
+				currentProviderRun.candidates += candidates.length;
 				const queryViable: {
 					candidate: CatalogEnrichmentCandidate<TMetadata>;
 					reasons: readonly string[];
@@ -262,6 +313,7 @@ export async function runCatalogEnrichment<
 					if (primaryHydrationCount >= maxHydrationsPerProvider) break;
 					primaryHydrationCount++;
 					hydrations++;
+					currentProviderRun.hydrations++;
 					let hydrated: HydratedCatalogCandidate<TMetadata> | null;
 					try {
 						hydrated = await provider.hydrate(exact.candidate, metadata);
@@ -303,6 +355,7 @@ export async function runCatalogEnrichment<
 				if (hydratedCount >= maxHydrationsPerProvider) break;
 				hydratedCount++;
 				hydrations++;
+				currentProviderRun.hydrations++;
 				let hydrated: HydratedCatalogCandidate<TMetadata> | null;
 				try {
 					hydrated = await provider.hydrate(candidate, metadata);
@@ -325,6 +378,9 @@ export async function runCatalogEnrichment<
 						provider: provider.id,
 						providerId: candidate.providerId,
 						...(describedAs && { title: describedAs }),
+						...(candidate.previewCover && {
+							previewCover: candidate.previewCover,
+						}),
 						reasons,
 					},
 				});
@@ -380,12 +436,14 @@ export async function runCatalogEnrichment<
 			let candidates: readonly CatalogEnrichmentCandidate<TMetadata>[];
 			try {
 				searches++;
+				currentProviderRun.searches++;
 				candidates = await provider.discover(query, metadata);
 			} catch (error) {
 				failures.push(providerFailure(provider.id, "discovery", error));
 				continue providerLoop;
 			}
 			candidateCount += candidates.length;
+			currentProviderRun.candidates += candidates.length;
 			const queryCandidates = new Set<string>();
 			const assessed = candidates
 				.filter((candidate) => {
@@ -429,6 +487,7 @@ export async function runCatalogEnrichment<
 					}
 					hydrationCount++;
 					hydrations++;
+					currentProviderRun.hydrations++;
 					try {
 						hydrated = await provider.hydrate(candidate, metadata);
 					} catch (error) {

@@ -8,6 +8,8 @@ export type CatalogEnrichmentCandidate<TMetadata extends object> = {
 	providerId: string;
 	metadata: Partial<TMetadata>;
 	evidence: CatalogIdentityEvidence;
+	/** Remote thumbnail kept only so a person can distinguish ambiguous matches. */
+	previewCover?: string | null;
 };
 
 export type HydratedCatalogCandidate<TMetadata extends object> = {
@@ -23,15 +25,18 @@ export type CatalogProviderAdapter<
 	discover(
 		query: CatalogIdentityEvidence,
 		metadata: TMetadata,
+		signal?: AbortSignal,
 	): Promise<readonly CatalogEnrichmentCandidate<TMetadata>[]>;
 	hydrate(
 		candidate: CatalogEnrichmentCandidate<TMetadata>,
 		metadata: TMetadata,
+		signal?: AbortSignal,
 	): Promise<HydratedCatalogCandidate<TMetadata> | null>;
 	/** Direct provider-id lookup used to revalidate a previously confirmed match. */
 	lookup?(
 		providerId: string,
 		metadata: TMetadata,
+		signal?: AbortSignal,
 	): Promise<HydratedCatalogCandidate<TMetadata> | null>;
 };
 
@@ -82,6 +87,24 @@ export type CatalogEnrichmentDiagnostics<TProvider extends string> = {
 	hydrations: number;
 	assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
 	reusedProviderIds: TProvider[];
+	providerRuns: {
+		provider: TProvider;
+		status:
+			| "matched"
+			| "fallback"
+			| "queried"
+			| "no_candidates"
+			| "rejected"
+			| "cooldown"
+			| "missing_credentials"
+			| "failed"
+			| "skipped";
+		searches: number;
+		candidates: number;
+		hydrations: number;
+		assessments: Record<"confirmed" | "indeterminate" | "rejected", number>;
+		failureCodes: string[];
+	}[];
 };
 
 export type CatalogEnrichmentMatch<TProvider extends string> = {
@@ -90,6 +113,7 @@ export type CatalogEnrichmentMatch<TProvider extends string> = {
 	manual?: boolean;
 	/** The candidate as the provider described it, for human review. */
 	title?: string;
+	previewCover?: string | null;
 	/** Identity reasons behind the primary match; only set on the first entry. */
 	reasons?: string[];
 };

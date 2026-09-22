@@ -17,6 +17,7 @@ import {
 } from "../../../modules/metadataEnrichment/enrichment-outcome";
 import {
 	normalizeProviderPolicy,
+	providerAllowedForField,
 	type RawProviderConfig,
 } from "../../../modules/providerPolicy";
 import { enrichmentStateRepository } from "../../enrichment/enrichment.repository";
@@ -34,6 +35,7 @@ import {
 } from "./providers/IMetadata.provider";
 import {
 	AUDIOBOOK_PROVIDER_IDS,
+	AUDIOBOOK_PROVIDER_MANIFEST,
 	isAudiobookProviderName,
 } from "./providers/provider.manifest";
 import { AUDIOBOOK_PROVIDERS } from "./providers/registry";
@@ -330,6 +332,7 @@ export class AudiobookMetadataService {
 			...input,
 			...(existingCover ? { cover: existingCover } : {}),
 		};
+		const protectedFieldSet = new Set<string>(protectedFields);
 		const state = await enrichmentStateRepository.get(bookId);
 		const manualMatch = state?.matched.find(
 			(match) => match.manual && match.providerId,
@@ -345,9 +348,42 @@ export class AudiobookMetadataService {
 		) {
 			return null;
 		}
+		const providerPlan = await Promise.all(
+			routing.order.map(async (provider) => {
+				const fields = AUDIOBOOK_PROVIDER_MANIFEST[provider].fields.filter(
+					(field) => providerAllowedForField(routing, field, provider),
+				);
+				const cooldown = await providerGate.cooldownRemainingMs(
+					provider,
+					providerQuotaScope(provider, { region }),
+				);
+				return {
+					provider,
+					status:
+						fields.length === 0
+							? ("not_routed" as const)
+							: manualMatch?.providerId &&
+									provider !== manualProvider &&
+									!fields.some(
+										(field) =>
+											!protectedFieldSet.has(field) &&
+											(routing.updates?.[field] === "if_provided" ||
+												initialMetadata[field] == null ||
+												initialMetadata[field] === ""),
+									)
+								? ("no_fields_pending" as const)
+								: cooldown != null
+									? ("cooldown" as const)
+									: ("ready" as const),
+					fields: fields.map(String),
+				};
+			}),
+		);
 		const result = await runAudiobookCatalogEnrichment({
 			metadata: initialMetadata,
-			providers: routing.order.map((name) => AUDIOBOOK_PROVIDERS[name]),
+			providers: providerPlan
+				.filter(({ status }) => status === "ready" || status === "cooldown")
+				.map(({ provider }) => AUDIOBOOK_PROVIDERS[provider]),
 			region,
 			protectedFields: protectedFields as (keyof EnrichInput)[],
 			routing,
@@ -357,6 +393,20 @@ export class AudiobookMetadataService {
 						providerId: manualMatch.providerId,
 					}
 				: undefined,
+		});
+		const effectiveProviderPlan = providerPlan.map((entry) => {
+			const run = result.diagnostics.providerRuns.find(
+				(candidate) => candidate.provider === entry.provider,
+			);
+			return run?.status === "skipped"
+				? { ...entry, status: "blocked_by_authority" as const }
+				: run?.status === "cooldown"
+					? { ...entry, status: run.status }
+					: entry;
+		});
+		await enrichmentStateRepository.recordDiagnostics(bookId, result.status, {
+			...result.diagnostics,
+			providers: effectiveProviderPlan,
 		});
 		const { failures, nextRetryAt, transientProviders } = summarizeFailures(
 			result.failures,
@@ -480,6 +530,7 @@ export class AudiobookMetadataService {
 		name: AudiobookProviderName,
 		input: EnrichInput & { providerId: string },
 		regionOverride?: string,
+		fields?: readonly (keyof AudiobookMetadata)[],
 	) {
 		const { bookId, uuid, providerId } = input;
 		const provider = AUDIOBOOK_PROVIDERS[name];
@@ -506,13 +557,20 @@ export class AudiobookMetadataService {
 		}
 		if (!result) return null;
 
-		const metadata = this.mergeMetadata(current, result, {
-			entityOverride: true,
-		});
+		const selectedResult = fields
+			? (Object.fromEntries(
+					fields.flatMap((field) =>
+						result[field] !== undefined ? [[field, result[field]]] : [],
+					),
+				) as Partial<AudiobookMetadata>)
+			: result;
+		const metadata = fields
+			? selectedResult
+			: this.mergeMetadata(current, selectedResult, { entityOverride: true });
 		if (existingCover) delete metadata.cover;
 		const saved = await this.saveMetadata(metadata, bookId, { source: name });
 
-		if (provider.getChapters) {
+		if (!fields && provider.getChapters) {
 			try {
 				const chaptersData = await provider.getChapters(providerId, { region });
 				if (chaptersData?.chapters?.length) {
@@ -531,6 +589,26 @@ export class AudiobookMetadataService {
 			matched: [{ provider: name, providerId, manual: true }],
 		});
 		return saved;
+	}
+
+	/** Fetch a full candidate without persisting it or downloading its cover. */
+	async previewFromProvider(
+		name: AudiobookProviderName,
+		bookId: number,
+		providerId: string,
+		regionOverride?: string,
+	) {
+		const region = await this.resolveRegion(bookId, regionOverride);
+		await this.assertProviderAvailable(name, region);
+		try {
+			const [metadata, lockedFields] = await Promise.all([
+				AUDIOBOOK_PROVIDERS[name].getById(providerId, { region }),
+				audiobookMetadataRepository.getLockedFields(bookId),
+			]);
+			return metadata ? { metadata, lockedFields } : null;
+		} catch (error) {
+			return await this.raiseProviderError(name, error, region);
+		}
 	}
 
 	// Backward-compatible alias (public OpenAPI surface).

@@ -3,9 +3,24 @@ import {
 	type EnrichmentLifecycle,
 	LIFECYCLE_BUCKET,
 	type LifecycleRow,
+	lifecycleFilterMembers,
 	resolveBucket,
 	resolveLifecycle,
 } from "./enrichment-lifecycle";
+
+describe("task filters", () => {
+	test("needs review includes every match requiring a human decision", () => {
+		expect(lifecycleFilterMembers("review")).toEqual([
+			"review",
+			"unresolved",
+			"partial",
+		]);
+	});
+
+	test("no match remains its own filter", () => {
+		expect(lifecycleFilterMembers("no_match")).toEqual(["no_match"]);
+	});
+});
 
 const base: LifecycleRow = {
 	status: "pending",

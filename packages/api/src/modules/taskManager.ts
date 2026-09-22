@@ -71,6 +71,8 @@ export interface Task {
 	plannedJobs?: number;
 	completedJobs: number;
 	failedJobs: number;
+	/** Jobs processed successfully but waiting on a durable provider retry. */
+	deferredJobs?: number;
 	/** First terminal job failure, retained for the task notification. */
 	failureReason?: string;
 	createdAt: number;
@@ -346,6 +348,7 @@ export async function createTask(opts: {
 		plannedJobs: totalJobs,
 		completedJobs: 0,
 		failedJobs: 0,
+		deferredJobs: 0,
 		createdAt: Date.now(),
 		finishedAt: null,
 		sealed: opts.sealed ?? false,
@@ -363,6 +366,7 @@ export async function createTask(opts: {
 		plannedJobs: String(task.plannedJobs),
 		completedJobs: "0",
 		failedJobs: "0",
+		deferredJobs: "0",
 		// Jobs reserved but not yet terminal. Starts equal to totalJobs; the task
 		// is done when it reaches zero (and is sealed).
 		outstanding: String(totalJobs),
@@ -583,7 +587,7 @@ return {outstanding, sealed}
 async function bump(
 	taskId: string,
 	jobKey: string,
-	field: "completedJobs" | "failedJobs",
+	field: "completedJobs" | "failedJobs" | "deferredJobs",
 ): Promise<void> {
 	const res = (await redis.eval(
 		BUMP_SCRIPT,
@@ -609,6 +613,13 @@ export async function bumpCompleted(
 	jobKey: string,
 ): Promise<void> {
 	await bump(taskId, jobKey, "completedJobs");
+}
+
+export async function bumpDeferred(
+	taskId: string,
+	jobKey: string,
+): Promise<void> {
+	await bump(taskId, jobKey, "deferredJobs");
 }
 
 export async function bumpFailed(
@@ -993,6 +1004,7 @@ function parseTask(data: Record<string, string>): Task {
 		plannedJobs: Number(data.plannedJobs ?? data.totalJobs ?? 0),
 		completedJobs: Number(data.completedJobs ?? 0),
 		failedJobs: Number(data.failedJobs ?? 0),
+		deferredJobs: Number(data.deferredJobs ?? 0),
 		...(data.failureReason && { failureReason: data.failureReason }),
 		createdAt: Number(data.createdAt ?? 0),
 		finishedAt: data.finishedAt ? Number(data.finishedAt) : null,

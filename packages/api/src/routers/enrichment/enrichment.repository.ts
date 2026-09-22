@@ -24,6 +24,7 @@ import {
 	type EnrichmentBucket,
 	type EnrichmentLifecycle,
 	lifecycleCaseSql,
+	lifecycleFilterMembers,
 } from "../../modules/metadataEnrichment/enrichment-lifecycle";
 import {
 	type AdmissionFacts,
@@ -51,7 +52,10 @@ export type TrayFilter = {
 	withFailures?: boolean;
 	query?: string;
 };
-export type TraySort = "recent" | "oldest" | "title";
+export type TraySort = {
+	field: "title" | "updated";
+	direction: "asc" | "desc";
+};
 
 export type EnrichmentRun = {
 	status: EnrichmentStatus;
@@ -73,6 +77,18 @@ export class EnrichmentStateRepository {
 		await db
 			.insert(enrichmentRunDiagnostic)
 			.values({ bookId, outcome, diagnostics });
+		// Operational traces are useful, but unbounded history per publication is
+		// not. Keep the newest 20 runs; aggregate state remains in enrichment_state.
+		await db.execute(sql`
+			DELETE FROM enrichment_run_diagnostic
+			WHERE book_id = ${bookId}
+				AND id NOT IN (
+					SELECT id FROM enrichment_run_diagnostic
+					WHERE book_id = ${bookId}
+					ORDER BY id DESC
+					LIMIT 20
+				)
+		`);
 	}
 
 	async recordRun(bookId: number, run: EnrichmentRun) {
@@ -276,8 +292,8 @@ export class EnrichmentStateRepository {
 
 	// Human approval of a weak (title-only) match: review → enriched.
 	async approve(bookIds: number[]) {
-		if (bookIds.length === 0) return;
-		await db
+		if (bookIds.length === 0) return 0;
+		const approved = await db
 			.update(enrichmentState)
 			.set({ status: "enriched" })
 			.where(
@@ -285,7 +301,9 @@ export class EnrichmentStateRepository {
 					inArray(enrichmentState.bookId, bookIds),
 					eq(enrichmentState.status, "review"),
 				),
-			);
+			)
+			.returning({ bookId: enrichmentState.bookId });
+		return approved.length;
 	}
 
 	// Enrichment summary for a finished library task's notification: what needs
@@ -559,14 +577,53 @@ export class EnrichmentStateRepository {
 		};
 	}
 
+	async approvalPreview(serverId: string, bookIds: number[]) {
+		if (bookIds.length === 0) return [];
+		const { rows } = await db.execute(sql`
+			SELECT
+				b.uuid AS "bookUuid",
+				COALESCE(bm.title, am.title, b.filename) AS title,
+				COALESCE(es.matched->0->>'provider', 'unknown') AS provider,
+				COALESCE(es.matched->0->'reasons', '[]'::jsonb) AS reasons
+			FROM enrichment_state es
+			JOIN book b ON b.id = es.book_id
+			JOIN library l ON l.id = b.library_id
+			LEFT JOIN book_metadata bm ON bm.book_id = b.id
+			LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+			WHERE l.server_id = ${serverId}
+				AND es.status = 'review'
+				AND b.id IN (${sql.join(
+					bookIds.map((id) => sql`${id}`),
+					sql`, `,
+				)})
+			ORDER BY es.last_run_at DESC NULLS LAST
+		`);
+		return rows as {
+			bookUuid: string;
+			title: string | null;
+			provider: string;
+			reasons: string[];
+		}[];
+	}
+
 	// Shared tray scoping: server + non-duplicate, plus optional bucket, library,
 	// and text filters. Requires the es/b/l joins and the bm/am joins for search.
 	#trayConditions(serverId: string, filter: TrayFilter): SQL {
+		const lifecycles = filter.lifecycle
+			? lifecycleFilterMembers(filter.lifecycle)
+			: [];
 		return sql`
 			l.server_id = ${serverId}
 			AND b.duplicate_of_book_id IS NULL
 				${filter.bucket ? sql`AND ${bucketCaseSql()} = ${filter.bucket}` : sql``}
-			${filter.lifecycle ? sql`AND ${lifecycleCaseSql()} = ${filter.lifecycle}` : sql``}
+			${
+				lifecycles.length > 0
+					? sql`AND ${lifecycleCaseSql()} IN (${sql.join(
+							lifecycles.map((lifecycle) => sql`${lifecycle}`),
+							sql`, `,
+						)})`
+					: sql``
+			}
 			${filter.libraryUuid ? sql`AND l.uuid = ${filter.libraryUuid}` : sql``}
 			${filter.mediaType ? sql`AND l.media_type = ${filter.mediaType}` : sql``}
 			${filter.withFailures ? sql`AND jsonb_array_length(es.failures) > 0` : sql``}
@@ -577,17 +634,29 @@ export class EnrichmentStateRepository {
 	async list(
 		serverId: string,
 		filters: TrayFilter & {
-			sort?: TraySort;
+			sort?: TraySort[];
 			limit: number;
 			offset: number;
 		},
 	) {
-		const order =
-			filters.sort === "oldest"
-				? sql`es.last_run_at ASC NULLS FIRST, b.id ASC`
-				: filters.sort === "title"
-					? sql`COALESCE(bm.title, am.title, b.filename) ASC, b.id DESC`
-					: sql`es.last_run_at DESC NULLS LAST, b.id DESC`;
+		const sort = filters.sort?.length
+			? filters.sort
+			: [{ field: "updated", direction: "desc" } as const];
+		const order = sql.join(
+			[
+				...sort.map(({ field, direction }) =>
+					field === "title"
+						? direction === "asc"
+							? sql`COALESCE(bm.title, am.title, b.filename) ASC`
+							: sql`COALESCE(bm.title, am.title, b.filename) DESC`
+						: direction === "asc"
+							? sql`es.last_run_at ASC NULLS FIRST`
+							: sql`es.last_run_at DESC NULLS LAST`,
+				),
+				sql`b.id DESC`,
+			],
+			sql`, `,
+		);
 		const { rows } = await db.execute(sql`
 			SELECT
 				b.uuid AS "bookUuid",
@@ -706,7 +775,27 @@ export class EnrichmentStateRepository {
 				es.last_run_at AS "lastRunAt",
 				es.next_retry_at AS "nextRetryAt",
 				COALESCE(bm.field_sources, am.field_sources, '{}'::jsonb) AS "fieldSources",
-				COALESCE(bm.locked_fields, am.locked_fields, '{}'::text[]) AS "lockedFields"
+				COALESCE(bm.locked_fields, am.locked_fields, '{}'::text[]) AS "lockedFields",
+				(
+					SELECT COALESCE(
+						jsonb_agg(
+							jsonb_build_object(
+								'outcome', recent.outcome,
+								'diagnostics', recent.diagnostics,
+								'createdAt', recent.created_at
+							)
+							ORDER BY recent.created_at DESC
+						),
+						'[]'::jsonb
+					)
+					FROM (
+						SELECT erd.outcome, erd.diagnostics, erd.created_at
+						FROM enrichment_run_diagnostic erd
+						WHERE erd.book_id = b.id
+						ORDER BY erd.created_at DESC
+						LIMIT 20
+					) recent
+				) AS "recentRuns"
 			FROM book b
 			JOIN library l ON l.id = b.library_id
 			LEFT JOIN enrichment_state es ON es.book_id = b.id
@@ -731,6 +820,11 @@ export class EnrichmentStateRepository {
 			nextRetryAt: string | null;
 			fieldSources: Record<string, { p: string; at: string }>;
 			lockedFields: string[];
+			recentRuns: {
+				outcome: string;
+				diagnostics: EnrichmentRunDiagnostics;
+				createdAt: string;
+			}[];
 		} | null;
 	}
 }

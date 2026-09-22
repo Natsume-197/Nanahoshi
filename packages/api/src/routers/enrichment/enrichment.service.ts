@@ -14,6 +14,7 @@ import {
 	BOOK_PROVIDER_IDS,
 	BOOK_PROVIDER_MANIFEST,
 } from "../books/metadata/providers/provider.manifest";
+import { resolveBookProviderQuotaScope } from "../books/metadata/providers/registry";
 import {
 	type MetadataProvidersConfig,
 	removeProvidersFromConfig,
@@ -99,11 +100,41 @@ export class EnrichmentService {
 		);
 	}
 
+	async approvalPreview(serverId: string, input: TargetSelectionInput) {
+		const targets = await enrichmentStateRepository.resolveTargets(
+			serverId,
+			input,
+		);
+		const rows = await enrichmentStateRepository.approvalPreview(
+			serverId,
+			targets.map(({ bookId }) => bookId),
+		);
+		const byProvider = Object.fromEntries(
+			[...new Set(rows.map(({ provider }) => provider))].map((provider) => [
+				provider,
+				rows.filter((row) => row.provider === provider).length,
+			]),
+		);
+		const byReason = Object.fromEntries(
+			[...new Set(rows.flatMap(({ reasons }) => reasons))].map((reason) => [
+				reason,
+				rows.filter(({ reasons }) => reasons.includes(reason)).length,
+			]),
+		);
+		return {
+			total: rows.length,
+			byProvider,
+			byReason,
+			samples: rows.slice(0, 8),
+		};
+	}
+
 	async detail(serverId: string, bookUuid: string) {
 		const detail = await enrichmentStateRepository.detail(serverId, bookUuid);
 		if (!detail) return null;
 		return {
 			...detail,
+			latestRun: detail.recentRuns[0] ?? null,
 			retry: metadataRetryProjection({
 				nextRetryAt: detail.nextRetryAt,
 				providerAttempts: detail.providerAttempts,
@@ -125,10 +156,17 @@ export class EnrichmentService {
 			region: selectedLibrary?.metadataConfig?.audible?.region,
 		};
 		const providerScopes = Object.fromEntries(
-			Object.keys(ALL_PROVIDER_LABELS).map((provider) => [
-				provider,
-				providerQuotaScope(provider, quotaContext),
-			]),
+			await Promise.all(
+				Object.keys(ALL_PROVIDER_LABELS).map(async (provider) => [
+					provider,
+					(BOOK_PROVIDER_IDS as readonly string[]).includes(provider)
+						? await resolveBookProviderQuotaScope(
+								provider as (typeof BOOK_PROVIDER_IDS)[number],
+								quotaContext,
+							)
+						: providerQuotaScope(provider, quotaContext),
+				]),
+			),
 		);
 		const [cooldowns, failures, failingBooks] = await Promise.all([
 			providerGate.scopedCooldowns(providerScopes),
@@ -288,10 +326,10 @@ export class EnrichmentService {
 			serverId,
 			input,
 		);
-		await enrichmentStateRepository.approve(
+		const approved = await enrichmentStateRepository.approve(
 			targets.map(({ bookId }) => bookId),
 		);
-		return { approved: targets.length };
+		return { approved };
 	}
 }
 

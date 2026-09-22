@@ -10,12 +10,12 @@ import {
 } from "./IMetadata.provider";
 import {
 	CANDIDATE_LIMIT,
-	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
 	hydratedProviderResult,
+	ProviderResponseError,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
@@ -59,7 +59,7 @@ const GRAPHQL_QUERY = `query getBookPageData($legacyBookId: Int!) {
 	}
 }`;
 
-const pace = createRequestPacer(1200);
+const REQUEST_INTERVAL_MS = process.env.NODE_ENV === "test" ? 0 : 1200;
 
 type AutocompleteEntry = {
 	bookId?: string;
@@ -207,9 +207,15 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error }, "Search failed");
-			return [];
+			throw new ProviderResponseError("Goodreads", "search failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -236,16 +242,22 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error, providerId }, "getById failed");
-			return null;
+			throw new ProviderResponseError("Goodreads", "lookup failed", {
+				cause: error,
+			});
 		}
 	}
 
 	// ─── Goodreads endpoints ─────────────────────────────
 
 	private async pacedFetch(url: string, init?: RequestInit): Promise<Response> {
-		await pace();
+		await providerGate.waitForSlot("goodreads", "shared", REQUEST_INTERVAL_MS);
 		return fetchOrTransient("Goodreads", url, init);
 	}
 
@@ -303,7 +315,7 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 		};
 		if (payload.errors?.length) {
 			log.warn({ errors: payload.errors }, "GraphQL returned errors");
-			return null;
+			throw new ProviderResponseError("Goodreads", "GraphQL errors");
 		}
 		const book = payload.data?.getBookByLegacyId;
 		if (!book?.title) return null;
@@ -397,3 +409,5 @@ class GoodreadsProvider implements ISearchableMetadataProvider {
 }
 
 export const goodreadsProvider = new GoodreadsProvider();
+
+import { providerGate } from "../../../../infrastructure/providerGate";

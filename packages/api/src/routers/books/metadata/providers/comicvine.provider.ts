@@ -13,11 +13,12 @@ import {
 } from "./IMetadata.provider";
 import {
 	CANDIDATE_LIMIT,
-	createRequestPacer,
 	downloadCoverImage,
 	fetchOrTransient,
 	hydratedProviderResult,
 	normalizePublishedDate,
+	ProviderCredentialError,
+	ProviderResponseError,
 	ProviderTransientError,
 	stripHtml,
 	TtlCache,
@@ -46,7 +47,8 @@ const ISSUE_FIELDS =
 const SEARCH_FIELDS =
 	"id,name,issue_number,cover_date,description,deck,image,site_detail_url,resource_type,start_year,count_of_issues,publisher,volume";
 
-const pace = createRequestPacer(2000);
+const REQUEST_INTERVAL_MS = process.env.NODE_ENV === "test" ? 0 : 2000;
+type ScopedComicvineConfig = ComicvineConfig & { quotaScope: string };
 
 // Series siblings ("Saga 1".."Saga 66") re-search the same volume list.
 // Misses are cached too — an unknown series repeats for every issue.
@@ -83,6 +85,19 @@ type ComicResult = {
 type ApiResponse<T> = { status_code?: number; results?: T };
 
 class ComicvineProvider implements ISearchableMetadataProvider {
+	async quotaScope(serverId: string | null | undefined) {
+		return (await this.getConfig(serverId)).quotaScope;
+	}
+
+	async readiness(serverId: string | null | undefined) {
+		const config = await this.getConfig(serverId);
+		return !config.enabled
+			? ("disabled" as const)
+			: config.apiKey
+				? ("ready" as const)
+				: ("missing_credentials" as const);
+	}
+
 	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
 		const config = await this.getConfig(serverId);
 		return config.enabled && Boolean(config.apiKey);
@@ -164,9 +179,16 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error }, "Search failed");
-			return [];
+			throw new ProviderResponseError("Comicvine", "search failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -197,9 +219,16 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error, providerId }, "getById failed");
-			return null;
+			throw new ProviderResponseError("Comicvine", "lookup failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -254,7 +283,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async findIssueMetadata(
 		parsed: SeriesAndIssue,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<{ providerId: string; metadata: Partial<BookMetadata> } | null> {
 		for (const name of this.seriesNameVariants(parsed.series)) {
 			const volumes = await this.searchVolumes(name, config);
@@ -293,7 +322,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async searchVolumes(
 		seriesName: string,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<ComicResult[]> {
 		const key = seriesName.toLowerCase();
 		const cached = this.volumeCache.get(key);
@@ -360,7 +389,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 	private async findIssueInVolume(
 		volumeId: number,
 		issueNumber: string,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<ComicResult | null> {
 		const normalized = this.normalizeIssueNumber(issueNumber);
 		const url = new URL(`${API_BASE}/issues/`);
@@ -386,7 +415,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async searchApi(
 		term: string,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<ComicResult[]> {
 		const url = new URL(`${API_BASE}/search/`);
 		url.searchParams.set("query", cleanSearchTerm(term));
@@ -399,7 +428,7 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async fetchById(
 		providerId: string,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<Partial<BookMetadata> | null> {
 		if (providerId.startsWith(PREFIX_ISSUE)) {
 			const url = new URL(`${API_BASE}/issue/${providerId}/`);
@@ -418,11 +447,15 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async fetchJson<T>(
 		url: URL,
-		config: ComicvineConfig,
+		config: ScopedComicvineConfig,
 	): Promise<T | null> {
 		url.searchParams.set("api_key", config.apiKey ?? "");
 		url.searchParams.set("format", "json");
-		await pace();
+		await providerGate.waitForSlot(
+			"comicvine",
+			config.quotaScope,
+			REQUEST_INTERVAL_MS,
+		);
 		const response = await fetchOrTransient("Comicvine", url, {
 			headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
 		});
@@ -431,11 +464,18 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 			return null;
 		}
 		const data = (await response.json()) as T & { status_code?: number };
-		// status_code 1 = OK; other API errors (bad key, not found) fail soft —
-		// they're permanent, not transient.
+		// Comicvine reports an invalid API key inside an otherwise successful
+		// HTTP response. Preserve that distinction from a genuine empty result.
+		if (data.status_code === 100) {
+			throw new ProviderCredentialError("Comicvine");
+		}
+		// Other API errors (not found, malformed filter) are permanent and local.
 		if (data.status_code !== 1) {
 			log.warn({ statusCode: data.status_code }, "Comicvine API error");
-			return null;
+			throw new ProviderResponseError(
+				"Comicvine",
+				`API status ${data.status_code ?? "missing"}`,
+			);
 		}
 		return data;
 	}
@@ -551,11 +591,21 @@ class ComicvineProvider implements ISearchableMetadataProvider {
 
 	private async getConfig(
 		serverId: string | null | undefined,
-	): Promise<ComicvineConfig> {
+	): Promise<ScopedComicvineConfig> {
 		// No org → no API key stored → provider inactive.
-		if (!serverId) return { enabled: false };
-		return getComicvineConfig(serverId);
+		if (!serverId) return { enabled: false, quotaScope: "org:instance" };
+		const config = await getComicvineConfig(serverId);
+		return {
+			...config,
+			quotaScope: providerQuotaScope("comicvine", {
+				serverId,
+				credential: config.apiKey,
+			}),
+		};
 	}
 }
 
 export const comicvineProvider = new ComicvineProvider();
+
+import { providerGate } from "../../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";

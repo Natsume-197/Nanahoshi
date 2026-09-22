@@ -3,7 +3,10 @@ import type { AudiobookProviderName } from "./provider.manifest";
 
 export type { AudiobookProviderName } from "./provider.manifest";
 
-export type ProviderRequestOptions = { region?: string };
+export type ProviderRequestOptions = {
+	region?: string;
+	signal?: AbortSignal;
+};
 
 /**
  * Search result with the provider's own identifier (ASIN for Audible,

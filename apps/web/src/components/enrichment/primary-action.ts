@@ -1,0 +1,23 @@
+import type { EnrichmentLifecycle } from "./filters";
+
+export type PrimaryRowAction = "approve" | "details" | "fix" | "retry";
+
+/** The one action most likely to move a row forward from its current state. */
+export function primaryActionForLifecycle(
+	lifecycle: EnrichmentLifecycle,
+): PrimaryRowAction {
+	switch (lifecycle) {
+		case "review":
+			return "approve";
+		case "unresolved":
+		case "no_match":
+		case "partial":
+			return "fix";
+		case "scheduled":
+		case "failed":
+			return "retry";
+		case "running":
+		case "done":
+			return "details";
+	}
+}

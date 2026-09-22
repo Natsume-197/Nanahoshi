@@ -36,6 +36,7 @@ import { bookRepository } from "./book.repository";
 import * as bookService from "./book.service";
 import {
 	ApplyBookMetadataInput,
+	PreviewBookMetadataInput,
 	SearchBookMetadataInput,
 	UpdateBookMetadataInput,
 } from "./metadata/book.metadata.model";
@@ -46,6 +47,15 @@ import { buildEnrichInput } from "./metadata/metadata.utils";
 function stripBookId<T extends { id: unknown }>(book: T) {
 	const { id: _id, ...publicBook } = book;
 	return publicBook;
+}
+
+async function requireMetadataEdit(
+	session: Parameters<typeof canAccessBookAction>[0],
+	uuid: string,
+) {
+	if (!(await canAccessBookAction(session, uuid, "book", "editMetadata"))) {
+		throw new ForbiddenError("You cannot edit this book's metadata");
+	}
 }
 
 export const bookRouter = {
@@ -305,6 +315,7 @@ export const bookRouter = {
 	availableMetadataProviders: protectedProcedure
 		.input(BookUuidInput)
 		.handler(async ({ input, context }) => {
+			await requireMetadataEdit(context.session, input.uuid);
 			const { serverId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
@@ -318,6 +329,7 @@ export const bookRouter = {
 	searchMetadata: protectedProcedure
 		.input(SearchBookMetadataInput)
 		.handler(async ({ input, context }) => {
+			await requireMetadataEdit(context.session, input.uuid);
 			const { serverId, scope } = await resolveBookScope(context.session);
 			const book = await bookService.getBookWithMetadata(
 				input.uuid,
@@ -328,6 +340,23 @@ export const bookRouter = {
 				title: input.title,
 				author: input.author,
 				asin: input.asin,
+			});
+		}),
+
+	previewMetadata: protectedProcedure
+		.input(PreviewBookMetadataInput)
+		.handler(async ({ input, context }) => {
+			await requireMetadataEdit(context.session, input.uuid);
+			const { serverId, scope } = await resolveBookScope(context.session);
+			const book = await bookService.getBookWithMetadata(
+				input.uuid,
+				serverId,
+				scope,
+			);
+			return bookMetadataService.previewFromProvider(input.provider, {
+				bookId: book.id,
+				uuid: book.uuid,
+				providerId: input.providerId,
 			});
 		}),
 
@@ -358,6 +387,7 @@ export const bookRouter = {
 					bookId: book.id,
 					uuid: book.uuid,
 					providerId: input.providerId,
+					fields: input.fields,
 				},
 			);
 			return { success: result !== null };

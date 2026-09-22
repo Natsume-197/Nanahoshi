@@ -1,4 +1,6 @@
 import path from "node:path";
+import { providerRequestSignal } from "../../../../infrastructure/providerAbort";
+import { providerGate } from "../../../../infrastructure/providerGate";
 import { acquireCover, findAcquiredCover } from "../../../../lib/cover-store";
 import {
 	isSafePublicUrl,
@@ -17,28 +19,26 @@ type ProviderLogger = {
  * provider creates its own instance with its API's rate limit.
  */
 export function createThrottledFetchJson({
+	provider,
 	minDelayMs,
 	log,
 	timeoutMs = REQUEST_TIMEOUT_MS,
 }: {
+	provider: string;
 	minDelayMs: number;
 	log: ProviderLogger;
 	timeoutMs?: number;
 }) {
-	let lastRequestTime = 0;
-
-	return async function fetchJson<T>(url: string): Promise<T | null> {
-		const now = Date.now();
-		const elapsed = now - lastRequestTime;
-		if (elapsed < minDelayMs) {
-			await new Promise((resolve) => setTimeout(resolve, minDelayMs - elapsed));
-		}
-		lastRequestTime = Date.now();
+	return async function fetchJson<T>(
+		url: string,
+		quotaScope = "shared",
+	): Promise<T | null> {
+		await providerGate.waitForSlot(provider, quotaScope, minDelayMs);
 
 		let response: Response;
 		try {
 			response = await fetch(url, {
-				signal: AbortSignal.timeout(timeoutMs),
+				signal: providerRequestSignal(undefined, timeoutMs),
 				headers: { Accept: "application/json" },
 			});
 		} catch (err) {
@@ -100,7 +100,7 @@ export async function downloadCover(
 		if (existing) return existing;
 
 		const response = await fetch(imageUrl, {
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+			signal: providerRequestSignal(undefined, REQUEST_TIMEOUT_MS),
 			redirect: "error",
 		});
 		if (!response.ok) return null;

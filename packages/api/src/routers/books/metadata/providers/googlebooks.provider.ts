@@ -1,3 +1,5 @@
+import { providerGate } from "../../../../infrastructure/providerGate";
+import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";
 import { logger } from "../../../../lib/logger";
 import {
 	type GoogleBooksConfig,
@@ -13,13 +15,14 @@ import {
 } from "./IMetadata.provider";
 import {
 	CANDIDATE_LIMIT,
-	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
 	hydratedProviderResult,
 	normalizePublishedDate,
+	ProviderCredentialError,
+	ProviderResponseError,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
@@ -35,7 +38,9 @@ const API_BASE = "https://www.googleapis.com/books/v1/volumes";
 const MAX_SEARCH_TERM_LENGTH = 60;
 const SEARCH_RESULT_LIMIT = 8;
 
-const pace = createRequestPacer(1500);
+const REQUEST_INTERVAL_MS = process.env.NODE_ENV === "test" ? 0 : 1500;
+
+type ScopedGoogleBooksConfig = GoogleBooksConfig & { quotaScope: string };
 
 type ImageLinks = Partial<
 	Record<
@@ -76,15 +81,29 @@ type VolumeInfo = {
 type Volume = { id?: string; volumeInfo?: VolumeInfo };
 
 class GoogleBooksProvider implements ISearchableMetadataProvider {
+	async quotaScope(serverId: string | null | undefined) {
+		return (await this.getConfig(serverId)).quotaScope;
+	}
+
+	async readiness(serverId: string | null | undefined) {
+		const config = await this.getConfig(serverId);
+		return !config.enabled
+			? ("disabled" as const)
+			: config.apiKey
+				? ("ready" as const)
+				: ("missing_credentials" as const);
+	}
+
 	async isAvailable(serverId: string | null | undefined): Promise<boolean> {
-		return (await this.getConfig(serverId)).enabled;
+		const config = await this.getConfig(serverId);
+		return config.enabled && Boolean(config.apiKey);
 	}
 
 	async discoverCandidates(
 		input: Partial<BookMetadata> & { serverId?: string | null },
 	): Promise<ProviderCandidate[]> {
 		const config = await this.getConfig(input.serverId);
-		if (!config.enabled) return [];
+		if (!config.enabled || !config.apiKey) return [];
 
 		return (await this.findVolumes(input, config))
 			.slice(0, CANDIDATE_LIMIT)
@@ -121,7 +140,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 	): Promise<BookSearchCandidate[]> {
 		try {
 			const config = await this.getConfig(options?.serverId);
-			if (!config.enabled) return [];
+			if (!config.enabled || !config.apiKey) return [];
 
 			const title = input.title?.trim();
 			if (!title) return [];
@@ -145,9 +164,16 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error }, "Search failed");
-			return [];
+			throw new ProviderResponseError("Google Books", "search failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -161,13 +187,13 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 	): Promise<Partial<BookMetadata> | null> {
 		try {
 			const config = await this.getConfig(options?.serverId);
-			if (!config.enabled) return null;
+			if (!config.enabled || !config.apiKey) return null;
 
 			// The single-volume endpoint returns printedPageCount/seriesInfo more
 			// reliably than search results.
 			const url = new URL(`${API_BASE}/${encodeURIComponent(volumeId)}`);
 			if (config.apiKey) url.searchParams.set("key", config.apiKey);
-			const volume = await this.fetchJson<Volume>(url);
+			const volume = await this.fetchJson<Volume>(url, config.quotaScope);
 			if (!volume?.volumeInfo?.title) return null;
 
 			const metadata = this.mapVolume(volume);
@@ -182,9 +208,16 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderCredentialError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error, volumeId }, "getById failed");
-			return null;
+			throw new ProviderResponseError("Google Books", "lookup failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -196,7 +229,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 	 */
 	private async findVolumes(
 		input: Partial<BookMetadata>,
-		config: GoogleBooksConfig,
+		config: ScopedGoogleBooksConfig,
 	): Promise<Volume[]> {
 		const isbn = (input.isbn13 ?? input.isbn10)?.replace(/-/g, "");
 		if (isbn) {
@@ -248,7 +281,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 	private async queryVolumes(
 		query: string,
 		maxResults: number,
-		config: GoogleBooksConfig,
+		config: ScopedGoogleBooksConfig,
 	): Promise<Volume[]> {
 		const url = new URL(API_BASE);
 		url.searchParams.set("q", query);
@@ -258,18 +291,29 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 		}
 		if (config.apiKey) url.searchParams.set("key", config.apiKey);
 
-		const data = await this.fetchJson<{ items?: Volume[] }>(url);
+		const data = await this.fetchJson<{ items?: Volume[] }>(
+			url,
+			config.quotaScope,
+		);
 		return (data?.items ?? []).filter((volume) => this.isRelevant(volume));
 	}
 
-	private async fetchJson<T>(url: URL): Promise<T | null> {
-		await pace();
+	private async fetchJson<T>(url: URL, quotaScope?: string): Promise<T | null> {
+		await providerGate.waitForSlot(
+			"googlebooks",
+			quotaScope ?? "org:instance",
+			REQUEST_INTERVAL_MS,
+		);
 		const response = await fetchOrTransient("Google Books", url, {
 			headers: { Accept: "application/json" },
 		});
 		if (!response.ok) {
 			log.warn({ status: response.status }, "Google Books API request failed");
-			return null;
+			if (response.status === 404) return null;
+			throw new ProviderResponseError(
+				"Google Books",
+				`HTTP ${response.status}`,
+			);
 		}
 		return (await response.json()) as T;
 	}
@@ -465,10 +509,16 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 
 	private async getConfig(
 		serverId: string | null | undefined,
-	): Promise<GoogleBooksConfig> {
-		// Library-less books have no organization → default to enabled.
-		if (!serverId) return { enabled: true };
-		return getGoogleBooksConfig(serverId);
+	): Promise<ScopedGoogleBooksConfig> {
+		if (!serverId) return { enabled: false, quotaScope: "org:instance" };
+		const config = await getGoogleBooksConfig(serverId);
+		return {
+			...config,
+			quotaScope: providerQuotaScope("googlebooks", {
+				serverId,
+				credential: config.apiKey,
+			}),
+		};
 	}
 }
 

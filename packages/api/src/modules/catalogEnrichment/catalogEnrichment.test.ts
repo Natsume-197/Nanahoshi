@@ -145,6 +145,16 @@ describe("Catalog Enrichment Pipeline", () => {
 				},
 			],
 			retryable: true,
+			diagnostics: {
+				providerRuns: [
+					{
+						provider: "first",
+						status: "cooldown",
+						failureCodes: ["rate_limited"],
+					},
+					{ provider: "second", status: "fallback", failureCodes: [] },
+				],
+			},
 		});
 	});
 
@@ -331,6 +341,7 @@ describe("Catalog Enrichment Pipeline", () => {
 					providerId,
 					metadata: { title: "Great Story" },
 					evidence: audiobookEvidence("Great Story"),
+					previewCover: `https://example.com/${providerId}.jpg`,
 				})),
 			hydrate: async () => ({
 				metadata: { description: "Provider description" },
@@ -353,11 +364,13 @@ describe("Catalog Enrichment Pipeline", () => {
 					{
 						provider: "first",
 						providerId: "candidate-1",
+						previewCover: "https://example.com/candidate-1.jpg",
 						reasons: ["audiobook.title_match"],
 					},
 					{
 						provider: "first",
 						providerId: "candidate-2",
+						previewCover: "https://example.com/candidate-2.jpg",
 						reasons: ["audiobook.title_match"],
 					},
 				],
@@ -629,6 +642,7 @@ describe("what the automatic match picked", () => {
 				providerId,
 				metadata: { title: "Ochibore" },
 				evidence: audiobookEvidence("Ochibore"),
+				previewCover: "https://example.com/ochibore.jpg",
 			},
 		],
 		hydrate: async () => ({
@@ -653,6 +667,7 @@ describe("what the automatic match picked", () => {
 			provider: "first",
 			providerId: "rndb-42",
 			title: "Ochibore vol. 3",
+			previewCover: "https://example.com/ochibore.jpg",
 			reasons: ["group.member_confirmed", "audiobook.title_match"],
 		});
 	});

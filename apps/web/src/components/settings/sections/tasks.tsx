@@ -125,6 +125,14 @@ function jobColumns({
 									})}
 								</span>
 							)}
+							{(task.deferredJobs ?? 0) > 0 && (
+								<span className="text-warning">
+									{" · "}
+									{m["settings.tasks.deferred_count"]({
+										count: task.deferredJobs ?? 0,
+									})}
+								</span>
+							)}
 						</span>
 					</div>
 				);

@@ -110,7 +110,7 @@ async function enrichSingleBook(
 			// The service already persisted nextRetryAt. BullMQ must not burn its
 			// own attempts inside the provider's cooldown window.
 			log.info({ uuid }, "Provider retry scheduled durably");
-			return;
+			return "deferred" as const;
 		}
 		// Terminal failure is counted by the progress listener (retries excluded).
 		log.warn({ err: error, uuid }, "Failed to enrich book");
@@ -184,7 +184,7 @@ async function enrichSingleAudiobook(
 			// The service already persisted nextRetryAt. BullMQ must not burn its
 			// own attempts inside the provider's cooldown window.
 			log.info({ uuid }, "Provider retry scheduled durably");
-			return;
+			return "deferred" as const;
 		}
 		log.warn({ err: error, uuid }, "Failed to enrich audiobook");
 		throw error;
@@ -194,14 +194,15 @@ async function enrichSingleAudiobook(
 export const metadataEnrichWorker = new Worker(
 	"metadata-enrich",
 	async (job) => {
+		let outcome: "completed" | "deferred" = "completed";
 		if (job.name === "dispatch-due-retries") {
 			await dispatchDueMetadataRetries();
 		} else if (job.name === "enrich-audiobook") {
-			await enrichSingleAudiobook(job);
+			outcome = (await enrichSingleAudiobook(job)) ?? "completed";
 		} else {
-			await enrichSingleBook(job);
+			outcome = (await enrichSingleBook(job)) ?? "completed";
 		}
-		return { taskId: job.data?.taskId };
+		return { taskId: job.data?.taskId, outcome };
 	},
 	{
 		connection: redis,

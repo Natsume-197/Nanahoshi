@@ -295,6 +295,25 @@ const amazonProductUrlSpy = spyOn(amazonProvider, "productUrl");
 const ranobedbSearchSpy = spyOn(ranobedbProvider, "search");
 const ranobedbGetByIdSpy = spyOn(ranobedbProvider, "getById");
 const openlibraryGetByIdSpy = spyOn(openlibraryProvider, "getById");
+const searchableProviders = [
+	ranobedbProvider,
+	amazonProvider,
+	googlebooksProvider,
+	openlibraryProvider,
+	goodreadsProvider,
+	comicvineProvider,
+	hardcoverProvider,
+] as const;
+const availabilitySpies = searchableProviders.map((provider) =>
+	spyOn(provider, "isAvailable").mockImplementation(async () => true),
+);
+const quotaScopeSpies = [
+	googlebooksProvider,
+	comicvineProvider,
+	hardcoverProvider,
+].map((provider) =>
+	spyOn(provider, "quotaScope").mockImplementation(async () => "org:server-1"),
+);
 
 // Restore the real methods so later test files see the actual providers/repo
 afterAll(() => {
@@ -306,6 +325,8 @@ afterAll(() => {
 	ranobedbGetByIdSpy.mockRestore();
 	openlibraryGetByIdSpy.mockRestore();
 	for (const spy of providerSpies) spy.mockRestore();
+	for (const spy of availabilitySpies) spy.mockRestore();
+	for (const spy of quotaScopeSpies) spy.mockRestore();
 	for (const spy of repoSpies) spy.mockRestore();
 });
 
@@ -443,6 +464,9 @@ beforeEach(() => {
 	mockGetOriginalMetadata.mockImplementation(() => Promise.resolve(null));
 	mockGetEnrichmentGaps.mockReset();
 	mockGetEnrichmentGaps.mockImplementation(() => Promise.resolve(undefined));
+	for (const spy of availabilitySpies) {
+		spy.mockImplementation(async () => true);
+	}
 });
 
 describe("enrichFromProviders", () => {
@@ -1074,6 +1098,7 @@ describe("needsExternalEnrichment", () => {
 		hasSeries: true,
 		hasGenres: true,
 		hasTags: true,
+		fieldSources: {},
 	};
 
 	test("true when a provider field (rating) is still missing", async () => {
@@ -1090,6 +1115,17 @@ describe("needsExternalEnrichment", () => {
 		);
 
 		expect(await bookMetadataService.needsExternalEnrichment(1)).toBe(false);
+	});
+
+	test("true when a preferred provider can replace a persisted fallback", async () => {
+		mockGetEnrichmentGaps.mockImplementation(() =>
+			Promise.resolve({
+				...FULL_GAPS,
+				fieldSources: { description: { p: "openlibrary" } },
+			}),
+		);
+
+		expect(await bookMetadataService.needsExternalEnrichment(1)).toBe(true);
 	});
 
 	test("respects the library's provider list — amazon-only gaps don't trigger a ranobedb-only chain", async () => {
@@ -1657,30 +1693,23 @@ describe("searchProvider (manual fix-match)", () => {
 		).rejects.toThrow(/Try again later/);
 	});
 
-	const ALL_SEARCHABLE_PROVIDERS = [
-		ranobedbProvider,
-		amazonProvider,
-		googlebooksProvider,
-		openlibraryProvider,
-		goodreadsProvider,
-		comicvineProvider,
-		hardcoverProvider,
-	];
-
-	// Spies isAvailable on every provider, runs fn, restores.
+	// Temporarily changes the shared availability spies, then restores the
+	// default test environment where every provider is configured.
 	async function withAvailability(
-		impl: (provider: (typeof ALL_SEARCHABLE_PROVIDERS)[number]) => boolean,
+		impl: (provider: (typeof searchableProviders)[number]) => boolean,
 		fn: () => Promise<void>,
 	) {
-		const spies = ALL_SEARCHABLE_PROVIDERS.map((provider) =>
-			spyOn(provider, "isAvailable").mockImplementation(async () => {
+		searchableProviders.forEach((provider, index) => {
+			availabilitySpies[index]?.mockImplementation(async () => {
 				return impl(provider);
-			}),
-		);
+			});
+		});
 		try {
 			await fn();
 		} finally {
-			for (const spy of spies) spy.mockRestore();
+			for (const spy of availabilitySpies) {
+				spy.mockImplementation(async () => true);
+			}
 		}
 	}
 
@@ -1790,6 +1819,7 @@ describe("applyFromProvider (manual fix-match)", () => {
 			serverId: "server-1",
 			amazonDomain: undefined,
 			uuid: "uuid-1",
+			keepRemoteCover: false,
 		});
 		const authorsCall = mockReplaceBookAuthors.mock.calls[0] as
 			| [number, unknown, string, string]
@@ -1847,6 +1877,57 @@ describe("applyFromProvider (manual fix-match)", () => {
 			serverId: "server-1",
 			amazonDomain: undefined,
 			uuid: "uuid-1",
+			keepRemoteCover: false,
 		});
+	});
+
+	test("applies only the fields the user selected in the comparison", async () => {
+		ranobedbGetByIdSpy.mockImplementation(async () => ({
+			title: "Provider title",
+			description: "Provider description",
+			authors: [{ name: "Provider Author", role: "Author" }],
+		}));
+
+		await bookMetadataService.applyFromProvider("ranobedb", {
+			bookId: 1,
+			uuid: "uuid-1",
+			providerId: "4242",
+			fields: ["description"],
+		});
+
+		const [, saved] = mockUpsertMetadata.mock.calls[0] as unknown as [
+			number,
+			Record<string, unknown>,
+		];
+		expect(saved.description).toBe("Provider description");
+		expect(saved.title).toBeUndefined();
+		expect(mockReplaceBookAuthors).not.toHaveBeenCalled();
+	});
+
+	test("previews a remote cover without persisting the candidate", async () => {
+		openlibraryGetByIdSpy.mockImplementation(async () => ({
+			title: "The Hobbit",
+			cover: "https://covers.example/hobbit.jpg",
+		}));
+
+		const result = await bookMetadataService.previewFromProvider(
+			"openlibrary",
+			{
+				bookId: 1,
+				uuid: "uuid-1",
+				providerId: "works/OL123W",
+			},
+		);
+
+		expect(result?.metadata.cover).toBe("https://covers.example/hobbit.jpg");
+		expect(result?.lockedFields).toEqual([]);
+		expect(openlibraryGetByIdSpy).toHaveBeenCalledWith("works/OL123W", {
+			serverId: "server-1",
+			amazonDomain: undefined,
+			uuid: "uuid-1",
+			keepRemoteCover: true,
+		});
+		expect(mockUpsertMetadata).not.toHaveBeenCalled();
+		expect(mockRecordRun).not.toHaveBeenCalled();
 	});
 });

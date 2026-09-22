@@ -145,6 +145,11 @@ export const ApplyBookMetadataInput = z.object({
 	uuid: z.string().uuid(),
 	provider: BookProviderEnum,
 	providerId: z.string().trim().min(1).max(64),
+	fields: z.array(z.enum(LOCKABLE_BOOK_FIELDS)).min(1).optional(),
+});
+
+export const PreviewBookMetadataInput = ApplyBookMetadataInput.omit({
+	fields: true,
 });
 
 // ─── Types ───────────────────────────────────────────────

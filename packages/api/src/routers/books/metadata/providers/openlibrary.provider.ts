@@ -11,13 +11,13 @@ import {
 } from "./IMetadata.provider";
 import {
 	CANDIDATE_LIMIT,
-	createRequestPacer,
 	deriveIsbnPair,
 	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
 	hydratedProviderResult,
 	normalizePublishedDate,
+	ProviderResponseError,
 	ProviderTransientError,
 	stripHtml,
 } from "./provider.utils";
@@ -38,7 +38,7 @@ const SEARCH_FIELDS =
 	"key,title,author_name,first_publish_year,cover_i,isbn,language,number_of_pages_median,publisher,subject";
 const MAX_GENRES = 10;
 
-const pace = createRequestPacer(1000);
+const REQUEST_INTERVAL_MS = process.env.NODE_ENV === "test" ? 0 : 1000;
 
 // Short-lived so a re-enrichment minutes later still sees fresh data.
 const jsonCache = new TtlPromiseCache<unknown>(60_000, 200);
@@ -199,9 +199,15 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 					return candidate ? [candidate] : [];
 				});
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error }, "Search failed");
-			return [];
+			throw new ProviderResponseError("Open Library", "search failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -238,9 +244,15 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 			}
 			return metadata;
 		} catch (error) {
-			if (error instanceof ProviderTransientError) throw error;
+			if (
+				error instanceof ProviderTransientError ||
+				error instanceof ProviderResponseError
+			)
+				throw error;
 			log.warn({ err: error, providerId }, "getById failed");
-			return null;
+			throw new ProviderResponseError("Open Library", "lookup failed", {
+				cause: error,
+			});
 		}
 	}
 
@@ -462,7 +474,11 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 	}
 
 	private async fetchJsonUncached<T>(url: string): Promise<T | null> {
-		await pace();
+		await providerGate.waitForSlot(
+			"openlibrary",
+			"shared",
+			REQUEST_INTERVAL_MS,
+		);
 		const response = await fetchOrTransient("Open Library", url, {
 			headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
 		});
@@ -486,3 +502,5 @@ class OpenLibraryProvider implements ISearchableMetadataProvider {
 }
 
 export const openlibraryProvider = new OpenLibraryProvider();
+
+import { providerGate } from "../../../../infrastructure/providerGate";

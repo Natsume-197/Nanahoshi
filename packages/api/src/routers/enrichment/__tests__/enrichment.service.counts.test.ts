@@ -8,6 +8,9 @@ const original = {
 	list: enrichmentStateRepository.list,
 	countsByBucket: enrichmentStateRepository.countsByBucket,
 	countsByLifecycle: enrichmentStateRepository.countsByLifecycle,
+	resolveTargets: enrichmentStateRepository.resolveTargets,
+	approvalPreview: enrichmentStateRepository.approvalPreview,
+	approve: enrichmentStateRepository.approve,
 };
 
 afterEach(() => {
@@ -90,5 +93,64 @@ describe("enrichmentService.list counts", () => {
 		});
 		expect(seen.bucket).not.toHaveProperty("query");
 		expect(seen.lifecycle).not.toHaveProperty("query");
+	});
+});
+
+describe("enrichmentService.approvalPreview", () => {
+	test("summarizes the providers and evidence for the exact resolved selection", async () => {
+		let requestedIds: number[] = [];
+		enrichmentStateRepository.resolveTargets = (async () => [
+			{ bookId: 11, bookUuid: "book-11", mediaType: "ebook" },
+			{ bookId: 12, bookUuid: "book-12", mediaType: "ebook" },
+		]) as typeof enrichmentStateRepository.resolveTargets;
+		enrichmentStateRepository.approvalPreview = (async (
+			_serverId: string,
+			bookIds: number[],
+		) => {
+			requestedIds = bookIds;
+			return [
+				{
+					bookUuid: "book-11",
+					title: "One",
+					provider: "googlebooks",
+					reasons: ["title.match"],
+				},
+				{
+					bookUuid: "book-12",
+					title: "Two",
+					provider: "googlebooks",
+					reasons: ["title.match", "author.match"],
+				},
+			];
+		}) as typeof enrichmentStateRepository.approvalPreview;
+
+		const preview = await enrichmentService.approvalPreview("server-1", {
+			bookUuids: ["book-11", "book-12"],
+		});
+
+		expect(requestedIds).toEqual([11, 12]);
+		expect(preview.total).toBe(2);
+		expect(preview.byProvider).toEqual({ googlebooks: 2 });
+		expect(preview.byReason).toEqual({
+			"title.match": 2,
+			"author.match": 1,
+		});
+	});
+});
+
+describe("enrichmentService.approve", () => {
+	test("reports rows actually transitioned, not every resolved target", async () => {
+		enrichmentStateRepository.resolveTargets = (async () => [
+			{ bookId: 11, bookUuid: "book-11", mediaType: "ebook" },
+			{ bookId: 12, bookUuid: "book-12", mediaType: "ebook" },
+		]) as typeof enrichmentStateRepository.resolveTargets;
+		enrichmentStateRepository.approve = (async () =>
+			1) as typeof enrichmentStateRepository.approve;
+
+		await expect(
+			enrichmentService.approve("server-1", {
+				bookUuids: ["book-11", "book-12"],
+			}),
+		).resolves.toEqual({ approved: 1 });
 	});
 });

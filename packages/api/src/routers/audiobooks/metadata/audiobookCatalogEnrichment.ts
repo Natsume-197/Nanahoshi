@@ -230,7 +230,7 @@ function audiobookAdapter(
 		AudiobookEnrichmentMetadata
 	> = {
 		id: provider.id,
-		async discover(query, metadata) {
+		async discover(query, metadata, signal) {
 			// A valid ASIN resolves straight through Audible, no search needed.
 			if (isValidAsin(query.asin)) {
 				if (provider.id !== "audible") return [];
@@ -249,14 +249,14 @@ function audiobookAdapter(
 				context.diagnostics.searches = (context.diagnostics.searches ?? 0) + 1;
 				const candidates = await provider.search(
 					{ title: query.title, authors: queryAuthors(query) },
-					{ region: context.region },
+					{ region: context.region, signal },
 				);
 				return candidates.map((candidate) => {
 					context.candidates.add(`${provider.id}:${candidate.providerId}`);
 					const {
 						provider: _provider,
 						providerId,
-						previewCover: _previewCover,
+						previewCover,
 						url: _url,
 						...metadata
 					} = candidate;
@@ -264,17 +264,19 @@ function audiobookAdapter(
 						providerId,
 						metadata,
 						evidence: identityEvidence(metadata),
+						previewCover,
 					};
 				});
 			} catch (error) {
 				return asTransient(error);
 			}
 		},
-		async hydrate(candidate, local) {
+		async hydrate(candidate, local, signal) {
 			try {
 				const metadata = await provider.getById(candidate.providerId, {
 					region: context.region,
 					bookUuid: context.bookUuid,
+					signal,
 				});
 				if (!metadata) return null;
 				const combined = {

@@ -13,10 +13,13 @@ const keyOf = (provider: string, scope: string) =>
 	`provider-gate:${provider}:${scope}`;
 const leaseKeyOf = (provider: string, scope: string) =>
 	`provider-lease:${provider}:${scope}`;
+const paceKeyOf = (provider: string, scope: string) =>
+	`provider-pace:${provider}:${scope}`;
 
 // bun test has no Redis: per-process memory keeps the same semantics.
 const memoryUntil = new Map<string, number>();
 const memoryLeaseTails = new Map<string, Promise<void>>();
+const memoryNextSlot = new Map<string, number>();
 const isTest = process.env.NODE_ENV === "test";
 
 const RELEASE_LEASE_SCRIPT = `
@@ -26,12 +29,45 @@ const RELEASE_LEASE_SCRIPT = `
 	return 0
 `;
 
+const RESERVE_SLOT_SCRIPT = `
+	local clock = redis.call("TIME")
+	local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+	local next_at = tonumber(redis.call("get", KEYS[1])) or now
+	local slot_at = math.max(now, next_at)
+	local wait_ms = slot_at - now
+	local interval_ms = tonumber(ARGV[1])
+	redis.call("set", KEYS[1], slot_at + interval_ms, "PX", wait_ms + interval_ms + 60000)
+	return wait_ms
+`;
+
 async function redisClient() {
 	const { redis } = await import("./queue/redis");
 	return redis;
 }
 
 export class ProviderGate {
+	/** Reserve a cross-process request slot for one external quota bucket. */
+	async waitForSlot(
+		provider: string,
+		scope: string,
+		minIntervalMs: number,
+	): Promise<void> {
+		const key = paceKeyOf(provider, scope);
+		let waitMs: number;
+		if (isTest) {
+			const now = Date.now();
+			const slotAt = Math.max(now, memoryNextSlot.get(key) ?? now);
+			memoryNextSlot.set(key, slotAt + minIntervalMs);
+			waitMs = slotAt - now;
+		} else {
+			const redis = await redisClient();
+			waitMs = Number(
+				await redis.eval(RESERVE_SLOT_SCRIPT, 1, key, minIntervalMs),
+			);
+		}
+		if (waitMs > 0) await Bun.sleep(waitMs);
+	}
+
 	/** ms until the provider may be called again, or null when closed. */
 	async cooldownRemainingMs(
 		provider: string,
@@ -166,6 +202,7 @@ export class ProviderGate {
 	clearAllInMemory(): void {
 		memoryUntil.clear();
 		memoryLeaseTails.clear();
+		memoryNextSlot.clear();
 	}
 }
 
