@@ -2,9 +2,7 @@ import type { Task } from "@nanahoshi/api/modules/taskManager";
 import {
 	Check,
 	CircleNotch,
-	DotsThree,
 	Info,
-	MagnifyingGlass,
 	Sparkle,
 	Trash,
 	X,
@@ -34,13 +32,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -424,71 +415,27 @@ export function ReadListenReviewPanel({
 			) : null;
 		}
 		return (
-			<>
-				<Button
-					size="sm"
-					disabled={isPending || busy}
-					onClick={() =>
-						decisionMutation.mutate({
-							proposalUuid: proposal.id,
-							action: "approve",
-						})
-					}
-				>
-					{isPending ? (
-						<CircleNotch
-							aria-hidden="true"
-							data-icon="inline-start"
-							className="animate-spin motion-reduce:animate-none"
-						/>
-					) : (
-						<Check aria-hidden="true" data-icon="inline-start" />
-					)}
-					{m["read_listen.approve_match"]()}
-				</Button>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							disabled={isPending || busy}
-							aria-label={m["aria.more_actions"]()}
-						>
-							<DotsThree aria-hidden="true" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="min-w-52">
-						<DropdownMenuGroup>
-							<DropdownMenuItem onClick={() => setCorrection(proposal)}>
-								<MagnifyingGlass aria-hidden="true" />
-								{m["read_listen.choose_another_ebook"]()}
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								variant="destructive"
-								onClick={() =>
-									decisionMutation.mutate({
-										proposalUuid: proposal.id,
-										action: "reject",
-									})
-								}
-							>
-								<X aria-hidden="true" />
-								{m["read_listen.reject_match"]()}
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								variant="destructive"
-								onClick={() => {
-									const target = getRemovalTarget(proposal);
-									if (target) requestRemoval([target]);
-								}}
-							>
-								<Trash aria-hidden="true" />
-								{m["read_listen.remove_pending_result"]()}
-							</DropdownMenuItem>
-						</DropdownMenuGroup>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</>
+			<Button
+				size="sm"
+				disabled={isPending || busy}
+				onClick={() =>
+					decisionMutation.mutate({
+						proposalUuid: proposal.id,
+						action: "approve",
+					})
+				}
+			>
+				{isPending ? (
+					<CircleNotch
+						aria-hidden="true"
+						data-icon="inline-start"
+						className="animate-spin motion-reduce:animate-none"
+					/>
+				) : (
+					<Check aria-hidden="true" data-icon="inline-start" />
+				)}
+				{m["read_listen.approve_match"]()}
+			</Button>
 		);
 	};
 
@@ -664,8 +611,10 @@ export function ReadListenReviewPanel({
 										{m["read_listen.audiobook"]()}
 									</TrayHeaderCell>
 									<TrayHeaderCell>{m["read_listen.ebook"]()}</TrayHeaderCell>
-									<TrayHeaderCell>{m["read_listen.matches"]()}</TrayHeaderCell>
-									<TrayHeaderCell className="justify-end">
+									<TrayHeaderCell className="justify-center">
+										{m["read_listen.matches"]()}
+									</TrayHeaderCell>
+									<TrayHeaderCell className="justify-center">
 										{m["read_listen.actions"]()}
 									</TrayHeaderCell>
 								</>
@@ -699,10 +648,10 @@ export function ReadListenReviewPanel({
 											mediaType="ebook"
 										/>
 									</TrayCell>
-									<TrayCell className="flex-wrap gap-1.5">
+									<TrayCell className="flex-wrap justify-center gap-1.5">
 										{renderBadges(proposal)}
 									</TrayCell>
-									<TrayCell className="justify-end gap-1.5">
+									<TrayCell className="justify-center gap-1.5">
 										{renderActions(proposal)}
 									</TrayCell>
 								</TrayRow>
@@ -882,6 +831,14 @@ export function ReadListenReviewPanel({
 										setDetailId(null);
 										setCorrection(detailProposal);
 									},
+									onRemove: getRemovalTarget(detailProposal)
+										? () => {
+												const target = getRemovalTarget(detailProposal);
+												if (!target) return;
+												setDetailId(null);
+												requestRemoval([target]);
+											}
+										: undefined,
 								}
 							: undefined
 					}

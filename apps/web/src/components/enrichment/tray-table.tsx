@@ -116,7 +116,9 @@ export function TrayRow({
 				onOpen && "cursor-pointer",
 				// Selection needs to read at a glance across a page; the open row
 				// stays clearly the stronger tint so the two never compete.
-				open ? "bg-primary/16" : "hover:bg-muted/55",
+				// A neutral lift, not a surface colour: a tinted fill turns grey or
+				// blue in some themes and swallows outline buttons on the row.
+				open ? "bg-primary/16" : "hover:bg-foreground/5",
 				selected && !open && "bg-primary/6",
 			)}
 		>
@@ -135,7 +137,9 @@ export function TrayCell({
 	return (
 		<td
 			className={cn(
-				"flex min-w-0 items-center bg-inherit px-1.5 py-2",
+				// Transparent on purpose: the row paints the hover/selection tint, and a
+				// cell repeating it would stack the alpha into brighter blocks.
+				"flex min-w-0 items-center px-1.5 py-2",
 				className,
 			)}
 		>

@@ -14,7 +14,6 @@ import { orpc } from "@/utils/orpc";
 const BUCKET_VALUES = ["all", "in_progress", "attention", "completed"] as const;
 const TYPE_VALUES = ["ebook", "audiobook"] as const;
 const PAIR_VIEW_VALUES = [
-	"decided",
 	"no_alignment",
 	"failed",
 	"unmatched",

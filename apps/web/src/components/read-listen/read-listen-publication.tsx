@@ -86,7 +86,9 @@ export function PublicationLink({
 			}
 			params={{ uuid: publication.uuid }}
 			preload="intent"
-			className="group flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			// No fill of its own: inside a tray row it would light a second box on
+			// top of the row's hover. The underlined title says it's a link.
+			className="group/publication flex min-w-0 items-center gap-2.5 rounded-md py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 		>
 			<MatchPublicationArtwork
 				cover={publication.cover}
@@ -100,7 +102,7 @@ export function PublicationLink({
 				</p>
 				<p
 					title={publication.title}
-					className="truncate font-medium text-sm group-hover:underline group-hover:decoration-1 group-hover:underline-offset-2"
+					className="truncate font-medium text-sm group-hover/publication:underline group-hover/publication:decoration-1 group-hover/publication:underline-offset-2"
 				>
 					{publication.title}
 				</p>

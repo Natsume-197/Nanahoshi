@@ -3,6 +3,7 @@ import {
 	CaretRight,
 	Check,
 	MagnifyingGlass,
+	Trash,
 	X,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -246,6 +247,8 @@ export function ProposalDetailDialog({
 		onApprove: () => void;
 		onReject: () => void;
 		onChooseAnother: () => void;
+		/** Drops the proposal without deciding it (only matcher results). */
+		onRemove?: () => void;
 	};
 }) {
 	const ebook = proposal.decision?.selectedEbook ?? proposal.ebook;
@@ -388,15 +391,28 @@ export function ProposalDetailDialog({
 							<MagnifyingGlass data-icon="inline-start" />
 							{m["read_listen.choose_another_ebook"]()}
 						</Button>
-						<Button
-							variant="ghost"
-							className="ms-auto text-destructive"
-							disabled={actions.busy}
-							onClick={actions.onReject}
-						>
-							<X data-icon="inline-start" />
-							{m["read_listen.reject_match"]()}
-						</Button>
+						<span className="ms-auto flex flex-wrap items-center gap-1.5">
+							{actions.onRemove && (
+								<Button
+									variant="ghost"
+									className="text-muted-foreground"
+									disabled={actions.busy}
+									onClick={actions.onRemove}
+								>
+									<Trash data-icon="inline-start" />
+									{m["read_listen.remove_pending_result"]()}
+								</Button>
+							)}
+							<Button
+								variant="ghost"
+								className="text-destructive"
+								disabled={actions.busy}
+								onClick={actions.onReject}
+							>
+								<X data-icon="inline-start" />
+								{m["read_listen.reject_match"]()}
+							</Button>
+						</span>
 					</div>
 				)}
 			</div>

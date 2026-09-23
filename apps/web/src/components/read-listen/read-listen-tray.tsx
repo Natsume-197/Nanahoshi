@@ -1,14 +1,11 @@
 import {
-	ArrowSquareOut,
 	ArrowsClockwise,
 	CheckCircle,
 	FunnelSimple,
 	Hourglass,
-	ListChecks,
+	LinkBreak,
 	MagnifyingGlass,
-	Question,
-	Sparkle,
-	WarningCircle,
+	Warning,
 	Waveform,
 } from "@phosphor-icons/react";
 import {
@@ -17,10 +14,10 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { NavRow } from "@/components/enrichment/match-sidebar";
+import { StatusDot, type StatusTone } from "@/components/enrichment/lifecycle";
+import { BUCKET_LABELS, NavRow } from "@/components/enrichment/match-sidebar";
 import {
 	TrayBulkBar,
 	TrayPagination,
@@ -37,6 +34,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Modal } from "@/components/ui/modal";
 import {
 	Popover,
 	PopoverContent,
@@ -54,13 +52,14 @@ import {
 	EbookPickerDialog,
 } from "./read-listen-dialogs";
 import { ReadListenReviewPanel } from "./read-listen-match-review";
+import { bucketLandingView } from "./read-listen-nav";
 import {
 	type ReadListenPublicationView as Publication,
 	PublicationLink,
 } from "./read-listen-publication";
 
 export type PairState = "no_alignment" | "failed" | "generating" | "ready";
-export type PairView = "pending" | "decided" | "unmatched" | PairState;
+export type PairView = "pending" | "unmatched" | PairState;
 
 export const PAIR_VIEWS: readonly PairView[] = [
 	"pending",
@@ -69,7 +68,6 @@ export const PAIR_VIEWS: readonly PairView[] = [
 	"unmatched",
 	"generating",
 	"ready",
-	"decided",
 ];
 
 const PAGE_SIZE = 50;
@@ -80,7 +78,6 @@ type Pairing = Awaited<
 
 export const PAIR_VIEW_LABELS: Record<PairView, () => string> = {
 	pending: () => m["read_listen.pending_matches"](),
-	decided: () => m["read_listen.reviewed_matches"](),
 	unmatched: () => m["read_listen.pairs_unmatched"](),
 	no_alignment: () => m["read_listen.pairs_no_alignment"](),
 	failed: () => m["read_listen.pairs_failed"](),
@@ -88,30 +85,33 @@ export const PAIR_VIEW_LABELS: Record<PairView, () => string> = {
 	ready: () => m["read_listen.pairs_ready"](),
 };
 
-const PAIR_VIEW_ICONS: Record<PairView, ReactNode> = {
-	pending: <Sparkle />,
-	no_alignment: <Waveform />,
-	failed: <WarningCircle />,
-	unmatched: <Question />,
-	generating: <Hourglass />,
-	ready: <CheckCircle />,
-	decided: <ListChecks />,
+// Same colour language as the metadata tab's lifecycle dots: amber asks for a
+// decision, red for a fix, blue is running, green is done.
+const PAIR_VIEW_TONES: Record<PairView, StatusTone> = {
+	pending: "warning",
+	no_alignment: "warning",
+	failed: "destructive",
+	unmatched: "destructive",
+	generating: "info",
+	ready: "success",
 };
 
-// Grouped by what the row asks of you, the same way the metadata tab groups
-// its lifecycles: work to do, work running, work done.
-const NAV_GROUPS: { label: () => string; views: PairView[] }[] = [
+type PairBucket = "in_progress" | "attention" | "completed";
+
+// The metadata tab's tree, in its order: a bucket row with its total, and the
+// states inside it as dotted children. A bucket holding a single state is that
+// state, so it stays one row instead of repeating itself one level down.
+const NAV_TREE: { bucket: PairBucket; icon: ReactNode; views: PairView[] }[] = [
+	{ bucket: "in_progress", icon: <Hourglass />, views: ["generating"] },
 	{
-		label: () => m["enrichment.bucket_attention"](),
+		bucket: "attention",
+		icon: <Warning />,
 		views: ["pending", "no_alignment", "failed", "unmatched"],
 	},
 	{
-		label: () => m["enrichment.bucket_in_progress"](),
-		views: ["generating"],
-	},
-	{
-		label: () => m["enrichment.bucket_completed"](),
-		views: ["ready", "decided"],
+		bucket: "completed",
+		icon: <CheckCircle />,
+		views: ["ready"],
 	},
 ];
 
@@ -127,25 +127,37 @@ function PairingsTrayNav({
 	return (
 		<nav
 			aria-label={m["read_listen.match_status_filter"]()}
-			className="flex flex-col gap-3"
+			className="flex flex-col gap-0.5"
 		>
-			{NAV_GROUPS.map((group) => (
-				<div key={group.views[0]} className="flex flex-col gap-0.5">
-					<p className="px-2 pb-1 font-medium text-[0.6875rem] text-muted-foreground/70 uppercase tracking-wider">
-						{group.label()}
-					</p>
-					{group.views.map((entry) => (
+			{NAV_TREE.map((node) => {
+				const total = node.views.some((entry) => counts[entry] == null)
+					? undefined
+					: node.views.reduce((sum, entry) => sum + (counts[entry] ?? 0), 0);
+				const leaf = node.views.length === 1;
+				return (
+					<div key={node.bucket} className="flex flex-col gap-0.5">
 						<NavRow
-							key={entry}
-							active={view === entry}
-							label={PAIR_VIEW_LABELS[entry]()}
-							count={counts[entry]}
-							icon={PAIR_VIEW_ICONS[entry]}
-							onClick={() => onSelect(entry)}
+							active={leaf && view === node.views[0]}
+							label={BUCKET_LABELS[node.bucket]()}
+							count={total}
+							icon={node.icon}
+							onClick={() => onSelect(bucketLandingView(node.views, counts))}
 						/>
-					))}
-				</div>
-			))}
+						{!leaf &&
+							node.views.map((entry) => (
+								<NavRow
+									key={entry}
+									active={view === entry}
+									label={PAIR_VIEW_LABELS[entry]()}
+									count={counts[entry]}
+									icon={<StatusDot tone={PAIR_VIEW_TONES[entry]} />}
+									indented
+									onClick={() => onSelect(entry)}
+								/>
+							))}
+					</div>
+				);
+			})}
 		</nav>
 	);
 }
@@ -169,15 +181,9 @@ export function ReadListenReviewTab({
 			input: { status: "pending", offset: 0, limit: 1 },
 		}),
 	);
-	const { data: decided } = useQuery(
-		orpc.readListen.listMatchProposals.queryOptions({
-			input: { status: "decided", offset: 0, limit: 1 },
-		}),
-	);
 	const counts: Partial<Record<PairView, number>> = {
 		...stateCounts,
 		pending: pending?.total,
-		decided: decided?.total,
 	};
 	const nav = (
 		<PairingsTrayNav view={view} counts={counts} onSelect={onViewChange} />
@@ -205,10 +211,10 @@ export function ReadListenReviewTab({
 			<div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-border/60 border-e px-2 py-2 lg:block">
 				{nav}
 			</div>
-			{view === "pending" || view === "decided" ? (
+			{view === "pending" ? (
 				<ReadListenReviewPanel
 					key={view}
-					status={view}
+					status="pending"
 					onShowPending={() => onViewChange("pending")}
 					scopeButton={scopeButton}
 				/>
@@ -227,7 +233,7 @@ const GENERATABLE: ReadonlySet<PairState> = new Set(["no_alignment", "failed"]);
 const PAIR_GRID =
 	"grid min-w-[760px] grid-cols-[2.5rem_minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(10rem,0.8fr)_auto]";
 const PAIR_GRID_READONLY =
-	"grid min-w-[700px] grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(10rem,0.8fr)_auto]";
+	"grid min-w-[640px] grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(10rem,0.8fr)]";
 
 // A pair whose alignment no longer matches its files counts as having none;
 // only the wording tells it apart.
@@ -291,22 +297,6 @@ function PairStateNote({
 		);
 	}
 	return placeholder;
-}
-
-function OpenAudiobookLink({ uuid }: { uuid: string }) {
-	return (
-		<Button
-			variant="ghost"
-			size="icon-sm"
-			asChild
-			aria-label={m["read_listen.action_open_audiobook"]()}
-			title={m["read_listen.action_open_audiobook"]()}
-		>
-			<Link to="/dashboard/audiobooks/$uuid" params={{ uuid }}>
-				<ArrowSquareOut />
-			</Link>
-		</Button>
-	);
 }
 
 function TrayListSkeleton() {
@@ -390,26 +380,28 @@ function PairQueuePanel({
 	const togglePage = () =>
 		setSelected(allPageSelected ? new Set() : new Set(pageIds));
 
-	const renderActions = (pairing: Pairing) => (
-		<>
-			{generatable && (
-				<Button
-					size="sm"
-					variant={state === "failed" ? "outline" : "default"}
-					disabled={busy}
-					onClick={() => generateMutation.mutate([pairing.id])}
-				>
-					{state === "failed" || isOutdated(pairing) ? (
-						<ArrowsClockwise data-icon="inline-start" />
-					) : (
-						<Waveform data-icon="inline-start" />
-					)}
-					{generateLabel(state, pairing)}
-				</Button>
-			)}
-			<OpenAudiobookLink uuid={pairing.audiobook.uuid} />
-		</>
-	);
+	// Titles already link to both publications, so the only verb is generating.
+	const [openPair, setOpenPair] = useState<Pairing | null>(null);
+	// The open pair follows the live list so a finished generation updates it.
+	const openPairLive = openPair
+		? (items.find((pairing) => pairing.id === openPair.id) ?? openPair)
+		: null;
+	const renderActions = (pairing: Pairing) =>
+		generatable && (
+			<Button
+				size="sm"
+				variant={state === "failed" ? "outline" : "default"}
+				disabled={busy}
+				onClick={() => generateMutation.mutate([pairing.id])}
+			>
+				{state === "failed" || isOutdated(pairing) ? (
+					<ArrowsClockwise data-icon="inline-start" />
+				) : (
+					<Waveform data-icon="inline-start" />
+				)}
+				{generateLabel(state, pairing)}
+			</Button>
+		);
 
 	return (
 		<section className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -455,10 +447,14 @@ function PairQueuePanel({
 								)}
 								<TrayHeaderCell>{m["read_listen.audiobook"]()}</TrayHeaderCell>
 								<TrayHeaderCell>{m["read_listen.ebook"]()}</TrayHeaderCell>
-								<TrayHeaderCell>{m["enrichment.col_status"]()}</TrayHeaderCell>
-								<TrayHeaderCell className="justify-end">
-									{m["read_listen.actions"]()}
+								<TrayHeaderCell className="justify-center">
+									{m["enrichment.col_status"]()}
 								</TrayHeaderCell>
+								{generatable && (
+									<TrayHeaderCell className="justify-center">
+										{m["read_listen.actions"]()}
+									</TrayHeaderCell>
+								)}
 							</>
 						}
 					>
@@ -467,6 +463,8 @@ function PairQueuePanel({
 								key={pairing.id}
 								rowKey={pairing.id}
 								selected={selected.has(pairing.id)}
+								open={openPair?.id === pairing.id}
+								onOpen={() => setOpenPair(pairing)}
 							>
 								{generatable && (
 									<TraySelectCell
@@ -488,7 +486,7 @@ function PairQueuePanel({
 										mediaType="ebook"
 									/>
 								</TrayCell>
-								<TrayCell>
+								<TrayCell className="justify-center text-center">
 									<PairStateNote
 										pairing={pairing}
 										state={state}
@@ -499,9 +497,11 @@ function PairQueuePanel({
 										}
 									/>
 								</TrayCell>
-								<TrayCell className="justify-end gap-1.5">
-									{renderActions(pairing)}
-								</TrayCell>
+								{generatable && (
+									<TrayCell className="justify-center">
+										{renderActions(pairing)}
+									</TrayCell>
+								)}
 							</TrayRow>
 						))}
 					</TrayTable>
@@ -514,8 +514,26 @@ function PairQueuePanel({
 						{items.map((pairing) => (
 							<li
 								key={pairing.id}
+								onClick={(event) => {
+									if (
+										(event.target as HTMLElement).closest(
+											'button,a,input,[role="checkbox"]',
+										)
+									)
+										return;
+									setOpenPair(pairing);
+								}}
+								onKeyDown={(event) => {
+									if (event.target !== event.currentTarget) return;
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										setOpenPair(pairing);
+									}
+								}}
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: the card opens the pair's detail like a table row does
+								tabIndex={0}
 								className={cn(
-									"flex items-start gap-3 border-border/50 border-b px-3 py-3",
+									"flex cursor-pointer items-start gap-3 border-border/50 border-b px-3 py-3 outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
 									selected.has(pairing.id) && "bg-primary/6",
 								)}
 							>
@@ -538,9 +556,7 @@ function PairQueuePanel({
 										mediaType="ebook"
 									/>
 									<PairStateNote pairing={pairing} state={state} />
-									<div className="flex items-center gap-1.5">
-										{renderActions(pairing)}
-									</div>
+									{generatable && <div>{renderActions(pairing)}</div>}
 								</div>
 							</li>
 						))}
@@ -581,7 +597,103 @@ function PairQueuePanel({
 					}}
 				/>
 			)}
+
+			{openPairLive && (
+				<PairDetailDialog
+					pairing={openPairLive}
+					state={state}
+					actions={generatable ? renderActions(openPairLive) : null}
+					onClose={() => setOpenPair(null)}
+				/>
+			)}
 		</section>
+	);
+}
+
+/** One pair: both publications, where its alignment stands, and what to do. */
+function PairDetailDialog({
+	pairing,
+	state,
+	actions,
+	onClose,
+}: {
+	pairing: Pairing;
+	state: PairState;
+	actions: ReactNode;
+	onClose: () => void;
+}) {
+	const queryClient = useQueryClient();
+	const [confirming, setConfirming] = useState(false);
+	const removeMutation = useMutation({
+		mutationFn: () => client.readListen.remove({ pairUuid: pairing.id }),
+		onSuccess: async () => {
+			toast.success(m["read_listen.removed"]());
+			setConfirming(false);
+			onClose();
+			await queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
+		},
+		onError: (error) =>
+			toast.error(getErrorMessage(error, m["read_listen.remove_failed"]())),
+	});
+	return (
+		<>
+			<Modal
+				open={!confirming}
+				onOpenChange={(open) => {
+					if (!open && !confirming) onClose();
+				}}
+				title={PAIR_VIEW_LABELS[state]()}
+				className="sm:max-w-lg"
+			>
+				<div className="flex min-w-0 flex-col gap-4">
+					<div className="flex min-w-0 flex-col gap-1">
+						<PublicationLink
+							publication={pairing.audiobook}
+							mediaType="audiobook"
+						/>
+						<PublicationLink publication={pairing.ebook} mediaType="ebook" />
+					</div>
+					<PairStateNote pairing={pairing} state={state} />
+					<div className="flex flex-wrap items-center gap-1.5 border-border/60 border-t pt-4">
+						{actions}
+						<Button
+							variant="ghost"
+							className="ms-auto text-destructive"
+							onClick={() => setConfirming(true)}
+						>
+							<LinkBreak data-icon="inline-start" />
+							{m["read_listen.remove"]()}
+						</Button>
+					</div>
+				</div>
+			</Modal>
+			<Modal
+				open={confirming}
+				onOpenChange={(open) => {
+					if (!open && !removeMutation.isPending) setConfirming(false);
+				}}
+				title={m["read_listen.remove_title"]()}
+				description={m["read_listen.remove_description"]()}
+				footer={
+					<>
+						<Button
+							variant="outline"
+							disabled={removeMutation.isPending}
+							onClick={() => setConfirming(false)}
+						>
+							{m["common.cancel"]()}
+						</Button>
+						<Button
+							variant="destructive"
+							disabled={removeMutation.isPending}
+							onClick={() => removeMutation.mutate()}
+						>
+							{m["read_listen.remove"]()}
+						</Button>
+					</>
+				}
+			/>
+		</>
 	);
 }
 
@@ -672,8 +784,10 @@ function UnmatchedPanel({ scopeButton }: { scopeButton: ReactNode }) {
 						header={
 							<>
 								<TrayHeaderCell>{m["read_listen.audiobook"]()}</TrayHeaderCell>
-								<TrayHeaderCell>{m["read_listen.matches"]()}</TrayHeaderCell>
-								<TrayHeaderCell className="justify-end">
+								<TrayHeaderCell className="justify-center">
+									{m["read_listen.matches"]()}
+								</TrayHeaderCell>
+								<TrayHeaderCell className="justify-center">
 									{m["read_listen.actions"]()}
 								</TrayHeaderCell>
 							</>
@@ -691,12 +805,12 @@ function UnmatchedPanel({ scopeButton }: { scopeButton: ReactNode }) {
 										mediaType="audiobook"
 									/>
 								</TrayCell>
-								<TrayCell>
+								<TrayCell className="justify-center text-center">
 									<span className="text-muted-foreground text-xs">
 										{detail(item)}
 									</span>
 								</TrayCell>
-								<TrayCell className="justify-end">
+								<TrayCell className="justify-center">
 									{pairButton(item.audiobook)}
 								</TrayCell>
 							</TrayRow>
