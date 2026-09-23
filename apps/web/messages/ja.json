@@ -838,6 +838,7 @@
 		}
 	},
 	"nav": {
+		"resize_rail": "サイドバーのサイズを変更",
 		"home": "ホーム",
 		"catalog": "カタログ",
 		"books": "本",
@@ -1736,6 +1737,7 @@
 		"use_current": "このフォルダーを使用"
 	},
 	"collection": {
+		"kind_label": "コレクション",
 		"new": "新しいコレクション",
 		"none": "コレクションはまだありません",
 		"book_lists": "本のリスト",

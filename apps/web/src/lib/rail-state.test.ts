@@ -1,11 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import {
+	clampRailWidth,
 	parseRailState,
+	RAIL_COLLAPSE_THRESHOLD,
 	RAIL_COOKIE_MAX_AGE,
 	RAIL_COOKIE_NAME,
+	RAIL_WIDTH_COOKIE_NAME,
+	RAIL_WIDTH_MAX,
+	RAIL_WIDTH_MIN,
 	railDirection,
 	railStateCookie,
+	railWidthCookie,
 	readRailState,
+	readRailWidth,
+	resolveRailDrag,
 } from "./rail-state";
 
 describe("parseRailState", () => {
@@ -71,5 +79,55 @@ describe("railDirection", () => {
 	test("names the way the panel is travelling", () => {
 		expect(railDirection("expanded")).toBe("opening");
 		expect(railDirection("collapsed")).toBe("closing");
+	});
+});
+
+describe("rail width", () => {
+	test("clamps to the allowed range and rounds", () => {
+		expect(clampRailWidth(100)).toBe(RAIL_WIDTH_MIN);
+		expect(clampRailWidth(9999)).toBe(RAIL_WIDTH_MAX);
+		expect(clampRailWidth(300.6)).toBe(301);
+	});
+
+	test("reads the cookie, clamped, and ignores garbage", () => {
+		expect(readRailWidth(`theme=dark; ${RAIL_WIDTH_COOKIE_NAME}=312`)).toBe(
+			312,
+		);
+		expect(readRailWidth(`${RAIL_WIDTH_COOKIE_NAME}=5000`)).toBe(
+			RAIL_WIDTH_MAX,
+		);
+		expect(readRailWidth(`${RAIL_WIDTH_COOKIE_NAME}=wide`)).toBeNull();
+		expect(readRailWidth("theme=dark")).toBeNull();
+		expect(readRailWidth(undefined)).toBeNull();
+	});
+
+	test("writes a cookie the reader round-trips", () => {
+		const cookie = railWidthCookie(333.3);
+		expect(cookie).toContain(`${RAIL_WIDTH_COOKIE_NAME}=333;`);
+		expect(readRailWidth(cookie)).toBe(333);
+	});
+});
+
+describe("resolveRailDrag", () => {
+	test("snaps shut below the threshold", () => {
+		expect(resolveRailDrag(RAIL_COLLAPSE_THRESHOLD - 1)).toEqual({
+			state: "collapsed",
+		});
+		expect(resolveRailDrag(-40)).toEqual({ state: "collapsed" });
+	});
+
+	test("between the threshold and the minimum it holds the minimum", () => {
+		expect(resolveRailDrag(RAIL_COLLAPSE_THRESHOLD)).toEqual({
+			state: "expanded",
+			width: RAIL_WIDTH_MIN,
+		});
+	});
+
+	test("follows the pointer inside the range and clamps past the max", () => {
+		expect(resolveRailDrag(300)).toEqual({ state: "expanded", width: 300 });
+		expect(resolveRailDrag(2000)).toEqual({
+			state: "expanded",
+			width: RAIL_WIDTH_MAX,
+		});
 	});
 });

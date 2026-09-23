@@ -176,7 +176,19 @@
 }
 
 html[data-rail="expanded"] {
-	--rail-width: 16rem;
+	/* Set by dragging the rail's edge (rail-store), restored by the boot script. */
+	--rail-width: var(--rail-expanded-width, 16rem);
+}
+
+/* No width easing while the pointer is the one moving the edge. */
+html[data-rail-resizing] nav[data-app-rail] {
+	transition: none;
+}
+
+html[data-rail-resizing],
+html[data-rail-resizing] * {
+	cursor: col-resize;
+	user-select: none;
 }
 
 .dark {

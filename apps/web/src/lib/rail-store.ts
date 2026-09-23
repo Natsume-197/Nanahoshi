@@ -1,11 +1,15 @@
 import { useSyncExternalStore } from "react";
 import {
+	clampRailWidth,
 	parseRailState,
 	RAIL_ANIM_MS,
+	RAIL_WIDTH_DEFAULT,
 	type RailState,
 	railDirection,
 	railStateCookie,
+	railWidthCookie,
 	readRailState,
+	readRailWidth,
 } from "@/lib/rail-state";
 
 const listeners = new Set<() => void>();
@@ -47,6 +51,31 @@ export function toggleRail() {
 	setRailState(getSnapshot() === "expanded" ? "collapsed" : "expanded");
 }
 
+const RAIL_WIDTH_VAR = "--rail-expanded-width";
+
+export function getRailWidth(): number {
+	return readRailWidth(document.cookie) ?? RAIL_WIDTH_DEFAULT;
+}
+
+/** Live width while dragging: a CSS variable only, no React render. */
+export function previewRailWidth(width: number) {
+	document.documentElement.style.setProperty(
+		RAIL_WIDTH_VAR,
+		`${clampRailWidth(width)}px`,
+	);
+}
+
+export function commitRailWidth(width: number) {
+	previewRailWidth(width);
+	// biome-ignore lint/suspicious/noDocumentCookie: read by the blocking boot script in __root.tsx before first paint
+	document.cookie = railWidthCookie(width);
+	emit();
+}
+
+export function resetRailWidth() {
+	commitRailWidth(RAIL_WIDTH_DEFAULT);
+}
+
 function subscribe(onStoreChange: () => void) {
 	listeners.add(onStoreChange);
 	return () => {
@@ -56,4 +85,9 @@ function subscribe(onStoreChange: () => void) {
 
 export function useRailState(): RailState {
 	return useSyncExternalStore(subscribe, getSnapshot, () => "expanded");
+}
+
+/** The server can't read the width cookie, so it renders without one. */
+export function useRailWidth(): number | undefined {
+	return useSyncExternalStore(subscribe, getRailWidth, () => undefined);
 }

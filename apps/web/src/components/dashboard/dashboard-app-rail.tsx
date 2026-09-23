@@ -18,6 +18,7 @@ import {
 	type RailSection,
 	resolveRailSection,
 } from "@/components/dashboard/rail-nav";
+import { RailResizeHandle } from "@/components/dashboard/rail-resize-handle";
 import { RailSectionTitle } from "@/components/dashboard/rail-section";
 import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -210,15 +211,18 @@ export function DashboardAppRail({
 	return (
 		<nav
 			aria-label={m["nav.menu"]()}
+			data-app-rail
 			// Labels wrap to keep localized destinations fully visible; every block
 			// also carries a title as an additional escape for narrow rail space.
 			className="theme-gradient-surface relative hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
 		>
 			<ScrollArea.Root className="min-h-0 w-full flex-1">
 				<ScrollArea.Viewport className="h-full overscroll-contain outline-none">
+					{/* Base UI sets min-width: fit-content inline, which lets a long
+					    collection name widen the rail instead of truncating. */}
 					<ScrollArea.Content
 						data-rail-content
-						className="flex w-full flex-col items-center gap-0.5 px-2 rail-expanded:pe-3.5 pt-0 pb-2"
+						className="flex w-full min-w-0! flex-col items-center gap-0.5 px-2 rail-expanded:pe-3.5 pt-0 pb-2"
 					>
 						{railGroups.map((group) => (
 							<Fragment key={group.items[0].section}>
@@ -292,12 +296,13 @@ export function DashboardAppRail({
 					</ScrollArea.Content>
 				</ScrollArea.Viewport>
 				{/* Overlays the end padding, so it takes no room; expanded, the wider
-				    end padding keeps a gap between it and the rows. Opacity (unlike
-				    a native thumb's color) fades smoothly. */}
-				<ScrollArea.Scrollbar className="flex w-1.5 opacity-0 transition-opacity delay-300 duration-500 ease-out-quart data-hovering:opacity-100 data-scrolling:opacity-100 data-hovering:delay-100 data-scrolling:delay-0 data-hovering:duration-200 data-scrolling:duration-100">
+				    end padding keeps a gap between it and the rows. One quick fade,
+				    the same in and out. */}
+				<ScrollArea.Scrollbar className="flex w-1.5 opacity-0 transition-opacity duration-150 ease-out data-hovering:opacity-100 data-scrolling:opacity-100">
 					<ScrollArea.Thumb className="w-full bg-sidebar-foreground/35 transition-colors hover:bg-sidebar-foreground/50 active:bg-sidebar-foreground/65" />
 				</ScrollArea.Scrollbar>
 			</ScrollArea.Root>
+			<RailResizeHandle />
 		</nav>
 	);
 }

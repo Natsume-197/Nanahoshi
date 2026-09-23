@@ -838,6 +838,7 @@
 		}
 	},
 	"nav": {
+		"resize_rail": "Cambiar el tamaño de la barra lateral",
 		"home": "Inicio",
 		"catalog": "Catálogo",
 		"books": "Libros",
@@ -1751,6 +1752,7 @@
 		"use_current": "Usar esta carpeta"
 	},
 	"collection": {
+		"kind_label": "Colección",
 		"new": "Nueva colección",
 		"none": "Aún no hay colecciones",
 		"book_lists": "Listas de libros",

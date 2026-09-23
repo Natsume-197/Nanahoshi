@@ -14,6 +14,7 @@ import { getUser } from "@/functions/get-user";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { removeLegacyOfflineStorage } from "@/lib/offline";
 import { posthog } from "@/lib/posthog";
+import { RAIL_WIDTH_MAX, RAIL_WIDTH_MIN } from "@/lib/rail-state";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
 	applyPaletteVars,
@@ -187,7 +188,7 @@ function RootDocument() {
 				<script
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: inline blocking script (static string, no user input) that sets the theme class and the rail width before first paint
 					dangerouslySetInnerHTML={{
-						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'color-mix(in oklab, #352d3e 12%, #181818)':'#ffffff';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--background']==='string')c=p.vars['--background']}}catch(e){}try{var r=parseFloat(localStorage.getItem('theme-radius'));if(isFinite(r))document.documentElement.style.setProperty('--radius',Math.min(1.2,Math.max(0,r))+'rem')}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt);var rm=document.cookie.match(/(?:^|; )rail_state=([^;]*)/);document.documentElement.setAttribute('data-rail',rm&&rm[1]==='collapsed'?'collapsed':'expanded')})()`,
+						__html: `(function(){var m=document.cookie.match(/(?:^|; )theme=([^;]*)/);var t=m&&m[1];var d=t==='light'?false:t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:true;if(d)document.documentElement.classList.add('dark');var c=d?'color-mix(in oklab, #352d3e 12%, #181818)':'#ffffff';var a=${JSON.stringify(PALETTE_VAR_NAMES)};try{var p=JSON.parse(localStorage.getItem('theme-palette'));if(p&&p.vars){for(var k in p.vars)if(a.indexOf(k)!==-1&&typeof p.vars[k]==='string')document.documentElement.style.setProperty(k,p.vars[k]);if(typeof p.vars['--background']==='string')c=p.vars['--background']}}catch(e){}try{var r=parseFloat(localStorage.getItem('theme-radius'));if(isFinite(r))document.documentElement.style.setProperty('--radius',Math.min(1.2,Math.max(0,r))+'rem')}catch(e){}var mt=document.createElement('meta');mt.name='theme-color';mt.content=c;document.head.appendChild(mt);var rm=document.cookie.match(/(?:^|; )rail_state=([^;]*)/);document.documentElement.setAttribute('data-rail',rm&&rm[1]==='collapsed'?'collapsed':'expanded');var rw=parseFloat((document.cookie.match(/(?:^|; )rail_width=([^;]*)/)||[])[1]);if(isFinite(rw))document.documentElement.style.setProperty('--rail-expanded-width',Math.min(${RAIL_WIDTH_MAX},Math.max(${RAIL_WIDTH_MIN},rw))+'px')})()`,
 					}}
 				/>
 				<HeadContent />

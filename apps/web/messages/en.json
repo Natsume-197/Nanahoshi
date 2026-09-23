@@ -838,6 +838,7 @@
 		}
 	},
 	"nav": {
+		"resize_rail": "Resize sidebar",
 		"home": "Home",
 		"catalog": "Catalog",
 		"books": "Books",
@@ -1751,6 +1752,7 @@
 		"use_current": "Use this folder"
 	},
 	"collection": {
+		"kind_label": "Collection",
 		"new": "New collection",
 		"none": "No collections yet",
 		"book_lists": "Book lists",
