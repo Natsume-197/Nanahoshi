@@ -4,6 +4,7 @@ import { z } from "zod";
 export const UserSettingsKey = z.enum([
 	"reader-profiles",
 	"reader-custom-themes",
+	"rail-library-layout",
 ]);
 
 export const GetUserSettingInput = z.object({

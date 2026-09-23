@@ -611,6 +611,28 @@ html[data-rail="expanded"] {
 	--panel-in-offset: -0.5rem;
 }
 
+/* A row picked up for reordering: it rises off the list, then holds. */
+@keyframes drag-lift {
+	from {
+		transform: scale(1);
+		box-shadow: 0 0 0 0 oklch(0 0 0 / 0);
+	}
+	to {
+		transform: scale(1.03);
+		box-shadow:
+			0 12px 28px -8px oklch(0 0 0 / 0.45),
+			0 2px 6px oklch(0 0 0 / 0.2);
+	}
+}
+
+@utility drag-lift {
+	animation: drag-lift 180ms var(--ease-smooth-out) both;
+
+	@media (prefers-reduced-motion: reduce) {
+		animation-duration: 1ms;
+	}
+}
+
 @keyframes marquee-loop {
 	to {
 		transform: translateX(var(--marquee-shift));

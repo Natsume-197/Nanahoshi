@@ -1,4 +1,26 @@
 import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
+	defaultDropAnimationSideEffects,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	restrictToFirstScrollableAncestor,
+	restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+	arrayMove,
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
 	BookmarkSimple,
 	Check,
 	Clock,
@@ -6,17 +28,28 @@ import {
 	type Icon as NavIcon,
 	Play,
 	Plus,
+	PushPin,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { RailSectionTitle } from "@/components/dashboard/rail-section";
-import { CollectionContextMenu } from "@/components/shared/collection-context-menu";
+import {
+	CollectionContextMenu,
+	type PinAction,
+	PinMenuItem,
+} from "@/components/shared/collection-context-menu";
 import { CreateCollectionDialog } from "@/components/shared/create-collection-button";
 import {
 	type ShelfBucket,
 	shelfBucketMeta,
 } from "@/components/shared/shelf-card";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Tooltip,
@@ -28,6 +61,12 @@ import {
 	resolveCollectionPreview,
 	useCollectionPreviews,
 } from "@/hooks/use-collection-previews";
+import { useRailLibraryLayout } from "@/hooks/use-rail-library-layout";
+import {
+	arrangeRailEntries,
+	moveRailEntry,
+	toggleRailPin,
+} from "@/lib/rail-library-layout";
 import { useRailState } from "@/lib/rail-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -84,8 +123,6 @@ type LibraryEntry = {
 	key: string;
 	title: string;
 	subtitle: string;
-	/** The reading-status shelves are system lists, always listed first. */
-	system: boolean;
 	active: boolean;
 	artwork: ReactNode;
 } & (
@@ -119,12 +156,14 @@ function RowBody({
 	subtitle,
 	active = false,
 	muted = false,
+	pinned = false,
 }: {
 	artwork: ReactNode;
 	title: string;
 	subtitle?: string;
 	active?: boolean;
 	muted?: boolean;
+	pinned?: boolean;
 }): ReactNode {
 	return (
 		<>
@@ -145,8 +184,16 @@ function RowBody({
 					{title}
 				</span>
 				{subtitle && (
-					<span className="truncate text-[13px] text-nav-inactive leading-tight">
-						{subtitle}
+					<span className="flex min-w-0 items-center gap-1 text-[13px] text-nav-inactive leading-tight">
+						{pinned && (
+							<PushPin
+								weight="fill"
+								role="img"
+								aria-label={m["collection.pinned"]()}
+								className="size-3 shrink-0 rotate-45 text-primary"
+							/>
+						)}
+						<span className="truncate">{subtitle}</span>
 					</span>
 				)}
 			</span>
@@ -180,12 +227,32 @@ function CollapsedTooltip({
 	);
 }
 
+/** The system shelves can't be renamed or deleted; pinning is all they offer. */
+function ShelfContextMenu({
+	pin,
+	children,
+}: {
+	pin: PinAction;
+	children: ReactNode;
+}): ReactNode {
+	return (
+		<ContextMenu>
+			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+			<ContextMenuContent className="w-48">
+				<PinMenuItem pin={pin} />
+			</ContextMenuContent>
+		</ContextMenu>
+	);
+}
+
 function EntryRow({
 	entry,
 	empty,
+	pin,
 }: {
 	entry: LibraryEntry;
 	empty: boolean;
+	pin: PinAction;
 }): ReactNode {
 	const body = (
 		<RowBody
@@ -194,10 +261,13 @@ function EntryRow({
 			subtitle={entry.subtitle}
 			active={entry.active}
 			muted={empty}
+			pinned={pin.pinned}
 		/>
 	);
 	const shared = {
 		preload: "intent" as const,
+		// Rows reorder by dragging; the browser's own link drag would fight it.
+		draggable: false,
 		"aria-current": entry.active ? ("page" as const) : undefined,
 		className: rowClass(entry.active),
 	};
@@ -206,14 +276,16 @@ function EntryRow({
 	switch (entry.kind) {
 		case "shelf":
 			row = (
-				<Link
-					to="/dashboard/shelves/$status"
-					params={{ status: entry.status }}
-					search={{ mediaType: "all" }}
-					{...shared}
-				>
-					{body}
-				</Link>
+				<ShelfContextMenu pin={pin}>
+					<Link
+						to="/dashboard/shelves/$status"
+						params={{ status: entry.status }}
+						search={{ mediaType: "all" }}
+						{...shared}
+					>
+						{body}
+					</Link>
+				</ShelfContextMenu>
 			);
 			break;
 		case "collection":
@@ -223,6 +295,7 @@ function EntryRow({
 					collectionName={entry.title}
 					isPublic={entry.isPublic}
 					isDynamic={entry.isDynamic}
+					pin={pin}
 				>
 					<Link
 						to="/dashboard/collections/$collectionId"
@@ -240,6 +313,172 @@ function EntryRow({
 		<CollapsedTooltip title={entry.title} subtitle={entry.subtitle}>
 			{row}
 		</CollapsedTooltip>
+	);
+}
+
+const sortEasing = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+function SortableEntry({
+	entry,
+	empty,
+	pin,
+}: {
+	entry: LibraryEntry;
+	empty: boolean;
+	pin: PinAction;
+}): ReactNode {
+	const { setNodeRef, listeners, transform, transition, isDragging } =
+		useSortable({
+			id: entry.key,
+			transition: { duration: 220, easing: sortEasing },
+		});
+	return (
+		<div
+			ref={setNodeRef}
+			// Listeners sit on the wrapper so the link stays the focus target.
+			{...listeners}
+			style={{ transform: CSS.Translate.toString(transform), transition }}
+			className={cn(
+				"relative w-full motion-safe:transition-opacity motion-safe:duration-150",
+				// The slot the row will drop into: a faint ghost of it.
+				isDragging && "z-10 opacity-30",
+			)}
+		>
+			<EntryRow entry={entry} empty={empty} pin={pin} />
+		</div>
+	);
+}
+
+/** One reorderable run of rows. Pinned and unpinned entries are separate
+ *  groups, so a drag never silently pins or unpins. */
+function SortableGroup({
+	entries: savedEntries,
+	emptyKeys,
+	pinnedKeys,
+	onTogglePin,
+	onMove,
+}: {
+	entries: LibraryEntry[];
+	emptyKeys: Set<string>;
+	pinnedKeys: Set<string>;
+	onTogglePin: (key: string) => void;
+	onMove: (activeKey: string, overKey: string) => void;
+}): ReactNode {
+	const [activeKey, setActiveKey] = useState<string | null>(null);
+	// The saved order reaches us a tick after the drop, but the sort offsets
+	// clear on the drop itself: hold the dropped order locally so the rows
+	// never paint back in their old slots for a frame.
+	const [droppedOrder, setDroppedOrder] = useState<string[] | null>(null);
+	const savedOrder = savedEntries.map((entry) => entry.key).join("\n");
+	const savedOrderRef = useRef(savedOrder);
+	if (savedOrder !== savedOrderRef.current) {
+		savedOrderRef.current = savedOrder;
+		setDroppedOrder(null);
+	}
+	const entries = droppedOrder
+		? droppedOrder.flatMap((key) => {
+				const entry = savedEntries.find((candidate) => candidate.key === key);
+				return entry ? [entry] : [];
+			})
+		: savedEntries;
+	// The pointerup that ends a drag must not also follow the row's link.
+	const suppressClick = useRef(false);
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+	);
+	const active = entries.find((entry) => entry.key === activeKey);
+
+	const handleDragStart = (event: DragStartEvent) => {
+		suppressClick.current = true;
+		setActiveKey(String(event.active.id));
+	};
+	const handleDragEnd = (event: DragEndEvent) => {
+		setActiveKey(null);
+		setTimeout(() => {
+			suppressClick.current = false;
+		}, 0);
+		if (event.over && event.active.id !== event.over.id) {
+			const keys = entries.map((entry) => entry.key);
+			const from = keys.indexOf(String(event.active.id));
+			const to = keys.indexOf(String(event.over.id));
+			setDroppedOrder(arrayMove(keys, from, to));
+			onMove(String(event.active.id), String(event.over.id));
+		}
+	};
+
+	if (entries.length === 0) return null;
+	return (
+		<div
+			className="flex w-full flex-col items-center gap-0.5"
+			onClickCapture={(event) => {
+				if (!suppressClick.current) return;
+				event.preventDefault();
+				event.stopPropagation();
+			}}
+		>
+			<DndContext
+				sensors={sensors}
+				collisionDetection={closestCenter}
+				modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}
+				onDragStart={handleDragStart}
+				onDragEnd={handleDragEnd}
+				onDragCancel={() => {
+					setActiveKey(null);
+					suppressClick.current = false;
+				}}
+			>
+				<SortableContext
+					items={entries.map((entry) => entry.key)}
+					strategy={verticalListSortingStrategy}
+				>
+					{entries.map((entry) => (
+						<SortableEntry
+							key={entry.key}
+							entry={entry}
+							empty={emptyKeys.has(entry.key)}
+							pin={{
+								pinned: pinnedKeys.has(entry.key),
+								onToggle: () => onTogglePin(entry.key),
+							}}
+						/>
+					))}
+				</SortableContext>
+				{typeof document !== "undefined" &&
+					createPortal(
+						<DragOverlay
+							dropAnimation={{
+								duration: 220,
+								easing: sortEasing,
+								sideEffects: defaultDropAnimationSideEffects({
+									styles: { active: { opacity: "0.3" } },
+								}),
+							}}
+						>
+							{active && (
+								<div
+									className={cn(
+										rowClass(active.active),
+										"cursor-grabbing",
+										// Expanded the whole row lifts; collapsed only the artwork.
+										"rail-expanded:drag-lift rail-expanded:bg-sidebar-accent",
+										"[&>span:first-child]:drag-lift rail-expanded:[&>span:first-child]:animate-none",
+									)}
+								>
+									<RowBody
+										artwork={active.artwork}
+										title={active.title}
+										subtitle={active.subtitle}
+										active={active.active}
+										muted={emptyKeys.has(active.key)}
+										pinned={pinnedKeys.has(active.key)}
+									/>
+								</div>
+							)}
+						</DragOverlay>,
+						document.body,
+					)}
+			</DndContext>
+		</div>
 	);
 }
 
@@ -278,6 +517,7 @@ function RailCover({
 			sizes="48px"
 			alt=""
 			loading="lazy"
+			draggable={false}
 			className="size-full object-cover"
 		/>
 	);
@@ -309,6 +549,11 @@ export function MyLibrarySection({
 	const canReadCollections = !abilitiesLoading && can("collection", "read");
 	const canCreateCollections = !abilitiesLoading && can("collection", "create");
 	const [createOpen, setCreateOpen] = useState(false);
+	const {
+		layout,
+		isLoading: layoutLoading,
+		save: saveLayout,
+	} = useRailLibraryLayout();
 
 	const { data: summaries, isLoading: summariesLoading } = useQuery({
 		...orpc.shelves.summaries.queryOptions(),
@@ -354,7 +599,6 @@ export function MyLibrarySection({
 			key: `shelf-${status}`,
 			title: label(),
 			subtitle: itemCount(count),
-			system: true,
 			active: locationPathname.startsWith(`/dashboard/shelves/${status}`),
 			artwork: (
 				<RailCover
@@ -398,7 +642,6 @@ export function MyLibrarySection({
 				key: `collection-${collection.id}`,
 				title: collection.name,
 				subtitle: itemCount(count),
-				system: false,
 				active: locationPathname.startsWith(
 					`/dashboard/collections/${collection.id}`,
 				),
@@ -420,10 +663,22 @@ export function MyLibrarySection({
 			};
 		});
 
-	// One list: the reading-status shelves are just collections the
-	// app keeps for you, listed ahead of the ones you made.
-	const entries = [...shelfEntries, ...collectionEntries];
-	const loadingSystem = summariesLoading;
+	// One list: the reading-status shelves are just collections the app keeps
+	// for you, listed ahead of the ones you made until the user reorders them.
+	const { pinned: pinnedEntries, rest: restEntries } = arrangeRailEntries(
+		[...shelfEntries, ...collectionEntries],
+		layout,
+	);
+	const visibleKeys = [...pinnedEntries, ...restEntries].map(
+		(entry) => entry.key,
+	);
+	const pinnedKeys = new Set(pinnedEntries.map((entry) => entry.key));
+	const handleMove = (activeKey: string, overKey: string) =>
+		saveLayout(moveRailEntry(layout, visibleKeys, activeKey, overKey));
+	const handleTogglePin = (key: string) =>
+		saveLayout(toggleRailPin(layout, visibleKeys, key));
+	// Rows wait for the saved order so they never visibly shuffle into it.
+	const loadingSystem = summariesLoading || layoutLoading;
 	const loadingCollections =
 		abilitiesLoading || (canReadCollections && collectionsLoading);
 	// A brand-new library gets one nudge instead of an empty tail.
@@ -453,13 +708,18 @@ export function MyLibrarySection({
 					[0, 1, 2, 3].map((index) => (
 						<SkeletonRow key={`skeleton-system-${index}`} />
 					))}
-				{entries
-					.filter((entry) => !(loadingSystem && entry.system))
-					.map((entry) => (
-						<EntryRow
-							key={entry.key}
-							entry={entry}
-							empty={emptyKeys.has(entry.key)}
+				{!loadingSystem &&
+					[
+						{ key: "pinned", group: pinnedEntries },
+						{ key: "rest", group: restEntries },
+					].map(({ key, group }) => (
+						<SortableGroup
+							key={key}
+							entries={group}
+							emptyKeys={emptyKeys}
+							pinnedKeys={pinnedKeys}
+							onTogglePin={handleTogglePin}
+							onMove={handleMove}
 						/>
 					))}
 				{loadingCollections &&

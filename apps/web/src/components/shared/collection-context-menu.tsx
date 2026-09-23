@@ -1,4 +1,12 @@
-import { CircleNotch, Globe, Lock, Pencil, Trash } from "@phosphor-icons/react";
+import {
+	CircleNotch,
+	Globe,
+	Lock,
+	Pencil,
+	PushPin,
+	PushPinSlash,
+	Trash,
+} from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useState } from "react";
@@ -19,23 +27,36 @@ import { invalidateEverywhere } from "@/lib/invalidate-everywhere";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
+export type PinAction = { pinned: boolean; onToggle: () => void };
+
+export function PinMenuItem({ pin }: { pin: PinAction }) {
+	return (
+		<ContextMenuItem onClick={pin.onToggle}>
+			{pin.pinned ? <PushPinSlash /> : <PushPin />}
+			{pin.pinned ? m["collection.unpin"]() : m["collection.pin"]()}
+		</ContextMenuItem>
+	);
+}
+
 // Right-click menu for a collection tile — the rename/delete actions the sidebar
 // collection rows already offer, extracted so every collection card (dashboard,
 // library grid, search) shares one implementation. The single child becomes the
 // trigger (`asChild`), so it stays the layout node and left-click navigation
 // keeps working. When the viewer can neither rename nor delete, the child is
-// returned untouched (no menu).
+// returned untouched (no menu), unless the caller offers pinning.
 export function CollectionContextMenu({
 	collectionId,
 	collectionName,
 	isPublic,
 	isDynamic = false,
+	pin,
 	children,
 }: {
 	collectionId: string;
 	collectionName: string;
 	isPublic?: boolean;
 	isDynamic?: boolean;
+	pin?: PinAction;
 	children: ReactNode;
 }) {
 	const { can } = useAbilities();
@@ -101,7 +122,9 @@ export function CollectionContextMenu({
 		onError: (err) => toast.error(err.message),
 	});
 
-	if (!canUpdate && !canDelete && !canToggleVisibility) return <>{children}</>;
+	if (!pin && !canUpdate && !canDelete && !canToggleVisibility) {
+		return <>{children}</>;
+	}
 
 	const handleRename = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -118,7 +141,11 @@ export function CollectionContextMenu({
 		<>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-				<ContextMenuContent className="w-44">
+				<ContextMenuContent className="w-48">
+					{pin && <PinMenuItem pin={pin} />}
+					{pin && (canUpdate || canToggleVisibility || canDelete) && (
+						<ContextMenuSeparator />
+					)}
 					{canUpdate && (
 						<ContextMenuItem
 							onClick={() => {
