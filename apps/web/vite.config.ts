@@ -62,5 +62,17 @@ export default defineConfig(({ command }) => ({
 	},
 	server: {
 		port: 7332,
+		// Transform the app's own modules at startup instead of on first visit:
+		// cold, a single page waited seconds on module transforms (15 s summed
+		// across 101 dashboard files) and read as a hung dev server. Components
+		// are listed directly because route components are code-split away from
+		// their route files.
+		warmup: {
+			clientFiles: [
+				"./src/routes/**/*.tsx",
+				"./src/components/**/*.tsx",
+				"!./src/**/*.test.tsx",
+			],
+		},
 	},
 }));
