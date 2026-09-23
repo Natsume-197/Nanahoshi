@@ -135,7 +135,7 @@ const railGroups: RailGroup[] = [
 const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
 		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
-		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2 rail-expanded:ps-[var(--rail-row-inset)] rail-expanded:pe-2 rail-expanded:text-[15px]",
+		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-row-inset)+4px)] rail-expanded:pe-2 rail-expanded:text-[15px]",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 		// --nav-inactive, not --muted-foreground: a step below the current
 		// destination that still clears AA at this size. See index.css.
@@ -163,7 +163,7 @@ function BlockBody({
 		<>
 			<span
 				className={cn(
-					"grid size-9 rail-expanded:h-6 rail-expanded:w-11 shrink-0 place-items-center rounded-lg transition-colors duration-150 ease-out-quart",
+					"grid size-9 rail-expanded:h-6 rail-expanded:w-12 shrink-0 place-items-center rounded-lg transition-colors duration-150 ease-out-quart",
 					active
 						? "bg-transparent"
 						: "group-hover/rail:bg-sidebar-accent/60 rail-expanded:group-hover/rail:bg-transparent group-aria-expanded/rail:bg-sidebar-accent/60 rail-expanded:group-aria-expanded/rail:bg-transparent",
@@ -172,7 +172,7 @@ function BlockBody({
 				<Icon
 					aria-hidden="true"
 					weight={active ? activeWeight : "regular"}
-					className="rail-expanded:size-[22px] size-5"
+					className="rail-expanded:size-6 size-5"
 				/>
 			</span>
 			<span className="rail-expanded:min-w-0 max-w-full rail-expanded:flex-1 rail-expanded:truncate text-center rail-expanded:text-start font-medium leading-tight">

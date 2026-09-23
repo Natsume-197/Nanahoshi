@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const titleClass =
-	"flex h-10 min-w-0 items-center gap-1 rounded-lg ps-[calc(var(--rail-row-inset)+11px)] pe-2 font-semibold text-base text-sidebar-foreground";
+	"flex h-10 min-w-0 items-center gap-1 rounded-lg ps-[calc(var(--rail-row-inset)+16px)] pe-2 font-semibold text-base text-sidebar-foreground";
 
 /**
  * Section title under a divider, YouTube style: sentence case, bold, starting
- * on the navigation icons' left edge (a 22px icon centred in the 44px column). With `to`, the title links to the section's own page and carries
+ * on the nav icons' left edge (a 24px icon centred in the 48px column), where
+ * the collection squares start too. With `to`, the title links to the section's own page and carries
  * a chevron. `actions` sit at the trailing edge of the same row. Expanded only.
  */
 export function RailSectionTitle({

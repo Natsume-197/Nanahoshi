@@ -164,8 +164,8 @@
 	--rail-width: 5.5rem;
 	--rail-item-inset: calc((5.5rem - 2.25rem) / 2);
 	/* Expanded rows don't need the collapsed rail's centering inset: with the
-	   rail's own 0.5rem gutter this puts icons, artwork and titles 19px from
-	   the window edge. */
+	   rail's own 0.5rem gutter rows add 4px, so artwork, icon columns and
+	   titles start 16px from the window edge. */
 	--rail-row-inset: 4px;
 	/* Notifications and members share one overlay width: they toggle from
 	   adjacent buttons, so a width per panel would read as the chrome

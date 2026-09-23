@@ -1,9 +1,16 @@
-import { Folder, Plus } from "@phosphor-icons/react";
+import {
+	BookmarkSimple,
+	Check,
+	Clock,
+	FolderSimple,
+	type Icon as NavIcon,
+	Play,
+	Plus,
+} from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { RailSectionTitle } from "@/components/dashboard/rail-section";
-import { CollectionArtwork } from "@/components/shared/collection-card";
 import { CollectionContextMenu } from "@/components/shared/collection-context-menu";
 import { CreateCollectionDialog } from "@/components/shared/create-collection-button";
 import {
@@ -24,6 +31,12 @@ import {
 import { useRailState } from "@/lib/rail-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import {
+	coverPresets,
+	getCoverFilename,
+	getCoverPresetUrl,
+	getCoverSrcSet,
+} from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 
 /** Rail order for the reading-status shelves. Each bucket spans both formats,
@@ -31,10 +44,41 @@ import { orpc } from "@/utils/orpc";
  *  page opens on all formats. */
 const shelfBuckets: ShelfBucket[] = ["reading", "want", "backlog", "completed"];
 
-/** Artwork-less tiles (empty shelves, every collection) share one
- *  neutral look: colour in My Space comes only from real covers. */
-const neutralTileClass =
-	"grid size-full place-items-center bg-sidebar-accent/60 text-nav-inactive";
+/** Plainer glyphs than the shelf cards': bare, they sit beside the nav icons. */
+const shelfRailIcons: Record<ShelfBucket, NavIcon> = {
+	reading: Play,
+	want: BookmarkSimple,
+	backlog: Clock,
+	completed: Check,
+};
+
+/** Empty lists keep the same square as the covered ones, holding a line icon
+ *  on a soft tint, like the continue cards' cover-tinted surfaces. */
+const neutralTileClass = "grid size-full place-items-center";
+
+const shelfTileHues: Record<ShelfBucket, number> = {
+	reading: 290,
+	want: 70,
+	backlog: 230,
+	completed: 150,
+};
+const collectionTileHues = [20, 70, 150, 200, 250, 290, 330];
+
+/** Stable per collection, so a list keeps its colour across sessions. */
+function collectionTileHue(id: string): number {
+	let hash = 0;
+	for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+	return collectionTileHues[Math.abs(hash) % collectionTileHues.length] ?? 0;
+}
+
+// Mixed in oklab against the rail surface so it stays pastel in both themes.
+function tileTint(hue: number): CSSProperties {
+	const color = `oklch(0.72 0.12 ${hue})`;
+	return {
+		backgroundColor: `color-mix(in oklab, ${color} 22%, var(--sidebar))`,
+		color: `color-mix(in oklab, ${color} 60%, var(--sidebar-foreground))`,
+	};
+}
 
 type LibraryEntry = {
 	key: string;
@@ -55,9 +99,9 @@ const focusRing =
 const rowClass = (active: boolean) =>
 	cn(
 		"flex w-full shrink-0 items-center justify-center rounded-lg py-1 transition-colors duration-150 ease-out-quart",
-		// Expanded: 44px artwork in the rail's shared leading column, text on the
-		// shared text column.
-		"rail-expanded:justify-start rail-expanded:gap-3 rail-expanded:py-1 rail-expanded:ps-[calc(var(--rail-row-inset)+11px)] rail-expanded:pe-2",
+		// Expanded: a uniform 48px square per row, Spotify style, starting on the
+		// nav icons' and section titles' left edge; text gets its own column.
+		"rail-expanded:justify-start rail-expanded:gap-3 rail-expanded:py-1.5 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2",
 		active
 			? "rail-expanded:bg-nav-active"
 			: "rail-expanded:hover:bg-sidebar-accent/40",
@@ -84,10 +128,10 @@ function RowBody({
 }): ReactNode {
 	return (
 		<>
-			<span className="rail-expanded:size-11 size-10 shrink-0 overflow-hidden rounded-lg bg-sidebar-accent/60">
+			<span className="rail-expanded:size-12 size-10 shrink-0 overflow-hidden rounded-[4px] bg-sidebar-accent/50">
 				{artwork}
 			</span>
-			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-0.5 text-start">
+			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-1 text-start">
 				<span
 					className={cn(
 						"truncate text-[15px] leading-tight",
@@ -203,14 +247,39 @@ function SkeletonRow(): ReactNode {
 	return (
 		<div
 			aria-hidden="true"
-			className="flex w-full shrink-0 items-center rail-expanded:justify-start justify-center rail-expanded:gap-3 py-1 rail-expanded:py-1 rail-expanded:ps-[calc(var(--rail-row-inset)+11px)] rail-expanded:pe-2"
+			className="flex w-full shrink-0 items-center rail-expanded:justify-start justify-center rail-expanded:gap-3 py-1 rail-expanded:py-1.5 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2"
 		>
-			<Skeleton className="rail-expanded:size-11 size-10 shrink-0 rounded-lg" />
+			<Skeleton className="rail-expanded:size-12 size-10 shrink-0 rounded-[4px]" />
 			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-1.5">
 				<Skeleton className="h-3 w-3/4 rounded" />
 				<Skeleton className="h-2.5 w-1/2 rounded" />
 			</span>
 		</div>
+	);
+}
+
+/** The latest cover, cropped to the row's square: a mosaic at this size is
+ *  four unreadable crops. */
+function RailCover({
+	covers,
+	fallback,
+}: {
+	covers?: string[];
+	fallback: ReactNode;
+}): ReactNode {
+	const filename = (covers ?? [])
+		.map(getCoverFilename)
+		.find((name): name is string => name !== null);
+	if (!filename) return fallback;
+	return (
+		<img
+			src={getCoverPresetUrl(filename, coverPresets.small)}
+			srcSet={getCoverSrcSet(filename, coverPresets.small.widths)}
+			sizes="48px"
+			alt=""
+			loading="lazy"
+			className="size-full object-cover"
+		/>
 	);
 }
 
@@ -275,7 +344,8 @@ export function MyLibrarySection({
 	const emptyKeys = new Set<string>();
 
 	const shelfEntries = shelfBuckets.map((status): LibraryEntry => {
-		const { icon: Icon, label } = shelfBucketMeta(status, "all");
+		const { label } = shelfBucketMeta(status, "all");
+		const Icon = shelfRailIcons[status];
 		const count = summaryByBucket.get(status)?.count ?? 0;
 		if (count === 0) emptyKeys.add(`shelf-${status}`);
 		return {
@@ -287,11 +357,20 @@ export function MyLibrarySection({
 			system: true,
 			active: locationPathname.startsWith(`/dashboard/shelves/${status}`),
 			artwork: (
-				<CollectionArtwork
+				<RailCover
 					covers={summaryByBucket.get(status)?.previewCovers}
 					fallback={
-						<span className={neutralTileClass}>
-							<Icon weight="fill" className="size-5" />
+						<span
+							className={neutralTileClass}
+							style={tileTint(shelfTileHues[status])}
+						>
+							<Icon
+								className={cn(
+									"rail-expanded:size-6 size-5",
+									// The play triangle is right-heavy; nudge it onto the column.
+									status === "reading" && "-translate-x-0.5",
+								)}
+							/>
 						</span>
 					}
 				/>
@@ -323,14 +402,17 @@ export function MyLibrarySection({
 				active: locationPathname.startsWith(
 					`/dashboard/collections/${collection.id}`,
 				),
-				// Same artwork as the shelves: latest covers, or the neutral folder
-				// tile while the collection is empty.
+				// Same artwork as the shelves: latest cover, or the folder glyph
+				// while the collection is empty.
 				artwork: (
-					<CollectionArtwork
+					<RailCover
 						covers={previewCovers}
 						fallback={
-							<span className={neutralTileClass}>
-								<Folder weight="fill" className="size-5" />
+							<span
+								className={neutralTileClass}
+								style={tileTint(collectionTileHue(collection.id))}
+							>
+								<FolderSimple className="rail-expanded:size-6 size-5" />
 							</span>
 						}
 					/>
