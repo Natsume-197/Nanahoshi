@@ -95,29 +95,13 @@ const shelfRailIcons: Record<ShelfBucket, NavIcon> = {
  *  on a soft tint, like the continue cards' cover-tinted surfaces. */
 const neutralTileClass = "grid size-full place-items-center";
 
-const shelfTileHues: Record<ShelfBucket, number> = {
-	reading: 290,
-	want: 70,
-	backlog: 230,
-	completed: 150,
+// One calm tint for every empty list (the "In progress" violet), so the rail
+// doesn't turn into a rainbow. Mixed in oklab to stay pastel in both themes.
+const emptyTileColor = "oklch(0.72 0.12 290)";
+const emptyTileTint: CSSProperties = {
+	backgroundColor: `color-mix(in oklab, ${emptyTileColor} 22%, var(--sidebar))`,
+	color: `color-mix(in oklab, ${emptyTileColor} 60%, var(--sidebar-foreground))`,
 };
-const collectionTileHues = [20, 70, 150, 200, 250, 290, 330];
-
-/** Stable per collection, so a list keeps its colour across sessions. */
-function collectionTileHue(id: string): number {
-	let hash = 0;
-	for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-	return collectionTileHues[Math.abs(hash) % collectionTileHues.length] ?? 0;
-}
-
-// Mixed in oklab against the rail surface so it stays pastel in both themes.
-function tileTint(hue: number): CSSProperties {
-	const color = `oklch(0.72 0.12 ${hue})`;
-	return {
-		backgroundColor: `color-mix(in oklab, ${color} 22%, var(--sidebar))`,
-		color: `color-mix(in oklab, ${color} 60%, var(--sidebar-foreground))`,
-	};
-}
 
 type LibraryEntry = {
 	key: string;
@@ -604,10 +588,7 @@ export function MyLibrarySection({
 				<RailCover
 					covers={summaryByBucket.get(status)?.previewCovers}
 					fallback={
-						<span
-							className={neutralTileClass}
-							style={tileTint(shelfTileHues[status])}
-						>
+						<span className={neutralTileClass} style={emptyTileTint}>
 							<Icon
 								className={cn(
 									"rail-expanded:size-6 size-5",
@@ -651,10 +632,7 @@ export function MyLibrarySection({
 					<RailCover
 						covers={previewCovers}
 						fallback={
-							<span
-								className={neutralTileClass}
-								style={tileTint(collectionTileHue(collection.id))}
-							>
+							<span className={neutralTileClass} style={emptyTileTint}>
 								<FolderSimple className="rail-expanded:size-6 size-5" />
 							</span>
 						}
