@@ -13,7 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +30,8 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -72,6 +72,8 @@ import { useMatchSelection } from "./use-match-selection";
 // URL is the source of truth for table state. Search keeps a local draft and
 // commits after the debounce so typing does not navigate on every keystroke.
 const routeApi = getRouteApi("/dashboard/metadata");
+// Stable fallback so memoized rows don't re-render while labels load.
+const NO_LABELS: Record<string, string> = {};
 
 export function MatchManager() {
 	const urlSearch = routeApi.useSearch();
@@ -106,8 +108,10 @@ export function MatchManager() {
 		if (!keepSelection) clearSelection();
 	};
 
-	const [search, setSearch] = useState(urlSearch.q ?? "");
+	const [search, setSearchDraft] = useState(urlSearch.q ?? "");
 	const committedSearch = useRef(urlSearch.q ?? "");
+	const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useOnUnmount(() => clearTimeout(searchTimer.current));
 	const singleLibrary = libraryUuid !== ALL_LIBRARIES;
 	// Built by the same helper the route loader uses, so the prefetched entry
 	// lands under this exact query key.
@@ -134,29 +138,31 @@ export function MatchManager() {
 	// background poll too, so binding the icon to it would spin the header every
 	// few seconds unprompted.
 	const [manualRefresh, setManualRefresh] = useState(false);
-	// Debounced, not deferred: this value is part of the list query key, and
-	// useDeferredValue only smooths rendering — it would still fire a request
-	// (three full scans server-side) per settled keystroke.
-	const debouncedSearch = useDebounce(search, 300);
-	useEffect(() => {
-		const q = debouncedSearch.trim();
+	// Back/forward or a deep link changed `q` under us: adopt it as the draft.
+	// Our own commits already set committedSearch, so they don't bounce back.
+	const urlQuery = urlSearch.q ?? "";
+	const previousUrlQuery = useRef(urlQuery);
+	if (urlQuery !== previousUrlQuery.current) {
+		previousUrlQuery.current = urlQuery;
+		if (urlQuery !== committedSearch.current) {
+			committedSearch.current = urlQuery;
+			setSearchDraft(urlQuery);
+		}
+	}
+	const commitSearch = (value: string) => {
+		clearTimeout(searchTimer.current);
+		const q = value.trim();
 		if (q === committedSearch.current) return;
 		committedSearch.current = q;
-		navigate({
-			search: (prev) => ({
-				...prev,
-				q: q || undefined,
-				page: undefined,
-			}),
-			replace: true,
-		});
-	}, [debouncedSearch, navigate]);
-	useEffect(() => {
-		const q = urlSearch.q ?? "";
-		if (q === committedSearch.current) return;
-		committedSearch.current = q;
-		setSearch(q);
-	}, [urlSearch.q]);
+		patchFilters({ q: q || undefined });
+	};
+	// Debounced, not deferred: `q` is part of the list query key, and
+	// useDeferredValue would still fire a request per settled keystroke.
+	const setSearch = (value: string) => {
+		setSearchDraft(value);
+		clearTimeout(searchTimer.current);
+		searchTimer.current = setTimeout(() => commitSearch(value), 300);
+	};
 
 	// Live tray: the worker mutates these rows in the background, so this query
 	// never serves a cached snapshot — it polls (fast while work is in flight),
@@ -200,7 +206,7 @@ export function MatchManager() {
 	const counts = data?.counts;
 	const items: MatchRow[] = data?.items ?? [];
 	const total = data?.total ?? 0;
-	const providerLabels = providerStatus?.labels ?? {};
+	const providerLabels = providerStatus?.labels ?? NO_LABELS;
 	const cooldowns = Object.entries(providerStatus?.cooldowns ?? {});
 	// The open row, preferring the live list entry so the pane follows the
 	// worker; the click-time snapshot keeps it from blanking when a refresh
@@ -291,8 +297,6 @@ export function MatchManager() {
 		search,
 		lifecycle,
 		bucket,
-		detailUuid,
-		providerLabels,
 		rowSelection,
 		setRowSelection,
 		selectAllFilter,
@@ -334,12 +338,6 @@ export function MatchManager() {
 		{ value: "ebook", label: m["enrichment.type_ebook"]() },
 		{ value: "audiobook", label: m["enrichment.type_audiobook"]() },
 	];
-	const commitSearch = () => {
-		const q = search.trim() || undefined;
-		if ((q ?? "") === committedSearch.current) return;
-		committedSearch.current = q ?? "";
-		patchFilters({ q });
-	};
 
 	const emptyDescription =
 		bucket === "attention"
@@ -611,9 +609,9 @@ export function MatchManager() {
 										.getColumn("book")
 										?.setFilterValue(event.target.value)
 								}
-								onBlur={commitSearch}
+								onBlur={() => commitSearch(search)}
 								onKeyDown={(event) => {
-									if (event.key === "Enter") commitSearch();
+									if (event.key === "Enter") commitSearch(search);
 								}}
 								placeholder={m["enrichment.search_placeholder"]()}
 								className="h-[30px] w-full rounded-full ps-8 text-xs"
@@ -707,10 +705,7 @@ export function MatchManager() {
 								isPlaceholderData={isPlaceholderData}
 								selectAllFilter={selectAllFilter}
 								detailUuid={detailUuid}
-								openDetail={openDetail}
-								rowActions={rowActions}
 								providerLabels={providerLabels}
-								setSelectAllFilter={setSelectAllFilter}
 							/>
 						)}
 					</div>

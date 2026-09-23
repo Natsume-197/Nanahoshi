@@ -9,7 +9,6 @@ import type { MatchRow } from "./types";
 const { cleanup, fireEvent, render } = await import("@testing-library/react");
 afterEach(() => {
 	cleanup();
-	localStorage.clear();
 });
 
 const item: MatchRow = {
@@ -31,12 +30,13 @@ const item: MatchRow = {
 function mount(desktopTable: boolean) {
 	const onOpen = mock(() => {});
 	const onApprove = mock(() => {});
+	const onFix = mock(() => {});
 	const patchFilters = mock(() => {});
 	const rowActions = () => ({
 		onApprove,
 		onRetry: () => {},
 		onRefresh: () => {},
-		onFix: () => {},
+		onFix,
 		onCancelRetry: () => {},
 		onSelectCandidate: () => {},
 	});
@@ -49,8 +49,6 @@ function mount(desktopTable: boolean) {
 			page: 1,
 			search: "",
 			bucket: "all",
-			detailUuid: null,
-			providerLabels: {},
 			rowSelection,
 			setRowSelection,
 			selectAllFilter,
@@ -70,18 +68,14 @@ function mount(desktopTable: boolean) {
 				isPlaceholderData={false}
 				selectAllFilter={selectAllFilter}
 				detailUuid={null}
-				openDetail={onOpen}
-				rowActions={rowActions}
 				providerLabels={{}}
-				setSelectAllFilter={setSelectAllFilter}
 			/>
 		);
 	}
-	return { ...render(<Harness />), onOpen, onApprove, patchFilters };
+	return { ...render(<Harness />), onOpen, onApprove, onFix, patchFilters };
 }
 
 test("desktop table keeps selection, sorting and row actions after extraction", () => {
-	localStorage.setItem("match-manager-table", '{"order":"broken"}');
 	const view = mount(true);
 	expect(view.getByRole("table", { name: "Matches" })).toBeTruthy();
 	const select = view.getByRole("checkbox", { name: "Local book" });
@@ -91,6 +85,12 @@ test("desktop table keeps selection, sorting and row actions after extraction", 
 			.getByRole("checkbox", { name: "Local book" })
 			.getAttribute("aria-checked"),
 	).toBe("true");
+	fireEvent.click(view.getByRole("checkbox", { name: "Local book" }));
+	expect(
+		view
+			.getByRole("checkbox", { name: "Local book" })
+			.getAttribute("aria-checked"),
+	).toBe("false");
 	fireEvent.click(
 		view.getByText(m["enrichment.col_book"](), { selector: "button" }),
 	);
@@ -108,4 +108,12 @@ test("mobile cards expose the same detail and approval actions", () => {
 	expect(view.onOpen).toHaveBeenCalledTimes(1);
 	fireEvent.click(view.getByText(m["enrichment.approve"]()));
 	expect(view.onApprove).toHaveBeenCalledTimes(1);
+});
+
+test("the shared row menu runs the action for the row that opened it", async () => {
+	const view = mount(true);
+	fireEvent.click(view.getByRole("button", { name: m["enrichment.more"]() }));
+	fireEvent.click(await view.findByText(m["enrichment.fix_match"]()));
+	expect(view.onFix).toHaveBeenCalledTimes(1);
+	expect(view.onOpen).not.toHaveBeenCalled();
 });

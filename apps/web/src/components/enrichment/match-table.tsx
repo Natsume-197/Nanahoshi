@@ -1,21 +1,4 @@
 import {
-	closestCenter,
-	DndContext,
-	type DragEndEvent,
-	KeyboardSensor,
-	PointerSensor,
-	useSensor,
-	useSensors,
-} from "@dnd-kit/core";
-import {
-	arrayMove,
-	horizontalListSortingStrategy,
-	SortableContext,
-	sortableKeyboardCoordinates,
-	useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
 	ArrowsDownUp,
 	CaretDown,
 	CaretUp,
@@ -23,18 +6,9 @@ import {
 } from "@phosphor-icons/react";
 import {
 	type ColumnFiltersState,
-	type ColumnOrderState,
-	type ColumnPinningState,
-	type ColumnSizingState,
 	columnFilteringFeature,
-	columnOrderingFeature,
-	columnPinningFeature,
-	columnResizingFeature,
-	columnSizingFeature,
-	columnVisibilityFeature,
 	createColumnHelper,
 	functionalUpdate,
-	type Header,
 	type RowSelectionState,
 	rowPaginationFeature,
 	rowSelectionFeature,
@@ -43,13 +17,7 @@ import {
 	useTable,
 } from "@tanstack/react-table";
 import type { Dispatch, SetStateAction } from "react";
-import {
-	type CSSProperties,
-	type MouseEvent as ReactMouseEvent,
-	type ReactNode,
-	useEffect,
-	useState,
-} from "react";
+import { type MouseEvent as ReactMouseEvent, useRef, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
@@ -60,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { formatRelativeTime } from "@/utils/format";
 import {
 	type BucketFilter,
 	LIFECYCLE_BUCKET,
@@ -69,33 +36,20 @@ import {
 	parseEnrichmentSort,
 	type EnrichmentSort as Sort,
 } from "./filters";
-import { LIFECYCLE_LABELS, LifecycleChip } from "./lifecycle";
+import { LIFECYCLE_LABELS } from "./lifecycle";
 import { IconSwap } from "./match-controls";
 import {
-	BookCell,
+	createRowMenuHandle,
 	EnrichmentCard,
 	EnrichmentRow,
-	MatchCell,
-	PrimaryRowButton,
-	RowMenu,
+	type RowHandlers,
+	SharedRowMenu,
 } from "./match-rows";
 import type { ScopeSelection } from "./match-sidebar";
-import {
-	DEFAULT_COLUMN_PINNING,
-	DEFAULT_COLUMN_SIZING,
-	MATCH_COLUMN_ORDER,
-	readTablePreferences,
-	writeTablePreferences,
-} from "./table-preferences";
 import type { MatchRow, RowActions } from "./types";
 
 const MATCH_TABLE_FEATURES = tableFeatures({
 	columnFilteringFeature,
-	columnOrderingFeature,
-	columnPinningFeature,
-	columnResizingFeature,
-	columnSizingFeature,
-	columnVisibilityFeature,
 	rowPaginationFeature,
 	rowSelectionFeature,
 	rowSortingFeature,
@@ -118,6 +72,13 @@ export const SKELETON_ROWS = [
 	"s10",
 ];
 
+// The outer wrapper owns the column template; header and rows are subgrids of
+// it. Status, date and actions size to their widest cell so a long chip or a
+// "Fix match" button never spills into the neighbouring column.
+export const TABLE_GRID =
+	"grid min-w-[760px] grid-cols-[2.5rem_minmax(14rem,1.7fr)_minmax(11rem,1fr)_auto_auto_auto]";
+export const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center";
+
 type MatchTableOptions = {
 	onPageChange: (page: number) => void;
 	items: MatchRow[];
@@ -127,8 +88,6 @@ type MatchTableOptions = {
 	search: string;
 	lifecycle?: Lifecycle;
 	bucket: BucketFilter;
-	detailUuid: string | null;
-	providerLabels: Record<string, string>;
 	rowSelection: RowSelectionState;
 	setRowSelection: Dispatch<SetStateAction<RowSelectionState>>;
 	selectAllFilter: boolean;
@@ -143,6 +102,32 @@ type MatchTableOptions = {
 	rowActions: (item: MatchRow) => RowActions;
 };
 
+// Rows are memoized, so they need handlers whose identity never changes; the
+// ref forwards each call to the latest closures from the parent render.
+function useStableRowHandlers(latest: {
+	openDetail: (item: MatchRow) => void;
+	rowActions: (item: MatchRow) => RowActions;
+	toggle: (uuid: string) => void;
+}): RowHandlers {
+	const ref = useRef(latest);
+	ref.current = latest;
+	const [handlers] = useState<RowHandlers>(() => ({
+		menu: createRowMenuHandle(),
+		open: (item) => ref.current.openDetail(item),
+		toggle: (uuid) => ref.current.toggle(uuid),
+		actions: (item) => ({
+			onRetry: () => ref.current.rowActions(item).onRetry(),
+			onRefresh: () => ref.current.rowActions(item).onRefresh(),
+			onCancelRetry: () => ref.current.rowActions(item).onCancelRetry(),
+			onApprove: () => ref.current.rowActions(item).onApprove(),
+			onFix: () => ref.current.rowActions(item).onFix(),
+			onSelectCandidate: (candidate) =>
+				ref.current.rowActions(item).onSelectCandidate(candidate),
+		}),
+	}));
+	return handlers;
+}
+
 export function useMatchTable({
 	items,
 	total,
@@ -151,8 +136,6 @@ export function useMatchTable({
 	search,
 	lifecycle,
 	bucket,
-	detailUuid,
-	providerLabels,
 	rowSelection,
 	setRowSelection,
 	selectAllFilter,
@@ -164,48 +147,11 @@ export function useMatchTable({
 	rowActions,
 	onPageChange,
 }: MatchTableOptions) {
-	const [columnOrder, setColumnOrder] =
-		useState<ColumnOrderState>(MATCH_COLUMN_ORDER);
-	const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(
-		DEFAULT_COLUMN_SIZING,
-	);
-	const [columnPinning, setColumnPinning] = useState<ColumnPinningState>(
-		DEFAULT_COLUMN_PINNING,
-	);
-	const [tablePreferencesReady, setTablePreferencesReady] = useState(false);
-
-	useEffect(() => {
-		try {
-			const saved = readTablePreferences(localStorage);
-			if (saved) {
-				setColumnOrder(saved.order);
-				setColumnSizing(saved.sizing);
-				setColumnPinning(saved.pinning);
-			}
-		} catch {
-			/* Accessing localStorage itself can be blocked by the browser. */
-		}
-		setTablePreferencesReady(true);
-	}, []);
-	useEffect(() => {
-		if (!tablePreferencesReady) return;
-		try {
-			writeTablePreferences(localStorage, {
-				order: columnOrder,
-				sizing: columnSizing,
-				pinning: columnPinning,
-			});
-		} catch {
-			/* Storage is optional. */
-		}
-	}, [columnOrder, columnPinning, columnSizing, tablePreferencesReady]);
-
+	// Only headers live here: rows render through the memoized EnrichmentRow so
+	// toggling one checkbox re-renders one row, not the whole page.
 	const matchColumns = matchColumnHelper.columns([
 		matchColumnHelper.display({
 			id: "select",
-			size: DEFAULT_COLUMN_SIZING.select,
-			enableHiding: false,
-			enableResizing: false,
 			header: ({ table }) => {
 				const allSelected = table.getIsAllPageRowsSelected();
 				return (
@@ -222,21 +168,9 @@ export function useMatchTable({
 					/>
 				);
 			},
-			cell: ({ row }) => (
-				<Checkbox
-					checked={selectAllFilter || row.getIsSelected()}
-					onCheckedChange={() => {
-						setSelectAllFilter(false);
-						row.toggleSelected();
-					}}
-					aria-label={row.original.title ?? row.id}
-				/>
-			),
 		}),
 		matchColumnHelper.display({
 			id: "book",
-			size: DEFAULT_COLUMN_SIZING.book,
-			minSize: 240,
 			enableSorting: true,
 			header: ({ column }) => {
 				const sorted = column.getIsSorted();
@@ -250,23 +184,13 @@ export function useMatchTable({
 					/>
 				);
 			},
-			cell: ({ row }) => (
-				<BookCell item={row.original} open={row.id === detailUuid} />
-			),
 		}),
 		matchColumnHelper.display({
 			id: "match",
-			size: DEFAULT_COLUMN_SIZING.match,
-			minSize: 200,
 			header: () => m["enrichment.col_match"](),
-			cell: ({ row }) => (
-				<MatchCell item={row.original} providerLabels={providerLabels} />
-			),
 		}),
 		matchColumnHelper.display({
 			id: "status",
-			size: DEFAULT_COLUMN_SIZING.status,
-			minSize: 128,
 			header: ({ column }) => (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
@@ -294,12 +218,9 @@ export function useMatchTable({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			),
-			cell: ({ row }) => <LifecycleChip lifecycle={row.original.lifecycle} />,
 		}),
 		matchColumnHelper.display({
 			id: "updated",
-			size: DEFAULT_COLUMN_SIZING.updated,
-			minSize: 96,
 			enableSorting: true,
 			header: ({ column }) => {
 				const sorted = column.getIsSorted();
@@ -313,34 +234,8 @@ export function useMatchTable({
 					/>
 				);
 			},
-			cell: ({ row }) => (
-				<span className="truncate text-muted-foreground text-xs tabular-nums">
-					{row.original.lastRunAt
-						? formatRelativeTime(row.original.lastRunAt)
-						: m["enrichment.never_ran"]()}
-				</span>
-			),
 		}),
-		matchColumnHelper.display({
-			id: "actions",
-			size: DEFAULT_COLUMN_SIZING.actions,
-			enableHiding: false,
-			enableResizing: false,
-			cell: ({ row }) => {
-				const item = row.original;
-				const actions = rowActions(item);
-				return (
-					<>
-						<PrimaryRowButton
-							lifecycle={item.lifecycle}
-							actions={actions}
-							onOpen={() => openDetail(item)}
-						/>
-						<RowMenu lifecycle={item.lifecycle} actions={actions} />
-					</>
-				);
-			},
-		}),
+		matchColumnHelper.display({ id: "actions" }),
 	]);
 	const paginationState = {
 		pageIndex: page - 1,
@@ -362,7 +257,6 @@ export function useMatchTable({
 		columns: matchColumns,
 		getRowId: (row) => row.bookUuid,
 		rowCount: total,
-		columnResizeMode: "onEnd",
 		enableRowSelection: true,
 		manualFiltering: true,
 		manualPagination: true,
@@ -383,13 +277,9 @@ export function useMatchTable({
 				});
 			}
 		},
-		onColumnOrderChange: setColumnOrder,
-		onColumnPinningChange: setColumnPinning,
-		onColumnSizingChange: setColumnSizing,
 		onPaginationChange: (updater) => {
 			const next = functionalUpdate(updater, paginationState);
-			const nextPage = next.pageIndex + 1;
-			onPageChange(nextPage);
+			onPageChange(next.pageIndex + 1);
 		},
 		onRowSelectionChange: setRowSelection,
 		onSortingChange: (updater) => {
@@ -407,126 +297,25 @@ export function useMatchTable({
 		},
 		state: {
 			columnFilters: columnFiltersState,
-			columnOrder,
-			columnPinning,
-			columnSizing,
 			pagination: paginationState,
 			rowSelection,
 			sorting: sortingState,
 		},
 	});
 	const tableRows = matchTable.getRowModel().rows;
-	const sensors = useSensors(
-		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-		useSensor(KeyboardSensor, {
-			coordinateGetter: sortableKeyboardCoordinates,
-		}),
-	);
-	const reorderColumns = ({ active, over }: DragEndEvent) => {
-		if (!over || active.id === over.id) return;
-		setColumnOrder((current) => {
-			const from = current.indexOf(String(active.id));
-			const to = current.indexOf(String(over.id));
-			return from < 1 || to < 1 || to >= current.length - 1
-				? current
-				: arrayMove(current, from, to);
-		});
-	};
-	const tableGridStyle: CSSProperties = {
-		gridTemplateColumns: matchTable
-			.getVisibleLeafColumns()
-			.map((column) =>
-				column.id === "book" || column.id === "match"
-					? `minmax(${column.getSize()}px, ${column.id === "book" ? 1.7 : 1}fr)`
-					: `${column.getSize()}px`,
-			)
-			.join(" "),
-		minWidth: matchTable.getTotalSize(),
-		width: "100%",
-	};
+	const rowHandlers = useStableRowHandlers({
+		openDetail,
+		rowActions,
+		toggle: (uuid) => {
+			setSelectAllFilter(false);
+			setRowSelection((current) => {
+				const { [uuid]: selected, ...rest } = current;
+				return selected ? rest : { ...current, [uuid]: true };
+			});
+		},
+	});
 
-	return { matchTable, tableRows, sensors, reorderColumns, tableGridStyle };
-}
-// Dense CRM grid: the outer wrapper owns the column template, the header and
-// every row are subgrids of it, and the list itself is `contents` so rows
-// participate directly. Track 1 is the checkbox gutter, tracks 2–5 are the
-// content columns (owned by one row button, so the row stays a single tab
-// stop with no nested buttons), track 6 is the row menu.
-export const TABLE_GRID =
-	"grid min-w-[860px] grid-cols-[2.5rem_minmax(0,1.7fr)_minmax(0,1fr)_9.5rem_7rem_8.5rem]";
-export const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center";
-
-function SortableMatchHeader({
-	header,
-	content,
-}: {
-	header: Header<typeof MATCH_TABLE_FEATURES, MatchRow, unknown>;
-	content: ReactNode;
-}) {
-	const locked =
-		header.column.id === "select" || header.column.id === "actions";
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({ id: header.column.id, disabled: locked });
-	return (
-		<th
-			ref={setNodeRef}
-			scope="col"
-			{...(locked ? {} : attributes)}
-			{...(locked ? {} : listeners)}
-			className={cn(
-				"relative flex h-[38px] items-center bg-background px-1.5",
-				!locked && "cursor-grab touch-none active:cursor-grabbing",
-				header.column.id === "select" && "justify-center",
-				(header.column.id === "match" || header.column.id === "status") &&
-					"font-medium text-xs",
-				isDragging && "shadow-lg",
-			)}
-			style={{
-				...pinnedColumnStyle(header.column),
-				backgroundColor: "var(--background)",
-				transform: CSS.Translate.toString(transform),
-				transition,
-				zIndex: isDragging ? 40 : 30,
-			}}
-		>
-			{content}
-			{header.column.getCanResize() && (
-				<button
-					type="button"
-					aria-label={m["enrichment.resize_column"]()}
-					onPointerDown={(event) => event.stopPropagation()}
-					onDoubleClick={() => header.column.resetSize()}
-					onMouseDown={header.getResizeHandler()}
-					onTouchStart={header.getResizeHandler()}
-					className={cn(
-						"absolute inset-y-1 end-0 z-20 w-1 cursor-col-resize touch-none rounded-full hover:bg-primary/50",
-						header.column.getIsResizing() && "bg-primary",
-					)}
-				/>
-			)}
-		</th>
-	);
-}
-
-function pinnedColumnStyle(column: {
-	getAfter: (position?: "end") => number;
-	getIsPinned: () => false | "start" | "end";
-	getStart: (position?: "start") => number;
-}): CSSProperties {
-	const pinned = column.getIsPinned();
-	if (!pinned) return {};
-	return {
-		position: "sticky",
-		insetInlineStart: pinned === "start" ? column.getStart("start") : undefined,
-		insetInlineEnd: pinned === "end" ? column.getAfter("end") : undefined,
-		zIndex: 10,
-	};
+	return { matchTable, tableRows, rowHandlers };
 }
 
 function SortHeader({
@@ -580,10 +369,7 @@ export function MatchResults({
 	isPlaceholderData,
 	selectAllFilter,
 	detailUuid,
-	openDetail,
-	rowActions,
 	providerLabels,
-	setSelectAllFilter,
 }: {
 	table: ReturnType<typeof useMatchTable>;
 	desktopTable: boolean;
@@ -591,91 +377,78 @@ export function MatchResults({
 	isPlaceholderData: boolean;
 	selectAllFilter: boolean;
 	detailUuid: string | null;
-	openDetail: MatchTableOptions["openDetail"];
-	rowActions: MatchTableOptions["rowActions"];
 	providerLabels: Record<string, string>;
-	setSelectAllFilter: (value: boolean) => void;
 }) {
-	const { matchTable, tableRows, sensors, reorderColumns, tableGridStyle } =
-		table;
-	const toggleRowSelection = (uuid: string) => {
-		setSelectAllFilter(false);
-		matchTable.getRow(uuid).toggleSelected();
-	};
-	return desktopTable ? (
-		<DndContext
-			sensors={sensors}
-			collisionDetection={closestCenter}
-			onDragEnd={reorderColumns}
+	const { matchTable, tableRows, rowHandlers } = table;
+	const results = desktopTable ? (
+		<table
+			aria-label={scopeLabel}
+			className={cn(
+				TABLE_GRID,
+				"border-spacing-0 transition-opacity",
+				isPlaceholderData && "pointer-events-none opacity-50",
+			)}
 		>
-			<table
-				aria-label={scopeLabel}
-				className={cn(
-					"grid border-spacing-0 transition-opacity",
-					isPlaceholderData && "pointer-events-none opacity-50",
-				)}
-				style={tableGridStyle}
-			>
-				<thead className="contents">
-					{matchTable.getHeaderGroups().map((headerGroup) => (
-						<tr
-							key={headerGroup.id}
-							className={cn(
-								ROW_SUBGRID,
-								"sticky top-0 isolate z-30 border-border/60 border-b bg-background px-3 text-muted-foreground",
-							)}
-						>
-							<SortableContext
-								items={headerGroup.headers.map(({ column }) => column.id)}
-								strategy={horizontalListSortingStrategy}
+			<thead className="contents">
+				{matchTable.getHeaderGroups().map((headerGroup) => (
+					<tr
+						key={headerGroup.id}
+						className={cn(
+							ROW_SUBGRID,
+							"sticky top-0 z-30 border-border/60 border-b bg-background px-3 text-muted-foreground",
+						)}
+					>
+						{headerGroup.headers.map((header) => (
+							<th
+								key={header.id}
+								scope="col"
+								className={cn(
+									"flex h-[38px] items-center px-1.5",
+									header.column.id === "select" && "justify-center",
+									(header.column.id === "match" ||
+										header.column.id === "status") &&
+										"font-medium text-xs",
+								)}
 							>
-								{headerGroup.headers.map((header) => (
-									<SortableMatchHeader
-										key={header.id}
-										header={header}
-										content={
-											header.isPlaceholder ? null : (
-												<matchTable.FlexRender header={header} />
-											)
-										}
-									/>
-								))}
-							</SortableContext>
-						</tr>
-					))}
-				</thead>
-				<tbody className="contents">
-					{tableRows.map((row) => (
-						<EnrichmentRow
-							key={row.id}
-							item={row.original}
-							cells={row.getVisibleCells().map((cell) => ({
-								id: cell.column.id,
-								content: <matchTable.FlexRender cell={cell} />,
-								style: pinnedColumnStyle(cell.column),
-							}))}
-							selected={row.getIsSelected() || selectAllFilter}
-							open={row.id === detailUuid}
-							onOpen={() => openDetail(row.original)}
-						/>
-					))}
-				</tbody>
-			</table>
-		</DndContext>
+								{header.isPlaceholder ? null : (
+									<matchTable.FlexRender header={header} />
+								)}
+							</th>
+						))}
+					</tr>
+				))}
+			</thead>
+			<tbody className="contents">
+				{tableRows.map((row) => (
+					<EnrichmentRow
+						key={row.id}
+						item={row.original}
+						selected={row.getIsSelected() || selectAllFilter}
+						open={row.id === detailUuid}
+						providerLabels={providerLabels}
+						handlers={rowHandlers}
+					/>
+				))}
+			</tbody>
+		</table>
 	) : (
 		<ul className={cn(isPlaceholderData && "pointer-events-none opacity-50")}>
-			{matchTable.getRowModel().rows.map((row) => (
+			{tableRows.map((row) => (
 				<EnrichmentCard
 					key={row.id}
 					item={row.original}
 					selected={row.getIsSelected() || selectAllFilter}
 					open={row.id === detailUuid}
-					onToggle={() => toggleRowSelection(row.id)}
-					onOpen={() => openDetail(row.original)}
 					providerLabels={providerLabels}
-					actions={rowActions(row.original)}
+					handlers={rowHandlers}
 				/>
 			))}
 		</ul>
+	);
+	return (
+		<>
+			{results}
+			<SharedRowMenu handlers={rowHandlers} />
+		</>
 	);
 }

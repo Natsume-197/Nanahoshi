@@ -1,9 +1,9 @@
+import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { DotsThreeVertical } from "@phosphor-icons/react";
-import type { CSSProperties, ReactNode } from "react";
+import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
@@ -24,7 +24,10 @@ import {
 	MatchReasonChip,
 	minutesFromMs,
 } from "./lifecycle";
-import { primaryActionForLifecycle } from "./primary-action";
+import {
+	primaryActionForLifecycle,
+	secondaryActionsForLifecycle,
+} from "./primary-action";
 import { resolveRetryView } from "./retry-view";
 import type { MatchRow, RowActions } from "./types";
 
@@ -220,19 +223,32 @@ export function MatchCell({
 	);
 }
 
-export function EnrichmentRow({
-	item,
-	cells,
-	selected,
-	open,
-	onOpen,
-}: {
+export type RowHandlers = {
+	open: (item: MatchRow) => void;
+	toggle: (uuid: string) => void;
+	actions: (item: MatchRow) => RowActions;
+	menu: RowMenuHandle;
+};
+
+type RowProps = {
 	item: MatchRow;
-	cells: { id: string; content: ReactNode; style: CSSProperties }[];
 	selected: boolean;
 	open: boolean;
-	onOpen: () => void;
-}) {
+	providerLabels: Record<string, string>;
+	handlers: RowHandlers;
+};
+
+// Memoized: `item` keeps its identity across polls (query structural sharing)
+// and `handlers` never changes, so a checkbox or poll re-renders only the rows
+// whose data actually moved.
+export const EnrichmentRow = memo(function EnrichmentRow({
+	item,
+	selected,
+	open,
+	providerLabels,
+	handlers,
+}: RowProps) {
+	const actions = useMemo(() => handlers.actions(item), [handlers, item]);
 	return (
 		<tr
 			data-match-row={item.bookUuid}
@@ -244,13 +260,13 @@ export function EnrichmentRow({
 					)
 				)
 					return;
-				onOpen();
+				handlers.open(item);
 			}}
 			onKeyDown={(event) => {
 				if (event.target !== event.currentTarget) return;
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
-					onOpen();
+					handlers.open(item);
 				}
 			}}
 			className={cn(
@@ -263,40 +279,50 @@ export function EnrichmentRow({
 			)}
 			data-active={open}
 		>
-			{cells.map((cell) => (
-				<td
-					key={cell.id}
-					style={cell.style}
-					className={cn(
-						"flex min-h-[88px] min-w-0 items-center bg-inherit px-1.5 py-2",
-						cell.id === "select" && "justify-center",
-						cell.id === "actions" && "justify-end gap-0.5",
-					)}
-				>
-					{cell.content}
-				</td>
-			))}
+			<td className={cn(CELL, "justify-center")}>
+				<Checkbox
+					checked={selected}
+					onCheckedChange={() => handlers.toggle(item.bookUuid)}
+					aria-label={item.title ?? item.bookUuid}
+				/>
+			</td>
+			<td className={CELL}>
+				<BookCell item={item} open={open} />
+			</td>
+			<td className={CELL}>
+				<MatchCell item={item} providerLabels={providerLabels} />
+			</td>
+			<td className={CELL}>
+				<LifecycleChip lifecycle={item.lifecycle} />
+			</td>
+			<td className={CELL}>
+				<span className="whitespace-nowrap text-muted-foreground text-xs tabular-nums">
+					{item.lastRunAt
+						? formatRelativeTime(item.lastRunAt)
+						: m["enrichment.never_ran"]()}
+				</span>
+			</td>
+			<td className={cn(CELL, "justify-end gap-0.5")}>
+				<PrimaryRowButton
+					lifecycle={item.lifecycle}
+					actions={actions}
+					onOpen={() => handlers.open(item)}
+				/>
+				<RowMenuTrigger handle={handlers.menu} item={item} />
+			</td>
 		</tr>
 	);
-}
+});
 
-export function EnrichmentCard({
+export const EnrichmentCard = memo(function EnrichmentCard({
 	item,
 	selected,
 	open,
-	onToggle,
-	onOpen,
 	providerLabels,
-	actions,
-}: {
-	item: MatchRow;
-	selected: boolean;
-	open: boolean;
-	onToggle: () => void;
-	onOpen: () => void;
-	providerLabels: Record<string, string>;
-	actions: RowActions;
-}) {
+	handlers,
+}: RowProps) {
+	const actions = useMemo(() => handlers.actions(item), [handlers, item]);
+	const onOpen = () => handlers.open(item);
 	const coverFilename = getCoverFilename(item.cover);
 	const primaryMatch = item.matched[0];
 	const explanation = itemExplanation(item, providerLabels);
@@ -317,7 +343,7 @@ export function EnrichmentCard({
 			<div className="flex items-start gap-3">
 				<Checkbox
 					checked={selected}
-					onCheckedChange={onToggle}
+					onCheckedChange={() => handlers.toggle(item.bookUuid)}
 					aria-label={item.title ?? item.bookUuid}
 					className="mt-1"
 				/>
@@ -383,67 +409,94 @@ export function EnrichmentCard({
 					actions={actions}
 					onOpen={onOpen}
 				/>
-				<RowMenu lifecycle={item.lifecycle} actions={actions} />
+				<RowMenuTrigger handle={handlers.menu} item={item} />
 			</div>
 		</li>
 	);
+});
+
+// One menu instance serves every row: each row only renders a light detached
+// trigger carrying its book as payload. A full Base UI menu per row was the
+// single biggest cost of mounting a 50-row page.
+export function createRowMenuHandle() {
+	return MenuPrimitive.createHandle<MatchRow>();
+}
+export type RowMenuHandle = ReturnType<typeof createRowMenuHandle>;
+
+function RowMenuTrigger({
+	handle,
+	item,
+}: {
+	handle: RowMenuHandle;
+	item: MatchRow;
+}) {
+	if (secondaryActionsForLifecycle(item.lifecycle).length === 0) return null;
+	return (
+		<DropdownMenuTrigger
+			handle={handle}
+			payload={item}
+			render={
+				<Button
+					size="icon-xs"
+					variant="ghost"
+					aria-label={m["enrichment.more"]()}
+					className="rounded-full text-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 max-md:opacity-100"
+				/>
+			}
+		>
+			<DotsThreeVertical weight="bold" />
+		</DropdownMenuTrigger>
+	);
 }
 
-export function RowMenu({
+export function SharedRowMenu({ handlers }: { handlers: RowHandlers }) {
+	return (
+		<MenuPrimitive.Root handle={handlers.menu}>
+			{({ payload }) =>
+				payload ? (
+					<RowMenuContent
+						lifecycle={payload.lifecycle}
+						actions={handlers.actions(payload)}
+					/>
+				) : null
+			}
+		</MenuPrimitive.Root>
+	);
+}
+
+function RowMenuContent({
 	lifecycle,
 	actions,
 }: {
 	lifecycle: Lifecycle;
 	actions: RowActions;
 }) {
+	const items = {
+		cancelRetry: {
+			label: m["enrichment.cancel_retry"](),
+			onClick: actions.onCancelRetry,
+		},
+		approve: { label: m["enrichment.approve"](), onClick: actions.onApprove },
+		fix: { label: m["enrichment.fix_match"](), onClick: actions.onFix },
+		retry: {
+			label:
+				lifecycle === "scheduled"
+					? m["enrichment.action_retry_now"]()
+					: m["enrichment.retry"](),
+			// A finished book re-runs in refresh mode so providers get re-consulted.
+			onClick: lifecycle === "done" ? actions.onRefresh : actions.onRetry,
+		},
+	};
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					size="icon-xs"
-					variant="ghost"
-					aria-label={m["enrichment.more"]()}
-					className="rounded-full text-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 max-md:opacity-100"
-				>
-					<DotsThreeVertical weight="bold" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				{lifecycle === "scheduled" && (
-					<>
-						<DropdownMenuItem onClick={actions.onCancelRetry}>
-							{m["enrichment.cancel_retry"]()}
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={actions.onRetry}>
-							{m["enrichment.action_retry_now"]()}
-						</DropdownMenuItem>
-					</>
-				)}
-				{lifecycle === "review" && (
-					<DropdownMenuItem onClick={actions.onApprove}>
-						{m["enrichment.approve"]()}
-					</DropdownMenuItem>
-				)}
-				{lifecycle !== "running" && (
-					<DropdownMenuItem onClick={actions.onFix}>
-						{m["enrichment.fix_match"]()}
-					</DropdownMenuItem>
-				)}
-				{lifecycle === "done" ? (
-					<DropdownMenuItem onClick={actions.onRefresh}>
-						{m["enrichment.retry"]()}
-					</DropdownMenuItem>
-				) : (
-					lifecycle !== "running" &&
-					lifecycle !== "scheduled" && (
-						<DropdownMenuItem onClick={actions.onRetry}>
-							{m["enrichment.retry"]()}
-						</DropdownMenuItem>
-					)
-				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<DropdownMenuContent align="end">
+			{secondaryActionsForLifecycle(lifecycle).map((action) => (
+				<DropdownMenuItem key={action} onClick={items[action].onClick}>
+					{items[action].label}
+				</DropdownMenuItem>
+			))}
+		</DropdownMenuContent>
 	);
 }
 
 const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center";
+const CELL = "flex min-h-[88px] min-w-0 items-center bg-inherit px-1.5 py-2";

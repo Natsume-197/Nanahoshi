@@ -21,3 +21,21 @@ export function primaryActionForLifecycle(
 			return "details";
 	}
 }
+
+export type SecondaryRowAction = "approve" | "fix" | "retry" | "cancelRetry";
+
+/** What the row's ⋯ menu offers: everything available except the primary. */
+export function secondaryActionsForLifecycle(
+	lifecycle: EnrichmentLifecycle,
+): SecondaryRowAction[] {
+	const available: SecondaryRowAction[] =
+		lifecycle === "running"
+			? []
+			: lifecycle === "scheduled"
+				? ["cancelRetry", "retry"]
+				: lifecycle === "review"
+					? ["approve", "fix", "retry"]
+					: ["fix", "retry"];
+	const primary = primaryActionForLifecycle(lifecycle);
+	return available.filter((action) => action !== primary);
+}
