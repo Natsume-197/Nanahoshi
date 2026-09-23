@@ -1,6 +1,7 @@
 import { BadRequestError, NotFoundError } from "../../errors";
 import { providerGate } from "../../infrastructure/providerGate";
 import { providerQuotaScope } from "../../infrastructure/providerQuotaScope";
+import { candidateByline } from "../../modules/catalogEnrichment";
 import { resolveLifecycle } from "../../modules/metadataEnrichment/enrichment-lifecycle";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { metadataRetryProjection } from "../../modules/metadataRetry/metadata-retry.projection";
@@ -25,6 +26,7 @@ import type {
 	TargetSelectionInput,
 } from "./enrichment.model";
 import { enrichmentStateRepository } from "./enrichment.repository";
+import { remoteCoverUrl, toDetailMetadata } from "./provider-record";
 
 // Every known provider, both media types, for labels + gate status in the UI.
 const ALL_PROVIDER_MANIFESTS = [
@@ -143,6 +145,118 @@ export class EnrichmentService {
 			providerLabels: ALL_PROVIDER_LABELS,
 			providerUrlTemplates: ALL_PROVIDER_URL_TEMPLATES,
 		};
+	}
+
+	/**
+	 * Title, byline and cover of the primary match, so a reviewer can judge it
+	 * without leaving the tray. Rows written before matches carried a description
+	 * only have a provider id; those are looked up once and cached on the row.
+	 */
+	async matchPreview(serverId: string, bookUuid: string) {
+		const detail = await enrichmentStateRepository.detail(serverId, bookUuid);
+		const match = detail?.matched?.[0];
+		if (!detail || !match?.providerId) return null;
+		const stored = {
+			title: match.title ?? null,
+			byline: match.byline ?? null,
+			previewCover: match.previewCover ?? null,
+		};
+		if (stored.title && stored.previewCover) return stored;
+
+		let record: object | null;
+		try {
+			record = await this.#providerRecord(
+				detail,
+				match.provider,
+				match.providerId,
+			);
+		} catch {
+			// Cooldown or provider down: show what the row has, retry next open.
+			return stored;
+		}
+		if (!record) return stored;
+
+		const found = record as {
+			title?: string | null;
+			titleRomaji?: string | null;
+			cover?: unknown;
+		};
+		const cover = remoteCoverUrl(found.cover) ?? undefined;
+		const description = {
+			...((found.title ?? found.titleRomaji) && {
+				title: (found.title ?? found.titleRomaji) as string,
+			}),
+			...(candidateByline(record as Parameters<typeof candidateByline>[0]) && {
+				byline: candidateByline(
+					record as Parameters<typeof candidateByline>[0],
+				),
+			}),
+			...(cover && { previewCover: cover }),
+		};
+		const described = {
+			title: stored.title ?? description.title ?? null,
+			byline: stored.byline ?? description.byline ?? null,
+			previewCover: stored.previewCover ?? description.previewCover ?? null,
+		};
+		await enrichmentStateRepository.describePrimaryMatch(
+			detail.bookId,
+			{ provider: match.provider, providerId: match.providerId },
+			Object.fromEntries(
+				Object.entries(described).filter(([, value]) => value != null),
+			),
+		);
+		return described;
+	}
+
+	/**
+	 * A candidate's full record in the pane's comparison shape, fetched without
+	 * saving anything, so the user sees what choosing it would change.
+	 */
+	async candidatePreview(
+		serverId: string,
+		input: { bookUuid: string; provider: string; providerId: string },
+	) {
+		const detail = await enrichmentStateRepository.detail(
+			serverId,
+			input.bookUuid,
+		);
+		if (!detail) throw new NotFoundError("Book not found");
+		const record = await this.#providerRecord(
+			detail,
+			input.provider,
+			input.providerId,
+		);
+		if (!record) return null;
+		const found = record as { title?: string | null; cover?: unknown };
+		return {
+			title: found.title ?? null,
+			cover: remoteCoverUrl(found.cover),
+			metadata: toDetailMetadata(record),
+		};
+	}
+
+	async #providerRecord(
+		detail: { bookId: number; bookUuid: string; mediaType: string },
+		provider: string,
+		providerId: string,
+	): Promise<object | null> {
+		if (detail.mediaType === "audiobook") {
+			if (!(AUDIOBOOK_PROVIDER_IDS as readonly string[]).includes(provider))
+				return null;
+			const preview = await audiobookMetadataService.previewFromProvider(
+				provider as (typeof AUDIOBOOK_PROVIDER_IDS)[number],
+				detail.bookId,
+				providerId,
+			);
+			return preview?.metadata ?? null;
+		}
+		if (!(BOOK_PROVIDER_IDS as readonly string[]).includes(provider))
+			return null;
+		const preview = await bookMetadataService.previewFromProvider(
+			provider as (typeof BOOK_PROVIDER_IDS)[number],
+			{ bookId: detail.bookId, uuid: detail.bookUuid, providerId },
+		);
+		return preview?.metadata ?? null;
 	}
 
 	// Providers with an open breaker, for the "amazon en cooldown hasta…" strip.

@@ -46,6 +46,10 @@ export class CatalogProviderError extends Error {
 	}
 }
 
+// Every equally strong candidate is worth showing the person choosing; the
+// hydration budget already keeps this small in practice.
+const MAX_AMBIGUOUS_CANDIDATES = 5;
+
 // Hydrated covers are sometimes local store keys; only a URL can be previewed.
 function remoteCover(metadata: object): string | undefined {
 	const cover = (metadata as { cover?: unknown }).cover;
@@ -205,14 +209,16 @@ export async function runCatalogEnrichment<
 		acceptedEvidence.push(hydrated.evidence);
 		contributingProviders.push(provider.id);
 		const describedAs = policy.describe?.(hydrated.metadata);
+		const byline = policy.byline?.(hydrated.metadata);
+		const previewCover =
+			candidate.previewCover ?? remoteCover(hydrated.metadata);
 		matches.push({
 			provider: provider.id,
 			providerId: candidate.providerId,
 			...(primary && requiredPrimaryProviderId ? { manual: true } : {}),
 			...(describedAs && { title: describedAs }),
-			...(candidate.previewCover && {
-				previewCover: candidate.previewCover,
-			}),
+			...(byline && { byline }),
+			...(previewCover && { previewCover }),
 			...(primary && { reasons: [...reasons] }),
 		});
 		if (primary) {
@@ -428,7 +434,9 @@ export async function runCatalogEnrichment<
 					status: "no_match",
 					decision: {
 						kind: "ambiguous",
-						candidates: strongest.slice(0, 2).map(({ match }) => match),
+						candidates: strongest
+							.slice(0, MAX_AMBIGUOUS_CANDIDATES)
+							.map(({ match }) => match),
 					},
 					failures,
 					diagnostics: diagnostics(),

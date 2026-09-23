@@ -3,8 +3,10 @@ import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events
 import {
 	ActionableCountsInput,
 	ApproveEnrichmentInput,
+	CandidatePreviewInput,
 	EnrichmentDetailInput,
 	ListEnrichmentInput,
+	MatchPreviewInput,
 	ProviderStatusInput,
 	ResolveProviderFailuresInput,
 	RetryEnrichmentInput,
@@ -36,6 +38,18 @@ export const enrichmentRouter = {
 		.input(EnrichmentDetailInput)
 		.handler(async ({ input, context }) => {
 			return enrichmentService.detail(context.serverId, input.bookUuid);
+		}),
+
+	candidatePreview: requirePermission("library", "scan")
+		.input(CandidatePreviewInput)
+		.handler(async ({ input, context }) => {
+			return enrichmentService.candidatePreview(context.serverId, input);
+		}),
+
+	matchPreview: requirePermission("library", "scan")
+		.input(MatchPreviewInput)
+		.handler(async ({ input, context }) => {
+			return enrichmentService.matchPreview(context.serverId, input.bookUuid);
 		}),
 
 	providerStatus: requirePermission("library", "scan")

@@ -1074,6 +1074,8 @@ export type EnrichmentMatch = {
 	 * recorded.
 	 */
 	title?: string;
+	/** "Author · Publisher · Year" as the provider described the record. */
+	byline?: string;
 	/** Remote thumbnail used only to distinguish candidates during review. */
 	previewCover?: string | null;
 	/**

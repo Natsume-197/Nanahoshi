@@ -699,7 +699,9 @@ export class BookMetadataService {
 		return this.runProviderCall(name, quotaContext, () =>
 			provider.getById(input.providerId, {
 				...quotaContext,
-				uuid: input.uuid,
+				// Providers download the cover when given the book uuid; a preview
+				// must stay side-effect free and show the remote image instead.
+				...(!keepRemoteCover && { uuid: input.uuid }),
 				keepRemoteCover,
 			}),
 		);

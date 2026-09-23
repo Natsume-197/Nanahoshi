@@ -33,6 +33,7 @@ import {
 	consumesProviderAttempt,
 	MAX_PROVIDER_RETRY_ATTEMPTS,
 } from "../../modules/metadataRetry/metadata-retry.policy";
+import type { DetailMetadata } from "./provider-record";
 
 // Partial matches (a provider matched but critical data like authors is
 // missing — usually a transient hiccup) stay retryable across later scans,
@@ -758,6 +759,26 @@ export class EnrichmentStateRepository {
 	}
 
 	// Detail: state + per-field provenance for the origin inspector.
+	// Caches a looked-up description onto the primary match, but only while it is
+	// still the same record: a re-match in between must not inherit it.
+	async describePrimaryMatch(
+		bookId: number,
+		match: { provider: string; providerId: string },
+		description: { title?: string; byline?: string; previewCover?: string },
+	) {
+		await db.execute(sql`
+			UPDATE enrichment_state
+			SET matched = jsonb_set(
+				matched,
+				'{0}',
+				(matched->0) || ${JSON.stringify(description)}::jsonb
+			)
+			WHERE book_id = ${bookId}
+				AND matched->0->>'provider' = ${match.provider}
+				AND matched->0->>'providerId' = ${match.providerId}
+		`);
+	}
+
 	async detail(serverId: string, bookUuid: string) {
 		const { rows } = await db.execute(sql`
 			SELECT
@@ -776,6 +797,52 @@ export class EnrichmentStateRepository {
 				es.next_retry_at AS "nextRetryAt",
 				COALESCE(bm.field_sources, am.field_sources, '{}'::jsonb) AS "fieldSources",
 				COALESCE(bm.locked_fields, am.locked_fields, '{}'::text[]) AS "lockedFields",
+				jsonb_build_object(
+					'subtitle', COALESCE(bm.subtitle, am.subtitle),
+					'description', COALESCE(bm.description, am.description),
+					'publishedDate', COALESCE(bm.published_date, am.published_date),
+					'languageCode', COALESCE(bm.language_code, am.language_code),
+					'isbn', COALESCE(bm.isbn_13, bm.isbn_10, am.isbn),
+					'asin', COALESCE(bm.asin, am.asin),
+					'pageCount', bm.page_count,
+					'duration', am.duration,
+					'publisher', (
+						SELECT p.name FROM publisher p
+						WHERE p.id = COALESCE(bm.publisher_id, am.publisher_id)
+					),
+					'authors', (
+						SELECT COALESCE(jsonb_agg(people.name), '[]'::jsonb)
+						FROM (
+							SELECT a.name FROM book_author x JOIN author a ON a.id = x.author_id
+							WHERE x.book_id = b.id AND (x.role IS NULL OR x.role = 'Author')
+							UNION ALL
+							SELECT a.name FROM audiobook_author x JOIN author a ON a.id = x.author_id
+							WHERE x.book_id = b.id AND (x.role IS NULL OR x.role = 'Author')
+						) people
+					),
+					'narrators', (
+						SELECT COALESCE(jsonb_agg(n.name), '[]'::jsonb)
+						FROM book_narrator x JOIN narrator n ON n.id = x.narrator_id
+						WHERE x.book_id = b.id
+					),
+					'series', (
+						SELECT jsonb_build_object('name', s.name, 'position', links.position)
+						FROM (
+							SELECT series_id, position::text FROM book_series WHERE book_id = b.id
+							UNION ALL
+							SELECT series_id, position::text FROM audiobook_series WHERE book_id = b.id
+						) links JOIN series s ON s.id = links.series_id
+						LIMIT 1
+					),
+					'genres', (
+						SELECT COALESCE(jsonb_agg(g.name ORDER BY g.name), '[]'::jsonb)
+						FROM (
+							SELECT genre_id FROM book_genre WHERE book_id = b.id
+							UNION
+							SELECT genre_id FROM audiobook_genre WHERE book_id = b.id
+						) links JOIN genre g ON g.id = links.genre_id
+					)
+				) AS "metadata",
 				(
 					SELECT COALESCE(
 						jsonb_agg(
@@ -820,6 +887,7 @@ export class EnrichmentStateRepository {
 			nextRetryAt: string | null;
 			fieldSources: Record<string, { p: string; at: string }>;
 			lockedFields: string[];
+			metadata: DetailMetadata;
 			recentRuns: {
 				outcome: string;
 				diagnostics: EnrichmentRunDiagnostics;

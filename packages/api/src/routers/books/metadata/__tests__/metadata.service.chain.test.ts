@@ -1924,7 +1924,6 @@ describe("applyFromProvider (manual fix-match)", () => {
 		expect(openlibraryGetByIdSpy).toHaveBeenCalledWith("works/OL123W", {
 			serverId: "server-1",
 			amazonDomain: undefined,
-			uuid: "uuid-1",
 			keepRemoteCover: true,
 		});
 		expect(mockUpsertMetadata).not.toHaveBeenCalled();

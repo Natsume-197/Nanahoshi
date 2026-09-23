@@ -80,6 +80,14 @@ export const EnrichmentDetailInput = z.object({
 	bookUuid: z.string().uuid(),
 });
 
+export const MatchPreviewInput = EnrichmentDetailInput;
+
+export const CandidatePreviewInput = z.object({
+	bookUuid: z.string().uuid(),
+	provider: z.string().min(1).max(64),
+	providerId: z.string().min(1).max(256),
+});
+
 export const ProviderStatusInput = z.object({
 	libraryUuid: z.string().uuid().optional(),
 });
