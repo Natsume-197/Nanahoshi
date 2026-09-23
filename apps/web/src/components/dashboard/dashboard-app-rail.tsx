@@ -1,3 +1,4 @@
+import { ScrollArea } from "@base-ui/react/scroll-area";
 import {
 	BookOpen,
 	BookOpenText,
@@ -213,81 +214,89 @@ export function DashboardAppRail({
 			// also carries a title as an additional escape for narrow rail space.
 			className="theme-gradient-surface relative hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
 		>
-			<div
-				data-rail-content
-				// Padding lives on the scroller so the scrollbar sits at the window edge.
-				className="scrollbar-hover flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain px-2 rail-expanded:pe-1 pt-0 pb-2 rail-expanded:[scrollbar-gutter:stable]"
-			>
-				{railGroups.map((group) => (
-					<Fragment key={group.items[0].section}>
-						{group.label && <RailSectionTitle label={group.label()} />}
-						{group.items.map((item) => {
-							const active = item.section === section;
-							const disabled = item.needsCatalog ? catalogDisabled : false;
-							const label = item.label();
-							return (
-								<Link
-									key={item.section}
-									to={item.href}
-									preload="intent"
-									// Link's own prefix matching would call "/dashboard" current
-									// on every dashboard route. Exact matching silences it so
-									// resolveRailSection owns aria-current.
-									activeOptions={{ exact: true }}
-									aria-current={active ? "page" : undefined}
-									aria-disabled={disabled}
-									tabIndex={disabled ? -1 : undefined}
-									title={label}
-									className={blockClass(active, disabled)}
-								>
-									<BlockBody
-										icon={item.icon}
-										label={label}
-										active={active}
-										activeWeight={item.activeWeight ?? "fill"}
-									/>
-								</Link>
-							);
-						})}
-					</Fragment>
-				))}
+			<ScrollArea.Root className="min-h-0 w-full flex-1">
+				<ScrollArea.Viewport className="h-full overscroll-contain outline-none">
+					<ScrollArea.Content
+						data-rail-content
+						className="flex w-full flex-col items-center gap-0.5 px-2 pt-0 pb-2"
+					>
+						{railGroups.map((group) => (
+							<Fragment key={group.items[0].section}>
+								{group.label && <RailSectionTitle label={group.label()} />}
+								{group.items.map((item) => {
+									const active = item.section === section;
+									const disabled = item.needsCatalog ? catalogDisabled : false;
+									const label = item.label();
+									return (
+										<Link
+											key={item.section}
+											to={item.href}
+											preload="intent"
+											// Link's own prefix matching would call "/dashboard" current
+											// on every dashboard route. Exact matching silences it so
+											// resolveRailSection owns aria-current.
+											activeOptions={{ exact: true }}
+											aria-current={active ? "page" : undefined}
+											aria-disabled={disabled}
+											tabIndex={disabled ? -1 : undefined}
+											title={label}
+											className={blockClass(active, disabled)}
+										>
+											<BlockBody
+												icon={item.icon}
+												label={label}
+												active={active}
+												activeWeight={item.activeWeight ?? "fill"}
+											/>
+										</Link>
+									);
+								})}
+							</Fragment>
+						))}
 
-				{/* Your libraries sit just above your collections: both are "yours",
+						{/* Your libraries sit just above your collections: both are "yours",
 				    the browse axes above them span the whole catalog. */}
-				{libraries?.length ? (
-					<>
-						<RailSectionTitle label={m["nav.libraries"]()} />
-						{libraries.map((library) => {
-							const active = locationPathname.startsWith(
-								`/dashboard/libraries/${library.uuid}`,
-							);
-							const label = library.name ?? m["library.untitled"]();
-							const Icon =
-								library.mediaType === "audiobook" ? Headphones : BookOpen;
+						{libraries?.length ? (
+							<>
+								<RailSectionTitle label={m["nav.libraries"]()} />
+								{libraries.map((library) => {
+									const active = locationPathname.startsWith(
+										`/dashboard/libraries/${library.uuid}`,
+									);
+									const label = library.name ?? m["library.untitled"]();
+									const Icon =
+										library.mediaType === "audiobook" ? Headphones : BookOpen;
 
-							return (
-								<Link
-									key={library.uuid}
-									to="/dashboard/libraries/$uuid"
-									params={{ uuid: library.uuid }}
-									preload="intent"
-									aria-current={active ? "page" : undefined}
-									aria-disabled={catalogDisabled}
-									tabIndex={catalogDisabled ? -1 : undefined}
-									title={label}
-									className={blockClass(active, catalogDisabled)}
-								>
-									<BlockBody icon={Icon} label={label} active={active} />
-								</Link>
-							);
-						})}
-					</>
-				) : null}
+									return (
+										<Link
+											key={library.uuid}
+											to="/dashboard/libraries/$uuid"
+											params={{ uuid: library.uuid }}
+											preload="intent"
+											aria-current={active ? "page" : undefined}
+											aria-disabled={catalogDisabled}
+											tabIndex={catalogDisabled ? -1 : undefined}
+											title={label}
+											className={blockClass(active, catalogDisabled)}
+										>
+											<BlockBody icon={Icon} label={label} active={active} />
+										</Link>
+									);
+								})}
+							</>
+						) : null}
 
-				{!catalogDisabled && (
-					<MyLibrarySection locationPathname={locationPathname} />
-				)}
-			</div>
+						{!catalogDisabled && (
+							<MyLibrarySection locationPathname={locationPathname} />
+						)}
+					</ScrollArea.Content>
+				</ScrollArea.Viewport>
+				{/* Overlays the end padding, so it takes no room. Opacity (unlike a
+				    native thumb's color) fades smoothly. */}
+				<ScrollArea.Scrollbar className="flex w-2 opacity-0 transition-opacity delay-300 duration-500 ease-out-quart data-hovering:opacity-100 data-scrolling:opacity-100 data-hovering:delay-100 data-scrolling:delay-0 data-hovering:duration-200 data-scrolling:duration-100">
+					<ScrollArea.Thumb className="w-full bg-sidebar-foreground/35 transition-colors hover:bg-sidebar-foreground/50 active:bg-sidebar-foreground/65" />
+				</ScrollArea.Scrollbar>
+			</ScrollArea.Root>
 		</nav>
 	);
 }
