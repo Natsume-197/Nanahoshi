@@ -612,6 +612,29 @@ html[data-rail="expanded"] {
 	animation: marquee-loop var(--marquee-duration) linear infinite;
 }
 
+@keyframes now-playing-bar {
+	0%,
+	100% {
+		transform: scaleY(0.3);
+	}
+	50% {
+		transform: scaleY(1);
+	}
+}
+
+/* One bar of the now-playing equalizer; siblings stagger via animation-delay. */
+@utility now-playing-bar {
+	width: 0.1875rem;
+	height: 100%;
+	transform-origin: bottom;
+	border-radius: 9999px;
+	background: currentColor;
+	transform: scaleY(0.55);
+	&[data-playing] {
+		animation: now-playing-bar 900ms ease-in-out infinite;
+	}
+}
+
 /* Base UI keeps the popup mounted with starting/ending attributes. A CSS
    transition follows the panel's current position when it is reversed, unlike
    the generic Sheet keyframes, and lets close retrace the opening path. */
@@ -1033,6 +1056,10 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 		animation-iteration-count: 1;
 		transition-duration: 0.01ms;
 		scroll-behavior: auto;
+	}
+
+	.now-playing-bar[data-playing] {
+		animation: none;
 	}
 
 	.mobile-screen-sheet,

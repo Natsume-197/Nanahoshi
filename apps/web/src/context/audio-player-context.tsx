@@ -220,6 +220,13 @@ const AudioPlayerBookContext = createContext<AudiobookPlayerData | null>(null);
 // twice per play (start → ready), never on playback ticks, so the many memoized
 // book/resume cards that show a per-item play spinner don't re-render each tick.
 const AudioPlayerLoadingContext = createContext<string | null>(null);
+// Narrow subscription: which book is loaded and whether it's playing. Flips
+// only on play/pause/load, so resume cards can show a now-playing equalizer
+// without re-rendering on every playback tick.
+const AudioPlayerNowPlayingContext = createContext<{
+	uuid: string;
+	isPlaying: boolean;
+} | null>(null);
 const AudioPlayerExpandedContext = createContext(false);
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
@@ -1294,6 +1301,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		],
 	);
 
+	const nowPlayingUuid = audiobook?.uuid ?? null;
+	const nowPlaying = useMemo(
+		() => (nowPlayingUuid ? { uuid: nowPlayingUuid, isPlaying } : null),
+		[nowPlayingUuid, isPlaying],
+	);
+
 	return (
 		<AudioPlayerStateContext.Provider value={state}>
 			{playbackSync}
@@ -1301,9 +1314,11 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 				<AudioPlayerBookContext.Provider value={audiobook}>
 					<AudioPlayerLoadingContext.Provider value={loadingUuid}>
 						<AudioPlayerExpandedContext.Provider value={isExpanded}>
-							{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
-							<audio ref={audioRef} preload="auto" />
-							{children}
+							<AudioPlayerNowPlayingContext.Provider value={nowPlaying}>
+								{/* biome-ignore lint/a11y/useMediaCaption: audio player for user's own audiobooks */}
+								<audio ref={audioRef} preload="auto" />
+								{children}
+							</AudioPlayerNowPlayingContext.Provider>
 						</AudioPlayerExpandedContext.Provider>
 					</AudioPlayerLoadingContext.Provider>
 				</AudioPlayerBookContext.Provider>
@@ -1351,4 +1366,16 @@ export function useIsAudiobookLoading(uuid: string): boolean {
 /** Expanded mode, without subscribing to playback ticks. */
 export function useAudioPlayerExpanded(): boolean {
 	return useContext(AudioPlayerExpandedContext);
+}
+
+/**
+ * "playing" / "paused" when `uuid` is the loaded audiobook, else null. Never
+ * re-renders on playback ticks.
+ */
+export function useAudiobookPlaybackStatus(
+	uuid: string,
+): "playing" | "paused" | null {
+	const nowPlaying = useContext(AudioPlayerNowPlayingContext);
+	if (nowPlaying?.uuid !== uuid) return null;
+	return nowPlaying.isPlaying ? "playing" : "paused";
 }

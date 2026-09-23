@@ -12,6 +12,7 @@ import {
 	useHomeSectionLoadingPlaceholder,
 	useReportHomeSectionStatus,
 } from "./home-section-status";
+import { NowPlayingMeta } from "./now-playing-meta";
 import { resumeCardMeta } from "./resume-meta";
 import { DASHBOARD_LIMIT, ResumeSectionSkeleton } from "./section-skeleton";
 
@@ -96,7 +97,8 @@ export const ContinueSection = memo(function ContinueSection({
 		<ScrollSection
 			title={title}
 			layout="resume"
-			restoreId={`continue-${format}`}
+			// No scroll restore: the rail is ordered by recency, so on return
+			// the front already holds what the user just read or listened to.
 		>
 			{entries.map((item, index) => (
 				<BookContextMenuTrigger
@@ -113,7 +115,15 @@ export const ContinueSection = memo(function ContinueSection({
 						cover={item.cover}
 						authors={item.authors}
 						mediaType={item.mediaType}
-						meta={resumeCardMeta(item.mediaType, item.progress)}
+						meta={
+							item.mediaType === "audiobook" ? (
+								<NowPlayingMeta uuid={item.uuid}>
+									{resumeCardMeta(item.mediaType, item.progress)}
+								</NowPlayingMeta>
+							) : (
+								resumeCardMeta(item.mediaType, item.progress)
+							)
+						}
 						tint={item.mainColor}
 						orientation="horizontal"
 						contextMenuEnabled={false}
