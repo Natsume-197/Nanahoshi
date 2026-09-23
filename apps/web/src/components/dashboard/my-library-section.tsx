@@ -59,7 +59,7 @@ const rowClass = (active: boolean) =>
 		// shared text column.
 		"rail-expanded:justify-start rail-expanded:gap-3 rail-expanded:py-1 rail-expanded:ps-[calc(var(--rail-row-inset)+11px)] rail-expanded:pe-2",
 		active
-			? "rail-expanded:bg-sidebar-accent/80"
+			? "rail-expanded:bg-nav-active"
 			: "rail-expanded:hover:bg-sidebar-accent/40",
 		// Collapsed there is no row fill, so the artwork carries the state.
 		active

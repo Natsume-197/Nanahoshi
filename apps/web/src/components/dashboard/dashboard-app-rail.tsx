@@ -143,7 +143,7 @@ const blockClass = (active: boolean, disabled: boolean) =>
 		// Expanded, the icon plate goes transparent, so the current destination
 		// needs the row itself to carry the fill the plate carries collapsed.
 		active
-			? "rail-expanded:bg-sidebar-accent/80 rail-expanded:font-semibold"
+			? "rail-expanded:bg-nav-active rail-expanded:font-semibold"
 			: "rail-expanded:hover:bg-sidebar-accent/40 rail-expanded:hover:text-sidebar-foreground rail-expanded:aria-expanded:bg-sidebar-accent/40",
 		disabled && "pointer-events-none opacity-40",
 	);
