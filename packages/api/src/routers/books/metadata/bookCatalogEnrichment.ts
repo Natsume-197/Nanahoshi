@@ -3,6 +3,7 @@ import {
 	type CatalogEnrichmentPolicy,
 	type CatalogProviderAdapter,
 	CatalogProviderError,
+	candidateByline,
 	runCatalogEnrichment,
 	withProviderGate,
 } from "../../../modules/catalogEnrichment";
@@ -354,6 +355,7 @@ function bookPolicy(
 			buildDiscoveryProjection(bookMetadataIdentityEvidence(metadata)),
 		rank: () => 1,
 		describe: (metadata) => metadata.titleRomaji ?? metadata.title ?? undefined,
+		byline: candidateByline,
 		shouldRun: (provider, metadata) => {
 			// Asked before anything else, and unaffected by `refresh`: a provider
 			// that does not catalog this form of book has nothing to say about it,

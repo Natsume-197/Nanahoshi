@@ -79,7 +79,12 @@ export function MatchManager() {
 	const urlSearch = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 
-	const bucket = urlSearch.bucket ?? DEFAULT_BUCKET;
+	// Without an explicit bucket the tray opens on "attention"; once that turns
+	// out empty it settles on every book for the rest of the visit, so a poll
+	// that brings new work in never yanks the view away.
+	const [emptyDefault, setEmptyDefault] = useState(false);
+	const bucket =
+		urlSearch.bucket ?? (emptyDefault ? ALL_BUCKETS : DEFAULT_BUCKET);
 	const libraryUuid = urlSearch.library ?? ALL_LIBRARIES;
 	const sort = urlSearch.sort;
 	const onlyFailures = urlSearch.failures ?? false;
@@ -115,7 +120,7 @@ export function MatchManager() {
 	const singleLibrary = libraryUuid !== ALL_LIBRARIES;
 	// Built by the same helper the route loader uses, so the prefetched entry
 	// lands under this exact query key.
-	const listInput = listInputFromSearch(urlSearch);
+	const listInput = listInputFromSearch({ ...urlSearch, bucket });
 	const offset = listInput.offset;
 	const {
 		sort: _sort,
@@ -187,6 +192,18 @@ export function MatchManager() {
 				inProgressCount: query.state.data?.counts?.in_progress,
 			}),
 	});
+	if (
+		!urlSearch.bucket &&
+		!emptyDefault &&
+		data &&
+		!isPlaceholderData &&
+		data.counts.attention === 0
+	) {
+		setEmptyDefault(true);
+	}
+	// While the default falls back, the placeholder is the empty attention page;
+	// keep the skeleton up instead of flashing "nothing here".
+	const showSkeleton = isLoading || (isPlaceholderData && !data?.items.length);
 	const { data: libraries } = useQuery(
 		orpc.libraries.getLibrariesOverview.queryOptions(),
 	);
@@ -622,7 +639,7 @@ export function MatchManager() {
 					<div className="min-h-0 flex-1 overflow-auto overscroll-contain">
 						{/* Mirrors the loaded geometry exactly — dense 38px header over
 						    52px rows — so nothing shifts when the data lands. */}
-						{isLoading && (
+						{showSkeleton && (
 							<>
 								<div className="divide-y xl:hidden">
 									{SKELETON_ROWS.slice(0, 6).map((id) => (
@@ -678,7 +695,7 @@ export function MatchManager() {
 							</>
 						)}
 
-						{!isLoading && items.length === 0 && (
+						{!showSkeleton && items.length === 0 && (
 							<EmptyState
 								title={m["enrichment.empty_title"]()}
 								description={emptyDescription}
@@ -697,7 +714,7 @@ export function MatchManager() {
 							</EmptyState>
 						)}
 
-						{!isLoading && items.length > 0 && (
+						{!showSkeleton && items.length > 0 && (
 							<MatchResults
 								table={table}
 								desktopTable={desktopTable}

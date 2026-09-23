@@ -4,6 +4,7 @@ import {
 	type CatalogEnrichmentPolicy,
 	type CatalogProviderAdapter,
 	CatalogProviderError,
+	candidateByline,
 	runCatalogEnrichment,
 } from ".";
 
@@ -331,6 +332,52 @@ describe("Catalog Enrichment Pipeline", () => {
 
 		expect(hydratedIds).toEqual(["duplicate", "valid"]);
 		expect(result.status).toBe("matched");
+	});
+
+	test("ambiguous candidates carry a byline and fall back to a hydrated cover", async () => {
+		const provider: CatalogProviderAdapter<TestProvider, TestMetadata> = {
+			id: "first",
+			discover: async () =>
+				["edition-1", "edition-2"].map((providerId) => ({
+					providerId,
+					metadata: { title: "Great Story" },
+					evidence: audiobookEvidence("Great Story"),
+				})),
+			hydrate: async (candidate) => ({
+				metadata: {
+					title: "Great Story",
+					authors: [{ name: "Ada" }],
+					cover:
+						candidate.providerId === "edition-1"
+							? "https://example.com/e1.jpg"
+							: "covers/local-key.jpg",
+				} as TestMetadata,
+				evidence: audiobookEvidence("Great Story"),
+			}),
+		};
+
+		const result = await runCatalogEnrichment({
+			initialMetadata: { title: "Great Story" },
+			initialEvidence: audiobookEvidence("Great Story"),
+			providers: [provider],
+			policy: {
+				...policy,
+				describe: (metadata) => metadata.title ?? undefined,
+				byline: (metadata) =>
+					candidateByline({ authors: metadata.authors ?? null }),
+			},
+		});
+
+		if (result.status !== "no_match" || result.decision?.kind !== "ambiguous")
+			throw new Error("expected an ambiguous decision");
+		const [first, second] = result.decision.candidates;
+		expect(first).toMatchObject({
+			title: "Great Story",
+			byline: "Ada",
+			previewCover: "https://example.com/e1.jpg",
+		});
+		// A store key is not a URL the reviewer's browser can load.
+		expect(second?.previewCover).toBeUndefined();
 	});
 
 	test("keeps equally confirmable primary candidates unresolved", async () => {
@@ -701,5 +748,24 @@ describe("what the automatic match picked", () => {
 		expect(result.status).toBe("matched");
 		if (result.status !== "matched") return;
 		expect(result.matches[0]?.title).toBeUndefined();
+	});
+});
+
+describe("candidateByline", () => {
+	test("joins up to two authors, publisher and year", () => {
+		expect(
+			candidateByline({
+				authors: [{ name: "Ada" }, { name: "Bo" }, { name: "Cy" }],
+				publisher: { name: "Dengeki Bunko" },
+				publishedDate: "2008-04-10",
+			}),
+		).toBe("Ada, Bo · Dengeki Bunko · 2008");
+	});
+
+	test("accepts a plain-string publisher and skips missing parts", () => {
+		expect(candidateByline({ publisher: "Audible" })).toBe("Audible");
+		expect(candidateByline({ authors: [], publishedDate: "n/a" })).toBe(
+			undefined,
+		);
 	});
 });

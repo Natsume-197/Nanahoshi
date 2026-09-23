@@ -1,5 +1,6 @@
 export {
 	CatalogProviderError,
+	candidateByline,
 	runCatalogEnrichment,
 } from "./catalogEnrichment";
 export { withProviderGate } from "./provider-gate.adapter";

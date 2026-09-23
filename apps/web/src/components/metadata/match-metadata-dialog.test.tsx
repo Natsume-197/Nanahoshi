@@ -55,6 +55,7 @@ function mount(props: Partial<Parameters<typeof FixMatchDialog>[0]> = {}) {
 				fallbackIcon={null}
 				search={async () => []}
 				apply={async () => true}
+				searchKey={["books", "book-1"]}
 				{...props}
 			/>
 		</QueryClientProvider>,
@@ -113,5 +114,55 @@ describe("FixMatchDialog provider collaboration", () => {
 		fireEvent.click(view.getByRole("button", { name: /use/i }));
 		await waitFor(() => expect(apply).toHaveBeenCalled());
 		expect(apply.mock.calls[0]?.[1]).toEqual(["description"]);
+	});
+
+	test("searches with the known title as soon as it opens", async () => {
+		const search = mock(async ({ provider }: { provider: string }) => [
+			{
+				provider,
+				providerId: "1",
+				title: `Dune via ${provider}`,
+				metaLines: [],
+			},
+		]);
+		const view = mount({ search });
+		await waitFor(() => expect(view.getByText("Dune via one")).toBeTruthy());
+		expect(view.getByText("Dune via two")).toBeTruthy();
+		expect(search).toHaveBeenCalledTimes(2);
+		expect(search.mock.calls[0]?.[0]).toMatchObject({ title: "Dune" });
+	});
+
+	test("lists the matcher's candidates first and never twice", async () => {
+		const view = mount({
+			providers: [{ id: "one", label: "One" }],
+			suggestions: [
+				{
+					provider: "one",
+					providerId: "1",
+					title: "Dune (1965)",
+					metaLines: [],
+				},
+				// Not offered here any more, so it could not be applied.
+				{ provider: "gone", providerId: "9", title: "Orphan", metaLines: [] },
+			],
+			search: async () => [
+				{
+					provider: "one",
+					providerId: "1",
+					title: "Dune again",
+					metaLines: [],
+				},
+				{
+					provider: "one",
+					providerId: "2",
+					title: "Dune Messiah",
+					metaLines: [],
+				},
+			],
+		});
+		expect(view.getByText("Dune (1965)")).toBeTruthy();
+		expect(view.queryByText("Orphan")).toBeNull();
+		await waitFor(() => expect(view.getByText("Dune Messiah")).toBeTruthy());
+		expect(view.queryByText("Dune again")).toBeNull();
 	});
 });

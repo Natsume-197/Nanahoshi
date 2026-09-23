@@ -291,6 +291,8 @@ export function FixMatchDialog({
 	previewFields = PREVIEW_FIELDS,
 	current,
 	apply,
+	searchKey,
+	suggestions: allSuggestions = [],
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -310,18 +312,26 @@ export function FixMatchDialog({
 	previewFields?: readonly string[];
 	current?: Record<string, unknown>;
 	apply: (candidate: MatchCandidate, fields?: string[]) => Promise<boolean>;
+	/** Identifies the item so the opening search is cached per book. */
+	searchKey: readonly unknown[];
+	/** Candidates the matcher already found; listed above the search results. */
+	suggestions?: MatchCandidate[];
 }) {
 	const router = useRouter();
+	// A suggestion from a provider this server no longer offers can't be applied.
+	const suggestions = allSuggestions.filter((candidate) =>
+		providers.some(({ id }) => id === candidate.provider),
+	);
 	const [selectedProviders, setSelectedProviders] = useState(
 		() => new Set(providers.map(({ id }) => id)),
 	);
 	const [title, setTitle] = useState(initialTitle);
 	const [author, setAuthor] = useState(initialAuthor ?? "");
 	const [asin, setAsin] = useState(initialAsin ?? "");
-	const [results, setResults] = useState<MatchCandidate[] | null>(null);
-	const [providerOutcomes, setProviderOutcomes] = useState<
-		ProviderSearchOutcome[]
-	>([]);
+	const [manualSearch, setManualSearch] = useState<{
+		candidates: MatchCandidate[];
+		outcomes: ProviderSearchOutcome[];
+	} | null>(null);
 	const [previewCandidate, setPreviewCandidate] =
 		useState<MatchCandidate | null>(null);
 	const [previewData, setPreviewData] = useState<Record<
@@ -338,51 +348,85 @@ export function FixMatchDialog({
 		selectedProviders.size > 0 &&
 		(title.trim() !== "" || (showAsin && asin.trim() !== ""));
 
+	const runSearch = async (query: {
+		providerIds: string[];
+		title: string;
+		author: string;
+		asin: string;
+		withAsin: boolean;
+	}) => {
+		const ids = query.providerIds;
+		const settled = await Promise.allSettled(
+			ids.map(async (provider) => {
+				const startedAt = performance.now();
+				const candidates = await search({
+					provider,
+					title: query.title.trim() || undefined,
+					author: query.author.trim() || undefined,
+					asin: query.withAsin ? query.asin.trim() || undefined : undefined,
+				});
+				return {
+					provider,
+					candidates,
+					durationMs: Math.round(performance.now() - startedAt),
+				};
+			}),
+		);
+		return {
+			candidates: settled.flatMap((entry) =>
+				entry.status === "fulfilled" ? entry.value.candidates : [],
+			),
+			outcomes: settled.map((entry, index): ProviderSearchOutcome => {
+				const provider = ids[index] ?? "provider";
+				if (entry.status === "rejected") {
+					return {
+						provider,
+						status: providerFailureStatus(entry.reason),
+						count: 0,
+						durationMs: 0,
+					};
+				}
+				return {
+					provider,
+					status: entry.value.candidates.length > 0 ? "found" : "no_results",
+					count: entry.value.candidates.length,
+					durationMs: entry.value.durationMs,
+				};
+			}),
+		};
+	};
+
+	// Opening the dialog already knows the title, so the first search runs by
+	// itself; the button is for refining it.
+	const initialQuery = {
+		providerIds: providers.map(({ id }) => id),
+		title: initialTitle,
+		author: initialAuthor ?? "",
+		asin: initialAsin ?? "",
+		withAsin: providers.some((option) => option.supportsAsin),
+	};
+	const initialSearch = useQuery({
+		queryKey: ["fix-match-search", ...searchKey, initialQuery],
+		queryFn: () => runSearch(initialQuery),
+		enabled:
+			open &&
+			initialQuery.providerIds.length > 0 &&
+			(initialQuery.title.trim() !== "" || initialQuery.asin.trim() !== ""),
+		staleTime: 5 * 60 * 1000,
+		retry: false,
+	});
+
 	const searchMutation = useMutation({
-		mutationFn: async () => {
-			const ids = [...selectedProviders];
-			const settled = await Promise.allSettled(
-				ids.map(async (provider) => {
-					const startedAt = performance.now();
-					const candidates = await search({
-						provider,
-						title: title.trim() || undefined,
-						author: author.trim() || undefined,
-						asin: showAsin ? asin.trim() || undefined : undefined,
-					});
-					return {
-						provider,
-						candidates,
-						durationMs: Math.round(performance.now() - startedAt),
-					};
-				}),
-			);
-			return {
-				candidates: settled.flatMap((entry) =>
-					entry.status === "fulfilled" ? entry.value.candidates : [],
-				),
-				outcomes: settled.map((entry, index): ProviderSearchOutcome => {
-					const provider = ids[index] ?? "provider";
-					if (entry.status === "rejected") {
-						return {
-							provider,
-							status: providerFailureStatus(entry.reason),
-							count: 0,
-							durationMs: 0,
-						};
-					}
-					return {
-						provider,
-						status: entry.value.candidates.length > 0 ? "found" : "no_results",
-						count: entry.value.candidates.length,
-						durationMs: entry.value.durationMs,
-					};
-				}),
-			};
-		},
+		mutationFn: () =>
+			runSearch({
+				providerIds: [...selectedProviders],
+				title,
+				author,
+				asin,
+				withAsin: showAsin,
+			}),
 		onSuccess: ({ candidates, outcomes }) => {
-			setResults(candidates);
-			setProviderOutcomes(outcomes);
+			setManualSearch({ candidates, outcomes });
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, m["match.failed"]()));
@@ -443,6 +487,38 @@ export function FixMatchDialog({
 		searchMutation.isPending ||
 		previewMutation.isPending ||
 		applyMutation.isPending;
+	const shownSearch = manualSearch ?? initialSearch.data ?? null;
+	const providerOutcomes = shownSearch?.outcomes ?? [];
+	const searching =
+		searchMutation.isPending ||
+		(manualSearch == null && initialSearch.isFetching);
+	const suggestionKeys = new Set(
+		suggestions.map(({ provider, providerId }) => `${provider}:${providerId}`),
+	);
+	// A suggestion the search finds again stays in its own section only.
+	const results =
+		shownSearch?.candidates.filter(
+			({ provider, providerId }) =>
+				!suggestionKeys.has(`${provider}:${providerId}`),
+		) ?? null;
+	const renderCandidate = (candidate: MatchCandidate) => (
+		<CandidateRow
+			key={`${candidate.provider}-${candidate.providerId}`}
+			candidate={candidate}
+			coverClass={coverClass}
+			fallbackIcon={fallbackIcon}
+			applying={
+				applyMutation.isPending &&
+				applyMutation.variables?.candidate.providerId === candidate.providerId
+			}
+			disabled={busy}
+			onApply={() =>
+				preview
+					? previewMutation.mutate(candidate)
+					: applyMutation.mutate({ candidate })
+			}
+		/>
+	);
 
 	return (
 		<Modal
@@ -651,7 +727,7 @@ export function FixMatchDialog({
 								disabled={busy || !canSearch}
 								className={cn(showAsin && "ml-auto")}
 							>
-								{searchMutation.isPending ? (
+								{searching ? (
 									<CircleNotch className="size-4 animate-spin" />
 								) : (
 									<MagnifyingGlass className="size-4" />
@@ -660,8 +736,23 @@ export function FixMatchDialog({
 							</Button>
 						</div>
 
+						{suggestions.length > 0 && (
+							<section className="space-y-2">
+								<h3 className="font-medium text-muted-foreground text-xs">
+									{m["match.suggested_title"]()}
+								</h3>
+								<ul className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+									{suggestions.map(renderCandidate)}
+								</ul>
+							</section>
+						)}
+						{suggestions.length > 0 && (
+							<h3 className="font-medium text-muted-foreground text-xs">
+								{m["match.search_results_title"]()}
+							</h3>
+						)}
 						<div className="rounded-lg border border-border/60 bg-muted/20">
-							{searchMutation.isPending ? (
+							{searching ? (
 								<ul className="space-y-2 p-3">
 									{[0, 1, 2].map((i) => (
 										<li key={i} className="flex items-center gap-3 p-1">
@@ -691,25 +782,7 @@ export function FixMatchDialog({
 								/>
 							) : (
 								<ul className="max-h-[45vh] space-y-2 overflow-y-auto p-3">
-									{results.map((candidate) => (
-										<CandidateRow
-											key={`${candidate.provider}-${candidate.providerId}`}
-											candidate={candidate}
-											coverClass={coverClass}
-											fallbackIcon={fallbackIcon}
-											applying={
-												applyMutation.isPending &&
-												applyMutation.variables?.candidate.providerId ===
-													candidate.providerId
-											}
-											disabled={busy}
-											onApply={() =>
-												preview
-													? previewMutation.mutate(candidate)
-													: applyMutation.mutate({ candidate })
-											}
-										/>
-									))}
+									{results.map(renderCandidate)}
 								</ul>
 							)}
 						</div>
@@ -767,6 +840,7 @@ export function BookMatchDialog({
 	initialTitle,
 	initialAuthor,
 	initialAsin,
+	suggestions,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -774,6 +848,7 @@ export function BookMatchDialog({
 	initialTitle: string;
 	initialAuthor?: string;
 	initialAsin?: string | null;
+	suggestions?: MatchCandidate[];
 }) {
 	// Only offer tabs for providers that are enabled and configured for this
 	// tenant — an unkeyed Comicvine/Hardcover tab can only return "no results".
@@ -806,6 +881,8 @@ export function BookMatchDialog({
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
 			initialAsin={initialAsin}
+			searchKey={["books", bookUuid]}
+			suggestions={suggestions}
 			coverClass="h-16 w-11"
 			fallbackIcon={<BookOpen className="size-5 text-muted-foreground/40" />}
 			current={current as Record<string, unknown> | undefined}
@@ -890,6 +967,7 @@ export function AudiobookMatchDialog({
 	initialTitle,
 	initialAuthor,
 	initialAsin,
+	suggestions,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -897,6 +975,7 @@ export function AudiobookMatchDialog({
 	initialTitle: string;
 	initialAuthor?: string;
 	initialAsin?: string | null;
+	suggestions?: MatchCandidate[];
 }) {
 	const { data: current } = useQuery(
 		orpc.audiobooks.getDetails.queryOptions({
@@ -915,6 +994,8 @@ export function AudiobookMatchDialog({
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
 			initialAsin={initialAsin}
+			searchKey={["audiobooks", audiobookUuid]}
+			suggestions={suggestions}
 			coverClass="size-14"
 			fallbackIcon={<Headphones className="size-5 text-muted-foreground/40" />}
 			previewFields={AUDIOBOOK_PREVIEW_FIELDS}

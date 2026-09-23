@@ -22,12 +22,15 @@ export function lifecycleNavCount(
 	_counts: BucketCounts,
 	lifecycleCounts: LifecycleCounts,
 ): number | undefined {
-	if (lifecycle === "review" && lifecycleCounts) {
+	if (lifecycleCounts == null) return undefined;
+	if (lifecycle === "review") {
 		return (
 			(lifecycleCounts.review ?? 0) +
 			(lifecycleCounts.unresolved ?? 0) +
 			(lifecycleCounts.partial ?? 0)
 		);
 	}
-	return lifecycleCounts?.[lifecycle];
+	// The API omits empty lifecycles, so once counts have loaded a missing key
+	// is a real zero rather than "unknown".
+	return lifecycleCounts[lifecycle] ?? 0;
 }

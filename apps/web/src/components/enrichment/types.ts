@@ -7,6 +7,7 @@ export type MatchDecisionCandidate = {
 	provider: string;
 	providerId: string;
 	title?: string;
+	byline?: string;
 	previewCover?: string | null;
 	reasons?: string[];
 };

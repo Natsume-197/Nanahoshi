@@ -60,6 +60,8 @@ export type CatalogEnrichmentPolicy<
 	 * see what the pipeline picked without re-querying the provider.
 	 */
 	describe?(metadata: Partial<TMetadata>): string | undefined;
+	/** Secondary line (authors · publisher · year) telling apart same-title editions. */
+	byline?(metadata: Partial<TMetadata>): string | undefined;
 	merge(
 		metadata: TMetadata,
 		incoming: Partial<TMetadata>,
@@ -113,6 +115,7 @@ export type CatalogEnrichmentMatch<TProvider extends string> = {
 	manual?: boolean;
 	/** The candidate as the provider described it, for human review. */
 	title?: string;
+	byline?: string;
 	previewCover?: string | null;
 	/** Identity reasons behind the primary match; only set on the first entry. */
 	reasons?: string[];

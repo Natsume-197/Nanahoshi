@@ -46,6 +46,34 @@ export class CatalogProviderError extends Error {
 	}
 }
 
+// Hydrated covers are sometimes local store keys; only a URL can be previewed.
+function remoteCover(metadata: object): string | undefined {
+	const cover = (metadata as { cover?: unknown }).cover;
+	return typeof cover === "string" && /^https?:\/\//.test(cover)
+		? cover
+		: undefined;
+}
+
+/** "Author, Author · Publisher · 2019" from whatever the provider returned. */
+export function candidateByline(metadata: {
+	authors?: readonly { name: string }[] | null;
+	publisher?: { name: string } | string | null;
+	publishedDate?: string | null;
+}): string | undefined {
+	const authors = (metadata.authors ?? [])
+		.map(({ name }) => name.trim())
+		.filter(Boolean)
+		.slice(0, 2)
+		.join(", ");
+	const publisher =
+		typeof metadata.publisher === "string"
+			? metadata.publisher
+			: metadata.publisher?.name;
+	const year = metadata.publishedDate?.match(/\d{4}/)?.[0];
+	const parts = [authors, publisher?.trim(), year].filter(Boolean);
+	return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
 function providerFailure<TProvider extends string>(
 	provider: TProvider,
 	phase: CatalogEnrichmentFailure<TProvider>["phase"],
@@ -370,6 +398,9 @@ export async function runCatalogEnrichment<
 					(reason) => reason !== "group.member_confirmed",
 				);
 				const describedAs = policy.describe?.(hydrated.metadata);
+				const byline = policy.byline?.(hydrated.metadata);
+				const previewCover =
+					candidate.previewCover ?? remoteCover(hydrated.metadata);
 				confirmed.push({
 					candidate,
 					hydrated,
@@ -378,9 +409,8 @@ export async function runCatalogEnrichment<
 						provider: provider.id,
 						providerId: candidate.providerId,
 						...(describedAs && { title: describedAs }),
-						...(candidate.previewCover && {
-							previewCover: candidate.previewCover,
-						}),
+						...(byline && { byline }),
+						...(previewCover && { previewCover }),
 						reasons,
 					},
 				});

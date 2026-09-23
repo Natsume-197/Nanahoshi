@@ -29,7 +29,9 @@ export type BucketFilter = EnrichmentBucket | typeof ALL_BUCKETS;
 export const PAGE_SIZE = 50;
 export const ALL_LIBRARIES = "__all__";
 export const ALL_TYPES = "__all_types__" as const;
-export const DEFAULT_BUCKET: BucketFilter = ALL_BUCKETS;
+// The tray opens on what needs a decision; the component falls back to every
+// book when that bucket is empty.
+export const DEFAULT_BUCKET: BucketFilter = "attention";
 export const DEFAULT_SORT: EnrichmentSort = "updated.desc";
 
 // Mirror of LIFECYCLE_BUCKET in the API's enrichment-lifecycle module: every

@@ -63,10 +63,14 @@ function DetailActions({
 	lifecycle,
 	busy,
 	actions,
+	hasCandidates,
 }: {
 	lifecycle: Lifecycle;
 	busy: boolean;
 	actions: RowActions;
+	/** Candidates are listed below with their own "Choose", so searching
+	 * elsewhere is the fallback, not the main path. */
+	hasCandidates: boolean;
 }) {
 	const primary = () => {
 		switch (lifecycle) {
@@ -93,7 +97,11 @@ function DetailActions({
 			case "no_match":
 			case "partial":
 				return (
-					<Button size="sm" onClick={actions.onFix}>
+					<Button
+						size="sm"
+						variant={hasCandidates ? "outline" : "default"}
+						onClick={actions.onFix}
+					>
 						<PencilSimple data-icon="inline-start" />
 						{m["enrichment.fix_match"]()}
 					</Button>
@@ -392,6 +400,7 @@ export function MatchDetailPanel({
 										lifecycle={item.lifecycle}
 										busy={busy}
 										actions={actions}
+										hasCandidates={ambiguousCandidates.length > 0}
 									/>
 								</div>
 							</section>
@@ -419,20 +428,35 @@ export function MatchDetailPanel({
 													loading="lazy"
 													decoding="async"
 													className={cn(
-														"h-14 w-10 shrink-0 rounded object-cover ring-1 ring-foreground/10",
+														"h-16 w-11 shrink-0 rounded object-cover ring-1 ring-foreground/10",
 														COVER_EDGE,
 													)}
 												/>
 											) : (
-												<span className="h-14 w-10 shrink-0 rounded bg-muted ring-1 ring-foreground/10" />
+												<span className="h-16 w-11 shrink-0 rounded bg-muted ring-1 ring-foreground/10" />
 											)}
 											<div className="min-w-0 flex-1">
-												<p className="truncate font-medium text-sm">
-													{candidate.title ?? candidate.providerId}
+												<p className="line-clamp-2 font-medium text-sm leading-snug">
+													{candidate.title ?? (
+														<span className="font-normal text-muted-foreground">
+															{m["enrichment.candidate_no_details"]()}
+														</span>
+													)}
 												</p>
-												<p className="truncate text-muted-foreground text-xs">
-													{labels[candidate.provider] ?? candidate.provider}
-												</p>
+												{candidate.byline && (
+													<p className="truncate text-muted-foreground text-xs">
+														{candidate.byline}
+													</p>
+												)}
+												<div className="mt-1 flex flex-wrap items-center gap-1.5">
+													<span className="text-muted-foreground text-xs">
+														{labels[candidate.provider] ?? candidate.provider}
+														{!candidate.title && ` · ${candidate.providerId}`}
+													</span>
+													{candidate.reasons?.length ? (
+														<MatchReasonChip reasons={candidate.reasons} />
+													) : null}
+												</div>
 											</div>
 											{url && (
 												<a

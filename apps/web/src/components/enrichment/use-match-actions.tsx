@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import {
 	AudiobookMatchDialog,
 	BookMatchDialog,
+	type MatchCandidate,
 } from "@/components/metadata/match-metadata-dialog";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { m } from "@/paraglide/messages";
 import { client, orpc } from "@/utils/orpc";
+import { resolveAmbiguousCandidates } from "./ambiguous-decision";
 import { ApprovalReasonBreakdown } from "./approval-reason-breakdown";
 import { ALL_LIBRARIES } from "./filters";
 import { MatchReasonChip } from "./lifecycle";
@@ -19,6 +21,7 @@ type FixTarget = {
 	bookUuid: string;
 	title: string;
 	mediaType: "ebook" | "audiobook";
+	suggestions: MatchCandidate[];
 };
 
 type TargetInput = Parameters<typeof client.enrichment.approvalPreview>[0];
@@ -200,6 +203,16 @@ export function useMatchActions({
 			bookUuid: item.bookUuid,
 			title: item.title ?? "",
 			mediaType: item.mediaType,
+			// The matcher's own candidates lead the dialog, ahead of a fresh search.
+			suggestions: resolveAmbiguousCandidates(item.decision, null).map(
+				(candidate) => ({
+					provider: candidate.provider,
+					providerId: candidate.providerId,
+					title: candidate.title ?? candidate.providerId,
+					metaLines: candidate.byline ? [candidate.byline] : [],
+					previewCover: candidate.previewCover,
+				}),
+			),
 		});
 
 	const rowActions = (item: MatchRow): RowActions => ({
@@ -348,6 +361,7 @@ export function useMatchActions({
 					}}
 					bookUuid={fixTarget.bookUuid}
 					initialTitle={fixTarget.title}
+					suggestions={fixTarget.suggestions}
 				/>
 			)}
 			{fixTarget?.mediaType === "audiobook" && (
@@ -361,6 +375,7 @@ export function useMatchActions({
 					}}
 					audiobookUuid={fixTarget.bookUuid}
 					initialTitle={fixTarget.title}
+					suggestions={fixTarget.suggestions}
 				/>
 			)}
 		</>

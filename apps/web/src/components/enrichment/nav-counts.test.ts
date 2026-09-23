@@ -11,4 +11,12 @@ describe("lifecycleNavCount", () => {
 			}),
 		).toBe(7);
 	});
+
+	it("reads a lifecycle missing from loaded counts as zero", () => {
+		expect(lifecycleNavCount("running", undefined, { done: 3 })).toBe(0);
+	});
+
+	it("stays unknown until counts load", () => {
+		expect(lifecycleNavCount("running", undefined, undefined)).toBeUndefined();
+	});
 });

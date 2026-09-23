@@ -10,6 +10,7 @@ import {
 	type CatalogEnrichmentResult,
 	type CatalogProviderAdapter,
 	CatalogProviderError,
+	candidateByline,
 	runCatalogEnrichment,
 	withProviderGate,
 } from "../../../modules/catalogEnrichment";
@@ -165,6 +166,7 @@ function audiobookPolicy(
 	return {
 		discoveryQueries,
 		describe: (metadata) => metadata.title ?? undefined,
+		byline: candidateByline,
 		rank: (metadata, candidate, query) =>
 			rankAudiobookCandidate(
 				query.title ?? metadata.title ?? "",
