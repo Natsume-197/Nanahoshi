@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import sharp from "sharp";
 import {
 	deriveIsbnPair,
+	downloadCoverImage,
 	extractIsbnFromText,
 	fetchOrTransient,
 	isbn10To13,
@@ -207,5 +208,35 @@ describe("extractIsbnFromText", () => {
 
 	test("rejects regular titles", () => {
 		expect(extractIsbnFromText("The Hobbit")).toBeNull();
+	});
+});
+
+describe("downloadCoverImage accept veto", () => {
+	const realFetch = globalThis.fetch;
+	afterEach(() => {
+		globalThis.fetch = realFetch;
+	});
+
+	test("a provider veto stops the cover before anything is written", async () => {
+		const pixels = Buffer.alloc(300 * 450 * 3);
+		for (let index = 0; index < pixels.length; index++) {
+			pixels[index] = (index * 31) % 256;
+		}
+		const cover = await sharp(pixels, {
+			raw: { width: 300, height: 450, channels: 3 },
+		})
+			.jpeg()
+			.toBuffer();
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response(cover, { status: 200 })),
+		) as unknown as typeof fetch;
+		const accept = mock(() => Promise.resolve(false));
+
+		const path = await downloadCoverImage("https://example.com/c.jpg", "u", {
+			accept,
+		});
+
+		expect(path).toBeNull();
+		expect(accept).toHaveBeenCalledTimes(1);
 	});
 });

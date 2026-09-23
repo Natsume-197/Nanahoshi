@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import sharp from "sharp";
 
 // ─── Mocks ──────────────────────────────────────────────
 
@@ -23,7 +24,13 @@ mock.module("../../../../settings/settings.service", () => ({
 		Promise.resolve({ enabled: true, apiToken: "test-token" }),
 }));
 
-const { googlebooksProvider } = await import("../googlebooks.provider");
+const {
+	downloadGoogleBooksCover,
+	googleCoverCandidates,
+	googlebooksProvider,
+	isBlankNoImageCard,
+	isGoogleBooksPlaceholder,
+} = await import("../googlebooks.provider");
 
 import { firstMatch } from "./first-match";
 
@@ -332,5 +339,153 @@ describe("getById", () => {
 			serverId: "org-1",
 		});
 		expect(result?.cover).toBeUndefined();
+	});
+});
+
+// ─── Cover placeholder fallback ─────────────────────────
+
+// Mirrors Google's "image not available" card: a grayscale PNG that is almost
+// entirely white with a little grey lettering.
+async function placeholderPng(width = 575, height = 750) {
+	const letteringWidth = Math.round(width / 3);
+	const letteringHeight = Math.round(height / 20);
+	const lettering = await sharp({
+		create: {
+			width: letteringWidth,
+			height: letteringHeight,
+			channels: 3,
+			background: "#9a9a9a",
+		},
+	})
+		.png()
+		.toBuffer();
+	return sharp({
+		create: { width, height, channels: 3, background: "white" },
+	})
+		.composite([
+			{
+				input: lettering,
+				top: Math.round((height - letteringHeight) / 2),
+				left: Math.round((width - letteringWidth) / 2),
+			},
+		])
+		.toColourspace("b-w")
+		.png()
+		.toBuffer();
+}
+
+async function photoJpeg() {
+	const pixels = Buffer.alloc(128 * 182 * 3);
+	for (let index = 0; index < pixels.length; index++) {
+		pixels[index] = (index * 31) % 256;
+	}
+	return sharp(pixels, { raw: { width: 128, height: 182, channels: 3 } })
+		.jpeg()
+		.toBuffer();
+}
+
+const ZOOM0 =
+	"https://books.google.com/books/content?id=oot8zgEACAAJ&printsec=frontcover&img=1&zoom=0&source=gbs_api";
+
+describe("isGoogleBooksPlaceholder", () => {
+	test("flags the blank no-image PNG at either placeholder size", async () => {
+		expect(await isGoogleBooksPlaceholder(await placeholderPng())).toBe(true);
+		expect(await isGoogleBooksPlaceholder(await placeholderPng(300, 391))).toBe(
+			true,
+		);
+	});
+
+	test("keeps real artwork and undecodable bytes are not its call", async () => {
+		expect(await isGoogleBooksPlaceholder(await photoJpeg())).toBe(false);
+		const colourfulPng = await sharp(await photoJpeg())
+			.png()
+			.toBuffer();
+		expect(await isGoogleBooksPlaceholder(colourfulPng)).toBe(false);
+		expect(await isGoogleBooksPlaceholder(Buffer.from("nope"))).toBe(false);
+	});
+});
+
+describe("isBlankNoImageCard", () => {
+	test("finds the card after the ingest re-encoded it as JPEG", async () => {
+		const reencoded = await sharp(await placeholderPng())
+			.toColourspace("srgb")
+			.jpeg({ quality: 90 })
+			.toBuffer();
+		expect(await isGoogleBooksPlaceholder(reencoded)).toBe(false);
+		expect(await isBlankNoImageCard(reencoded, { requirePng: false })).toBe(
+			true,
+		);
+		expect(
+			await isBlankNoImageCard(await photoJpeg(), { requirePng: false }),
+		).toBe(false);
+	});
+});
+
+describe("googleCoverCandidates", () => {
+	test("tries full resolution first, then the zoom=1 thumbnail", () => {
+		const [first, second, ...rest] = googleCoverCandidates(ZOOM0);
+		expect(first).toBe(ZOOM0);
+		expect(new URL(second ?? "").searchParams.get("zoom")).toBe("1");
+		expect(new URL(second ?? "").searchParams.get("id")).toBe("oot8zgEACAAJ");
+		expect(rest).toEqual([]);
+	});
+
+	test("leaves thumbnails and other hosts alone", () => {
+		const thumb = ZOOM0.replace("zoom=0", "zoom=1");
+		expect(googleCoverCandidates(thumb)).toEqual([thumb]);
+		expect(googleCoverCandidates("https://example.com/c.jpg")).toEqual([
+			"https://example.com/c.jpg",
+		]);
+	});
+});
+
+describe("downloadGoogleBooksCover", () => {
+	// Simulates downloadCoverImage: serve the bytes per zoom and honour `accept`.
+	function fakeDownload(byZoom: Record<string, Buffer>) {
+		const calls: string[] = [];
+		const download = async (
+			url: string,
+			uuid: string,
+			options?: { accept?: (buffer: Buffer) => Promise<boolean> },
+		) => {
+			calls.push(url);
+			const bytes = byZoom[new URL(url).searchParams.get("zoom") ?? ""];
+			if (!bytes) return null;
+			if (options?.accept && !(await options.accept(bytes))) return null;
+			return `data/covers/${uuid}.jpg`;
+		};
+		return { calls, download };
+	}
+
+	test("falls back to the thumbnail when zoom=0 is the placeholder", async () => {
+		const { calls, download } = fakeDownload({
+			"0": await placeholderPng(),
+			"1": await photoJpeg(),
+		});
+		const path = await downloadGoogleBooksCover(ZOOM0, "book-1", download);
+		expect(path).toBe("data/covers/book-1.jpg");
+		expect(calls).toHaveLength(2);
+		expect(calls[1]).toContain("zoom=1");
+	});
+
+	test("keeps the full-resolution scan when Google has one", async () => {
+		const { calls, download } = fakeDownload({
+			"0": await photoJpeg(),
+			"1": await photoJpeg(),
+		});
+		expect(await downloadGoogleBooksCover(ZOOM0, "book-1", download)).toBe(
+			"data/covers/book-1.jpg",
+		);
+		expect(calls).toEqual([ZOOM0]);
+	});
+
+	test("stores nothing when every zoom level is a placeholder", async () => {
+		const { download } = fakeDownload({
+			"0": await placeholderPng(),
+			"1": await placeholderPng(128, 182),
+		});
+		expect(
+			await downloadGoogleBooksCover(ZOOM0, "book-1", download),
+		).toBeNull();
 	});
 });

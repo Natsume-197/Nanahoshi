@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { providerGate } from "../../../../infrastructure/providerGate";
 import { providerQuotaScope } from "../../../../infrastructure/providerQuotaScope";
 import { logger } from "../../../../lib/logger";
@@ -33,6 +34,71 @@ import {
 } from "./title-match";
 
 const log = logger.child({ component: "googlebooks-provider" });
+
+/**
+ * Google answers a missing zoom level with a near-white "image not available"
+ * card (575x750 at zoom=0, 300x391 at zoom=2) instead of an error. Real covers
+ * are photos; an almost blank, low-entropy image is the card.
+ */
+export async function isBlankNoImageCard(
+	buffer: Buffer,
+	options: { requirePng: boolean } = { requirePng: true },
+): Promise<boolean> {
+	try {
+		const image = sharp(buffer);
+		const [metadata, stats] = await Promise.all([
+			image.metadata(),
+			image.stats(),
+		]);
+		if (options.requirePng && metadata.format !== "png") return false;
+		const mean =
+			stats.channels.reduce((sum, channel) => sum + channel.mean, 0) /
+			stats.channels.length;
+		return mean >= 245 && stats.entropy < 1.5;
+	} catch {
+		return false;
+	}
+}
+
+/** Google serves the card as PNG; its real covers are JPEG. */
+export function isGoogleBooksPlaceholder(buffer: Buffer): Promise<boolean> {
+	return isBlankNoImageCard(buffer);
+}
+
+/**
+ * zoom=0 is the full-resolution scan when Google has one; volumes without a
+ * digitized preview only have the zoom=1 thumbnail. Try the best first.
+ */
+export function googleCoverCandidates(imageUrl: string): string[] {
+	try {
+		const url = new URL(imageUrl);
+		if (
+			url.hostname !== "books.google.com" ||
+			url.pathname !== "/books/content" ||
+			url.searchParams.get("zoom") === "1"
+		) {
+			return [imageUrl];
+		}
+		url.searchParams.set("zoom", "1");
+		return [imageUrl, url.toString()];
+	} catch {
+		return [imageUrl];
+	}
+}
+
+export async function downloadGoogleBooksCover(
+	imageUrl: string,
+	uuid: string,
+	download: typeof downloadCoverImage = downloadCoverImage,
+): Promise<string | null> {
+	const accept = async (buffer: Buffer) =>
+		!(await isGoogleBooksPlaceholder(buffer));
+	for (const candidate of googleCoverCandidates(imageUrl)) {
+		const path = await download(candidate, uuid, { accept });
+		if (path) return path;
+	}
+	return null;
+}
 
 const API_BASE = "https://www.googleapis.com/books/v1/volumes";
 const MAX_SEARCH_TERM_LENGTH = 60;
@@ -131,6 +197,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 			candidate.metadata,
 			input,
 			candidate.identity,
+			downloadGoogleBooksCover,
 		);
 	}
 
@@ -198,7 +265,7 @@ class GoogleBooksProvider implements ISearchableMetadataProvider {
 
 			const metadata = this.mapVolume(volume);
 			if (metadata.cover && options?.uuid) {
-				const localCoverPath = await downloadCoverImage(
+				const localCoverPath = await downloadGoogleBooksCover(
 					metadata.cover,
 					options.uuid,
 				);

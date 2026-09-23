@@ -218,7 +218,11 @@ export async function hydratedProviderResult<
 export async function downloadCoverImage(
 	imageUrl: string,
 	uuid: string,
-	options?: { headers?: Record<string, string> },
+	options?: {
+		headers?: Record<string, string>;
+		/** Provider-specific veto, e.g. a catalog's "no image" placeholder. */
+		accept?: (buffer: Buffer) => Promise<boolean>;
+	},
 ): Promise<string | null> {
 	try {
 		if (!isSafePublicUrl(imageUrl)) {
@@ -246,6 +250,7 @@ export async function downloadCoverImage(
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.byteLength > MAX_REMOTE_IMAGE_BYTES) return null;
 		if (!(await isUsableRemoteCover(buffer))) return null;
+		if (options?.accept && !(await options.accept(buffer))) return null;
 
 		// Acquire only — the cover-ingest worker normalises it off the scan path.
 		const urlExt = path.extname(new URL(imageUrl).pathname);
