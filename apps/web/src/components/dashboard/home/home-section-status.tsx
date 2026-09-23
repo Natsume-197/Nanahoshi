@@ -3,9 +3,9 @@ import {
 	type JSX,
 	type ReactNode,
 	useContext,
-	useEffect,
 	useMemo,
 } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 
 export type HomeSectionStatus = "loading" | "populated" | "empty";
 
@@ -38,9 +38,29 @@ export function HomeSectionStatusProvider({
 	);
 }
 
-export function useReportHomeSectionStatus(status: HomeSectionStatus): void {
+export function useReportHomeSectionStatus(status: HomeSectionStatus) {
 	const context = useContext(HomeSectionStatusContext);
-	useEffect(() => context?.report(status), [context, status]);
+	return (children: ReactNode) => (
+		<>
+			<HomeSectionReport
+				key={status}
+				status={status}
+				report={context?.report}
+			/>
+			{children}
+		</>
+	);
+}
+
+function HomeSectionReport({
+	status,
+	report,
+}: {
+	status: HomeSectionStatus;
+	report: HomeSectionContextValue["report"] | undefined;
+}) {
+	useMountEffect(() => report?.(status));
+	return null;
 }
 
 export function useHomeSectionLoadingPlaceholder(): boolean {

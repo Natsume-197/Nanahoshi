@@ -1,7 +1,7 @@
 import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	SettingControlRow,
@@ -34,14 +34,12 @@ export type ScanningDraft = {
 export function ScanningSection({
 	library,
 	canManage,
-	onDraftChange,
 }: {
 	library: Pick<
 		LibraryComplete,
 		"realtimeWatchEnabled" | "isCronWatch" | "scanIntervalMinutes"
 	> & { uuid?: string };
 	canManage: boolean;
-	onDraftChange?: (draft: ScanningDraft) => void;
 }) {
 	const [realtimeWatch, setRealtimeWatch] = useState(
 		library.realtimeWatchEnabled !== false,
@@ -85,14 +83,6 @@ export function ScanningSection({
 		realtimeWatch !== (library.realtimeWatchEnabled !== false) ||
 		scheduled !== !!library.isCronWatch ||
 		(scheduled && interval !== savedInterval);
-
-	useEffect(() => {
-		onDraftChange?.({
-			realtimeWatchEnabled: realtimeWatch,
-			isCronWatch: scheduled,
-			scanIntervalMinutes: scheduled ? interval : null,
-		});
-	}, [realtimeWatch, scheduled, interval, onDraftChange]);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -169,7 +159,7 @@ export function ScanningSection({
 				)}
 			</SettingRows>
 
-			{!onDraftChange && canManage && changed && (
+			{canManage && changed && (
 				<div className="flex justify-end">
 					<Button
 						size="sm"

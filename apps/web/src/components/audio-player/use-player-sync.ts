@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { createElement, useCallback, useRef } from "react";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import {
 	invalidateListeningProgress,
@@ -115,25 +116,28 @@ export function usePlayerSync({
 	}, SYNC_INTERVAL_MS);
 
 	const previousSessionRef = useRef({ active: false, bookUuid: "" });
-	useEffect(() => {
-		const previous = previousSessionRef.current;
-		const started =
-			active && (!previous.active || previous.bookUuid !== bookUuid);
-		const stopped = previous.active && !active;
-		previousSessionRef.current = { active, bookUuid };
+	const binding = createElement(PlayerSyncTransition, {
+		key: `${bookUuid}:${active}`,
+		transition: () => {
+			const previous = previousSessionRef.current;
+			const started =
+				active && (!previous.active || previous.bookUuid !== bookUuid);
+			const stopped = previous.active && !active;
+			previousSessionRef.current = { active, bookUuid };
 
-		if (started) syncRef.current?.();
-		if (stopped) {
-			enqueue(async () => {
-				// Persist while the media element still holds the final paused
-				// playhead, before removing the live listening activity.
-				await performSync();
-				await client.presence
-					.clearActivity({ context: { keepalive: true } })
-					.catch(() => {});
-			});
-		}
-	}, [active, bookUuid, enqueue, performSync]);
+			if (started) syncRef.current?.();
+			if (stopped) {
+				enqueue(async () => {
+					// Persist while the media element still holds the final paused
+					// playhead, before removing the live listening activity.
+					await performSync();
+					await client.presence
+						.clearActivity({ context: { keepalive: true } })
+						.catch(() => {});
+				});
+			}
+		},
+	});
 
 	// Sync on unmount, then clear "listening" presence (see the hook for the
 	// sync-before-clear ordering).
@@ -141,5 +145,10 @@ export function usePlayerSync({
 		if (enabledRef.current) await syncRef.current?.();
 	});
 
-	return { syncNow: syncProgress };
+	return { syncNow: syncProgress, binding };
+}
+
+function PlayerSyncTransition({ transition }: { transition: () => void }) {
+	useMountEffect(transition);
+	return null;
 }

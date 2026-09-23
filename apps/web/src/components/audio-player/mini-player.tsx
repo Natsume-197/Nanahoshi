@@ -162,7 +162,9 @@ export const MiniPlayer = memo(function MiniPlayer({
 		enabled: isExpanded,
 		onDismiss: () => setExpanded(false),
 	});
-	useOverlayBackDismiss(isExpanded, () => setExpanded(false));
+	const overlayBackRegistration = useOverlayBackDismiss(isExpanded, () =>
+		setExpanded(false),
+	);
 
 	// The panel stays mounted so the open transition has a painted start state;
 	// its contents don't, or they'd re-render on every playback tick unseen.
@@ -173,6 +175,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 
 	return (
 		<>
+			{overlayBackRegistration}
 			<PlayerShortcuts />
 			{isExpanded && <DisablePullToRefresh />}
 			<div

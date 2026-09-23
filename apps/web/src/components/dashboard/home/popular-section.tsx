@@ -25,17 +25,19 @@ export const PopularSection = memo(function PopularSection({
 		}),
 	);
 	const hasContent = Boolean(data?.enabled && data.items.length > 0);
-	useReportHomeSectionStatus(
+	const renderSection = useReportHomeSectionStatus(
 		isLoading ? "loading" : hasContent ? "populated" : "empty",
 	);
 	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 	if (isLoading) {
-		return showLoadingPlaceholder ? (
-			<SectionSkeleton square={format === "audiobooks"} />
-		) : null;
+		return renderSection(
+			showLoadingPlaceholder ? (
+				<SectionSkeleton square={format === "audiobooks"} />
+			) : null,
+		);
 	}
-	if (!data?.enabled || data.items.length === 0) return null;
+	if (!data?.enabled || data.items.length === 0) return renderSection(null);
 
 	const title =
 		format === "books"
@@ -47,7 +49,7 @@ export const PopularSection = memo(function PopularSection({
 		(item) => item.book.mediaType === "audiobook",
 	);
 
-	return (
+	return renderSection(
 		<ScrollSection title={title} restoreId={`popular-${format}`}>
 			{data.items.map((item, index) => {
 				const isAudiobook = item.book.mediaType === "audiobook";
@@ -75,6 +77,6 @@ export const PopularSection = memo(function PopularSection({
 					</DashboardContextMenuBook>
 				);
 			})}
-		</ScrollSection>
+		</ScrollSection>,
 	);
 });

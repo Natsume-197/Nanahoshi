@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
 import { Button } from "@/components/ui/button";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { getApiOrigin } from "@/lib/api-origin";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -46,16 +47,6 @@ export function DataBackupsSettings() {
 		},
 		onError: (error) => toast.error(error.message),
 	});
-	useEffect(() => {
-		if (!jobId || !data?.job) return;
-		if (data.job.state === "completed") {
-			toast.success(m["settings.backups.created"]());
-			setJobId(undefined);
-		} else if (data.job.state === "failed") {
-			toast.error(data.job.error || m["settings.backups.failed"]());
-			setJobId(undefined);
-		}
-	}, [data?.job, jobId]);
 	if (!data)
 		return (
 			<p role="status">
@@ -70,6 +61,20 @@ export function DataBackupsSettings() {
 		"rounded-md border border-input bg-background px-3 py-2 text-sm";
 	return (
 		<div className="flex flex-col gap-10">
+			{jobId &&
+				data.job &&
+				(data.job.state === "completed" || data.job.state === "failed") && (
+					<BackupFinished
+						key={jobId}
+						error={
+							data.job.state === "failed"
+								? data.job.error || m["settings.backups.failed"]()
+								: undefined
+						}
+						onDone={() => setJobId(undefined)}
+					/>
+				)}
+
 			<section className="space-y-4">
 				<p className="max-w-2xl text-muted-foreground text-sm">
 					{m["settings.backups.description"]()}
@@ -228,4 +233,19 @@ export function DataBackupsSettings() {
 			</section>
 		</div>
 	);
+}
+
+function BackupFinished({
+	error,
+	onDone,
+}: {
+	error?: string;
+	onDone: () => void;
+}) {
+	useMountEffect(() => {
+		if (error) toast.error(error);
+		else toast.success(m["settings.backups.created"]());
+		onDone();
+	});
+	return null;
 }

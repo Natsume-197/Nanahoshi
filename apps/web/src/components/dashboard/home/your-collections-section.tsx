@@ -53,7 +53,7 @@ export const YourCollectionsSection = memo(
 			return collection.kind === "dynamic" || count == null || count > 0;
 		});
 		const loading = abilitiesLoading || (canReadCollections && isLoading);
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			loading
 				? "loading"
 				: canReadCollections && (nonEmptyCollections?.length ?? 0) > 0
@@ -63,15 +63,20 @@ export const YourCollectionsSection = memo(
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 		if (abilitiesLoading) {
-			return showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null;
+			return renderSection(
+				showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null,
+			);
 		}
-		if (!canReadCollections) return null;
+		if (!canReadCollections) return renderSection(null);
 		if (isLoading) {
-			return showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null;
+			return renderSection(
+				showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null,
+			);
 		}
-		if (!nonEmptyCollections || nonEmptyCollections.length === 0) return null;
+		if (!nonEmptyCollections || nonEmptyCollections.length === 0)
+			return renderSection(null);
 
-		return (
+		return renderSection(
 			<ScrollSection
 				title={m["home.your_collections"]()}
 				showAllHref="/dashboard/collections"
@@ -95,7 +100,7 @@ export const YourCollectionsSection = memo(
 						/>
 					);
 				})}
-			</ScrollSection>
+			</ScrollSection>,
 		);
 	},
 );

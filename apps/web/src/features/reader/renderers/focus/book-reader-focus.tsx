@@ -1,7 +1,7 @@
 import {
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
-	useEffect,
+	useCallback,
 	useMemo,
 	useRef,
 	useState,
@@ -100,15 +100,19 @@ export function BookReaderFocus({
 
 	const [current, setCurrent] = useState({ index: 0, animate: false });
 	const [typing, setTyping] = useState(false);
-	useEffect(
-		() =>
-			applyReaderDocumentChrome({
+	const attachSurface = useCallback(
+		(surface: HTMLElement | null) => {
+			surfaceRef.current = surface;
+			if (!surface) return;
+			return applyReaderDocumentChrome({
 				mode: "focus",
 				verticalMode,
 				backgroundColor: theme.backgroundColor,
-			}),
+			});
+		},
 		[theme.backgroundColor, verticalMode],
 	);
+
 	const textSession = createTextReaderSession({
 		sections,
 		getCharacterCount: () => parsedRef.current?.totalCharacters ?? 0,
@@ -184,57 +188,60 @@ export function BookReaderFocus({
 	// The registered operations deliberately stay stable across visual settings;
 	// their mutable state lives in refs, not in a second reader session.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: focusDocument is the session lifecycle; the callbacks read current refs
-	useEffect(() => {
-		if (!focusDocument) return;
-		const parsed = focusDocument;
-		parsedRef.current = parsed;
-		const initialCharacter = initialPosition?.exploredCharCount ?? 0;
-		const initialIndex = findFocusSentenceIndex(
-			parsed.sentences,
-			initialCharacter,
-		);
-		currentIndexRef.current = initialIndex;
-		precisePositionRef.current = initialCharacter;
-		setCurrent({ index: initialIndex, animate: false });
-		onPositionChangeRef.current(positionForCharacter(initialCharacter));
-		updateSectionProgress(initialCharacter, parsed);
+	const attachDocument = useCallback(
+		(node: HTMLDivElement | null) => {
+			if (!node || !focusDocument) return;
+			const parsed = focusDocument;
+			parsedRef.current = parsed;
+			const initialCharacter = initialPosition?.exploredCharCount ?? 0;
+			const initialIndex = findFocusSentenceIndex(
+				parsed.sentences,
+				initialCharacter,
+			);
+			currentIndexRef.current = initialIndex;
+			precisePositionRef.current = initialCharacter;
+			setCurrent({ index: initialIndex, animate: false });
+			onPositionChangeRef.current(positionForCharacter(initialCharacter));
+			updateSectionProgress(initialCharacter, parsed);
 
-		const navigateToCharacter = (character: number) => {
-			showSentence(findFocusSentenceIndex(parsed.sentences, character), {
-				preservePosition: character,
+			const navigateToCharacter = (character: number) => {
+				showSentence(findFocusSentenceIndex(parsed.sentences, character), {
+					preservePosition: character,
+				});
+			};
+			const resolveAnchor = (anchor: ReaderTextAnchor) =>
+				resolveFocusTextAnchor(parsed, anchor, precisePositionRef.current);
+			apiRef({
+				nextPage: () => moveSentence(1),
+				prevPage: () => moveSentence(-1),
+				navigateToSection: (reference) => {
+					const character =
+						parsed.anchorCharacters.get(reference) ??
+						parsed.sectionRanges.get(reference)?.startCharacter;
+					if (character !== undefined) navigateToCharacter(character);
+				},
+				navigateToTextAnchor: (anchor) => {
+					const character = resolveAnchor(anchor);
+					if (character !== undefined) navigateToCharacter(character);
+				},
+				resolveTextAnchor: resolveAnchor,
+				getPosition: () => positionForCharacter(precisePositionRef.current),
+				scrollToPosition: (position) => {
+					navigateToCharacter(position.exploredCharCount);
+				},
+				relayout: (position) => {
+					if (position) precisePositionRef.current = position.exploredCharCount;
+				},
 			});
-		};
-		const resolveAnchor = (anchor: ReaderTextAnchor) =>
-			resolveFocusTextAnchor(parsed, anchor, precisePositionRef.current);
-		apiRef({
-			nextPage: () => moveSentence(1),
-			prevPage: () => moveSentence(-1),
-			navigateToSection: (reference) => {
-				const character =
-					parsed.anchorCharacters.get(reference) ??
-					parsed.sectionRanges.get(reference)?.startCharacter;
-				if (character !== undefined) navigateToCharacter(character);
-			},
-			navigateToTextAnchor: (anchor) => {
-				const character = resolveAnchor(anchor);
-				if (character !== undefined) navigateToCharacter(character);
-			},
-			resolveTextAnchor: resolveAnchor,
-			getPosition: () => positionForCharacter(precisePositionRef.current),
-			scrollToPosition: (position) => {
-				navigateToCharacter(position.exploredCharCount);
-			},
-			relayout: (position) => {
-				if (position) precisePositionRef.current = position.exploredCharCount;
-			},
-		});
 
-		return () => {
-			if (parsedRef.current === parsed) parsedRef.current = null;
-			clearTimeout(progressTimerRef.current);
-			apiRef(null);
-		};
-	}, [focusDocument]);
+			return () => {
+				if (parsedRef.current === parsed) parsedRef.current = null;
+				clearTimeout(progressTimerRef.current);
+				apiRef(null);
+			};
+		},
+		[focusDocument],
+	);
 
 	useWindowEvent("wheel", (event) => {
 		if (
@@ -327,7 +334,7 @@ export function BookReaderFocus({
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: sentence navigation has its own keybinds (PageUp/PageDown, arrows); this only adds the pointer affordance
 		<section
-			ref={surfaceRef}
+			ref={attachSurface}
 			data-reader-renderer="text-focus"
 			aria-label="Focus reader"
 			lang={language || undefined}
@@ -336,6 +343,7 @@ export function BookReaderFocus({
 			onClick={handleSurfaceClick}
 		>
 			<div
+				ref={attachDocument}
 				role="status"
 				aria-live="polite"
 				aria-atomic="true"

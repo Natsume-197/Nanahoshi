@@ -554,7 +554,7 @@ export function ReaderScreen({
 				: null;
 		},
 	});
-	const { syncNow } = useReaderSync({
+	const { syncNow, binding: readerSync } = useReaderSync({
 		bookUuid: uuid,
 		trackTime: false,
 		enabled:
@@ -1095,6 +1095,7 @@ export function ReaderScreen({
 	if (loadState.phase === "error") {
 		return (
 			<div className="flex h-dvh flex-col items-center justify-center gap-4 font-reader-sans">
+				{readerSync}
 				<p className="text-destructive text-lg">{loadState.message}</p>
 				<Link
 					to="/dashboard/books/$uuid"
@@ -1109,10 +1110,13 @@ export function ReaderScreen({
 
 	if (loadState.phase !== "ready") {
 		return (
-			<ReaderLoadingScreen
-				state={loadState}
-				reservePlayerSpace={reservePlayerSpace}
-			/>
+			<>
+				{readerSync}
+				<ReaderLoadingScreen
+					state={loadState}
+					reservePlayerSpace={reservePlayerSpace}
+				/>
+			</>
 		);
 	}
 
@@ -1190,6 +1194,7 @@ export function ReaderScreen({
 				} as CSSProperties
 			}
 		>
+			{readerSync}
 			<FocusReaderScrollContainer
 				key={readListenPairUuid ?? "reader"}
 				containerRef={readerSurfaceRef}

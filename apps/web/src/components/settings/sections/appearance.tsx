@@ -8,7 +8,7 @@ import {
 	Sun,
 	Warning,
 } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { HomeLayoutModal } from "@/components/dashboard/home/home-layout-modal";
 import {
 	SettingControlRow,
@@ -332,13 +332,12 @@ export function AppearanceSettings({
 		gradient.stops.findIndex((stop) => stop.id === selectedStop?.id) + 1,
 	);
 
-	useEffect(() => {
-		if (!selectedStop?.id) {
-			setHexDraft("");
-			return;
-		}
-		setHexDraft(selectedStop.color.toUpperCase());
-	}, [selectedStop?.color, selectedStop?.id]);
+	const selectedColor = `${selectedStop?.id ?? ""}:${selectedStop?.color ?? ""}`;
+	const previousColor = useRef(selectedColor);
+	if (previousColor.current !== selectedColor) {
+		previousColor.current = selectedColor;
+		setHexDraft(selectedStop?.color.toUpperCase() ?? "");
+	}
 
 	// Editor changes apply live (coalesced to one frame); Apply commits.
 	const previewGradient = (next: GradientThemeInput) => {

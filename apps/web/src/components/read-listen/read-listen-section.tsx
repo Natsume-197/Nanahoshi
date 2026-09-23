@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type ChangeEvent, useEffect, useId, useState } from "react";
+import { type ChangeEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -426,8 +426,9 @@ function AlignmentInputDialog({
 		staleTime: 30_000,
 	});
 	const tracks = candidatesQuery.data?.tracks;
-	useEffect(() => {
-		if (!tracks) return;
+	const previousTracks = useRef<typeof tracks>(undefined);
+	if (tracks && tracks !== previousTracks.current) {
+		previousTracks.current = tracks;
 		setSelections(
 			tracks.map((track) =>
 				track.candidates.length === 1 ? (track.candidates[0] ?? "") : "",
@@ -436,7 +437,7 @@ function AlignmentInputDialog({
 		setUploadedSrt((current) =>
 			tracks.map((_, index) => current[index] ?? null),
 		);
-	}, [tracks]);
+	}
 	const availableTracks = tracks ?? [];
 	const timedTextReady =
 		availableTracks.length > 0 &&

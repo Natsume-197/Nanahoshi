@@ -12,12 +12,13 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -146,7 +147,7 @@ export function LibraryPermissionsPanel({
 		enabled,
 	});
 
-	const [draft, setDraft] = useState<PermissionDraft | null>(null);
+	const [draft, setDraftState] = useState<PermissionDraft | null>(null);
 	const [addOpen, setAddOpen] = useState(false);
 	const [removeOpen, setRemoveOpen] = useState(false);
 	const [discardOpen, setDiscardOpen] = useState(false);
@@ -155,12 +156,11 @@ export function LibraryPermissionsPanel({
 		useState<PendingSelection>(null);
 	const initialized = useRef(false);
 
-	useEffect(() => {
-		if (initialized.current || overwrites === undefined) return;
+	if (!initialized.current && overwrites !== undefined) {
 		initialized.current = true;
 		const first = overwrites[0];
 		if (first) {
-			setDraft({
+			setDraftState({
 				id: first.id,
 				subjectType: first.subjectType,
 				subjectId: first.subjectId,
@@ -168,7 +168,7 @@ export function LibraryPermissionsPanel({
 				deny: first.deny,
 			});
 		}
-	}, [overwrites]);
+	}
 
 	const invalidate = () =>
 		queryClient.invalidateQueries({
@@ -192,7 +192,10 @@ export function LibraryPermissionsPanel({
 						overwrite.subjectType === variables.subjectType &&
 						overwrite.subjectId === variables.subjectId,
 				);
-				if (saved) selectOverwrite(saved);
+				if (saved) {
+					setDraftState(saved);
+					onDirtyChange?.(false);
+				}
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -278,10 +281,25 @@ export function LibraryPermissionsPanel({
 		: false;
 	const selectedKey = draft ? subjectKey(draft) : null;
 
-	useEffect(() => {
-		onDirtyChange?.(changed);
+	const setDraft = (next: PermissionDraft | null) => {
+		setDraftState(next);
+		const saved = next?.id
+			? overwrites?.find((item) => item.id === next.id)
+			: undefined;
+		onDirtyChange?.(
+			next
+				? saved
+					? !permissionMapsEqual(next.allow, saved.allow) ||
+						!permissionMapsEqual(next.deny, saved.deny)
+					: Object.keys(next.allow).length > 0 ||
+						Object.keys(next.deny).length > 0
+				: false,
+		);
+	};
+	useMountEffect(() => {
+		onDirtyChange?.(false);
 		return () => onDirtyChange?.(false);
-	}, [changed, onDirtyChange]);
+	});
 
 	const applySelection = (selection: NonNullable<PendingSelection>) => {
 		if (selection.kind === "clear") {

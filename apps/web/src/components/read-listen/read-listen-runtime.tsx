@@ -1,11 +1,4 @@
-import {
-	type RefObject,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import { PlayerHostReadListenBridge } from "@/components/audio-player/player-host";
 import {
 	ActiveReadListenCue,
@@ -26,6 +19,7 @@ import {
 	FOCUS_SENTENCE_NAVIGATION_EVENT,
 	type FocusSentenceNavigationDetail,
 } from "@/features/reader/renderers/focus/focus-navigation";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { findReadListenCueNearCharacter } from "@/lib/read-listen/text-position";
 import {
 	type ReadListenTimelineCue,
@@ -53,7 +47,6 @@ export function readListenLineStartTime(globalStartMs: number) {
 }
 
 function ReadListenFocusLinePlayback({
-	enabled,
 	activeCue,
 	isPlaying,
 	playbackRate,
@@ -61,7 +54,6 @@ function ReadListenFocusLinePlayback({
 	sections,
 	targetsBySection,
 }: {
-	enabled: boolean;
 	activeCue: ReadListenTimelineCue | undefined;
 	isPlaying: boolean;
 	globalCurrentTime: number;
@@ -111,48 +103,29 @@ function ReadListenFocusLinePlayback({
 		[cancelScheduledPause],
 	);
 
-	useEffect(() => {
-		if (!enabled || !isPlaying || playbackTarget || !activeCue) return;
-		selectPlaybackTarget(activeCue);
-	}, [activeCue, enabled, isPlaying, playbackTarget, selectPlaybackTarget]);
+	if (isPlaying && !playbackTarget && activeCue) {
+		playbackTargetRevisionRef.current += 1;
+		setPlaybackTarget({
+			cue: activeCue,
+			revision: playbackTargetRevisionRef.current,
+		});
+	}
 
-	useEffect(() => {
-		if (!enabled || !isPlaying || !playbackTarget) return;
-		const { cue, revision } = playbackTarget;
-		cancelScheduledPause();
-		pauseTimeoutRef.current = window.setTimeout(
-			() => {
-				if (playbackTargetRevisionRef.current !== revision) return;
-				pauseTimeoutRef.current = undefined;
-				automaticallyPausedCueRef.current = cue;
-				setPlaybackTarget(undefined);
-				pause();
-			},
-			readListenLineEndDelay({
-				globalEndMs: cue.globalEndMs,
-				globalCurrentTime: getGlobalCurrentTime(),
-				playbackRate,
-			}),
-		);
-		return cancelScheduledPause;
-	}, [
-		cancelScheduledPause,
-		enabled,
+	const navigationInputs = useRef({
+		sections,
+		targetsBySection,
 		getGlobalCurrentTime,
-		isPlaying,
-		pause,
-		playbackRate,
-		playbackTarget,
-	]);
-
-	useEffect(() => {
-		if (enabled) return;
-		automaticallyPausedCueRef.current = undefined;
-		selectPlaybackTarget(undefined);
-	}, [enabled, selectPlaybackTarget]);
-
-	useEffect(() => {
-		if (!enabled) return;
+		play,
+		seekTo,
+	});
+	navigationInputs.current = {
+		sections,
+		targetsBySection,
+		getGlobalCurrentTime,
+		play,
+		seekTo,
+	};
+	useMountEffect(() => {
 		const surface = readerSurfaceRef.current;
 		if (!surface) return;
 		let navigationFrame = 0;
@@ -163,6 +136,13 @@ function ReadListenFocusLinePlayback({
 			if (!Number.isFinite(character)) return;
 			cancelAnimationFrame(navigationFrame);
 			navigationFrame = requestAnimationFrame(() => {
+				const {
+					sections,
+					targetsBySection,
+					getGlobalCurrentTime,
+					play,
+					seekTo,
+				} = navigationInputs.current;
 				const cue = findReadListenCueNearCharacter({
 					targetCharacter: character,
 					sections,
@@ -195,17 +175,48 @@ function ReadListenFocusLinePlayback({
 				handleNavigation,
 			);
 		};
-	}, [
-		enabled,
-		getGlobalCurrentTime,
-		play,
-		readerSurfaceRef,
-		sections,
-		selectPlaybackTarget,
-		seekTo,
-		targetsBySection,
-	]);
+	});
 
+	return isPlaying && playbackTarget ? (
+		<ReadListenLineEndPause
+			key={`${playbackTarget.revision}:${playbackRate}`}
+			delay={readListenLineEndDelay({
+				globalEndMs: playbackTarget.cue.globalEndMs,
+				globalCurrentTime: getGlobalCurrentTime(),
+				playbackRate,
+			})}
+			timeoutRef={pauseTimeoutRef}
+			onPause={() => {
+				if (playbackTargetRevisionRef.current !== playbackTarget.revision)
+					return;
+				automaticallyPausedCueRef.current = playbackTarget.cue;
+				setPlaybackTarget(undefined);
+				pause();
+			}}
+		/>
+	) : null;
+}
+
+function ReadListenLineEndPause({
+	delay,
+	timeoutRef,
+	onPause,
+}: {
+	delay: number;
+	timeoutRef: RefObject<number | undefined>;
+	onPause: () => void;
+}) {
+	useMountEffect(() => {
+		const timeout = window.setTimeout(() => {
+			timeoutRef.current = undefined;
+			onPause();
+		}, delay);
+		timeoutRef.current = timeout;
+		return () => {
+			window.clearTimeout(timeout);
+			if (timeoutRef.current === timeout) timeoutRef.current = undefined;
+		};
+	});
 	return null;
 }
 
@@ -236,22 +247,6 @@ export function ReadListenRuntime({
 	onExitReadListen: () => void;
 	theme?: ReaderTheme;
 }) {
-	useEffect(() => {
-		const markActivity = () => {
-			client.presence
-				.markReadListenActivity({ pairUuid, ebookUuid })
-				.catch(() => {});
-		};
-		markActivity();
-		const interval = window.setInterval(markActivity, 30_000);
-		return () => {
-			window.clearInterval(interval);
-			client.presence
-				.clearActivity({ context: { keepalive: true } })
-				.catch(() => {});
-		};
-	}, [ebookUuid, pairUuid]);
-
 	const [followText, setFollowText] = useState(true);
 	const [manualFollowSuspended, setManualFollowSuspended] = useState(false);
 	const [forceFollowCueId, setForceFollowCueId] = useState<string>();
@@ -367,6 +362,11 @@ export function ReadListenRuntime({
 
 	return (
 		<>
+			<ReadListenPresence
+				key={`${ebookUuid}:${pairUuid}`}
+				ebookUuid={ebookUuid}
+				pairUuid={pairUuid}
+			/>
 			<PlayerHostReadListenBridge context={playerContext} />
 			<div className="sr-only" role="status" aria-live="polite">
 				{manualFollowSuspended ? m["read_listen.following_paused"]() : ""}
@@ -378,16 +378,18 @@ export function ReadListenRuntime({
 					isAudiobookLoaded={isAudiobookLoaded}
 				/>
 			)}
-			<ReadListenFocusLinePlayback
-				enabled={pauseAudioAfterLine && isAudiobookLoaded}
-				activeCue={activeCue}
-				isPlaying={isPlaying}
-				globalCurrentTime={globalCurrentTime}
-				playbackRate={playbackRate}
-				readerSurfaceRef={readerSurfaceRef}
-				sections={sections}
-				targetsBySection={targetsBySection}
-			/>
+			{pauseAudioAfterLine && isAudiobookLoaded && (
+				<ReadListenFocusLinePlayback
+					key={`${pairUuid}:${alignmentRevision}:${readerDomRevision}`}
+					activeCue={activeCue}
+					isPlaying={isPlaying}
+					globalCurrentTime={globalCurrentTime}
+					playbackRate={playbackRate}
+					readerSurfaceRef={readerSurfaceRef}
+					sections={sections}
+					targetsBySection={targetsBySection}
+				/>
+			)}
 			{entryTextPosition !== undefined &&
 				isInitialTextSeekPending &&
 				isAudiobookLoaded &&
@@ -439,4 +441,30 @@ export function ReadListenRuntime({
 			)}
 		</>
 	);
+}
+
+function ReadListenPresence({
+	ebookUuid,
+	pairUuid,
+}: {
+	ebookUuid: string;
+	pairUuid: string;
+}) {
+	useMountEffect(() => {
+		const markActivity = () => {
+			client.presence
+				.markReadListenActivity({ pairUuid, ebookUuid })
+				.catch(() => {});
+		};
+		markActivity();
+		const interval = window.setInterval(markActivity, 30_000);
+		return () => {
+			window.clearInterval(interval);
+			client.presence
+				.clearActivity({ context: { keepalive: true } })
+				.catch(() => {});
+		};
+	});
+
+	return null;
 }

@@ -10,7 +10,7 @@ export function useMediaQuery(query: string) {
 	const [matches, setMatches] = useState(false);
 
 	// One-time external sync to a media query on mount — the sanctioned use of
-	// useMountEffect (see CLAUDE.md "No useEffect Rule").
+	// useMountEffect (see AGENTS.md "No useEffect Rule").
 	useMountEffect(() => {
 		const mql = window.matchMedia(query);
 		const onChange = () => setMatches(mql.matches);

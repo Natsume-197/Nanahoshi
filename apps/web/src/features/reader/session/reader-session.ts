@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
 	READER_POSITION_VERSION,
 	type ReaderPosition,
 } from "@/features/reader/document/types";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 
 import {
 	loadManualReadingPoint,
@@ -223,7 +224,7 @@ export function useReaderSession(bookUuid: string) {
 		positionClockRef.current = 0;
 		setExploredCharCount(0);
 	}
-	useEffect(() => () => readerSessionRef.current?.flush(), []);
+	useOnUnmount(() => readerSessionRef.current?.flush());
 	const hydrate = useCallback(
 		({
 			characters,

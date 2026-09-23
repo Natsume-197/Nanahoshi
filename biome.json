@@ -78,6 +78,29 @@
 	"overrides": [
 		{
 			"includes": [
+				"apps/web/src/**",
+				"!apps/web/src/hooks/use-mount-effect.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"paths": {
+									"react": {
+										"importNames": ["useEffect"],
+										"message": "Follow AGENTS.md: derive state, use event handlers, or useMountEffect for mount-only external synchronization."
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": [
 				"packages/api/src/**",
 				"apps/server/src/**",
 				"!**/*.test.ts",

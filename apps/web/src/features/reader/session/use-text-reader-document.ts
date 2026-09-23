@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { Section } from "@/features/reader/document/types";
 import {
 	type FocusDocument,
@@ -23,43 +23,48 @@ export function useTextReaderDocument({
 	language: string;
 	sections: readonly Section[];
 }) {
-	const [document, setDocument] = useState<FocusDocument | null>(null);
-	const [error, setError] = useState(false);
 	const sectionReferences = useMemo(
 		() => sections.map((section) => section.reference).join("\u0000"),
 		[sections],
 	);
 
-	useEffect(() => {
-		if (!enabled) return;
-		let cancelled = false;
-		const controller = new AbortController();
-		setDocument(null);
-		setError(false);
-		void loadFocusDocument({
-			cacheKey: bookUuid,
-			htmlContent,
-			language,
-			document: window.document,
-			sectionReferences: sectionReferences
-				? sectionReferences.split("\u0000")
-				: [],
-			signal: controller.signal,
-		})
-			.then((parsed) => {
-				if (!cancelled) setDocument(parsed);
-			})
-			.catch((reason: unknown) => {
-				if (!cancelled && !controller.signal.aborted) {
-					console.error("Failed to prepare text reader document", reason);
-					setError(true);
-				}
-			});
-		return () => {
-			cancelled = true;
-			controller.abort();
+	const store = useMemo(() => {
+		const initial = { document: null as FocusDocument | null, error: false };
+		let state = initial;
+		return {
+			getSnapshot: () => state,
+			getServerSnapshot: () => initial,
+			subscribe(notify: () => void) {
+				if (!enabled) return () => {};
+				const controller = new AbortController();
+				void loadFocusDocument({
+					cacheKey: bookUuid,
+					htmlContent,
+					language,
+					document: window.document,
+					sectionReferences: sectionReferences
+						? sectionReferences.split("\u0000")
+						: [],
+					signal: controller.signal,
+				})
+					.then((document) => {
+						if (controller.signal.aborted) return;
+						state = { document, error: false };
+						notify();
+					})
+					.catch((reason) => {
+						if (controller.signal.aborted) return;
+						console.error("Failed to prepare text reader document", reason);
+						state = { document: null, error: true };
+						notify();
+					});
+				return () => controller.abort();
+			},
 		};
 	}, [bookUuid, enabled, htmlContent, language, sectionReferences]);
-
-	return { document, error };
+	return useSyncExternalStore(
+		store.subscribe,
+		store.getSnapshot,
+		store.getServerSnapshot,
+	);
 }

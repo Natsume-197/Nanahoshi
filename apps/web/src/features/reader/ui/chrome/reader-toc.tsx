@@ -1,8 +1,9 @@
 import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
-import { type CSSProperties, useEffect } from "react";
+import type { CSSProperties } from "react";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import type { SectionWithProgress } from "@/features/reader/renderers/continuous/book-reader-continuous";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 
 interface ReaderTocProps {
 	theme: ReaderTheme;
@@ -50,14 +51,14 @@ export function ReaderToc({
 	onNavigate,
 	onClose,
 }: ReaderTocProps) {
-	useEffect(() => {
+	useMountEffect(() => {
 		const root = document.documentElement.style;
 		const previousOverflow = root.overflow;
 		root.overflow = "hidden";
 		return () => {
 			root.overflow = previousOverflow;
 		};
-	}, []);
+	});
 	const sectionData = [...sectionProgress.values()];
 	if (!sectionData.length) return null;
 

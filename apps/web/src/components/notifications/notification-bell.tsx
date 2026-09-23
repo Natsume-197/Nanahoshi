@@ -9,7 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { type ComponentProps, memo, useEffect, useRef, useState } from "react";
+import { type ComponentProps, memo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { selectVisibleActiveTasks } from "@/hooks/task-update-cache";
+import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useActivityRailIsSheet } from "@/hooks/use-mobile";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
 import { useWindowEvent } from "@/hooks/use-window-event";
@@ -130,7 +131,10 @@ interface NotificationRailProps {
 export function NotificationRail({ open, onClose }: NotificationRailProps) {
 	const isSheet = useActivityRailIsSheet();
 	const panelRef = useRef<HTMLElement | null>(null);
-	useOverlayBackDismiss(open && isSheet, onClose);
+	const overlayBackRegistration = useOverlayBackDismiss(
+		open && isSheet,
+		onClose,
+	);
 
 	useWindowEvent("keydown", (event) => {
 		if (event.key !== "Escape" || !open || isSheet) return;
@@ -141,24 +145,18 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 	// Dropdown behavior on desktop: a pointer press outside the card dismisses
 	// it. Presses on the bell itself are ignored here — the bell's own click
 	// toggles, and closing on pointerdown first would make that click reopen.
-	useEffect(() => {
+	useDocumentEvent("pointerdown", (event) => {
 		if (!open || isSheet) return;
-		const onPointerDown = (event: PointerEvent) => {
-			const target = event.target as HTMLElement | null;
-			if (target?.closest?.("[data-notification-trigger]")) return;
-			if (
-				panelRef.current &&
-				!panelRef.current.contains(event.target as Node)
-			) {
-				onClose();
-			}
-		};
-		document.addEventListener("pointerdown", onPointerDown);
-		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open, isSheet, onClose]);
+		const target = event.target as HTMLElement | null;
+		if (target?.closest?.("[data-notification-trigger]")) return;
+		if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+			onClose();
+		}
+	});
 
 	return (
 		<>
+			{overlayBackRegistration}
 			<aside
 				ref={panelRef}
 				aria-label={m["notifications.title"]()}

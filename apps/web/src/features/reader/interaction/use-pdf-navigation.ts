@@ -1,5 +1,5 @@
 import { useScroll, useScrollCapability } from "@embedpdf/plugin-scroll/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
 	clampPdfPage,
 	pdfNavigationBehavior,
@@ -32,35 +32,39 @@ export function usePdfNavigation(
 		[pageCount, scroll],
 	);
 
-	useEffect(() => {
-		if (
-			restorePage === undefined ||
-			!scroll ||
-			!scrollCapability ||
-			restoredRef.current
-		)
-			return;
-		const restore = () => {
-			if (restoredRef.current || scroll.getTotalPages() <= 0) return;
-			restoredRef.current = true;
-			goToPage(restorePage, "instant");
-			requestAnimationFrame(() => setPositionReady(true));
-		};
-		const unsubscribe = scrollCapability.onLayoutReady((event) => {
-			if (event.documentId === documentId) restore();
-		});
-		const frame = requestAnimationFrame(() => {
-			try {
-				if (scroll.getLayout().virtualItems.length > 0) restore();
-			} catch {
-				// The layout-ready event will perform the restore.
-			}
-		});
-		return () => {
-			cancelAnimationFrame(frame);
-			unsubscribe();
-		};
-	}, [documentId, goToPage, restorePage, scroll, scrollCapability]);
+	const restorePosition = useCallback(
+		(viewport: HTMLElement | null) => {
+			if (!viewport) return;
+			if (
+				restorePage === undefined ||
+				!scroll ||
+				!scrollCapability ||
+				restoredRef.current
+			)
+				return;
+			const restore = () => {
+				if (restoredRef.current || scroll.getTotalPages() <= 0) return;
+				restoredRef.current = true;
+				goToPage(restorePage, "instant");
+				requestAnimationFrame(() => setPositionReady(true));
+			};
+			const unsubscribe = scrollCapability.onLayoutReady((event) => {
+				if (event.documentId === documentId) restore();
+			});
+			const frame = requestAnimationFrame(() => {
+				try {
+					if (scroll.getLayout().virtualItems.length > 0) restore();
+				} catch {
+					// The layout-ready event will perform the restore.
+				}
+			});
+			return () => {
+				cancelAnimationFrame(frame);
+				unsubscribe();
+			};
+		},
+		[documentId, goToPage, restorePage, scroll, scrollCapability],
+	);
 
-	return { currentPage, goToPage, positionReady };
+	return { currentPage, goToPage, positionReady, restorePosition };
 }

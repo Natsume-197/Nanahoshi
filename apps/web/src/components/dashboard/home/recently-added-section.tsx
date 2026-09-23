@@ -55,22 +55,24 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 	const isLoading =
 		(format !== "audiobooks" && booksQuery.isLoading) ||
 		(format !== "books" && audiobooksQuery.isLoading);
-	useReportHomeSectionStatus(
+	const renderSection = useReportHomeSectionStatus(
 		isLoading ? "loading" : entries.length > 0 ? "populated" : "empty",
 	);
 	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 	if (isLoading) {
-		return showLoadingPlaceholder ? (
-			<SectionSkeleton square={format === "audiobooks"} />
-		) : null;
+		return renderSection(
+			showLoadingPlaceholder ? (
+				<SectionSkeleton square={format === "audiobooks"} />
+			) : null,
+		);
 	}
-	if (entries.length === 0) return null;
+	if (entries.length === 0) return renderSection(null);
 	const usesSquareCoverFrame = entries.every(
 		(entry) => entry.mediaType === "audiobook",
 	);
 
-	return (
+	return renderSection(
 		<ScrollSection
 			title={m["home.recently_added"]()}
 			restoreId={`recently-added-${format}`}
@@ -97,6 +99,6 @@ export const RecentlyAddedSection = memo(function RecentlyAddedSection({
 					/>
 				</DashboardContextMenuBook>
 			))}
-		</ScrollSection>
+		</ScrollSection>,
 	);
 });

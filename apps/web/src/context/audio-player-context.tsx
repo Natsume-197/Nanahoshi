@@ -360,7 +360,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		[getPlaybackState],
 	);
 
-	usePlayerSync({
+	const { binding: playbackSync } = usePlayerSync({
 		bookUuid: audiobook?.uuid ?? "",
 		enabled: !!audiobook && !isLoading,
 		active: isPlaying && !isLoading,
@@ -1296,6 +1296,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 
 	return (
 		<AudioPlayerStateContext.Provider value={state}>
+			{playbackSync}
 			<AudioPlayerActionsContext.Provider value={actions}>
 				<AudioPlayerBookContext.Provider value={audiobook}>
 					<AudioPlayerLoadingContext.Provider value={loadingUuid}>

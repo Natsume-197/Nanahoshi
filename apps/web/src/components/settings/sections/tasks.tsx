@@ -10,7 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	DataTable,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useInterval } from "@/hooks/use-interval";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -325,12 +326,14 @@ export function AdminTasks() {
 	const hasRunningJobs =
 		tasks?.some((task) => task.status === "running") ?? false;
 
-	useEffect(() => {
-		if (!hasRunningJobs) return;
-		setNow(Date.now());
-		const interval = window.setInterval(() => setNow(Date.now()), 1000);
-		return () => window.clearInterval(interval);
-	}, [hasRunningJobs]);
+	const previousRunning = useRef(hasRunningJobs);
+	if (previousRunning.current !== hasRunningJobs) {
+		previousRunning.current = hasRunningJobs;
+		if (hasRunningJobs) setNow(Date.now());
+	}
+	useInterval(() => {
+		if (hasRunningJobs) setNow(Date.now());
+	}, 1000);
 
 	const handleViewPayload = useCallback(
 		(task: Task, returnFocus: () => void) => {

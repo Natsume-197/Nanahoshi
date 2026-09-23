@@ -30,7 +30,7 @@ export const RandomAudiobooksSection = memo(
 			refetchOnReconnect: false,
 		});
 		const [isRefreshing, setIsRefreshing] = useState(false);
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			isLoading ? "loading" : audiobooks?.length ? "populated" : "empty",
 		);
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
@@ -59,13 +59,15 @@ export const RandomAudiobooksSection = memo(
 		}, [isRefreshing, queryClient, randomAudiobooks.queryKey]);
 
 		if (isLoading) {
-			return showLoadingPlaceholder ? <SectionSkeleton square /> : null;
+			return renderSection(
+				showLoadingPlaceholder ? <SectionSkeleton square /> : null,
+			);
 		}
-		if (!audiobooks || audiobooks.length === 0) return null;
+		if (!audiobooks || audiobooks.length === 0) return renderSection(null);
 
 		const title = m["home.random_audiobooks"]();
 
-		return (
+		return renderSection(
 			<ScrollSection
 				title={title}
 				restoreId="random-audiobooks"
@@ -99,7 +101,7 @@ export const RandomAudiobooksSection = memo(
 						/>
 					</DashboardContextMenuBook>
 				))}
-			</ScrollSection>
+			</ScrollSection>,
 		);
 	},
 );

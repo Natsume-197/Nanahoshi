@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup } from "@testing-library/react";
 import { JSDOM } from "jsdom";
+import { renderBindingHook } from "@/test-utils/render-binding-hook";
 
 const saveListening = mock(() => Promise.resolve());
 const saveReading = mock(() => Promise.resolve());
@@ -59,13 +60,13 @@ afterEach(() => {
 
 describe("live activity lifecycle", () => {
 	test("reconciles a stale server-side away flag when idle tracking mounts", () => {
-		renderHook(() => usePresenceIdle());
+		renderBindingHook(() => usePresenceIdle());
 
 		expect(setIdle).toHaveBeenCalledWith({ idle: false });
 	});
 
 	test("announces listening immediately when playback becomes active", async () => {
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ enabled, bookUuid }) =>
 				usePlayerSync({
 					enabled,
@@ -87,7 +88,7 @@ describe("live activity lifecycle", () => {
 	});
 
 	test("clears listening activity as soon as playback becomes inactive", async () => {
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ enabled }) =>
 				usePlayerSync({
 					enabled,
@@ -118,7 +119,7 @@ describe("live activity lifecycle", () => {
 			transitions.push("clear");
 		});
 
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ active, currentTime }) =>
 				usePlayerSync({
 					enabled: true,
@@ -172,7 +173,7 @@ describe("live activity lifecycle", () => {
 			return Promise.resolve();
 		});
 
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ enabled }) =>
 				usePlayerSync({
 					enabled,
@@ -205,7 +206,7 @@ describe("live activity lifecycle", () => {
 	});
 
 	test("announces reading when the document becomes ready after mount", async () => {
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ enabled }) =>
 				useReaderSync({
 					enabled,
@@ -231,7 +232,7 @@ describe("live activity lifecycle", () => {
 	});
 
 	test("clears reading activity when the reader stops being ready", async () => {
-		const { rerender } = renderHook(
+		const { rerender } = renderBindingHook(
 			({ enabled }) =>
 				useReaderSync({
 					enabled,

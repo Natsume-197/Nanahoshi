@@ -73,15 +73,17 @@ export const ContinueSection = memo(function ContinueSection({
 	const isLoading =
 		(format !== "audiobooks" && readingQuery.isLoading) ||
 		(format !== "books" && listeningQuery.isLoading);
-	useReportHomeSectionStatus(
+	const renderSection = useReportHomeSectionStatus(
 		isLoading ? "loading" : entries.length > 0 ? "populated" : "empty",
 	);
 	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 	if (isLoading) {
-		return showLoadingPlaceholder ? <ResumeSectionSkeleton /> : null;
+		return renderSection(
+			showLoadingPlaceholder ? <ResumeSectionSkeleton /> : null,
+		);
 	}
-	if (entries.length === 0) return null;
+	if (entries.length === 0) return renderSection(null);
 
 	const title =
 		format === "books"
@@ -90,7 +92,7 @@ export const ContinueSection = memo(function ContinueSection({
 				? m["home.continue_listening"]()
 				: m["home.hero_continue"]();
 
-	return (
+	return renderSection(
 		<ScrollSection
 			title={title}
 			layout="resume"
@@ -123,6 +125,6 @@ export const ContinueSection = memo(function ContinueSection({
 					/>
 				</BookContextMenuTrigger>
 			))}
-		</ScrollSection>
+		</ScrollSection>,
 	);
 });

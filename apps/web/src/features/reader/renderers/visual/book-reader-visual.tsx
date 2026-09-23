@@ -2,7 +2,6 @@ import {
 	type CSSProperties,
 	memo,
 	useCallback,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -22,6 +21,8 @@ import {
 	viewportHeight,
 	viewportWidth,
 } from "@/features/reader/renderers/shared/viewport";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { findHorizontalStripPage } from "./strip-geometry";
 
@@ -295,7 +296,6 @@ export function BookReaderVisual({
 	);
 	const scrollFrameRef = useRef<number | null>(null);
 	const gestureRef = useRef<PointerGesture | null>(null);
-	const preloadedImagesRef = useRef(new Map<string, HTMLImageElement>());
 	const suppressClickRef = useRef(false);
 	const anchorRef = useRef(anchorPage);
 	const onPositionChangeRef = useRef(onPositionChange);
@@ -405,125 +405,75 @@ export function BookReaderVisual({
 		setViewport({ width: viewportWidth(), height: viewportHeight() });
 	});
 
-	useEffect(() => {
-		if (strip) return;
-		if (!visiblePages.includes(anchorPage) && visiblePages[0] !== undefined) {
-			setAnchorPage(visiblePages[0]);
-		}
-	}, [anchorPage, strip, visiblePages]);
-
-	useEffect(() => {
-		if (!strip) return;
-		const frame = requestAnimationFrame(() => {
-			scrollToStripPage(anchorRef.current, "auto");
-		});
-		return () => cancelAnimationFrame(frame);
-	}, [scrollToStripPage, strip]);
-
-	useEffect(() => {
-		const explored = exploredCountForPage(sections, anchorPage);
-		const section = sections[anchorPage];
-		onPositionChangeRef.current({
-			exploredCharCount: explored,
-			progress: anchorPage / Math.max(sections.length, 1),
-			modifiedAt: Date.now(),
-			locator: section
-				? { sectionReference: section.reference, characterOffset: 0 }
-				: undefined,
-		});
-		const progress = new Map<string, SectionWithProgress>();
-		sections.forEach((section, index) => {
-			progress.set(section.reference, {
-				...section,
-				progress: index < anchorPage ? 100 : 0,
-			});
-		});
-		onSectionProgressChangeRef.current(progress);
-	}, [anchorPage, sections]);
+	if (
+		!strip &&
+		!visiblePages.includes(anchorPage) &&
+		visiblePages[0] !== undefined
+	)
+		setAnchorPage(visiblePages[0]);
 
 	// Keep one forward spread decoded. Retaining more would be expensive for
 	// 7-megapixel visual pages; the browser already keeps the visible/back spread.
-	useEffect(() => {
-		if (strip) {
-			preloadedImagesRef.current.clear();
-			return;
-		}
-		const desiredSources = new Set<string>();
-		for (
-			let index = spreadIndex + 1;
-			index < spreads.length && desiredSources.size < 2;
-			index += 1
-		) {
-			for (const pageIndex of spreads[index] ?? []) {
-				for (const source of pages[pageIndex]?.imageSources ?? []) {
-					desiredSources.add(source);
-					if (desiredSources.size >= 2) break;
-				}
+	const desiredSources = new Set<string>();
+	for (
+		let index = spreadIndex + 1;
+		index < spreads.length && desiredSources.size < 2;
+		index += 1
+	) {
+		for (const pageIndex of spreads[index] ?? []) {
+			for (const source of pages[pageIndex]?.imageSources ?? []) {
+				desiredSources.add(source);
 				if (desiredSources.size >= 2) break;
 			}
+			if (desiredSources.size >= 2) break;
 		}
-		const cache = preloadedImagesRef.current;
-		for (const source of cache.keys()) {
-			if (!desiredSources.has(source)) cache.delete(source);
-		}
-		for (const source of desiredSources) {
-			if (cache.has(source)) continue;
-			const image = new window.Image();
-			image.decoding = "async";
-			image.src = source;
-			cache.set(source, image);
-			void image.decode?.().catch(() => {});
-		}
-	}, [pages, spreadIndex, spreads, strip]);
+	}
 
-	useEffect(() => {
-		const api: BookReaderApi = {
-			nextPage,
-			prevPage: previousPage,
-			navigateToSection(reference) {
-				const index = pages.findIndex((page) => page.reference === reference);
-				if (index < 0) return;
-				if (strip) scrollToStripPage(index);
-				else setAnchorPage(index);
-			},
-			getPosition() {
-				const exploredCharCount = exploredCountForPage(
-					sections,
-					anchorRef.current,
-				);
-				const section = sections[anchorRef.current];
-				return {
-					exploredCharCount,
-					progress: anchorRef.current / Math.max(sections.length, 1),
-					modifiedAt: Date.now(),
-					locator: section
-						? { sectionReference: section.reference, characterOffset: 0 }
-						: undefined,
-				};
-			},
-			scrollToPosition(position) {
-				const index = sectionIndexForCount(
-					sections,
-					position.exploredCharCount,
-				);
-				if (strip) scrollToStripPage(index);
-				else setAnchorPage(index);
-			},
-			relayout() {
-				setViewport({ width: viewportWidth(), height: viewportHeight() });
-			},
-		};
-		apiRef(api);
-		return () => apiRef(null);
-	}, [
-		apiRef,
-		strip,
-		nextPage,
-		pages,
-		previousPage,
-		scrollToStripPage,
-		sections,
-	]);
+	const attachCanvas = useCallback(
+		(canvas: HTMLDivElement | null) => {
+			canvasRef.current = canvas;
+			if (!canvas) return;
+			const api: BookReaderApi = {
+				nextPage,
+				prevPage: previousPage,
+				navigateToSection(reference) {
+					const index = pages.findIndex((page) => page.reference === reference);
+					if (index < 0) return;
+					if (strip) scrollToStripPage(index);
+					else setAnchorPage(index);
+				},
+				getPosition() {
+					const exploredCharCount = exploredCountForPage(
+						sections,
+						anchorRef.current,
+					);
+					const section = sections[anchorRef.current];
+					return {
+						exploredCharCount,
+						progress: anchorRef.current / Math.max(sections.length, 1),
+						modifiedAt: Date.now(),
+						locator: section
+							? { sectionReference: section.reference, characterOffset: 0 }
+							: undefined,
+					};
+				},
+				scrollToPosition(position) {
+					const index = sectionIndexForCount(
+						sections,
+						position.exploredCharCount,
+					);
+					if (strip) scrollToStripPage(index);
+					else setAnchorPage(index);
+				},
+				relayout() {
+					setViewport({ width: viewportWidth(), height: viewportHeight() });
+				},
+			};
+			apiRef(api);
+			return () => apiRef(null);
+		},
+		[apiRef, strip, nextPage, pages, previousPage, scrollToStripPage, sections],
+	);
 
 	const updateStripAnchor = useCallback(() => {
 		const reader = readerRef.current;
@@ -568,14 +518,11 @@ export function BookReaderVisual({
 		});
 	}, [updateStripAnchor]);
 
-	useEffect(
-		() => () => {
-			if (scrollFrameRef.current !== null) {
-				cancelAnimationFrame(scrollFrameRef.current);
-			}
-		},
-		[],
-	);
+	useOnUnmount(() => {
+		if (scrollFrameRef.current !== null) {
+			cancelAnimationFrame(scrollFrameRef.current);
+		}
+	});
 
 	const settleCanvas = () => {
 		const canvas = canvasRef.current;
@@ -701,12 +648,21 @@ export function BookReaderVisual({
 		[direction, nextPage, onToggleChrome, previousPage],
 	);
 
-	useEffect(() => {
-		const reader = readerRef.current;
-		if (!reader) return;
-		reader.addEventListener("click", onReaderClick);
-		return () => reader.removeEventListener("click", onReaderClick);
-	}, [onReaderClick]);
+	const clickRef = useRef(onReaderClick);
+	clickRef.current = onReaderClick;
+	const attachSurface = useCallback(
+		(reader: HTMLDivElement | null) => {
+			const cleanup = attachReader(reader);
+			if (!reader) return cleanup;
+			const click = (event: MouseEvent) => clickRef.current(event);
+			reader.addEventListener("click", click);
+			return () => {
+				cleanup?.();
+				reader.removeEventListener("click", click);
+			};
+		},
+		[attachReader],
+	);
 
 	const canvasStyle = {
 		backgroundColor: theme.backgroundColor,
@@ -765,7 +721,7 @@ export function BookReaderVisual({
 
 	return (
 		<div
-			ref={attachReader}
+			ref={attachSurface}
 			data-reader-renderer="visual"
 			className={`book-content book-content--visual relative h-dvh w-dvw ${verticalStrip ? "book-content--visual-continuous overflow-y-auto" : horizontalStrip ? "book-content--visual-horizontal-strip overflow-x-auto overflow-y-hidden" : "overflow-hidden"}`}
 			style={{
@@ -782,8 +738,28 @@ export function BookReaderVisual({
 			onPointerUp={finishPointer}
 			onPointerCancel={cancelPointer}
 		>
+			<VisualPageProgress
+				key={anchorPage}
+				anchorPage={anchorPage}
+				sections={sections}
+				onPositionChangeRef={onPositionChangeRef}
+				onSectionProgressChangeRef={onSectionProgressChangeRef}
+			/>
+			{strip && (
+				<RestoreVisualStrip
+					key={`${layout}:${pages.length}`}
+					restore={() => scrollToStripPage(anchorRef.current, "auto")}
+				/>
+			)}
+			{!strip && (
+				<PreloadVisualPages
+					key={[...desiredSources].join("\n")}
+					sources={[...desiredSources]}
+				/>
+			)}
+
 			<div
-				ref={canvasRef}
+				ref={attachCanvas}
 				className={`visual-page-canvas flex items-center justify-center ${verticalStrip ? "visual-page-canvas--continuous min-h-full w-full" : horizontalStrip ? "visual-page-canvas--horizontal-strip h-full w-max min-w-full" : "h-full w-full"}`}
 				style={canvasStyle}
 			>
@@ -809,4 +785,64 @@ export function BookReaderVisual({
 			</div>
 		</div>
 	);
+}
+
+function VisualPageProgress({
+	anchorPage,
+	sections,
+	onPositionChangeRef,
+	onSectionProgressChangeRef,
+}: {
+	anchorPage: number;
+	sections: Section[];
+	onPositionChangeRef: { current: BookReaderVisualProps["onPositionChange"] };
+	onSectionProgressChangeRef: {
+		current: BookReaderVisualProps["onSectionProgressChange"];
+	};
+}) {
+	useMountEffect(() => {
+		const explored = exploredCountForPage(sections, anchorPage);
+		const section = sections[anchorPage];
+		onPositionChangeRef.current({
+			exploredCharCount: explored,
+			progress: anchorPage / Math.max(sections.length, 1),
+			modifiedAt: Date.now(),
+			locator: section
+				? { sectionReference: section.reference, characterOffset: 0 }
+				: undefined,
+		});
+		const progress = new Map<string, SectionWithProgress>();
+		sections.forEach((section, index) => {
+			progress.set(section.reference, {
+				...section,
+				progress: index < anchorPage ? 100 : 0,
+			});
+		});
+		onSectionProgressChangeRef.current(progress);
+	});
+	return null;
+}
+
+function RestoreVisualStrip({ restore }: { restore: () => void }) {
+	useMountEffect(() => {
+		const frame = requestAnimationFrame(restore);
+		return () => cancelAnimationFrame(frame);
+	});
+	return null;
+}
+
+function PreloadVisualPages({ sources }: { sources: string[] }) {
+	useMountEffect(() => {
+		const images = sources.map((source) => {
+			const image = new window.Image();
+			image.decoding = "async";
+			image.src = source;
+			void image.decode?.().catch(() => {});
+			return image;
+		});
+		return () => {
+			images.length = 0;
+		};
+	});
+	return null;
 }

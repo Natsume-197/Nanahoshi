@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { FuriganaStyle } from "@/features/reader/presentation/settings";
 import type { FocusSentence } from "@/features/reader/renderers/focus/focus-sentences";
 import {
@@ -90,18 +90,21 @@ export function FocusSentenceView({
 		};
 	});
 
-	useEffect(() => {
-		const root = contentRef.current;
-		if (!root || !settledRef.current) return;
-		root.querySelector(".focus-sentence-indicator")?.remove();
-		if (showIndicator && sentence.kind === "text") {
-			insertSentenceIndicator(root, lastGlyphRef.current);
-		}
-	}, [showIndicator, sentence.kind]);
+	const attachContent = useCallback(
+		(root: HTMLDivElement | null) => {
+			contentRef.current = root;
+			if (!root || !settledRef.current) return;
+			root.querySelector(".focus-sentence-indicator")?.remove();
+			if (showIndicator && sentence.kind === "text") {
+				insertSentenceIndicator(root, lastGlyphRef.current);
+			}
+		},
+		[showIndicator, sentence.kind],
+	);
 
 	return (
 		<div
-			ref={contentRef}
+			ref={attachContent}
 			id={sentence.sectionReference}
 			data-reader-character-start={sentence.startCharacter}
 			data-focus-fragment-ids={JSON.stringify(sentence.fragmentIds)}

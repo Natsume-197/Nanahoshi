@@ -11,7 +11,7 @@ import {
 	Trash,
 	X,
 } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -164,9 +164,7 @@ export function FieldRoutingEditor({
 		order: string;
 	} | null>(null);
 	const providerOrder = order.join(",");
-	useEffect(() => {
-		if (undo && undo.order !== providerOrder) setUndo(null);
-	}, [providerOrder, undo]);
+	if (undo && undo.order !== providerOrder) setUndo(null);
 	const snapshot = () =>
 		setUndo(
 			structuredClone({

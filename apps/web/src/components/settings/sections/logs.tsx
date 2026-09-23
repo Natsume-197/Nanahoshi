@@ -9,7 +9,7 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -62,12 +62,15 @@ export function AdminLogs() {
 		[logsQuery.data, query, level, source, date, limit],
 	);
 	const lastId = filteredLogs.at(-1)?.id;
-	useEffect(() => {
-		if (follow && lastId && filteredLogs.length > 0) {
-			const viewport = viewportRef.current;
-			if (viewport) viewport.scrollTop = viewport.scrollHeight;
-		}
-	}, [follow, lastId, filteredLogs.length]);
+	const attachViewport = useCallback(
+		(viewport: HTMLDivElement | null) => {
+			viewportRef.current = viewport;
+			if (viewport && follow && lastId && filteredLogs.length > 0)
+				viewport.scrollTop = viewport.scrollHeight;
+		},
+		[follow, lastId, filteredLogs.length],
+	);
+
 	const hasFilters =
 		query.trim() !== "" || level !== "all" || source !== "all" || date !== "";
 	function exportLogs() {
@@ -207,7 +210,7 @@ export function AdminLogs() {
 			</div>
 			<div className="relative min-w-0">
 				<section
-					ref={viewportRef}
+					ref={attachViewport}
 					// biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable console needs keyboard focus
 					tabIndex={0}
 					aria-label={m["settings.logs.table_label"]()}

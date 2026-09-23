@@ -1,5 +1,6 @@
 import { type ShouldBlockFn, useBlocker } from "@tanstack/react-router";
-import { useCallback, useEffect, useId, useRef } from "react";
+import { createElement, useCallback, useId, useRef } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 
 type HistoryAction = "PUSH" | "REPLACE" | "FORWARD" | "BACK" | "GO";
 
@@ -33,12 +34,6 @@ export function useOverlayBackDismiss(open: boolean, onDismiss: () => void) {
 	const onDismissRef = useRef(onDismiss);
 	onDismissRef.current = onDismiss;
 
-	useEffect(() => {
-		if (!open) return;
-		overlayBackStack.add(overlayId);
-		return () => overlayBackStack.remove(overlayId);
-	}, [open, overlayId]);
-
 	const shouldBlockFn = useCallback<ShouldBlockFn>(
 		({ action }) => {
 			if (!overlayBackStack.consume(action, overlayId)) return false;
@@ -53,4 +48,15 @@ export function useOverlayBackDismiss(open: boolean, onDismiss: () => void) {
 		disabled: !open,
 		enableBeforeUnload: false,
 	});
+	return open
+		? createElement(OverlayBackRegistration, { key: overlayId, overlayId })
+		: null;
+}
+
+function OverlayBackRegistration({ overlayId }: { overlayId: string }) {
+	useMountEffect(() => {
+		overlayBackStack.add(overlayId);
+		return () => overlayBackStack.remove(overlayId);
+	});
+	return null;
 }

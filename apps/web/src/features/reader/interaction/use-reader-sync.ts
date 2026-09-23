@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef } from "react";
+import { createElement, useCallback, useRef } from "react";
 import { claimReadingTimeSlice } from "@/features/reader/renderers/shared/reading-time-slice";
 import { useClearActivityOnUnmount } from "@/hooks/use-clear-activity-on-unmount";
 import { useDocumentEvent } from "@/hooks/use-document-event";
 import { useInterval } from "@/hooks/use-interval";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import {
 	invalidateReadingProgress,
@@ -106,12 +108,18 @@ export function useReaderSync({
 	syncRef.current = syncProgress;
 
 	const refreshSessionRef = useRef<object | null>(null);
-	useEffect(() => {
-		refreshSessionRef.current = { bookUuid, enabled };
-		return () => {
-			refreshSessionRef.current = null;
-		};
-	}, [bookUuid, enabled]);
+	const refreshIdentity = useRef({ bookUuid, enabled });
+	if (
+		refreshIdentity.current.bookUuid !== bookUuid ||
+		refreshIdentity.current.enabled !== enabled
+	) {
+		refreshIdentity.current = { bookUuid, enabled };
+	}
+	refreshSessionRef.current = refreshIdentity.current;
+	useOnUnmount(() => {
+		refreshSessionRef.current = null;
+	});
+
 	const remoteHandlerRef = useRef(onRemoteProgress);
 	remoteHandlerRef.current = onRemoteProgress;
 	const refreshProgress = () => {
@@ -151,24 +159,27 @@ export function useReaderSync({
 	}, SYNC_INTERVAL_MS);
 
 	const previousSessionRef = useRef({ enabled: false, bookUuid: "" });
-	useEffect(() => {
-		const previous = previousSessionRef.current;
-		const started =
-			enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
-		const stopped = previous.enabled && !enabled;
-		previousSessionRef.current = { enabled, bookUuid };
-		if (started) {
-			lastPositionSnapshotRef.current = undefined;
-			syncRef.current?.();
-		}
-		if (stopped) {
-			enqueue(async () => {
-				await client.presence
-					.clearActivity({ context: { keepalive: true } })
-					.catch(() => {});
-			});
-		}
-	}, [bookUuid, enabled, enqueue]);
+	const binding = createElement(ReaderSyncTransition, {
+		key: `${bookUuid}:${enabled}`,
+		transition: () => {
+			const previous = previousSessionRef.current;
+			const started =
+				enabled && (!previous.enabled || previous.bookUuid !== bookUuid);
+			const stopped = previous.enabled && !enabled;
+			previousSessionRef.current = { enabled, bookUuid };
+			if (started) {
+				lastPositionSnapshotRef.current = undefined;
+				syncRef.current?.();
+			}
+			if (stopped) {
+				enqueue(async () => {
+					await client.presence
+						.clearActivity({ context: { keepalive: true } })
+						.catch(() => {});
+				});
+			}
+		},
+	});
 
 	// Sync on page close. beforeunload rarely fires on mobile, so pagehide
 	// (which also covers bfcache freezes) is the one that matters there.
@@ -192,5 +203,10 @@ export function useReaderSync({
 			: undefined,
 	);
 
-	return { syncNow: syncProgress };
+	return { syncNow: syncProgress, binding };
+}
+
+function ReaderSyncTransition({ transition }: { transition: () => void }) {
+	useMountEffect(transition);
+	return null;
 }

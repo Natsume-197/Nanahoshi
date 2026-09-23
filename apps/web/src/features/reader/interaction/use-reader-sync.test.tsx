@@ -1,6 +1,7 @@
+import { renderBindingHook } from "@/test-utils/render-binding-hook";
 import "@/test-utils/setup-dom";
 import { afterEach, expect, mock, test } from "bun:test";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup } from "@testing-library/react";
 
 const saveProgress = mock(async (_input: unknown) => {});
 const getProgress = mock(async (_input: unknown): Promise<unknown> => null);
@@ -30,7 +31,7 @@ afterEach(async () => {
 
 test("retries a failed position write and deduplicates only successful writes", async () => {
 	saveProgress.mockRejectedValueOnce(new Error("offline"));
-	const hook = renderHook(() =>
+	const hook = renderBindingHook(() =>
 		useReaderSync({ bookUuid: "book", enabled: true, getCharCounts: counts }),
 	);
 	await act(async () => {
@@ -60,7 +61,7 @@ test("refreshes on device return and discards responses after changing books", a
 		positionIntentAt: 200,
 	};
 	getProgress.mockResolvedValueOnce(remote);
-	const hook = renderHook(
+	const hook = renderBindingHook(
 		({ bookUuid }) =>
 			useReaderSync({
 				bookUuid,

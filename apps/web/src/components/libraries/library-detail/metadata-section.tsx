@@ -5,7 +5,7 @@ import type {
 } from "@nanahoshi/api/routers/libraries/library.model";
 import { CircleNotch, FloppyDisk } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	defaultFieldUpdates,
@@ -31,6 +31,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
 import { AUDIBLE_REGIONS, DEFAULT_AUDIBLE_REGION } from "@/lib/audible-regions";
 import { m } from "@/paraglide/messages";
@@ -62,13 +63,7 @@ export type MetadataDraft = {
 	metadataConfig: MetadataConfig;
 };
 
-export function MetadataSection({
-	library,
-	canManage,
-	onDirtyChange,
-	onDraftChange,
-	headingRef,
-}: {
+type MetadataSectionProps = {
 	library: Pick<
 		LibraryComplete,
 		"mediaType" | "metadataProviders" | "metadataConfig"
@@ -77,44 +72,102 @@ export function MetadataSection({
 	onDirtyChange?: (dirty: boolean) => void;
 	onDraftChange?: (draft: MetadataDraft) => void;
 	headingRef?: RefObject<HTMLHeadingElement | null>;
-}) {
+};
+
+export function MetadataSection(props: MetadataSectionProps) {
+	const { data: availability } = useQuery(
+		orpc.libraries.getMetadataProviderAvailability.queryOptions(),
+	);
+	return (
+		<MetadataSectionEditor
+			key={JSON.stringify(props.library)}
+			{...props}
+			availability={availability}
+		/>
+	);
+}
+
+function MetadataSectionEditor({
+	library,
+	canManage,
+	onDirtyChange,
+	onDraftChange,
+	headingRef,
+	availability,
+}: MetadataSectionProps & { availability?: Record<string, boolean> }) {
 	const isAudiobook = library.mediaType === "audiobook";
 	const savedDomain = library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT;
 	const savedRegion =
 		library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION;
-
-	const [providers, setProviders] = useState<ProviderEntry[]>(() =>
-		toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
-	);
-	const [fieldRules, setFieldRules] = useState<FieldRules>(() =>
-		fieldRulesOf(library.metadataProviders),
-	);
-	const [fieldUpdates, setFieldUpdates] = useState<FieldUpdates>(() =>
-		updatesOf(library.metadataProviders, library.mediaType),
-	);
-	const [pausedFields, setPausedFields] = useState<FieldRules>(() =>
-		pausedOf(library.metadataProviders),
-	);
+	const allowed =
+		isAudiobook || !availability
+			? null
+			: new Set(
+					Object.entries(availability).flatMap(([id, enabled]) =>
+						enabled ? [id] : [],
+					),
+				);
+	const pruneRules = (rules: FieldRules): FieldRules =>
+		allowed
+			? Object.fromEntries(
+					Object.entries(rules).map(([field, ids]) => [
+						field,
+						ids.filter((id) => allowed.has(id)),
+					]),
+				)
+			: rules;
+	const initial = {
+		providers: toProviderEntries(
+			library.mediaType,
+			orderOf(library.metadataProviders),
+		).filter((entry) => !allowed || allowed.has(entry.id)),
+		fieldRules: pruneRules(fieldRulesOf(library.metadataProviders)),
+		fieldUpdates: updatesOf(library.metadataProviders, library.mediaType),
+		pausedFields: pruneRules(pausedOf(library.metadataProviders)),
+		amazonDomain: savedDomain,
+		audibleRegion: savedRegion,
+	};
+	const [state, setState] = useState(initial);
+	const stateRef = useRef(state);
+	stateRef.current = state;
+	const {
+		providers,
+		fieldRules,
+		fieldUpdates,
+		pausedFields,
+		amazonDomain,
+		audibleRegion,
+	} = state;
 	const [editorVersion, setEditorVersion] = useState(0);
-	const [amazonDomain, setAmazonDomain] = useState(savedDomain);
-	const [audibleRegion, setAudibleRegion] = useState(savedRegion);
+	const toDraft = (value: typeof state): MetadataDraft => ({
+		metadataProviders: {
+			order: toProviderIds(
+				value.providers.filter((entry) => !allowed || allowed.has(entry.id)),
+			),
+			fields: pruneRules(value.fieldRules),
+			updates: value.fieldUpdates,
+			pausedFields: pruneRules(value.pausedFields),
+		},
+		metadataConfig: isAudiobook
+			? { audible: { region: value.audibleRegion } }
+			: value.amazonDomain !== ORG_DEFAULT
+				? { amazon: { domain: value.amazonDomain } }
+				: {},
+	});
+	const isChanged = (value: typeof state) =>
+		JSON.stringify(toDraft(value)) !== JSON.stringify(toDraft(initial));
+	const change = (patch: Partial<typeof state>) => {
+		const next = { ...stateRef.current, ...patch };
+		stateRef.current = next;
+		setState(next);
+		onDirtyChange?.(isChanged(next));
+		onDraftChange?.(toDraft(next));
+	};
+	useMountEffect(() => {
+		onDirtyChange?.(false);
 
-	// Re-sync local state if the library data changes (e.g. after refetch).
-	const prevRef = useRef(library);
-	if (library !== prevRef.current) {
-		prevRef.current = library;
-		setProviders(
-			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
-		);
-		setFieldRules(fieldRulesOf(library.metadataProviders));
-		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
-		setPausedFields(pausedOf(library.metadataProviders));
-		setEditorVersion((version) => version + 1);
-		setAmazonDomain(library.metadataConfig?.amazon?.domain ?? ORG_DEFAULT);
-		setAudibleRegion(
-			library.metadataConfig?.audible?.region ?? DEFAULT_AUDIBLE_REGION,
-		);
-	}
+		return () => onDirtyChange?.(false);
+	});
 
 	const updateMutation = useMutation({
 		...orpc.libraries.updateLibrary.mutationOptions(),
@@ -131,73 +184,13 @@ export function MetadataSection({
 		...orpc.settings.getAmazon.queryOptions(),
 		enabled: !isAudiobook,
 	});
-	const { data: providerAvailability } = useQuery(
-		orpc.libraries.getMetadataProviderAvailability.queryOptions(),
-	);
-	// Providers the server currently offers. Anything else is pruned from the
-	// editable state on load, so the dirty check must compare against the
-	// same pruned baseline — otherwise the tab always opens as "unsaved".
-	const allowed = useMemo(
-		() =>
-			isAudiobook || !providerAvailability
-				? null
-				: new Set<MetadataProviderId>(
-						Object.entries(providerAvailability).flatMap(([id, enabled]) =>
-							enabled ? [id as MetadataProviderId] : [],
-						),
-					),
-		[isAudiobook, providerAvailability],
-	);
-	const pruneRules = (rules: FieldRules): FieldRules =>
-		allowed
-			? Object.fromEntries(
-					Object.entries(rules).map(([field, ids]) => [
-						field,
-						ids.filter((id) => allowed.has(id)),
-					]),
-				)
-			: rules;
-	const availableProviders = useMemo(
-		() =>
-			isAudiobook || !providerAvailability
-				? providers
-				: providers.filter(
-						(entry) =>
-							providerAvailability[
-								entry.id as keyof typeof providerAvailability
-							] === true,
-					),
-		[isAudiobook, providerAvailability, providers],
+	const availableProviders = providers.filter(
+		(entry) => !allowed || allowed.has(entry.id),
 	);
 	const orgDomainLabel = AMAZON_DOMAINS.find(
 		(d) => d.value === orgAmazon?.domain,
 	)?.label;
-
-	const savedEntries = toProviderEntries(
-		library.mediaType,
-		orderOf(library.metadataProviders),
-	);
-	const savedFieldRules = fieldRulesOf(library.metadataProviders);
-	const savedPausedFields = pausedOf(library.metadataProviders);
-	const baselineEntries = allowed
-		? savedEntries.filter((entry) => allowed.has(entry.id))
-		: savedEntries;
-	const baselineRules = pruneRules(savedFieldRules);
-	const baselinePaused = pruneRules(savedPausedFields);
-	const changed =
-		JSON.stringify(providers) !== JSON.stringify(baselineEntries) ||
-		JSON.stringify(fieldRules) !== JSON.stringify(baselineRules) ||
-		JSON.stringify(fieldUpdates) !==
-			JSON.stringify(updatesOf(library.metadataProviders, library.mediaType)) ||
-		JSON.stringify(pausedFields) !== JSON.stringify(baselinePaused) ||
-		(isAudiobook
-			? audibleRegion !== savedRegion
-			: amazonDomain !== savedDomain);
-
-	useEffect(() => {
-		onDirtyChange?.(changed);
-		return () => onDirtyChange?.(false);
-	}, [changed, onDirtyChange]);
+	const changed = isChanged(state);
 
 	// base-ui's Select.Value renders the raw value unless the Root gets `items`.
 	const audibleItems = AUDIBLE_REGIONS.map((r) => ({
@@ -214,74 +207,24 @@ export function MetadataSection({
 		},
 		...AMAZON_DOMAINS.map((d) => ({ value: d.value, label: d.label })),
 	];
-	useEffect(() => {
-		if (!allowed) return;
-		setProviders((current) =>
-			current.every((entry) => allowed.has(entry.id))
-				? current
-				: current.filter((entry) => allowed.has(entry.id)),
-		);
-		setFieldRules((current) => pruneRules(current));
-		setPausedFields((current) => pruneRules(current));
-	}, [allowed]);
-
-	const cleanedRules = fieldRules;
-	const hasRules =
-		Object.keys(fieldRules).length > 0 || Object.keys(fieldUpdates).length > 0;
-	const draft = useMemo<MetadataDraft>(
-		() => ({
-			metadataProviders: hasRules
-				? {
-						order: toProviderIds(availableProviders),
-						fields: cleanedRules,
-						updates: fieldUpdates,
-						pausedFields,
-					}
-				: toProviderIds(availableProviders),
-			metadataConfig: isAudiobook
-				? { audible: { region: audibleRegion } }
-				: amazonDomain !== ORG_DEFAULT
-					? { amazon: { domain: amazonDomain } }
-					: {},
-		}),
-		[
-			isAudiobook,
-			availableProviders,
-			hasRules,
-			cleanedRules,
-			fieldUpdates,
-			pausedFields,
-			audibleRegion,
-			amazonDomain,
-		],
-	);
-	useEffect(() => {
-		onDraftChange?.(draft);
-	}, [draft, onDraftChange]);
+	const draft = toDraft(state);
 	const handleSave = () => {
 		if (library.uuid) updateMutation.mutate({ uuid: library.uuid, ...draft });
 	};
 
 	const disabled = !canManage || updateMutation.isPending;
 	const discard = () => {
-		setProviders(
-			toProviderEntries(library.mediaType, orderOf(library.metadataProviders)),
-		);
-		setFieldRules(fieldRulesOf(library.metadataProviders));
-		setFieldUpdates(updatesOf(library.metadataProviders, library.mediaType));
-		setPausedFields(pausedOf(library.metadataProviders));
-		setAmazonDomain(savedDomain);
-		setAudibleRegion(savedRegion);
+		change(initial);
 		setEditorVersion((version) => version + 1);
 	};
 	const toggleProvider = (id: MetadataProviderId, enabled: boolean) => {
 		const active = toProviderIds(availableProviders);
 		if (!enabled && active.length === 1) return;
-		setProviders(
-			providers.map((entry) =>
+		change({
+			providers: providers.map((entry) =>
 				entry.id === id ? { ...entry, enabled } : entry,
 			),
-		);
+		});
 	};
 	const updateProviders = (next: ProviderEntry[]) => {
 		const toggled = next.find(
@@ -290,7 +233,7 @@ export function MetadataSection({
 				providers.find((provider) => provider.id === entry.id)?.enabled,
 		);
 		if (toggled) toggleProvider(toggled.id, toggled.enabled);
-		else setProviders(next);
+		else change({ providers: next });
 	};
 	const providerControls = isAudiobook
 		? {
@@ -301,7 +244,7 @@ export function MetadataSection({
 						</Label>
 						<Select
 							value={audibleRegion}
-							onValueChange={setAudibleRegion}
+							onValueChange={(value) => change({ audibleRegion: value })}
 							disabled={disabled}
 							items={audibleItems}
 						>
@@ -338,7 +281,7 @@ export function MetadataSection({
 						</Label>
 						<Select
 							value={amazonDomain}
-							onValueChange={setAmazonDomain}
+							onValueChange={(value) => change({ amazonDomain: value })}
 							disabled={disabled}
 							items={amazonItems}
 						>
@@ -377,14 +320,14 @@ export function MetadataSection({
 			</div>
 			<FieldRoutingEditor
 				key={editorVersion}
-				pausedFields={pausedFields}
-				onPausedFieldsChange={setPausedFields}
+				pausedFields={pruneRules(pausedFields)}
+				onPausedFieldsChange={(value) => change({ pausedFields: value })}
 				mediaType={library.mediaType}
 				order={toProviderIds(availableProviders)}
-				value={fieldRules}
+				value={pruneRules(fieldRules)}
 				updates={fieldUpdates}
-				onChange={setFieldRules}
-				onUpdatesChange={setFieldUpdates}
+				onChange={(value) => change({ fieldRules: value })}
+				onUpdatesChange={(value) => change({ fieldUpdates: value })}
 				disabled={disabled}
 			/>
 		</section>
@@ -392,6 +335,11 @@ export function MetadataSection({
 
 	return (
 		<div className="flex flex-col gap-6">
+			<MetadataDraftRegistration
+				key={JSON.stringify(availability)}
+				draft={draft}
+				onDraftChange={onDraftChange}
+			/>
 			<section className="flex flex-col gap-5">
 				<div className="flex min-w-0 flex-col gap-1">
 					<h3
@@ -446,4 +394,15 @@ export function MetadataSection({
 			)}
 		</div>
 	);
+}
+
+function MetadataDraftRegistration({
+	draft,
+	onDraftChange,
+}: {
+	draft: MetadataDraft;
+	onDraftChange?: (draft: MetadataDraft) => void;
+}) {
+	useMountEffect(() => onDraftChange?.(draft));
+	return null;
 }

@@ -43,23 +43,26 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 		(data?.mixes.length ?? 0) > 0 &&
 		items.length > 0 &&
 		!items.every((item) => item.reason.type === "popular");
-	useReportHomeSectionStatus(
+	const renderSection = useReportHomeSectionStatus(
 		isLoading ? "loading" : hasContent ? "populated" : "empty",
 	);
 	const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 	if (isLoading) {
-		return showLoadingPlaceholder ? (
-			<SectionSkeleton square={format === "audiobooks"} />
-		) : null;
+		return renderSection(
+			showLoadingPlaceholder ? (
+				<SectionSkeleton square={format === "audiobooks"} />
+			) : null,
+		);
 	}
-	if (!data?.enabled || data.mixes.length === 0) return null;
-	if (items.length === 0) return null;
+	if (!data?.enabled || data.mixes.length === 0) return renderSection(null);
+	if (items.length === 0) return renderSection(null);
 	// A new user may receive the server ranking as the API's cold-start fallback.
 	// The dedicated popularity row renders that data, so avoid showing it twice.
-	if (items.every((item) => item.reason.type === "popular")) return null;
+	if (items.every((item) => item.reason.type === "popular"))
+		return renderSection(null);
 
-	return (
+	return renderSection(
 		<ScrollSection title={title} restoreId={`recs-${format}`}>
 			{items.map((item, index) => (
 				<DashboardContextMenuBook
@@ -84,6 +87,6 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 					/>
 				</DashboardContextMenuBook>
 			))}
-		</ScrollSection>
+		</ScrollSection>,
 	);
 });

@@ -103,3 +103,121 @@ test("toggling a provider marks the section as dirty", async () => {
 		expect(view.getByText(m["library.rules_unsaved"]())).toBeTruthy(),
 	);
 });
+
+test("draft and dirty notifications follow edits and data replacement", async () => {
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	client.setQueryData(["metadata-provider-availability"], providerAvailability);
+	const dirty = mock((_value: boolean) => {});
+	const draft = mock((_value: unknown) => {});
+	const library = {
+		mediaType: "ebook" as const,
+		metadataProviders: {
+			order: ["ranobedb", "amazon", "goodreads"],
+			fields: { title: ["amazon", "ranobedb"] },
+		},
+		metadataConfig: {},
+	};
+	const section = (value = library) => (
+		<QueryClientProvider client={client}>
+			<MetadataSection
+				library={value}
+				canManage
+				onDirtyChange={dirty}
+				onDraftChange={draft}
+			/>
+		</QueryClientProvider>
+	);
+	const view = render(section());
+	await waitFor(() => expect(draft).toHaveBeenCalled());
+	expect(dirty).toHaveBeenLastCalledWith(false);
+	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
+		metadataProviders: {
+			order: ["ranobedb", "goodreads"],
+			fields: { title: ["ranobedb"] },
+		},
+	});
+	fireEvent.click(
+		view.getByRole("checkbox", {
+			name: m["library.provider_enable"]({ name: "Goodreads" }),
+		}),
+	);
+	expect(dirty).toHaveBeenLastCalledWith(true);
+	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
+		metadataProviders: { order: ["ranobedb"] },
+	});
+	view.rerender(
+		section({
+			...library,
+			metadataProviders: {
+				...library.metadataProviders,
+				order: ["ranobedb", "googlebooks"],
+			},
+		}),
+	);
+	expect(dirty).toHaveBeenLastCalledWith(false);
+	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
+		metadataProviders: { order: ["ranobedb", "googlebooks"] },
+	});
+	view.unmount();
+	expect(dirty).toHaveBeenLastCalledWith(false);
+	client.clear();
+});
+
+test("provider availability updates preserve edits made while it was loading", async () => {
+	const client = new QueryClient({
+		defaultOptions: {
+			queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+		},
+	});
+	client.setQueryData(["metadata-provider-availability"], {
+		...providerAvailability,
+		amazon: true,
+	});
+	const draft = mock((_value: unknown) => {});
+	const view = render(
+		<QueryClientProvider client={client}>
+			<MetadataSection
+				library={{
+					mediaType: "ebook",
+					metadataProviders: ["ranobedb", "amazon", "goodreads"],
+					metadataConfig: {},
+				}}
+				canManage
+				onDraftChange={draft}
+			/>
+		</QueryClientProvider>,
+	);
+	fireEvent.click(
+		view.getByRole("checkbox", {
+			name: m["library.provider_enable"]({ name: "Goodreads" }),
+		}),
+	);
+	const { act } = await import("@testing-library/react");
+	await act(async () => {
+		client.setQueryData(
+			["metadata-provider-availability"],
+			providerAvailability,
+		);
+	});
+	await waitFor(() =>
+		expect(
+			view.queryByRole("checkbox", {
+				name: m["library.provider_enable"]({ name: "Amazon" }),
+			}),
+		).toBeNull(),
+	);
+	expect(
+		view
+			.getByRole("checkbox", {
+				name: m["library.provider_enable"]({ name: "Goodreads" }),
+			})
+			.getAttribute("aria-checked"),
+	).toBe("false");
+	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
+		metadataProviders: { order: ["ranobedb"] },
+	});
+	view.unmount();
+	client.clear();
+});

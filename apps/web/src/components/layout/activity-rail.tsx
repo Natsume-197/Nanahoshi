@@ -29,7 +29,10 @@ interface ActivityRailProps {
  */
 export function ActivityRail({ open, onClose }: ActivityRailProps) {
 	const isSheet = useActivityRailIsSheet();
-	useOverlayBackDismiss(open && isSheet, onClose);
+	const overlayBackRegistration = useOverlayBackDismiss(
+		open && isSheet,
+		onClose,
+	);
 
 	// Escape dismisses the desktop overlay, but only when it's the topmost layer:
 	// the sheet and any open dialog handle their own Escape.
@@ -41,6 +44,7 @@ export function ActivityRail({ open, onClose }: ActivityRailProps) {
 
 	return (
 		<>
+			{overlayBackRegistration}
 			<aside
 				aria-hidden={!open}
 				inert={!open}

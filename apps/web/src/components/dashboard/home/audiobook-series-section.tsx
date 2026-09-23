@@ -22,15 +22,17 @@ export const AudiobookSeriesSection = memo(
 			refetchOnWindowFocus: false,
 			refetchOnReconnect: false,
 		});
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			isLoading ? "loading" : series?.length ? "populated" : "empty",
 		);
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 		if (isLoading) {
-			return showLoadingPlaceholder ? <SectionSkeleton square /> : null;
+			return renderSection(
+				showLoadingPlaceholder ? <SectionSkeleton square /> : null,
+			);
 		}
-		if (!series || series.length === 0) return null;
+		if (!series || series.length === 0) return renderSection(null);
 
 		const entries: SeriesEntry[] = series.map((s) => ({
 			uuid: s.uuid,
@@ -41,7 +43,7 @@ export const AudiobookSeriesSection = memo(
 			author: s.author,
 		}));
 
-		return (
+		return renderSection(
 			<SeriesSection
 				title={m["home.audiobook_series"]()}
 				showAllHref="/dashboard/series"
@@ -51,7 +53,7 @@ export const AudiobookSeriesSection = memo(
 				restoreId="series-audiobooks"
 				aspectRatio="square"
 				countMessage={m["home.series_audiobook_count"]}
-			/>
+			/>,
 		);
 	},
 );

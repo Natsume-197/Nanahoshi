@@ -22,13 +22,14 @@ export const BookSeriesSection = memo(
 			refetchOnWindowFocus: false,
 			refetchOnReconnect: false,
 		});
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			isLoading ? "loading" : series?.length ? "populated" : "empty",
 		);
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
-		if (isLoading) return showLoadingPlaceholder ? <SectionSkeleton /> : null;
-		if (!series || series.length === 0) return null;
+		if (isLoading)
+			return renderSection(showLoadingPlaceholder ? <SectionSkeleton /> : null);
+		if (!series || series.length === 0) return renderSection(null);
 
 		const entries: SeriesEntry[] = series.map((s) => ({
 			uuid: s.uuid,
@@ -39,7 +40,7 @@ export const BookSeriesSection = memo(
 			author: s.author,
 		}));
 
-		return (
+		return renderSection(
 			<SeriesSection
 				title={m["home.book_series"]()}
 				showAllHref="/dashboard/series"
@@ -47,7 +48,7 @@ export const BookSeriesSection = memo(
 				series={entries}
 				restoreId="series-books"
 				countMessage={m["home.series_book_count"]}
-			/>
+			/>,
 		);
 	},
 );

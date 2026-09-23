@@ -1,5 +1,5 @@
 import { ArrowUUpLeft, BookmarkSimple } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReaderPosition, Section } from "@/features/reader/document/types";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
@@ -7,6 +7,7 @@ import {
 	rangeForReadingPoint,
 	readingPointForSelection,
 } from "@/features/reader/session/reading-point-dom";
+import { useDocumentEvent } from "@/hooks/use-document-event";
 import { m } from "@/paraglide/messages";
 
 interface Props {
@@ -31,116 +32,116 @@ export function ReaderReadingPoint({
 	const [selection, setSelection] = useState<ReaderPosition>();
 	const markerRef = useRef<HTMLSpanElement>(null);
 	const [toolbar, setToolbar] = useState<Element | null>(null);
-	useEffect(() => {
-		const update = () => {
-			const selected = window.getSelection();
-			const root = document.querySelector(
-				`[data-reader-renderer="${renderer}"]`,
-			);
-			if (!selected?.rangeCount || selected.isCollapsed || !root) {
-				setSelection(undefined);
-				return;
-			}
-			setSelection(
-				readingPointForSelection(selected.getRangeAt(0), root, sections, total),
-			);
-		};
-		document.addEventListener("selectionchange", update);
-		return () => document.removeEventListener("selectionchange", update);
-	}, [renderer, sections, total]);
+	useDocumentEvent("selectionchange", () => {
+		const selected = window.getSelection();
+		const root = document.querySelector(`[data-reader-renderer="${renderer}"]`);
+		if (!selected?.rangeCount || selected.isCollapsed || !root) {
+			setSelection(undefined);
+			return;
+		}
+		setSelection(
+			readingPointForSelection(selected.getRangeAt(0), root, sections, total),
+		);
+	});
 
-	useEffect(() => {
-		const surface = document.querySelector("main");
-		if (!surface) return;
-		let root: Element | null = null;
-		let range: Range | undefined;
-		let frame = 0;
-		const paint = () => {
-			frame = 0;
-			const marker = markerRef.current;
+	const attachMarker = useCallback(
+		(marker: HTMLSpanElement | null) => {
+			markerRef.current = marker;
 			if (!marker) return;
-			let rect = range?.getBoundingClientRect();
-			if (root && position && renderer === "visual") {
-				const index = sections.findIndex(
-					(section) => section.reference === position.locator?.sectionReference,
+			const surface = document.querySelector("main");
+			if (!surface) return;
+			let root: Element | null = null;
+			let range: Range | undefined;
+			let frame = 0;
+			const paint = () => {
+				frame = 0;
+				const marker = markerRef.current;
+				if (!marker) return;
+				let rect = range?.getBoundingClientRect();
+				if (root && position && renderer === "visual") {
+					const index = sections.findIndex(
+						(section) =>
+							section.reference === position.locator?.sectionReference,
+					);
+					rect = root
+						.querySelector(`[data-visual-page-index="${index}"]`)
+						?.getBoundingClientRect();
+				} else if (root && position && renderer === "pdf") {
+					rect = root
+						.querySelector(
+							`[data-reader-pdf-page="${position.exploredCharCount}"]`,
+						)
+						?.getBoundingClientRect();
+				}
+				const viewport = root?.closest("main")?.getBoundingClientRect();
+				const visible =
+					rect &&
+					(rect.width > 0 || rect.height > 0) &&
+					rect.bottom > (viewport?.top ?? 0) &&
+					rect.top < (viewport?.bottom ?? window.innerHeight) &&
+					rect.right > 0 &&
+					rect.left < window.innerWidth;
+				marker.hidden = !visible;
+				if (!visible || !rect || !root) return;
+				const vertical =
+					getComputedStyle(root).writingMode.startsWith("vertical");
+				const page = renderer === "visual" || renderer === "pdf";
+				// Keep the marker attached to the source, including at viewport edges.
+				marker.style.left = `${page ? rect.right - 26 : vertical ? rect.right + 3 : rect.left - 25}px`;
+				marker.style.top = `${rect.top}px`;
+			};
+			const schedule = () => {
+				if (!frame) frame = requestAnimationFrame(paint);
+			};
+			const resize = new ResizeObserver(schedule);
+			const refresh = (records?: MutationRecord[]) => {
+				setToolbar(surface.querySelector("[data-reader-point-actions]"));
+				const nextRoot = surface.querySelector(
+					`[data-reader-renderer="${renderer}"]`,
 				);
-				rect = root
-					.querySelector(`[data-visual-page-index="${index}"]`)
-					?.getBoundingClientRect();
-			} else if (root && position && renderer === "pdf") {
-				rect = root
-					.querySelector(
-						`[data-reader-pdf-page="${position.exploredCharCount}"]`,
-					)
-					?.getBoundingClientRect();
-			}
-			const viewport = root?.closest("main")?.getBoundingClientRect();
-			const visible =
-				rect &&
-				(rect.width > 0 || rect.height > 0) &&
-				rect.bottom > (viewport?.top ?? 0) &&
-				rect.top < (viewport?.bottom ?? window.innerHeight) &&
-				rect.right > 0 &&
-				rect.left < window.innerWidth;
-			marker.hidden = !visible;
-			if (!visible || !rect || !root) return;
-			const vertical =
-				getComputedStyle(root).writingMode.startsWith("vertical");
-			const page = renderer === "visual" || renderer === "pdf";
-			// Keep the marker attached to the source, including at viewport edges.
-			marker.style.left = `${page ? rect.right - 26 : vertical ? rect.right + 3 : rect.left - 25}px`;
-			marker.style.top = `${rect.top}px`;
-		};
-		const schedule = () => {
-			if (!frame) frame = requestAnimationFrame(paint);
-		};
-		const resize = new ResizeObserver(schedule);
-		const refresh = (records?: MutationRecord[]) => {
-			setToolbar(surface.querySelector("[data-reader-point-actions]"));
-			const nextRoot = surface.querySelector(
-				`[data-reader-renderer="${renderer}"]`,
-			);
-			const changedRoot = nextRoot !== root;
-			if (changedRoot) {
+				const changedRoot = nextRoot !== root;
+				if (changedRoot) {
+					resize.disconnect();
+					root = nextRoot;
+					if (root) resize.observe(root);
+				}
+				if (
+					!records ||
+					changedRoot ||
+					records.some((record) => root?.contains(record.target))
+				) {
+					range =
+						root && position
+							? rangeForReadingPoint(root, position, sections)
+							: undefined;
+					schedule();
+				}
+			};
+			// Renderers can mount late or replace their content during reflow.
+			const observer = new MutationObserver(refresh);
+			observer.observe(surface, {
+				childList: true,
+				characterData: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: ["data-reader-character-start", "style"],
+			});
+			document.addEventListener("scroll", schedule, true);
+			window.addEventListener("resize", schedule);
+			document.addEventListener("load", schedule, true);
+			refresh();
+			paint();
+			return () => {
+				cancelAnimationFrame(frame);
+				observer.disconnect();
 				resize.disconnect();
-				root = nextRoot;
-				if (root) resize.observe(root);
-			}
-			if (
-				!records ||
-				changedRoot ||
-				records.some((record) => root?.contains(record.target))
-			) {
-				range =
-					root && position
-						? rangeForReadingPoint(root, position, sections)
-						: undefined;
-				schedule();
-			}
-		};
-		// Renderers can mount late or replace their content during reflow.
-		const observer = new MutationObserver(refresh);
-		observer.observe(surface, {
-			childList: true,
-			characterData: true,
-			subtree: true,
-			attributes: true,
-			attributeFilter: ["data-reader-character-start", "style"],
-		});
-		document.addEventListener("scroll", schedule, true);
-		window.addEventListener("resize", schedule);
-		document.addEventListener("load", schedule, true);
-		refresh();
-		paint();
-		return () => {
-			cancelAnimationFrame(frame);
-			observer.disconnect();
-			resize.disconnect();
-			document.removeEventListener("scroll", schedule, true);
-			window.removeEventListener("resize", schedule);
-			document.removeEventListener("load", schedule, true);
-		};
-	}, [position, renderer, sections]);
+				document.removeEventListener("scroll", schedule, true);
+				window.removeEventListener("resize", schedule);
+				document.removeEventListener("load", schedule, true);
+			};
+		},
+		[position, renderer, sections],
+	);
 
 	const buttonClass =
 		"flex size-10 shrink-0 items-center justify-center rounded-md opacity-70 hover:bg-black/10 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-30";
@@ -148,7 +149,7 @@ export function ReaderReadingPoint({
 		<>
 			{createPortal(
 				<span
-					ref={markerRef}
+					ref={attachMarker}
 					hidden
 					aria-label={m.reader_point_marker()}
 					role="img"

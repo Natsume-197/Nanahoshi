@@ -30,7 +30,7 @@ export const RandomBooksSection = memo(
 			refetchOnReconnect: false,
 		});
 		const [isRefreshing, setIsRefreshing] = useState(false);
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			isLoading ? "loading" : books?.length ? "populated" : "empty",
 		);
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
@@ -58,12 +58,13 @@ export const RandomBooksSection = memo(
 				});
 		}, [isRefreshing, queryClient, randomBooks.queryKey]);
 
-		if (isLoading) return showLoadingPlaceholder ? <SectionSkeleton /> : null;
-		if (!books || books.length === 0) return null;
+		if (isLoading)
+			return renderSection(showLoadingPlaceholder ? <SectionSkeleton /> : null);
+		if (!books || books.length === 0) return renderSection(null);
 
 		const title = m["home.random_books"]();
 
-		return (
+		return renderSection(
 			<ScrollSection
 				title={title}
 				restoreId="random-books"
@@ -91,7 +92,7 @@ export const RandomBooksSection = memo(
 						/>
 					</DashboardContextMenuBook>
 				))}
-			</ScrollSection>
+			</ScrollSection>,
 		);
 	},
 );

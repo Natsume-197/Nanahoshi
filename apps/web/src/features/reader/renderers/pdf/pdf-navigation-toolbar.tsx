@@ -24,7 +24,7 @@ import {
 	SidebarSimple,
 	SlidersHorizontal,
 } from "@phosphor-icons/react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -90,9 +90,11 @@ export function PdfNavigationToolbar({
 	const [requestedPage, setRequestedPage] = useState(String(pageNumber));
 	const zoomPercent = Math.round(zoomState.currentZoomLevel * 100);
 
-	useEffect(() => {
+	const previousPage = useRef(pageNumber);
+	if (previousPage.current !== pageNumber) {
+		previousPage.current = pageNumber;
 		setRequestedPage(String(pageNumber));
-	}, [pageNumber]);
+	}
 
 	const commitRequestedPage = (value: string) => {
 		const page = Number.parseInt(value, 10);

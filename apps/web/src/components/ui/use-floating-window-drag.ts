@@ -3,9 +3,9 @@ import {
 	type PointerEvent,
 	type RefObject,
 	useCallback,
-	useEffect,
 	useRef,
 } from "react";
+import { useWindowEvent } from "@/hooks/use-window-event";
 
 export interface FloatingWindowOffset {
 	x: number;
@@ -94,12 +94,9 @@ export function useFloatingWindowDrag<T extends HTMLElement>({
 		[inset, viewport],
 	);
 
-	useEffect(() => {
-		if (!enabled) return;
-		const keepInViewport = () => applyOffset(constrain(offsetRef.current));
-		window.addEventListener("resize", keepInViewport);
-		return () => window.removeEventListener("resize", keepInViewport);
-	}, [applyOffset, constrain, enabled]);
+	useWindowEvent("resize", () => {
+		if (enabled) applyOffset(constrain(offsetRef.current));
+	});
 
 	const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
 		if (!enabled || !event.isPrimary || event.button !== 0) return;

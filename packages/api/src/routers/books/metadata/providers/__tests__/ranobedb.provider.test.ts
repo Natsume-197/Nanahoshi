@@ -7,7 +7,7 @@ const mockGetRanobedbConfig = mock(() =>
 );
 
 // Includes every provider-config getter so this mock doesn't break the other
-// provider test files sharing the same Bun process (see CLAUDE.md mock
+// provider test files sharing the same Bun process (see AGENTS.md mock
 // pollution note).
 mock.module("../../../../settings/settings.service", () => ({
 	getRanobedbConfig: mockGetRanobedbConfig,

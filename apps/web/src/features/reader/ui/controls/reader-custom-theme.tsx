@@ -1,10 +1,4 @@
-import {
-	type KeyboardEvent,
-	type PointerEvent,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEvent, type PointerEvent, useRef, useState } from "react";
 import {
 	type CustomReaderThemes,
 	getReaderTheme,
@@ -17,6 +11,8 @@ import {
 	ThemedOption,
 	ThemedSelect,
 } from "@/features/reader/ui/controls/reader-controls";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { m } from "@/paraglide/messages";
 
 interface CustomThemeValue {
@@ -221,11 +217,13 @@ function ColorInputRow({
 	);
 	const [isDragging, setIsDragging] = useState(false);
 
-	useEffect(() => {
+	const previousHex = useRef(values.hexExpression);
+	if (previousHex.current !== values.hexExpression) {
+		previousHex.current = values.hexExpression;
 		setHsv(hexToHsv(values.hexExpression));
 		setHexDraft(values.hexExpression);
 		setRgbDraft(hexToRgbValue(values.hexExpression));
-	}, [values.hexExpression]);
+	}
 
 	const commitHsv = (nextHsv: HsvColor) => {
 		setHsv(nextHsv);
@@ -469,35 +467,35 @@ export function ReaderCustomThemeDialog({
 	const onPreviewRef = useRef(onPreview);
 	onPreviewRef.current = onPreview;
 
-	useEffect(() => {
-		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-			if (event.key === "Escape") onClose();
-		};
-		window.addEventListener("keydown", handleKeyDown);
-		requestAnimationFrame(() => themeNameRef.current?.focus());
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
-
-	useEffect(() => {
+	useWindowEvent("keydown", (event) => {
+		if (event.key === "Escape") onClose();
+	});
+	useMountEffect(() => {
+		const frame = requestAnimationFrame(() => themeNameRef.current?.focus());
 		onPreviewRef.current(getDraftColors(customTheme));
-	}, [customTheme]);
+		return () => cancelAnimationFrame(frame);
+	});
+	const preview = (next: CustomThemeDraft) => {
+		setCustomTheme(next);
+		onPreview(getDraftColors(next));
+	};
 
 	const handleColorValueChange = (attribute: ThemeAttribute, value: string) => {
-		setCustomTheme((prev) => ({
-			...prev,
+		preview({
+			...customTheme,
 			[attribute]: {
 				hexExpression: value,
-				alphaValue: prev[attribute].alphaValue,
-				rgbaExpression: hexToRGB(value, prev[attribute].alphaValue),
+				alphaValue: customTheme[attribute].alphaValue,
+				rgbaExpression: hexToRGB(value, customTheme[attribute].alphaValue),
 			},
-		}));
+		});
 	};
 
 	const handleStartFromChange = (themeId: string) => {
 		setThemeToCopy(themeId);
 		// Strip `id` so it never ends up serialized as a color attribute.
 		const { id: _id, ...colors } = getReaderTheme(themeId, customThemes);
-		setCustomTheme(getThemeData(colors));
+		preview(getThemeData(colors));
 	};
 
 	const handleRestore = () => {

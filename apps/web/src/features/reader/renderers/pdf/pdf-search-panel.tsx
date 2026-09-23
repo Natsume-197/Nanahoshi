@@ -10,7 +10,7 @@ import {
 import {
 	type CSSProperties,
 	type KeyboardEvent,
-	useEffect,
+	useCallback,
 	useRef,
 	useState,
 } from "react";
@@ -24,6 +24,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePdfNavigation } from "@/features/reader/interaction/use-pdf-navigation";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 
 interface PdfSearchPanelProps {
@@ -50,7 +52,7 @@ export function PdfSearchPanel({
 	const [scannedPages, setScannedPages] = useState(0);
 	const [searchError, setSearchError] = useState<string>();
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	const activeResultRef = useRef<HTMLButtonElement | null>(null);
+
 	const normalizedQuery = query.trim();
 	const activeResult = searchState.results[searchState.activeResultIndex];
 	const firstRenderedResult = Math.max(
@@ -65,53 +67,67 @@ export function PdfSearchPanel({
 		firstRenderedResult + MAX_RENDERED_RESULTS,
 	);
 
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
+	useMountEffect(() => inputRef.current?.focus());
+	const pendingSearch = useRef<{
+		timer?: number;
+		task?: ReturnType<NonNullable<typeof search>["searchAllPages"]>;
+	}>({});
+	const cancelSearch = () => {
+		window.clearTimeout(pendingSearch.current.timer);
+		pendingSearch.current.task?.abort({
+			code: PdfErrorCode.Cancelled,
+			message: "A newer PDF search replaced this one",
+		});
+		pendingSearch.current = {};
+	};
+	useOnUnmount(cancelSearch);
+	const runSearch = (
+		text: string,
+		caseSensitive = matchCase,
+		words = wholeWord,
+	) => {
+		cancelSearch();
 		if (!search) return;
 		search.setFlags([
-			...(matchCase ? [MatchFlag.MatchCase] : []),
-			...(wholeWord ? [MatchFlag.MatchWholeWord] : []),
+			...(caseSensitive ? [MatchFlag.MatchCase] : []),
+			...(words ? [MatchFlag.MatchWholeWord] : []),
 		]);
 		setScannedPages(0);
 		setSearchError(undefined);
-
-		if (normalizedQuery.length < 2) {
+		if (text.trim().length < 2) {
 			search.stopSearch();
 			return;
 		}
-
 		search.startSearch();
-		let task: ReturnType<typeof search.searchAllPages> | undefined;
-		const timer = window.setTimeout(() => {
-			task = search.searchAllPages(normalizedQuery);
+		const pending: typeof pendingSearch.current = {};
+		pendingSearch.current = pending;
+		pending.timer = window.setTimeout(() => {
+			const task = search.searchAllPages(text.trim());
+			pending.task = task;
 			task.onProgress((progress) => {
-				setScannedPages((current) => Math.max(current, progress.page + 1));
+				if (pendingSearch.current === pending)
+					setScannedPages((current) => Math.max(current, progress.page + 1));
 			});
 			void task.toPromise().catch((error: unknown) => {
-				if (task?.state.stage === TaskStage.Aborted) return;
+				if (
+					pendingSearch.current !== pending ||
+					task.state.stage === TaskStage.Aborted
+				)
+					return;
 				setSearchError(
 					error instanceof Error ? error.message : "Could not search this PDF",
 				);
 			});
 		}, SEARCH_DELAY_MS);
-
-		return () => {
-			window.clearTimeout(timer);
-			task?.abort({
-				code: PdfErrorCode.Cancelled,
-				message: "A newer PDF search replaced this one",
-			});
-		};
-	}, [matchCase, normalizedQuery, search, wholeWord]);
-
-	useEffect(() => {
-		if (!activeResult || searchState.activeResultIndex < 0) return;
-		goToPage(activeResult.pageIndex + 1);
-		activeResultRef.current?.scrollIntoView?.({ block: "nearest" });
-	}, [activeResult, goToPage, searchState.activeResultIndex]);
+	};
+	const attachActiveResult = useCallback(
+		(button: HTMLButtonElement | null) => {
+			if (!button || !activeResult || searchState.activeResultIndex < 0) return;
+			goToPage(activeResult.pageIndex + 1);
+			button.scrollIntoView?.({ block: "nearest" });
+		},
+		[activeResult, goToPage, searchState.activeResultIndex],
+	);
 
 	const move = (direction: -1 | 1) => {
 		if (direction < 0) search?.previousResult();
@@ -185,7 +201,11 @@ export function PdfSearchPanel({
 						type="search"
 						value={query}
 						placeholder="Find words or phrases"
-						onChange={(event) => setQuery(event.target.value)}
+						disabled={!search}
+						onChange={(event) => {
+							setQuery(event.target.value);
+							runSearch(event.target.value);
+						}}
 						onKeyDown={handleInputKeyDown}
 					/>
 					{searchState.loading && (
@@ -207,6 +227,7 @@ export function PdfSearchPanel({
 					onValueChange={(values) => {
 						setMatchCase(values.includes("case"));
 						setWholeWord(values.includes("word"));
+						runSearch(query, values.includes("case"), values.includes("word"));
 					}}
 				>
 					<ToggleGroupItem value="case" aria-label="Match case">
@@ -277,7 +298,7 @@ export function PdfSearchPanel({
 					return (
 						<Button
 							key={`${result.pageIndex}-${result.charIndex}-${result.charCount}`}
-							ref={active ? activeResultRef : undefined}
+							ref={active ? attachActiveResult : undefined}
 							variant="ghost"
 							aria-current={active ? "true" : undefined}
 							className="mb-1 h-auto w-full items-start whitespace-normal px-3 py-2.5 text-left"

@@ -1,3 +1,5 @@
+import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useWindowEvent } from "@/hooks/use-window-event";
 /**
  * Reader settings panel. Every change commits immediately so the book updates
  * in real time behind the panel.
@@ -16,7 +18,7 @@ import {
 	Trash,
 	X,
 } from "@phosphor-icons/react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import {
 	Drawer,
 	DrawerContent,
@@ -195,7 +197,11 @@ function QuickSettingsRow({
 	);
 }
 
-export function ReaderQuickSettings({
+export function ReaderQuickSettings(props: ReaderQuickSettingsProps) {
+	return props.open ? <OpenReaderQuickSettings {...props} /> : null;
+}
+
+function OpenReaderQuickSettings({
 	manualSaving = false,
 	onManualSavingChange,
 	open,
@@ -252,7 +258,6 @@ export function ReaderQuickSettings({
 		surfaceRef: desktopDialogSurfaceRef,
 		offsetRef: desktopDialogOffsetRef,
 		applyOffset: applyDesktopDialogOffset,
-		cancelDrag: cancelDesktopDialogDrag,
 		dragHandleProps: desktopDialogDragHandleProps,
 	} = useFloatingWindowDrag<HTMLElement>({
 		enabled: open && !isMobile,
@@ -265,7 +270,6 @@ export function ReaderQuickSettings({
 		sizeRef: desktopDialogSizeRef,
 		expandedSizeRef: desktopDialogExpandedSizeRef,
 		applyGeometry: applyDesktopDialogGeometry,
-		resetResize: resetDesktopDialogResize,
 		resizeHandleProps: desktopDialogResizeHandleProps,
 	} = useFloatingWindowResize({
 		surfaceRef: desktopDialogSurfaceRef,
@@ -279,39 +283,13 @@ export function ReaderQuickSettings({
 		viewport: getReaderViewport,
 	});
 
-	useEffect(() => {
-		if (!open) {
-			setSelectedCategory(null);
-			setProfileRename(null);
-			setProfilePendingDelete(null);
-			setCreatingProfile(false);
-			setNewProfileName("");
-			applyDesktopDialogOffset({ x: 0, y: 0 });
-			cancelDesktopDialogDrag();
-			resetDesktopDialogResize();
-			setDesktopDialogCollapsed(false);
-			if (customThemeDialog) {
-				onCustomThemePreviewCancel(customThemeDialog.previousTheme);
-				setCustomThemeDialog(null);
-			}
-		}
-	}, [
-		applyDesktopDialogOffset,
-		cancelDesktopDialogDrag,
-		customThemeDialog,
-		onCustomThemePreviewCancel,
-		open,
-		resetDesktopDialogResize,
-	]);
-
-	useEffect(() => {
-		if (!open || isMobile || customThemeDialog) return;
-		const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-			if (event.key === "Escape") onClose();
-		};
-		window.addEventListener("keydown", closeOnEscape);
-		return () => window.removeEventListener("keydown", closeOnEscape);
-	}, [customThemeDialog, isMobile, onClose, open]);
+	useOnUnmount(() => {
+		if (customThemeDialog)
+			onCustomThemePreviewCancel(customThemeDialog.previousTheme);
+	});
+	useWindowEvent("keydown", (event) => {
+		if (!isMobile && !customThemeDialog && event.key === "Escape") onClose();
+	});
 
 	const toggleDesktopDialogCollapsed = () => {
 		const surface = desktopDialogSurfaceRef.current;

@@ -1,6 +1,7 @@
 import type { Task } from "@nanahoshi/api/modules/taskManager";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -70,7 +71,20 @@ export function useLibraryTasks(): Map<number, Task> {
  * queue production starts, plannedJobs keeps the percentage and remaining count
  * truthful while BullMQ is being fed under backpressure.
  */
-export function LibraryTaskProgress({
+export function LibraryTaskProgress(props: {
+	task: Task;
+	className?: string;
+	barClassName?: string;
+}) {
+	return (
+		<LibraryTaskProgressState
+			key={`${props.task.id}:${props.task.status}:${props.task.scanProgress?.lastProgressAt}`}
+			{...props}
+		/>
+	);
+}
+
+function LibraryTaskProgressState({
 	task,
 	className,
 	barClassName,
@@ -82,14 +96,14 @@ export function LibraryTaskProgress({
 	const label = busyLabel(task);
 	const numberFormat = new Intl.NumberFormat(getLocale());
 	const [now, setNow] = useState(Date.now);
-	useEffect(() => {
+	useMountEffect(() => {
 		if (!task.scanProgress || task.status !== "running") return;
 		const timeout = setTimeout(
 			() => setNow(Date.now()),
 			scanProgressStaleDelay(task.scanProgress.lastProgressAt),
 		);
 		return () => clearTimeout(timeout);
-	}, [task.scanProgress, task.status]);
+	});
 	const state = getLibraryTaskProgressState(task, now);
 	if (state.kind === "failed") {
 		return (

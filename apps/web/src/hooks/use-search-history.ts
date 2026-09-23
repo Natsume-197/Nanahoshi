@@ -1,5 +1,6 @@
 import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { searchResultKey } from "@/lib/search-result-batches";
 
 const STORAGE_KEY = "nanahoshi:search-history";
@@ -126,11 +127,11 @@ function write(entries: SearchHistoryEntry[]) {
 
 export function useSearchHistory() {
 	const [history, setHistory] = useState<SearchHistoryEntry[]>(read);
-	useEffect(() => {
+	useMountEffect(() => {
 		const sync = () => setHistory(read());
 		window.addEventListener(CHANGE_EVENT, sync);
 		return () => window.removeEventListener(CHANGE_EVENT, sync);
-	}, []);
+	});
 
 	const add = useCallback(
 		(entry: NewSearchHistoryEntry, replacedQuery?: string) => {

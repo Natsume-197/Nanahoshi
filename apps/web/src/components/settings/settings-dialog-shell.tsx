@@ -1,11 +1,12 @@
 import { X } from "@phosphor-icons/react";
-import { type ReactNode, useEffect } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
 	useFloatingWindowDrag,
 	useFloatingWindowResize,
 } from "@/components/ui/use-floating-window-drag";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { m } from "@/paraglide/messages";
 
 export function ThemeCustomizerShell({
@@ -27,13 +28,9 @@ export function ThemeCustomizerShell({
 		enabled: desktop,
 	});
 
-	useEffect(() => {
-		const onKeyDown = (event: globalThis.KeyboardEvent) => {
-			if (event.key === "Escape") onClose();
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [onClose]);
+	useWindowEvent("keydown", (event) => {
+		if (event.key === "Escape") onClose();
+	});
 
 	return createPortal(
 		<div

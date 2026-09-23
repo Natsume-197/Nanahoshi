@@ -28,10 +28,10 @@ import {
 import {
 	type CSSProperties,
 	useCallback,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -47,6 +47,8 @@ import { usePdfNavigation } from "@/features/reader/interaction/use-pdf-navigati
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { PdfNavigationToolbar } from "./pdf-navigation-toolbar";
 import { PdfPageNavigator } from "./pdf-page-navigator";
@@ -190,11 +192,8 @@ function PdfDocumentViewport({
 	onDocumentReady,
 	apiRef,
 }: PdfDocumentViewportProps) {
-	const { currentPage, goToPage, positionReady } = usePdfNavigation(
-		documentId,
-		pageCount,
-		initialPosition?.exploredCharCount,
-	);
+	const { currentPage, goToPage, positionReady, restorePosition } =
+		usePdfNavigation(documentId, pageCount, initialPosition?.exploredCharCount);
 	const { provides: scrollCapability } = useScrollCapability();
 	const { provides: zoom } = useZoom(documentId);
 	const { provides: rotate } = useRotate(documentId);
@@ -204,7 +203,7 @@ function PdfDocumentViewport({
 	// subscribes to it from an effect. Keep one stable capability per plugin so
 	// switching the tool does not turn viewport updates into React rerenders.
 	const pan = useMemo(() => panPlugin?.provides() ?? null, [panPlugin]);
-	const [isPanning, setIsPanning] = useState(false);
+
 	const [layout, setLayout] = useState<PdfLayoutMode>("page");
 	const [scrollDirection, setScrollDirection] =
 		useState<PdfScrollDirection>("vertical");
@@ -241,21 +240,18 @@ function PdfDocumentViewport({
 		onDocumentReady,
 		apiRef,
 	};
-	useEffect(() => {
-		if (!pan) {
-			setIsPanning(false);
-			return;
-		}
-		const scope = pan.forDocument(documentId);
-		setIsPanning(scope.isPanMode());
-		return scope.onPanModeChange(setIsPanning);
-	}, [documentId, pan]);
-	useEffect(
-		() => () => {
-			cancelPresentationRestoreRef.current?.();
-		},
-		[],
+	const panScope = useMemo(
+		() => pan?.forDocument(documentId),
+		[pan, documentId],
 	);
+	const subscribePan = useCallback(
+		(notify: () => void) => panScope?.onPanModeChange(notify) ?? (() => {}),
+		[panScope],
+	);
+	const readPan = useCallback(() => panScope?.isPanMode() ?? false, [panScope]);
+	const isPanning = useSyncExternalStore(subscribePan, readPan, () => false);
+	useOnUnmount(() => cancelPresentationRestoreRef.current?.());
+
 	const turnPage = useCallback(
 		(direction: -1 | 1) => {
 			const targetIndex = stepPdfPage(
@@ -270,55 +266,46 @@ function PdfDocumentViewport({
 	);
 	turnPageRef.current = turnPage;
 
-	useEffect(() => {
-		callbacksRef.current.onDocumentReady?.(pageCount);
-	}, [pageCount]);
-
-	useEffect(() => {
-		if (!positionReady) return;
-		const timer = window.setTimeout(() => {
-			callbacksRef.current.onPositionChange(
-				positionForPdfPage(currentPage, pageCount, documentSections),
-			);
-			const sectionProgress = new Map<string, SectionWithProgress>();
-			for (const [index, section] of documentSections.entries()) {
-				sectionProgress.set(section.reference, {
-					...section,
-					progress: index < currentPage - 1 ? 100 : 0,
-				});
-			}
-			callbacksRef.current.onSectionProgressChange(sectionProgress);
-		}, PDF_PROGRESS_REPORT_DELAY_MS);
-		return () => window.clearTimeout(timer);
-	}, [currentPage, documentSections, pageCount, positionReady]);
-
-	useEffect(() => {
-		const readerApi: BookReaderApi = {
-			nextPage: () => turnPageRef.current(1),
-			prevPage: () => turnPageRef.current(-1),
-			navigateToSection: (reference) => {
-				const pageNumber = Number.parseInt(
-					reference.replace("pdf-page-", ""),
-					10,
-				);
-				if (Number.isFinite(pageNumber)) goToPageRef.current(pageNumber);
-			},
-			getPosition: () =>
-				positionForPdfPage(currentPageRef.current, pageCount, documentSections),
-			scrollToPosition: (position) =>
-				goToPageRef.current(position.exploredCharCount),
-			relayout: () =>
-				zoomRef.current?.requestZoom(
-					currentLayoutRef.current === "page" &&
-						scrollDirectionRef.current === "vertical"
-						? ZoomMode.FitWidth
-						: ZoomMode.FitPage,
-				),
-			openSearch: () => setSearchOpen(true),
-		};
-		callbacksRef.current.apiRef(readerApi);
-		return () => callbacksRef.current.apiRef(null);
-	}, [documentSections, pageCount]);
+	const attachViewport = useCallback(
+		(viewport: HTMLDivElement | null) => {
+			if (!viewport) return;
+			const cleanupRestore = restorePosition(viewport);
+			callbacksRef.current.onDocumentReady?.(pageCount);
+			const readerApi: BookReaderApi = {
+				nextPage: () => turnPageRef.current(1),
+				prevPage: () => turnPageRef.current(-1),
+				navigateToSection: (reference) => {
+					const pageNumber = Number.parseInt(
+						reference.replace("pdf-page-", ""),
+						10,
+					);
+					if (Number.isFinite(pageNumber)) goToPageRef.current(pageNumber);
+				},
+				getPosition: () =>
+					positionForPdfPage(
+						currentPageRef.current,
+						pageCount,
+						documentSections,
+					),
+				scrollToPosition: (position) =>
+					goToPageRef.current(position.exploredCharCount),
+				relayout: () =>
+					zoomRef.current?.requestZoom(
+						currentLayoutRef.current === "page" &&
+							scrollDirectionRef.current === "vertical"
+							? ZoomMode.FitWidth
+							: ZoomMode.FitPage,
+					),
+				openSearch: () => setSearchOpen(true),
+			};
+			callbacksRef.current.apiRef(readerApi);
+			return () => {
+				cleanupRestore?.();
+				callbacksRef.current.apiRef(null);
+			};
+		},
+		[documentSections, pageCount, restorePosition],
+	);
 
 	useWindowEvent("keydown", (event) => {
 		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
@@ -472,25 +459,36 @@ function PdfDocumentViewport({
 
 	return (
 		<>
-			<GlobalPointerProvider documentId={documentId} className="size-full">
-				<Viewport
-					documentId={documentId}
-					aria-label="PDF document viewport"
-					className="nanahoshi-pdf-viewport outline-none"
-					tabIndex={-1}
-				>
-					<ZoomGestureWrapper
+			{positionReady && (
+				<PdfPageProgress
+					key={`${documentId}:${pageCount}:${currentPage}`}
+					currentPage={currentPage}
+					pageCount={pageCount}
+					documentSections={documentSections}
+					callbacksRef={callbacksRef}
+				/>
+			)}
+			<div ref={attachViewport} className="contents">
+				<GlobalPointerProvider documentId={documentId} className="size-full">
+					<Viewport
 						documentId={documentId}
-						className="min-h-full min-w-full"
+						aria-label="PDF document viewport"
+						className="nanahoshi-pdf-viewport outline-none"
+						tabIndex={-1}
 					>
-						<Scroller
+						<ZoomGestureWrapper
 							documentId={documentId}
-							className="nanahoshi-pdf-scroller pt-[calc(3.25rem+var(--safe-area-top))] pb-8 sm:pt-[calc(3rem+var(--safe-area-top))]"
-							renderPage={renderPage}
-						/>
-					</ZoomGestureWrapper>
-				</Viewport>
-			</GlobalPointerProvider>
+							className="min-h-full min-w-full"
+						>
+							<Scroller
+								documentId={documentId}
+								className="nanahoshi-pdf-scroller pt-[calc(3.25rem+var(--safe-area-top))] pb-8 sm:pt-[calc(3rem+var(--safe-area-top))]"
+								renderPage={renderPage}
+							/>
+						</ZoomGestureWrapper>
+					</Viewport>
+				</GlobalPointerProvider>
+			</div>
 
 			<PdfNavigationToolbar
 				documentId={documentId}
@@ -593,4 +591,39 @@ function PdfFailureState({
 			</p>
 		</div>
 	);
+}
+
+function PdfPageProgress({
+	currentPage,
+	pageCount,
+	documentSections,
+	callbacksRef,
+}: {
+	currentPage: number;
+	pageCount: number;
+	documentSections: ReturnType<typeof createPdfSections>;
+	callbacksRef: {
+		current: Pick<
+			PdfDocumentViewportProps,
+			"onPositionChange" | "onSectionProgressChange"
+		>;
+	};
+}) {
+	useMountEffect(() => {
+		const timer = window.setTimeout(() => {
+			callbacksRef.current.onPositionChange(
+				positionForPdfPage(currentPage, pageCount, documentSections),
+			);
+			const sectionProgress = new Map<string, SectionWithProgress>();
+			for (const [index, section] of documentSections.entries()) {
+				sectionProgress.set(section.reference, {
+					...section,
+					progress: index < currentPage - 1 ? 100 : 0,
+				});
+			}
+			callbacksRef.current.onSectionProgressChange(sectionProgress);
+		}, PDF_PROGRESS_REPORT_DELAY_MS);
+		return () => window.clearTimeout(timer);
+	});
+	return null;
 }

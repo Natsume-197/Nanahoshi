@@ -51,7 +51,7 @@ export const DiscoverCollectionsSection = memo(
 		const loading =
 			abilitiesLoading ||
 			(canReadCollections && (isLoading || loadingPreviews));
-		useReportHomeSectionStatus(
+		const renderSection = useReportHomeSectionStatus(
 			loading
 				? "loading"
 				: canReadCollections && visibleCollections.length > 0
@@ -61,11 +61,14 @@ export const DiscoverCollectionsSection = memo(
 		const showLoadingPlaceholder = useHomeSectionLoadingPlaceholder();
 
 		if (loading) {
-			return showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null;
+			return renderSection(
+				showLoadingPlaceholder ? <CollectionsSectionSkeleton /> : null,
+			);
 		}
-		if (!canReadCollections || visibleCollections.length === 0) return null;
+		if (!canReadCollections || visibleCollections.length === 0)
+			return renderSection(null);
 
-		return (
+		return renderSection(
 			<ScrollSection
 				title={m["home.discover_collections"]()}
 				showAllHref="/dashboard/collections"
@@ -90,7 +93,7 @@ export const DiscoverCollectionsSection = memo(
 						/>
 					);
 				})}
-			</ScrollSection>
+			</ScrollSection>,
 		);
 	},
 );
