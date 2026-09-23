@@ -23,17 +23,17 @@ export const ALLOWED_DIMS = [
 
 const MAX_COVER_DIM = 2048;
 
-export const ALLOWED_QUALITIES = [50, 60, 75, 86, 95] as const;
+export const ALLOWED_QUALITIES = [50, 60, 75, 90] as const;
 const MAX_QUALITY = Math.max(...ALLOWED_QUALITIES);
 
 /**
- * AVIF scale. Measured on real covers (RGB SSIM vs the lanczos reference):
- * q86 0.984, q95 0.994, with flat encode time across the range and no slower
- * decode — so sharpness is the only axis that moves. Past here the curve
- * breaks: q100 costs +302% bytes for +0.005, spent reproducing the source's
- * own artifacts rather than recovering detail.
+ * AVIF scale. Measured over 45 real covers x 5 rungs (min per-channel SSIM vs
+ * the lanczos reference): q90 0.982 at 336 KB/cover, q95 0.991 at 482 KB — the
+ * difference is invisible at 3x zoom, and encode time barely moves (78 vs
+ * 84 ms), so q95 only bought disk. WebP is no substitute: forced 4:2:0 chroma
+ * leaves even webp q95 at 0.935, visibly softening coloured type and edges.
  */
-export const COVER_QUALITY = 95;
+export const COVER_QUALITY = 90;
 
 /**
  * The ceiling for a stored Cover Master, on its **long edge**.

@@ -64,11 +64,10 @@ export const coverPresets = {
 		defaultWidth: 400,
 		sizes: "(max-width: 1279px) 240px, (max-width: 1535px) 272px, 288px",
 	},
-	banner: {
-		widths: [800, 1200, 2048],
-		defaultWidth: 1200,
-		sizes: "100vw",
-	},
+	// The detail-page banner is the cover under blur-xl at 25% opacity: past
+	// 200px the blur discards every extra pixel, and the wide rungs it used to
+	// ask for were 61% of the resize cache. 200 is a warm rung, so it is a hit.
+	banner: { widths: [200], defaultWidth: 200, sizes: "200px" },
 	activity: { widths: [128, 200, 300], defaultWidth: 200, sizes: "128px" },
 	// Genre/tag tiles: the artwork is height-driven inside a wide plate, so its
 	// width is bounded by the tile's own ratio (a third of it for a 2:3 cover)

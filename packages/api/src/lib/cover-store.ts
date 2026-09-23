@@ -32,8 +32,12 @@ export const coversDir = path.join(process.cwd(), "data", "covers");
  * 40% faster (367ms vs 607ms to produce a 400px AVIF). AVIF is asymmetric by
  * design: cheap to decode, expensive to encode. That trade is right for bytes
  * on the wire and wrong for an intermediate that exists to be re-read.
+ *
+ * q88 rather than q92: 17% smaller (457 vs 552 KB) while renditions derived
+ * from it still score SSIM 0.989@600 / 0.983@1200 — above the q90 AVIF the
+ * serve route encodes on top of it.
  */
-const MASTER_QUALITY = 92;
+const MASTER_QUALITY = 88;
 
 /** Cover art is dense with small coloured type — Japanese titles especially.
  * 4:2:0 smears exactly that, and this file is the ceiling on every rendition

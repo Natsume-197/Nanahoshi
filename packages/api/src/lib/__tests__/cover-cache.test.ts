@@ -35,32 +35,32 @@ afterAll(async () => {
 });
 describe("coverCacheFile", () => {
 	test("builds BullMQ-safe rendition IDs even when a filename contains a colon", () => {
-		const jobId = coverRenditionJobId("series:book.jpg", 400, 0, 95, "avif");
+		const jobId = coverRenditionJobId("series:book.jpg", 400, 0, 90, "avif");
 
-		expect(jobId).toBe("rendition-series%3Abook-400_0_q95_v3.avif");
+		expect(jobId).toBe("rendition-series%3Abook-400_0_q90_v3.avif");
 		expect(jobId).not.toContain(":");
 	});
 
 	test("is stable for the same request", () => {
-		expect(coverCacheFile("abc.jpg", 400, 0, 95, "avif")).toBe(
-			"abc-400_0_q95_v3.avif",
+		expect(coverCacheFile("abc.jpg", 400, 0, 90, "avif")).toBe(
+			"abc-400_0_q90_v3.avif",
 		);
 	});
 	test("keys off the basename, whatever the path or source extension", () => {
-		expect(coverCacheFile("abc.png", 400, 0, 95, "avif")).toBe(
-			"abc-400_0_q95_v3.avif",
+		expect(coverCacheFile("abc.png", 400, 0, 90, "avif")).toBe(
+			"abc-400_0_q90_v3.avif",
 		);
-		expect(coverCacheFile("/data/covers/abc.jpeg", 400, 0, 95, "avif")).toBe(
-			"abc-400_0_q95_v3.avif",
+		expect(coverCacheFile("/data/covers/abc.jpeg", 400, 0, 90, "avif")).toBe(
+			"abc-400_0_q90_v3.avif",
 		);
 	});
 	test("separates every axis that changes the bytes", () => {
 		const keys = new Set([
-			coverCacheFile("abc.jpg", 400, 0, 95, "avif"),
-			coverCacheFile("abc.jpg", 300, 0, 95, "avif"),
-			coverCacheFile("abc.jpg", 400, 200, 95, "avif"),
+			coverCacheFile("abc.jpg", 400, 0, 90, "avif"),
+			coverCacheFile("abc.jpg", 300, 0, 90, "avif"),
+			coverCacheFile("abc.jpg", 400, 200, 90, "avif"),
 			coverCacheFile("abc.jpg", 400, 0, 60, "avif"),
-			coverCacheFile("abc.jpg", 400, 0, 95, "jpeg"),
+			coverCacheFile("abc.jpg", 400, 0, 90, "jpeg"),
 		]);
 		expect(keys.size).toBe(5);
 	});
@@ -115,14 +115,14 @@ describe("warm/serve parity", () => {
 			ensureCoverVariant({
 				imagePath: broken,
 				width: 400,
-				quality: 95,
+				quality: 90,
 				format: "avif",
 				cacheDir,
 			}),
 		).rejects.toThrow();
 		expect(
 			fs.existsSync(
-				path.join(cacheDir, coverCacheFile("route.jpg", 400, 0, 95, "avif")),
+				path.join(cacheDir, coverCacheFile("route.jpg", 400, 0, 90, "avif")),
 			),
 		).toBe(false);
 	});

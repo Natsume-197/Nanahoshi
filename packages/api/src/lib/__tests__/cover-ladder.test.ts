@@ -27,9 +27,12 @@ describe("snapDim", () => {
 
 describe("snapQuality", () => {
 	test("snaps up, and clamps above the top bucket", () => {
-		expect(snapQuality(80)).toBe(86);
-		expect(snapQuality(95)).toBe(95);
-		expect(snapQuality(100)).toBe(95);
+		expect(snapQuality(80)).toBe(90);
+		expect(snapQuality(90)).toBe(90);
+		// Clients still holding the old q95 URLs land on the new top bucket
+		// instead of minting a second set of files.
+		expect(snapQuality(95)).toBe(90);
+		expect(snapQuality(100)).toBe(90);
 	});
 
 	test("defaults to 60 when absent", () => {

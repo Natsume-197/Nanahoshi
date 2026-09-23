@@ -87,7 +87,7 @@ describe("covers route", () => {
 
 		expect(res.status).toBe(200);
 		expect(
-			fs.existsSync(path.join(tmpDir, "test-cover-400_0_q95_v3.avif")),
+			fs.existsSync(path.join(tmpDir, "test-cover-400_0_q90_v3.avif")),
 		).toBe(true);
 		expect(
 			fs.existsSync(path.join(tmpDir, "test-cover-400_0_q60_v3.avif")),
@@ -144,7 +144,7 @@ describe("wide misses stay off the request path", () => {
 
 	test("answers from a narrower warm rendition and queues the real one", async () => {
 		const res = await app.request(
-			`/api/data/covers/${wide}?width=1200&quality=95`,
+			`/api/data/covers/${wide}?width=1200&quality=90`,
 		);
 
 		expect(res.status).toBe(200);
@@ -153,12 +153,12 @@ describe("wide misses stay off the request path", () => {
 
 		expect(enqueued).toHaveLength(1);
 		expect(enqueued[0]?.name).toBe("rendition");
-		expect(enqueued[0]?.data).toMatchObject({ width: 1200, quality: 95 });
+		expect(enqueued[0]?.data).toMatchObject({ width: 1200, quality: 90 });
 	});
 
 	test("does not let the browser keep a provisional answer", async () => {
 		const res = await app.request(
-			`/api/data/covers/${wide}?width=1200&quality=95`,
+			`/api/data/covers/${wide}?width=1200&quality=90`,
 		);
 
 		expect(res.headers.get("Cache-Control")).toBe("no-store");
@@ -166,8 +166,8 @@ describe("wide misses stay off the request path", () => {
 
 	test("dedupes the queued work per exact variant", async () => {
 		enqueued.length = 0;
-		await app.request(`/api/data/covers/${wide}?width=1200&quality=95`);
-		await app.request(`/api/data/covers/${wide}?width=1200&quality=95`);
+		await app.request(`/api/data/covers/${wide}?width=1200&quality=90`);
+		await app.request(`/api/data/covers/${wide}?width=1200&quality=90`);
 
 		const jobIds = new Set(
 			enqueued.map((e) => (e.opts as { jobId?: string }).jobId),
@@ -180,7 +180,7 @@ describe("wide misses stay off the request path", () => {
 	test("still encodes inline at widths the warm set covers", async () => {
 		enqueued.length = 0;
 		const res = await app.request(
-			`/api/data/covers/${wide}?width=400&quality=95`,
+			`/api/data/covers/${wide}?width=400&quality=90`,
 		);
 
 		expect(res.status).toBe(200);
@@ -203,7 +203,7 @@ describe("wide misses stay off the request path", () => {
 			.toFile(path.join(coversDir, cold));
 
 		const res = await app.request(
-			`/api/data/covers/${cold}?width=1200&quality=95`,
+			`/api/data/covers/${cold}?width=1200&quality=90`,
 		);
 
 		expect(res.status).toBe(200);

@@ -30,8 +30,7 @@ const JPEG_QUALITY: Record<number, number> = {
 	50: 78,
 	60: 85,
 	75: 92,
-	86: 95,
-	95: 97,
+	90: 95,
 };
 
 export type CoverFormat = "avif" | "jpeg";
