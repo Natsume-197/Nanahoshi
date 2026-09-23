@@ -1,12 +1,7 @@
 /**
- * Browser ZIP reader shared by archive-based ebook formats. The central directory is read
- * with `Blob.slice`, and entries are inflated with `DecompressionStream`
- * (native) rather than a JS inflate.
- *
- * The payoff is biggest for stored (uncompressed) entries — very common for
- * images, and some publishers store the *whole* book that way. Those become a
- * `Blob.slice` of the original file: a view over bytes we already have, with no
- * decompression and no copy through JS at all.
+ * Browser ZIP reader shared by archive-based ebook formats. Entries are
+ * inflated with `DecompressionStream` (native) rather than a JS inflate, and
+ * stored (uncompressed) entries — common for images — skip inflation entirely.
  *
  * Scope is deliberately the ZIP subset used by our ebook formats, not "every ZIP
  * in the wild": UTF-8 entry names plus stored (0) and deflate (8). ZIP64 is
@@ -63,26 +58,58 @@ export interface ZipSource {
 
 type ZipInput = Blob | ZipSource;
 
-function asZipSource(input: ZipInput): ZipSource {
-	if (!(input instanceof Blob)) return input;
+/** Above this, a local file is read entry by entry instead of held in memory. */
+const IN_MEMORY_LIMIT = 256 * 1024 * 1024;
+
+/**
+ * Byte access the reader works against. Every `Blob.slice().arrayBuffer()` is
+ * an asynchronous trip to the browser's blob store, and an entry needs two or
+ * three of them, so a book with hundreds of entries spent most of its opening
+ * waiting. A local file is therefore read once and sliced in memory; remote
+ * sources keep ranged reads so only the entries actually used are fetched.
+ */
+interface ByteSource {
+	size: number;
+	read(start: number, end: number): Promise<Uint8Array>;
+	blob(start: number, end: number, type: string): Promise<Blob>;
+}
+
+async function openByteSource(input: ZipInput): Promise<ByteSource> {
+	if (input instanceof Blob && input.size <= IN_MEMORY_LIMIT) {
+		const buffer = new Uint8Array(await input.arrayBuffer());
+		return {
+			size: buffer.length,
+			read: async (start, end) => buffer.subarray(start, end),
+			blob: async (start, end, type) =>
+				new Blob([buffer.subarray(start, end)], { type }),
+		};
+	}
+	const source: ZipSource =
+		input instanceof Blob
+			? {
+					size: input.size,
+					slice: (start, end, type) => input.slice(start, end, type),
+				}
+			: input;
 	return {
-		size: input.size,
-		slice: (start, end, type) => input.slice(start, end, type),
+		size: source.size,
+		read: async (start, end) =>
+			new Uint8Array(await (await source.slice(start, end)).arrayBuffer()),
+		blob: async (start, end, type) => source.slice(start, end, type),
 	};
 }
 
 export async function openZip(input: ZipInput): Promise<ZipReader> {
-	const file = asZipSource(input);
+	const file = await openByteSource(input);
 	const { cdOffset, cdSize } = await findCentralDirectory(file);
 	const entries = await readCentralDirectory(file, cdOffset, cdSize);
 
-	const readBlob = async (entry: ZipEntry, type: string): Promise<Blob> => {
+	const dataOffset = async (entry: ZipEntry): Promise<number> => {
 		// The central directory's extra field and the local header's can differ
 		// in length, so the data offset can only be resolved from the local header.
-		const header = new Uint8Array(
-			await (
-				await file.slice(entry.localHeaderOffset, entry.localHeaderOffset + 30)
-			).arrayBuffer(),
+		const header = await file.read(
+			entry.localHeaderOffset,
+			entry.localHeaderOffset + 30,
 		);
 		if (header.length < 30) {
 			throw new ZipFormatError(`Truncated local header for ${entry.name}`);
@@ -91,25 +118,45 @@ export async function openZip(input: ZipInput): Promise<ZipReader> {
 		if (view.getUint32(0, true) !== LFH_SIG) {
 			throw new ZipFormatError(`Bad local header for ${entry.name}`);
 		}
-		const start =
+		return (
 			entry.localHeaderOffset +
 			30 +
 			view.getUint16(26, true) +
-			view.getUint16(28, true);
+			view.getUint16(28, true)
+		);
+	};
 
-		const raw = await file.slice(start, start + entry.compressedSize, type);
-		// Stored: the slice already *is* the entry. No inflate, no copy.
-		if (entry.method === METHOD_STORED) return raw;
-		if (entry.method !== METHOD_DEFLATE) {
+	const assertSupported = (entry: ZipEntry) => {
+		if (entry.method !== METHOD_STORED && entry.method !== METHOD_DEFLATE) {
 			throw new ZipFormatError(
 				`Unsupported compression method ${entry.method} for ${entry.name}`,
 			);
 		}
-		const inflated = raw
-			.stream()
-			.pipeThrough(new DecompressionStream("deflate-raw"));
-		const blob = await new Response(inflated).blob();
+	};
+
+	const inflate = (raw: Uint8Array | Blob) =>
+		new Response(
+			new Response(raw as BodyInit).body?.pipeThrough(
+				new DecompressionStream("deflate-raw"),
+			),
+		);
+
+	const readBlob = async (entry: ZipEntry, type: string): Promise<Blob> => {
+		assertSupported(entry);
+		const start = await dataOffset(entry);
+		const raw = await file.blob(start, start + entry.compressedSize, type);
+		// Stored: the slice already *is* the entry. No inflate.
+		if (entry.method === METHOD_STORED) return raw;
+		const blob = await inflate(raw).blob();
 		return blob.slice(0, blob.size, type);
+	};
+
+	const readBytes = async (entry: ZipEntry): Promise<Uint8Array> => {
+		assertSupported(entry);
+		const start = await dataOffset(entry);
+		const raw = await file.read(start, start + entry.compressedSize);
+		if (entry.method === METHOD_STORED) return raw;
+		return new Uint8Array(await inflate(raw).arrayBuffer());
 	};
 
 	return {
@@ -122,12 +169,15 @@ export async function openZip(input: ZipInput): Promise<ZipReader> {
 		async bytes(name) {
 			const entry = entries.get(name);
 			if (!entry) return undefined;
-			return new Uint8Array(await (await readBlob(entry, "")).arrayBuffer());
+			const bytes = await readBytes(entry);
+			// A stored entry may be a view into the whole archive; copy it so a
+			// caller keeping the entry does not pin the file in memory.
+			return entry.method === METHOD_STORED ? bytes.slice() : bytes;
 		},
 		async text(name) {
 			const entry = entries.get(name);
 			if (!entry) return undefined;
-			const text = await (await readBlob(entry, "text/plain")).text();
+			const text = textDecoder.decode(await readBytes(entry));
 			// Strip a UTF-8 BOM; XML parsers choke on it.
 			return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 		},
@@ -139,15 +189,13 @@ export async function openZip(input: ZipInput): Promise<ZipReader> {
  * EOCD fields are saturated (>4GB offsets or >65535 entries).
  */
 async function findCentralDirectory(
-	file: ZipSource,
+	file: ByteSource,
 ): Promise<{ cdOffset: number; cdSize: number }> {
 	if (file.size < 22) throw new ZipFormatError("File too small to be a ZIP");
 
 	const tailLength = Math.min(file.size, EOCD_MAX_SCAN);
 	const tailStart = file.size - tailLength;
-	const tail = new Uint8Array(
-		await (await file.slice(tailStart)).arrayBuffer(),
-	);
+	const tail = await file.read(tailStart, file.size);
 	const tailView = new DataView(tail.buffer, tail.byteOffset, tail.byteLength);
 
 	for (let i = tail.length - 22; i >= 0; i -= 1) {
@@ -169,7 +217,7 @@ async function findCentralDirectory(
 /** The ZIP64 locator sits immediately before the classic EOCD and points at
  *  the ZIP64 EOCD record, which carries the real 64-bit offsets. */
 async function readZip64Locator(
-	file: ZipSource,
+	file: ByteSource,
 	tailView: DataView,
 	eocdIndex: number,
 ): Promise<{ cdOffset: number; cdSize: number }> {
@@ -184,9 +232,7 @@ async function readZip64Locator(
 	}
 
 	const eocd64Offset = readU64(tailView, locatorIndex + 8);
-	const record = new Uint8Array(
-		await (await file.slice(eocd64Offset, eocd64Offset + 56)).arrayBuffer(),
-	);
+	const record = await file.read(eocd64Offset, eocd64Offset + 56);
 	if (record.length < 56) {
 		throw new ZipFormatError("Truncated ZIP64 end-of-central-directory record");
 	}
@@ -202,13 +248,11 @@ async function readZip64Locator(
 }
 
 async function readCentralDirectory(
-	file: ZipSource,
+	file: ByteSource,
 	offset: number,
 	size: number,
 ): Promise<Map<string, ZipEntry>> {
-	const buf = new Uint8Array(
-		await (await file.slice(offset, offset + size)).arrayBuffer(),
-	);
+	const buf = await file.read(offset, offset + size);
 	const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 	const entries = new Map<string, ZipEntry>();
 	let p = 0;

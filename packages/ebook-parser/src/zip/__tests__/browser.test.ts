@@ -34,6 +34,45 @@ describe("openZip", () => {
 		expect(requested.length).toBeGreaterThan(2);
 	});
 
+	it("reads a local file once instead of once per entry", async () => {
+		const file = buildZip([
+			{ name: "a.txt", data: bytes("one") },
+			{ name: "b.txt", data: bytes("two".repeat(500)), deflate: true },
+			{ name: "c.bin", data: new Uint8Array([1, 2, 3]) },
+		]);
+		let reads = 0;
+		const arrayBuffer = file.arrayBuffer.bind(file);
+		file.arrayBuffer = () => {
+			reads += 1;
+			return arrayBuffer();
+		};
+		file.slice = () => {
+			throw new Error("a local file must not be sliced per entry");
+		};
+		const zip = await openZip(file);
+
+		expect(await zip.text("a.txt")).toBe("one");
+		expect(await zip.text("b.txt")).toBe("two".repeat(500));
+		expect(await zip.bytes("c.bin")).toEqual(new Uint8Array([1, 2, 3]));
+		expect(reads).toBe(1);
+	});
+
+	it("returns stored bytes that do not alias the archive", async () => {
+		const zip = await openZip(
+			buildZip([
+				{ name: "a.bin", data: new Uint8Array([1, 2, 3]) },
+				{ name: "b.txt", data: bytes("after") },
+			]),
+		);
+
+		const entry = await zip.bytes("a.bin");
+		expect(entry?.byteLength).toBe(3);
+		expect(entry?.buffer.byteLength).toBe(3);
+		entry?.fill(0);
+		expect(await zip.bytes("a.bin")).toEqual(new Uint8Array([1, 2, 3]));
+		expect(await zip.text("b.txt")).toBe("after");
+	});
+
 	it("reads deflated entries", async () => {
 		const body = "あ".repeat(5000);
 		const zip = await openZip(
