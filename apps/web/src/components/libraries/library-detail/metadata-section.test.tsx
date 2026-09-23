@@ -44,6 +44,27 @@ mock.module("@/utils/orpc", () => ({
 	},
 }));
 const { MetadataSection } = await import("./metadata-section");
+
+// Role queries by accessible name cost ~0.5s each on this tree in jsdom.
+function queryProviderCheckbox(
+	view: { baseElement: HTMLElement },
+	name: string,
+): HTMLElement | null {
+	const label = m["library.provider_enable"]({ name });
+	return view.baseElement.querySelector<HTMLElement>(
+		`[role="checkbox"][aria-label="${label}"]`,
+	);
+}
+
+function getProviderCheckbox(
+	view: { baseElement: HTMLElement },
+	name: string,
+): HTMLElement {
+	const checkbox = queryProviderCheckbox(view, name);
+	if (!checkbox) throw new Error(`No checkbox for provider ${name}`);
+	return checkbox;
+}
+
 afterEach(() => {
 	cleanup();
 	providerAvailability = {
@@ -88,17 +109,9 @@ function mountSection() {
 test("toggling a provider marks the section as dirty", async () => {
 	const view = mountSection();
 	await waitFor(() =>
-		expect(
-			view.getByRole("checkbox", {
-				name: m["library.provider_enable"]({ name: "Goodreads" }),
-			}),
-		).toBeTruthy(),
+		expect(getProviderCheckbox(view, "Goodreads")).toBeTruthy(),
 	);
-	fireEvent.click(
-		view.getByRole("checkbox", {
-			name: m["library.provider_enable"]({ name: "Goodreads" }),
-		}),
-	);
+	fireEvent.click(getProviderCheckbox(view, "Goodreads"));
 	await waitFor(() =>
 		expect(view.getByText(m["library.rules_unsaved"]())).toBeTruthy(),
 	);
@@ -138,11 +151,7 @@ test("draft and dirty notifications follow edits and data replacement", async ()
 			fields: { title: ["ranobedb"] },
 		},
 	});
-	fireEvent.click(
-		view.getByRole("checkbox", {
-			name: m["library.provider_enable"]({ name: "Goodreads" }),
-		}),
-	);
+	fireEvent.click(getProviderCheckbox(view, "Goodreads"));
 	expect(dirty).toHaveBeenLastCalledWith(true);
 	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
 		metadataProviders: { order: ["ranobedb"] },
@@ -189,31 +198,21 @@ test("provider availability updates preserve edits made while it was loading", a
 			/>
 		</QueryClientProvider>,
 	);
-	fireEvent.click(
-		view.getByRole("checkbox", {
-			name: m["library.provider_enable"]({ name: "Goodreads" }),
-		}),
-	);
 	const { act } = await import("@testing-library/react");
+	// Inside act so the follow-up updates don't each log an act() warning —
+	// building those stacks cost seconds and timed the test out on CI.
+	await act(async () => {
+		fireEvent.click(getProviderCheckbox(view, "Goodreads"));
+	});
 	await act(async () => {
 		client.setQueryData(
 			["metadata-provider-availability"],
 			providerAvailability,
 		);
 	});
-	await waitFor(() =>
-		expect(
-			view.queryByRole("checkbox", {
-				name: m["library.provider_enable"]({ name: "Amazon" }),
-			}),
-		).toBeNull(),
-	);
+	await waitFor(() => expect(queryProviderCheckbox(view, "Amazon")).toBeNull());
 	expect(
-		view
-			.getByRole("checkbox", {
-				name: m["library.provider_enable"]({ name: "Goodreads" }),
-			})
-			.getAttribute("aria-checked"),
+		getProviderCheckbox(view, "Goodreads").getAttribute("aria-checked"),
 	).toBe("false");
 	expect(draft.mock.calls.at(-1)?.[0]).toMatchObject({
 		metadataProviders: { order: ["ranobedb"] },
