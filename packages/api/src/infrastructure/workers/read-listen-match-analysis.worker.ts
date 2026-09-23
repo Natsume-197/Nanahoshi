@@ -1,6 +1,7 @@
 import { type Job, Worker } from "bullmq";
 import { getCurrentLibraryIdsForBookAction } from "../../auth/access.repository";
 import { logger } from "../../lib/logger";
+import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events";
 import {
 	TaskCancelledError,
 	throwIfTaskCancelled,
@@ -54,6 +55,7 @@ export async function processReadListenMatchAnalysisJob(
 			outcome: "completed",
 			proposalCount: proposals.length,
 		});
+		if (proposals.length > 0) publishTrayChanged(serverId, "pairings");
 		return {
 			taskId,
 			analysisId,

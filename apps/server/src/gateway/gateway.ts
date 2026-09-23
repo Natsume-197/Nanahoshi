@@ -8,6 +8,7 @@ import { presenceModule } from "./presence.module";
 import { recommendationsModule } from "./recommendations.module";
 import { sessionsModule } from "./sessions.module";
 import { tasksModule } from "./tasks.module";
+import { trayModule } from "./tray.module";
 import type {
 	GatewayConnection,
 	GatewayConnectionHandler,
@@ -26,6 +27,7 @@ const modules: GatewayModule[] = [
 	recommendationsModule,
 	sessionsModule,
 	instanceActivityModule,
+	trayModule,
 ];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope

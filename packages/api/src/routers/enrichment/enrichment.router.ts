@@ -1,4 +1,5 @@
 import { requirePermission } from "../../index";
+import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events";
 import {
 	ActionableCountsInput,
 	ApproveEnrichmentInput,
@@ -49,30 +50,49 @@ export const enrichmentRouter = {
 	resolveProviderFailures: requirePermission("library", "scan")
 		.input(ResolveProviderFailuresInput)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.resolveProviderFailures(context.serverId, input);
+			const result = await enrichmentService.resolveProviderFailures(
+				context.serverId,
+				input,
+			);
+			publishTrayChanged(context.serverId, "metadata");
+			return result;
 		}),
 
 	retry: requirePermission("library", "scan")
 		.input(RetryEnrichmentInput)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.retry(context.serverId, input);
+			const result = await enrichmentService.retry(context.serverId, input);
+			publishTrayChanged(context.serverId, "metadata");
+			return result;
 		}),
 
 	cancelRetry: requirePermission("library", "scan")
 		.input(TargetSelection)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.cancelRetry(context.serverId, input);
+			const result = await enrichmentService.cancelRetry(
+				context.serverId,
+				input,
+			);
+			publishTrayChanged(context.serverId, "metadata");
+			return result;
 		}),
 
 	restoreOriginal: requirePermission("library", "scan")
 		.input(TargetSelection)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.restoreOriginal(context.serverId, input);
+			const result = await enrichmentService.restoreOriginal(
+				context.serverId,
+				input,
+			);
+			publishTrayChanged(context.serverId, "metadata");
+			return result;
 		}),
 
 	approve: requirePermission("library", "scan")
 		.input(ApproveEnrichmentInput)
 		.handler(async ({ input, context }) => {
-			return enrichmentService.approve(context.serverId, input);
+			const result = await enrichmentService.approve(context.serverId, input);
+			publishTrayChanged(context.serverId, "metadata");
+			return result;
 		}),
 };

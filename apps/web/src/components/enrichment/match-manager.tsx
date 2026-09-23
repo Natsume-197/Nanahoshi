@@ -1,11 +1,9 @@
 import {
-	ArrowClockwise,
 	ArrowLeft,
+	Books,
 	CaretDown,
-	CaretLeft,
-	CaretRight,
 	FunnelSimple,
-	MagnifyingGlass,
+	Headphones,
 	Pause,
 	Play,
 	Prohibit,
@@ -13,7 +11,8 @@ import {
 } from "@phosphor-icons/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { Fragment, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { ReadListenReviewTab } from "@/components/read-listen/read-listen-match-review";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +21,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
 	Popover,
@@ -30,11 +28,13 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAbilities } from "@/hooks/use-abilities";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useGatewayChannel } from "@/lib/gateway/use-gateway-channel";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { orpc } from "@/utils/orpc";
+import { orpc, queryClient } from "@/utils/orpc";
 import {
 	ALL_BUCKETS,
 	ALL_LIBRARIES,
@@ -63,8 +63,13 @@ import {
 	TABLE_GRID,
 	useMatchTable,
 } from "./match-table";
-import { visiblePageNumbers } from "./pagination";
-import { IDLE_POLL_MS, resolvePollInterval } from "./poll";
+import { FALLBACK_POLL_MS, pinRowOrder } from "./poll";
+import {
+	TrayBulkBar,
+	TrayPagination,
+	TraySearch,
+	TrayToolbar,
+} from "./tray-parts";
 import type { MatchRow } from "./types";
 import { useMatchActions } from "./use-match-actions";
 import { useMatchSelection } from "./use-match-selection";
@@ -85,6 +90,8 @@ export function MatchManager() {
 	const [emptyDefault, setEmptyDefault] = useState(false);
 	const bucket =
 		urlSearch.bucket ?? (emptyDefault ? ALL_BUCKETS : DEFAULT_BUCKET);
+	const pairingsView = urlSearch.view === "pairings";
+	const pairStatus = urlSearch.pairs === "decided" ? "decided" : "pending";
 	const libraryUuid = urlSearch.library ?? ALL_LIBRARIES;
 	const sort = urlSearch.sort;
 	const onlyFailures = urlSearch.failures ?? false;
@@ -139,10 +146,6 @@ export function MatchManager() {
 	} = useMatchSelection(JSON.stringify(filterScope));
 	const [detailUuid, setDetailUuid] = useState<string | null>(null);
 	const [detailFallback, setDetailFallback] = useState<MatchRow | null>(null);
-	// Spin only for a refresh the user asked for. `isFetching` is true on every
-	// background poll too, so binding the icon to it would spin the header every
-	// few seconds unprompted.
-	const [manualRefresh, setManualRefresh] = useState(false);
 	// Back/forward or a deep link changed `q` under us: adopt it as the draft.
 	// Our own commits already set committedSearch, so they don't bounce back.
 	const urlQuery = urlSearch.q ?? "";
@@ -169,29 +172,40 @@ export function MatchManager() {
 		searchTimer.current = setTimeout(() => commitSearch(value), 300);
 	};
 
-	// Live tray: the worker mutates these rows in the background, so this query
-	// never serves a cached snapshot — it polls (fast while work is in flight),
-	// and keeps the previous page on screen so bucket counts don't blank out
-	// between switches.
-	const {
-		data,
-		isLoading,
-		isPlaceholderData,
-		refetch: refetchList,
-	} = useQuery({
+	// Live tray: the gateway pushes "tray changed" whenever the worker or another
+	// user moves a row, and every tray query refetches on it. The query keeps the
+	// previous page on screen so counts don't blank out between switches.
+	const { data, isLoading, isPlaceholderData } = useQuery({
 		...orpc.enrichment.list.queryOptions({ input: listInput }),
 		staleTime: 0,
 		refetchOnMount: "always",
-		refetchOnWindowFocus: true,
+		// Pushes keep it current; a focus refetch would only duplicate them.
+		refetchOnWindowFocus: false,
 		placeholderData: keepPreviousData,
-		refetchInterval: (query) =>
-			resolvePollInterval({
-				selectionActive:
-					Object.keys(rowSelection).length > 0 || selectAllFilter,
-				detailOpen: detailUuid != null,
-				inProgressCount: query.state.data?.counts?.in_progress,
-			}),
+		refetchInterval: FALLBACK_POLL_MS,
 	});
+	const socketOpened = useRef(false);
+	useGatewayChannel(
+		"tray",
+		(event) => {
+			const kind = (event as { kind?: string }).kind;
+			if (kind === "pairings") {
+				queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
+				return;
+			}
+			queryClient.invalidateQueries({ queryKey: orpc.enrichment.key() });
+		},
+		// A reconnect may have missed pushes: catch up on everything. The first
+		// open is not a reconnect — the page has just loaded fresh data.
+		() => {
+			if (!socketOpened.current) {
+				socketOpened.current = true;
+				return;
+			}
+			queryClient.invalidateQueries({ queryKey: orpc.enrichment.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.readListen.key() });
+		},
+	);
 	if (
 		!urlSearch.bucket &&
 		!emptyDefault &&
@@ -207,12 +221,15 @@ export function MatchManager() {
 	const { data: libraries } = useQuery(
 		orpc.libraries.getLibrariesOverview.queryOptions(),
 	);
+	const { can } = useAbilities();
+	const canManagePairings = can("book", "editMetadata");
 	const { data: providerStatus } = useQuery({
 		...orpc.enrichment.providerStatus.queryOptions({
 			input: { libraryUuid: singleLibrary ? libraryUuid : undefined },
 		}),
 		staleTime: 0,
-		refetchInterval: IDLE_POLL_MS,
+		refetchOnWindowFocus: false,
+		refetchInterval: FALLBACK_POLL_MS,
 	});
 	const { data: eligibility } = useQuery({
 		...orpc.enrichment.actionableCounts.queryOptions({ input: filterScope }),
@@ -221,7 +238,40 @@ export function MatchManager() {
 	});
 
 	const counts = data?.counts;
-	const items: MatchRow[] = data?.items ?? [];
+	const liveItems: MatchRow[] = data?.items ?? [];
+	// While a selection or the detail is open, rows keep their place (see
+	// pinRowOrder); counts and each row's state still update live.
+	const engaged =
+		Object.keys(rowSelection).length > 0 ||
+		selectAllFilter ||
+		detailUuid != null;
+	const lastKnownRows = useRef(new Map<string, MatchRow>());
+	for (const row of liveItems) lastKnownRows.current.set(row.bookUuid, row);
+	const pinned = useRef<{ key: string; order: string[] } | null>(null);
+	const pageKey = JSON.stringify(listInput);
+	if (!engaged) {
+		pinned.current = null;
+		lastKnownRows.current = new Map(
+			liveItems.map((row) => [row.bookUuid, row]),
+		);
+	} else if (
+		!isPlaceholderData &&
+		(pinned.current == null || pinned.current.key !== pageKey)
+	) {
+		pinned.current = {
+			key: pageKey,
+			order: liveItems.map((row) => row.bookUuid),
+		};
+	}
+	const items: MatchRow[] =
+		pinned.current && pinned.current.key === pageKey
+			? pinRowOrder(
+					pinned.current.order,
+					liveItems,
+					lastKnownRows.current,
+					(row) => row.bookUuid,
+				)
+			: liveItems;
 	const total = data?.total ?? 0;
 	const providerLabels = providerStatus?.labels ?? NO_LABELS;
 	const cooldowns = Object.entries(providerStatus?.cooldowns ?? {});
@@ -335,7 +385,6 @@ export function MatchManager() {
 	const { matchTable, tableRows } = table;
 	const currentPage = matchTable.state.pagination.pageIndex + 1;
 	const totalPages = matchTable.getPageCount();
-	const paginationPages = visiblePageNumbers(currentPage, totalPages);
 	const allPageSelected = matchTable.getIsAllPageRowsSelected();
 	const pageRowCount = tableRows.length;
 
@@ -373,6 +422,26 @@ export function MatchManager() {
 			? SUGGEST_ORDER.find((key) => key !== bucket && (counts[key] ?? 0) > 0)
 			: undefined;
 
+	// Metadata and Read & Listen are separate tabs: each keeps its own
+	// filters in the URL, so switching back restores where you were.
+	const selectTab = (tab: "metadata" | "pairings") => {
+		navigate({
+			search: (prev) => ({
+				...prev,
+				view: tab === "pairings" ? ("pairings" as const) : undefined,
+			}),
+		});
+		closeDetail();
+	};
+	const setPairStatus = (status: "pending" | "decided") =>
+		navigate({
+			search: (prev) => ({
+				...prev,
+				pairs: status === "decided" ? ("decided" as const) : undefined,
+			}),
+			replace: true,
+		});
+
 	const sidebar = (
 		<MatchSidebar
 			bucket={bucket}
@@ -387,10 +456,32 @@ export function MatchManager() {
 			}
 		/>
 	);
+	// Below lg the nav collapses into this button, which is also the label for
+	// where you are.
+	const scopeButton = (
+		<Popover>
+			<PopoverTrigger
+				render={
+					<Button variant="outline" size="sm" className="lg:hidden">
+						<FunnelSimple data-icon="inline-start" />
+						{scopeLabel}
+					</Button>
+				}
+			/>
+			<PopoverContent
+				align="start"
+				className="max-h-[70vh] w-60 overflow-y-auto p-2"
+			>
+				{sidebar}
+			</PopoverContent>
+		</Popover>
+	);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:px-4">
+			{/* Browser-style tabs: the active one opens into the content below, so
+			    the header's bottom border is the seam they sit on. */}
+			<header className="flex shrink-0 items-end gap-1 border-border/60 border-b bg-muted/35 px-3 pt-2 sm:px-4">
 				{/* This route hides the app rail (see SELF_NAVIGATING_ROUTES), so the
 				    way back to the rest of the app has to live here. */}
 				<Button
@@ -399,35 +490,46 @@ export function MatchManager() {
 					asChild
 					aria-label={m["nav.home"]()}
 					title={m["nav.home"]()}
+					className="mb-1.5 shrink-0"
 				>
 					<Link to="/dashboard">
 						<ArrowLeft />
 					</Link>
 				</Button>
-				<h1 className="font-semibold text-lg tracking-tight">
-					{m["enrichment.title"]()}
-				</h1>
-				<div className="ms-auto flex items-center gap-1.5">
-					{/* The tray polls itself; this is the escape hatch when you don't
-					    want to wait. The label is fixed — swapping it to "Updating…" on
-					    every poll resized the button and shoved Pause sideways. */}
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => {
-							setManualRefresh(true);
-							refetchList().finally(() => setManualRefresh(false));
-						}}
-						aria-label={m["enrichment.refresh_now"]()}
-					>
-						<ArrowClockwise
-							data-icon="inline-start"
-							className={cn(manualRefresh && "animate-spin")}
+				<h1 className="sr-only">{m["enrichment.title"]()}</h1>
+				<div
+					role="tablist"
+					aria-label={m["enrichment.title"]()}
+					className="ms-1 flex min-w-0 items-end gap-0.5"
+					onKeyDown={(event) => {
+						if (!canManagePairings) return;
+						if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+							event.preventDefault();
+							selectTab(pairingsView ? "metadata" : "pairings");
+						}
+					}}
+				>
+					<PageTab
+						active={!pairingsView}
+						icon={<Books />}
+						label={m["enrichment.tab_metadata"]()}
+						onSelect={() => selectTab("metadata")}
+					/>
+					{canManagePairings && (
+						<PageTab
+							active={pairingsView}
+							icon={<Headphones />}
+							label={m["nav.read_listen"]()}
+							onSelect={() => selectTab("pairings")}
 						/>
-						<span className="hidden sm:inline">
-							{m["enrichment.refresh_now"]()}
-						</span>
-					</Button>
+					)}
+				</div>
+				<div
+					className={cn(
+						"ms-auto mb-1.5 flex shrink-0 items-center gap-1.5",
+						pairingsView && "hidden",
+					)}
+				>
 					{/* Pause is only meaningful when work is running or already paused —
 					    keep it out of the way when the tray is idle. */}
 					{(isPaused || (counts?.in_progress ?? 0) > 0) && (
@@ -455,383 +557,305 @@ export function MatchManager() {
 				</div>
 			</header>
 
-			{(isPaused || failureBanners.length > 0 || cooldowns.length > 0) && (
-				<div className="flex shrink-0 flex-col gap-2 px-4 pb-3 sm:px-5">
-					{isPaused && (
-						<div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
-							<Pause weight="fill" className="size-4 shrink-0" />
-							<span className="flex-1">
-								{singleLibrary
-									? m["enrichment.paused_banner"]()
-									: m["enrichment.paused_banner_all"]()}
-							</span>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => togglePause(false)}
-								disabled={pausePending}
-							>
-								<Play data-icon="inline-start" weight="fill" />
-								{m["enrichment.resume_enrichment"]()}
-							</Button>
-						</div>
-					)}
+			{pairingsView ? (
+				<ReadListenReviewTab
+					status={pairStatus}
+					onStatusChange={setPairStatus}
+				/>
+			) : (
+				<>
+					{(isPaused || failureBanners.length > 0 || cooldowns.length > 0) && (
+						<div className="flex shrink-0 flex-col gap-2 border-border/60 border-b px-4 py-3 sm:px-5">
+							{isPaused && (
+								<div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
+									<Pause weight="fill" className="size-4 shrink-0" />
+									<span className="flex-1">
+										{singleLibrary
+											? m["enrichment.paused_banner"]()
+											: m["enrichment.paused_banner_all"]()}
+									</span>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => togglePause(false)}
+										disabled={pausePending}
+									>
+										<Play data-icon="inline-start" weight="fill" />
+										{m["enrichment.resume_enrichment"]()}
+									</Button>
+								</div>
+							)}
 
-					{/* One consolidated banner. With a library selected it opens a dialog
+							{/* One consolidated banner. With a library selected it opens a dialog
 					    to disable several providers at once (single reprocess); spanning
 					    all libraries it's informational — you must pick a library. */}
-					{failureBanners.length > 0 && (
-						<div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-destructive text-sm sm:flex-row sm:items-center">
-							<div className="flex flex-1 items-start gap-2">
-								<Warning weight="fill" className="mt-0.5 size-4 shrink-0" />
-								<span>
-									{singleLibrary
-										? m["enrichment.providers_failed_here"]({
-												providers: failureBanners
-													.map(
-														([provider]) =>
-															providerLabels[provider] ?? provider,
-													)
-													.join(", "),
-											})
-										: m["enrichment.providers_failed_summary"]({
-												providers: failureBanners
-													.map(
-														([provider]) =>
-															providerLabels[provider] ?? provider,
-													)
-													.join(", "),
-											})}
-								</span>
-							</div>
-							<div className="flex shrink-0 items-center justify-end gap-1.5">
-								{!onlyFailures && (
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => patchFilters({ failures: true })}
-									>
-										{m["enrichment.view_affected"]()}
-									</Button>
-								)}
-								{singleLibrary && (
-									<Button
-										variant="destructive"
-										size="sm"
-										onClick={() => setProviderFixOpen(true)}
-									>
-										<Prohibit data-icon="inline-start" />
-										{m["enrichment.review_providers"]()}
-									</Button>
-								)}
-							</div>
-						</div>
-					)}
-
-					{cooldowns.length > 0 && (
-						<div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
-							<Warning weight="fill" className="size-4 shrink-0" />
-							{cooldowns.length === 1
-								? m["enrichment.cooldown_strip"]({
-										provider:
-											providerLabels[cooldowns[0][0]] ?? cooldowns[0][0],
-										minutes: minutesFromMs(cooldowns[0][1]),
-									})
-								: m["enrichment.cooldown_summary"]({
-										count: cooldowns.length,
-										providers: cooldowns
-											.map(([provider]) => providerLabels[provider] ?? provider)
-											.join(", "),
-										minutes: minutesFromMs(
-											Math.max(...cooldowns.map(([, ms]) => ms)),
-										),
-									})}
-						</div>
-					)}
-				</div>
-			)}
-
-			<div className="flex min-h-0 flex-1 border-border/60 border-t">
-				<div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-border/60 border-e px-2 py-2 lg:block">
-					{sidebar}
-				</div>
-
-				<section className="flex min-h-0 min-w-0 flex-1 flex-col">
-					<div className="flex shrink-0 flex-wrap items-center gap-2 border-border/60 border-b px-3 py-2.5">
-						{/* Below lg the nav collapses into the scope button, which is also
-						    the label for where you are. */}
-						<Popover>
-							<PopoverTrigger
-								render={
-									<Button variant="outline" size="sm" className="lg:hidden">
-										<FunnelSimple data-icon="inline-start" />
-										{scopeLabel}
-									</Button>
-								}
-							/>
-							<PopoverContent
-								align="start"
-								className="max-h-[70vh] w-60 overflow-y-auto p-2"
-							>
-								{sidebar}
-							</PopoverContent>
-						</Popover>
-						<div className="hidden items-center gap-1 lg:flex">
-							<h2 className="font-medium text-sm">{scopeLabel}</h2>
-							{bucket !== ALL_BUCKETS && <BucketHelp bucket={bucket} />}
-						</div>
-
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="sm">
-									{mediaTypeLabel}
-									<CaretDown data-icon="inline-end" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								{mediaTypeOptions.map(({ value, label }) => (
-									<DropdownMenuItem
-										key={value}
-										onClick={() =>
-											patchFilters({
-												type: value === ALL_TYPES ? undefined : value,
-											})
-										}
-									>
-										{label}
-									</DropdownMenuItem>
-								))}
-							</DropdownMenuContent>
-						</DropdownMenu>
-						<Button
-							variant={onlyFailures ? "default" : "outline"}
-							size="sm"
-							aria-pressed={onlyFailures}
-							onClick={() =>
-								patchFilters({ failures: onlyFailures ? undefined : true })
-							}
-						>
-							<Warning data-icon="inline-start" weight="fill" />
-							<span className="hidden sm:inline">
-								{m["enrichment.only_failures"]()}
-							</span>
-						</Button>
-
-						<div className="relative order-last w-full min-w-0 flex-1 sm:order-none sm:ms-auto sm:max-w-72">
-							<MagnifyingGlass className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								value={search}
-								onChange={(event) =>
-									matchTable
-										.getColumn("book")
-										?.setFilterValue(event.target.value)
-								}
-								onBlur={() => commitSearch(search)}
-								onKeyDown={(event) => {
-									if (event.key === "Enter") commitSearch(search);
-								}}
-								placeholder={m["enrichment.search_placeholder"]()}
-								className="h-[30px] w-full rounded-full ps-8 text-xs"
-							/>
-						</div>
-					</div>
-
-					<div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-						{/* Mirrors the loaded geometry exactly — dense 38px header over
-						    52px rows — so nothing shifts when the data lands. */}
-						{showSkeleton && (
-							<>
-								<div className="divide-y xl:hidden">
-									{SKELETON_ROWS.slice(0, 6).map((id) => (
-										<div key={id} className="flex gap-3 px-3 py-3">
-											<Skeleton className="mt-1 size-4 shrink-0 rounded-[5px]" />
-											<Skeleton className="h-16 w-11 shrink-0 rounded-md" />
-											<div className="flex-1 space-y-2">
-												<Skeleton className="h-4 w-3/4 rounded-sm" />
-												<Skeleton className="h-3 w-1/2 rounded-sm" />
-												<Skeleton className="h-5 w-20 rounded-full" />
-											</div>
-										</div>
-									))}
-								</div>
-								<div className={cn(TABLE_GRID, "hidden xl:grid")}>
-									<div
-										className={cn(
-											ROW_SUBGRID,
-											"h-[38px] border-border/60 border-b px-3",
-										)}
-									>
-										<span className="flex items-center justify-center">
-											<Skeleton className="size-4 rounded-[5px]" />
+							{failureBanners.length > 0 && (
+								<div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-destructive text-sm sm:flex-row sm:items-center">
+									<div className="flex flex-1 items-start gap-2">
+										<Warning weight="fill" className="mt-0.5 size-4 shrink-0" />
+										<span>
+											{singleLibrary
+												? m["enrichment.providers_failed_here"]({
+														providers: failureBanners
+															.map(
+																([provider]) =>
+																	providerLabels[provider] ?? provider,
+															)
+															.join(", "),
+													})
+												: m["enrichment.providers_failed_summary"]({
+														providers: failureBanners
+															.map(
+																([provider]) =>
+																	providerLabels[provider] ?? provider,
+															)
+															.join(", "),
+													})}
 										</span>
-										<Skeleton className="h-3 w-16 rounded-sm" />
-										<Skeleton className="h-3 w-14 rounded-sm" />
-										<Skeleton className="h-5 w-20 rounded-full" />
-										<Skeleton className="h-3 w-14 rounded-sm" />
-										<span />
 									</div>
-									{SKELETON_ROWS.map((id) => (
-										<div
-											key={id}
-											className={cn(
-												ROW_SUBGRID,
-												"h-[88px] border-border/40 border-b px-3",
-											)}
-										>
-											<span className="flex items-center justify-center">
-												<Skeleton className="size-4 rounded-[5px]" />
-											</span>
-											<span className="flex min-w-0 items-center gap-2.5">
-												<Skeleton className="h-[72px] w-12 shrink-0 rounded-md" />
-												<Skeleton className="h-3.5 w-48 max-w-[60%] rounded-sm" />
-											</span>
-											<Skeleton className="h-3.5 w-3/4 rounded-sm" />
-											<Skeleton className="h-5 w-20 rounded-full" />
-											<Skeleton className="h-3 w-14 rounded-sm" />
-											<span />
-										</div>
-									))}
+									<div className="flex shrink-0 items-center justify-end gap-1.5">
+										{!onlyFailures && (
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => patchFilters({ failures: true })}
+											>
+												{m["enrichment.view_affected"]()}
+											</Button>
+										)}
+										{singleLibrary && (
+											<Button
+												variant="destructive"
+												size="sm"
+												onClick={() => setProviderFixOpen(true)}
+											>
+												<Prohibit data-icon="inline-start" />
+												{m["enrichment.review_providers"]()}
+											</Button>
+										)}
+									</div>
 								</div>
-							</>
-						)}
-
-						{!showSkeleton && items.length === 0 && (
-							<EmptyState
-								title={m["enrichment.empty_title"]()}
-								description={emptyDescription}
-							>
-								{suggestedBucket && (
-									<Button
-										variant="outline"
-										onClick={() => applyScope({ bucket: suggestedBucket })}
-									>
-										{m["enrichment.empty_goto"]({
-											bucket: BUCKET_LABELS[suggestedBucket](),
-											count: counts?.[suggestedBucket] ?? 0,
-										})}
-									</Button>
-								)}
-							</EmptyState>
-						)}
-
-						{!showSkeleton && items.length > 0 && (
-							<MatchResults
-								table={table}
-								desktopTable={desktopTable}
-								scopeLabel={scopeLabel}
-								isPlaceholderData={isPlaceholderData}
-								selectAllFilter={selectAllFilter}
-								detailUuid={detailUuid}
-								providerLabels={providerLabels}
-							/>
-						)}
-					</div>
-
-					{inSelectionMode && (
-						<div
-							role="toolbar"
-							aria-label={m["enrichment.bulk_actions"]()}
-							className="bar-in flex shrink-0 flex-wrap items-center gap-1.5 border-border/60 border-t bg-muted/40 px-3 py-2"
-						>
-							<span className="ps-1 font-medium text-sm tabular-nums">
-								{m["enrichment.selected_count"]({ count: selectionCount })}
-							</span>
-							{allPageSelected && total > pageRowCount && !selectAllFilter && (
-								<button
-									type="button"
-									onClick={() => setSelectAllFilter(true)}
-									className="font-medium text-primary text-sm hover:underline"
-								>
-									{m["enrichment.select_all_results"]({ count: total })}
-								</button>
 							)}
-							<div className="mx-1 h-5 w-px bg-border" />
-							<SelectionActions
-								bucket={bucket}
-								busy={busy || isPlaceholderData}
-								eligibility={selectAllFilter ? eligibility : undefined}
-								onRetry={() =>
-									retry(targetInput(), selectionCount, bucket === "completed")
-								}
-								onApprove={() => previewApproval(targetInput())}
-								onRestore={() => requestRestore(targetInput(), selectionCount)}
-							/>
-							<Button
-								size="sm"
-								variant="ghost"
-								className="ms-auto"
-								onClick={clearSelection}
-								disabled={busy}
-							>
-								{m["enrichment.clear_selection"]()}
-							</Button>
+
+							{cooldowns.length > 0 && (
+								<div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
+									<Warning weight="fill" className="size-4 shrink-0" />
+									{cooldowns.length === 1
+										? m["enrichment.cooldown_strip"]({
+												provider:
+													providerLabels[cooldowns[0][0]] ?? cooldowns[0][0],
+												minutes: minutesFromMs(cooldowns[0][1]),
+											})
+										: m["enrichment.cooldown_summary"]({
+												count: cooldowns.length,
+												providers: cooldowns
+													.map(
+														([provider]) =>
+															providerLabels[provider] ?? provider,
+													)
+													.join(", "),
+												minutes: minutesFromMs(
+													Math.max(...cooldowns.map(([, ms]) => ms)),
+												),
+											})}
+								</div>
+							)}
 						</div>
 					)}
 
-					{!isLoading && total > 0 && (
-						<div className="flex shrink-0 items-center justify-between gap-3 border-border/60 border-t px-3 py-2">
-							<p className="text-muted-foreground text-xs tabular-nums">
-								{m["enrichment.showing_range"]({
-									from: offset + 1,
-									to: Math.min(offset + PAGE_SIZE, total),
-									total,
-								})}
-							</p>
-							{totalPages > 1 && (
-								<nav
-									aria-label={m["enrichment.pagination"]()}
-									className="flex items-center gap-1"
+					<div className="flex min-h-0 flex-1">
+						<div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-border/60 border-e px-2 py-2 lg:block">
+							{sidebar}
+						</div>
+
+						<section className="flex min-h-0 min-w-0 flex-1 flex-col">
+							<TrayToolbar>
+								{scopeButton}
+								<div className="hidden items-center gap-1 lg:flex">
+									<h2 className="font-medium text-sm">{scopeLabel}</h2>
+									{bucket !== ALL_BUCKETS && <BucketHelp bucket={bucket} />}
+								</div>
+
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button variant="outline" size="sm">
+											{mediaTypeLabel}
+											<CaretDown data-icon="inline-end" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										{mediaTypeOptions.map(({ value, label }) => (
+											<DropdownMenuItem
+												key={value}
+												onClick={() =>
+													patchFilters({
+														type: value === ALL_TYPES ? undefined : value,
+													})
+												}
+											>
+												{label}
+											</DropdownMenuItem>
+										))}
+									</DropdownMenuContent>
+								</DropdownMenu>
+								<Button
+									variant={onlyFailures ? "default" : "outline"}
+									size="sm"
+									aria-pressed={onlyFailures}
+									onClick={() =>
+										patchFilters({ failures: onlyFailures ? undefined : true })
+									}
 								>
-									<Button
-										size="icon-sm"
-										variant="ghost"
-										onClick={() => matchTable.previousPage()}
-										disabled={!matchTable.getCanPreviousPage()}
-										aria-label={m["enrichment.previous_page"]()}
-									>
-										<CaretLeft />
-									</Button>
-									{paginationPages.map((page, index) => {
-										const previousPage = paginationPages[index - 1];
-										return (
-											<Fragment key={page}>
-												{previousPage != null && page - previousPage > 1 && (
-													<span
-														aria-hidden="true"
-														className="px-1 text-muted-foreground text-sm"
-													>
-														…
-													</span>
+									<Warning data-icon="inline-start" weight="fill" />
+									<span className="hidden sm:inline">
+										{m["enrichment.only_failures"]()}
+									</span>
+								</Button>
+
+								<TraySearch
+									value={search}
+									onValueChange={(value) =>
+										matchTable.getColumn("book")?.setFilterValue(value)
+									}
+									onCommit={() => commitSearch(search)}
+								/>
+							</TrayToolbar>
+
+							<div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+								{/* Mirrors the loaded geometry exactly — dense 38px header over
+						    52px rows — so nothing shifts when the data lands. */}
+								{showSkeleton && (
+									<>
+										<div className="divide-y xl:hidden">
+											{SKELETON_ROWS.slice(0, 6).map((id) => (
+												<div key={id} className="flex gap-3 px-3 py-3">
+													<Skeleton className="mt-1 size-4 shrink-0 rounded-[5px]" />
+													<Skeleton className="h-16 w-11 shrink-0 rounded-md" />
+													<div className="flex-1 space-y-2">
+														<Skeleton className="h-4 w-3/4 rounded-sm" />
+														<Skeleton className="h-3 w-1/2 rounded-sm" />
+														<Skeleton className="h-5 w-20 rounded-full" />
+													</div>
+												</div>
+											))}
+										</div>
+										<div className={cn(TABLE_GRID, "hidden xl:grid")}>
+											<div
+												className={cn(
+													ROW_SUBGRID,
+													"h-[38px] border-border/60 border-b px-3",
 												)}
-												<Button
-													size="icon-sm"
-													variant={page === currentPage ? "default" : "ghost"}
-													onClick={() => matchTable.setPageIndex(page - 1)}
-													aria-current={
-														page === currentPage ? "page" : undefined
-													}
-													aria-label={m["enrichment.go_to_page"]({ page })}
+											>
+												<span className="flex items-center justify-center">
+													<Skeleton className="size-4 rounded-[5px]" />
+												</span>
+												<Skeleton className="h-3 w-16 rounded-sm" />
+												<Skeleton className="h-3 w-14 rounded-sm" />
+												<Skeleton className="h-5 w-20 rounded-full" />
+												<Skeleton className="h-3 w-14 rounded-sm" />
+												<span />
+											</div>
+											{SKELETON_ROWS.map((id) => (
+												<div
+													key={id}
+													className={cn(
+														ROW_SUBGRID,
+														"h-[88px] border-border/40 border-b px-3",
+													)}
 												>
-													{page}
-												</Button>
-											</Fragment>
-										);
-									})}
-									<Button
-										size="icon-sm"
-										variant="ghost"
-										onClick={() => matchTable.nextPage()}
-										disabled={!matchTable.getCanNextPage()}
-										aria-label={m["enrichment.next_page"]()}
+													<span className="flex items-center justify-center">
+														<Skeleton className="size-4 rounded-[5px]" />
+													</span>
+													<span className="flex min-w-0 items-center gap-2.5">
+														<Skeleton className="h-[72px] w-12 shrink-0 rounded-md" />
+														<Skeleton className="h-3.5 w-48 max-w-[60%] rounded-sm" />
+													</span>
+													<Skeleton className="h-3.5 w-3/4 rounded-sm" />
+													<Skeleton className="h-5 w-20 rounded-full" />
+													<Skeleton className="h-3 w-14 rounded-sm" />
+													<span />
+												</div>
+											))}
+										</div>
+									</>
+								)}
+
+								{!showSkeleton && items.length === 0 && (
+									<EmptyState
+										title={m["enrichment.empty_title"]()}
+										description={emptyDescription}
 									>
-										<CaretRight />
-									</Button>
-								</nav>
+										{suggestedBucket && (
+											<Button
+												variant="outline"
+												onClick={() => applyScope({ bucket: suggestedBucket })}
+											>
+												{m["enrichment.empty_goto"]({
+													bucket: BUCKET_LABELS[suggestedBucket](),
+													count: counts?.[suggestedBucket] ?? 0,
+												})}
+											</Button>
+										)}
+									</EmptyState>
+								)}
+
+								{!showSkeleton && items.length > 0 && (
+									<MatchResults
+										table={table}
+										desktopTable={desktopTable}
+										scopeLabel={scopeLabel}
+										isPlaceholderData={isPlaceholderData}
+										selectAllFilter={selectAllFilter}
+										detailUuid={detailUuid}
+										providerLabels={providerLabels}
+									/>
+								)}
+							</div>
+
+							{inSelectionMode && (
+								<TrayBulkBar
+									count={selectionCount}
+									total={total}
+									offerSelectAll={
+										allPageSelected && total > pageRowCount && !selectAllFilter
+									}
+									onSelectAll={() => setSelectAllFilter(true)}
+									onClear={clearSelection}
+									busy={busy}
+								>
+									<SelectionActions
+										bucket={bucket}
+										busy={busy || isPlaceholderData}
+										eligibility={selectAllFilter ? eligibility : undefined}
+										onRetry={() =>
+											retry(
+												targetInput(),
+												selectionCount,
+												bucket === "completed",
+											)
+										}
+										onApprove={() => previewApproval(targetInput())}
+										onRestore={() =>
+											requestRestore(targetInput(), selectionCount)
+										}
+									/>
+								</TrayBulkBar>
 							)}
-						</div>
-					)}
-				</section>
-			</div>
+
+							{!isLoading && total > 0 && (
+								<TrayPagination
+									offset={offset}
+									pageSize={PAGE_SIZE}
+									total={total}
+									currentPage={currentPage}
+									totalPages={totalPages}
+									onPageChange={(page) => matchTable.setPageIndex(page - 1)}
+								/>
+							)}
+						</section>
+					</div>
+				</>
+			)}
 
 			<Modal
 				open={detailItem != null}
@@ -864,5 +888,36 @@ export function MatchManager() {
 
 			{dialogs}
 		</div>
+	);
+}
+
+function PageTab({
+	active,
+	icon,
+	label,
+	onSelect,
+}: {
+	active: boolean;
+	icon: ReactNode;
+	label: string;
+	onSelect: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={active}
+			tabIndex={active ? 0 : -1}
+			onClick={onSelect}
+			className={cn(
+				"-mb-px flex h-9 min-w-0 items-center gap-2 rounded-t-lg border border-transparent px-3.5 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring [&>svg]:size-4 [&>svg]:shrink-0",
+				active
+					? "border-border/60 border-b-background bg-background font-medium text-foreground"
+					: "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+			)}
+		>
+			{icon}
+			<span className="truncate">{label}</span>
+		</button>
 	);
 }

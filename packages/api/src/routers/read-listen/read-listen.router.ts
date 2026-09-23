@@ -4,6 +4,7 @@ import {
 } from "../../auth/access.repository";
 import { ForbiddenError, NotFoundError } from "../../errors";
 import { orgReadProcedure } from "../../index";
+import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events";
 import {
 	AssociateReadListenPairInput,
 	DecideReadListenMatchProposalInput,
@@ -295,6 +296,7 @@ export function createReadListenRouter(
 					serverId: context.serverId,
 					scope,
 				});
+				publishTrayChanged(context.serverId, "pairings");
 				return outcome;
 			}),
 
@@ -307,13 +309,15 @@ export function createReadListenRouter(
 					context.pc,
 					"editMetadata",
 				);
-				return readListenMatchReviewLifecycle.decideSelection({
+				const result = await readListenMatchReviewLifecycle.decideSelection({
 					target: input.target,
 					action: input.action,
 					decidedByUserId: context.session.user.id,
 					serverId: context.serverId,
 					scope,
 				});
+				publishTrayChanged(context.serverId, "pairings");
+				return result;
 			}),
 
 		removeReviewedMatches: orgReadProcedure
@@ -325,11 +329,13 @@ export function createReadListenRouter(
 					context.pc,
 					"editMetadata",
 				);
-				return readListenMatchReviewLifecycle.removeSelection({
+				const result = await readListenMatchReviewLifecycle.removeSelection({
 					target: input,
 					serverId: context.serverId,
 					scope,
 				});
+				publishTrayChanged(context.serverId, "pairings");
+				return result;
 			}),
 
 		importExistingAlignment: orgReadProcedure

@@ -10,8 +10,16 @@ export const Route = createFileRoute("/dashboard/read-listen")({
 	head: () => ({
 		meta: [{ title: `${m["nav.read_listen"]()} · Nanahoshi` }],
 	}),
-	beforeLoad: ({ context }) => {
+	beforeLoad: ({ context, search }) => {
 		if (!context.session) throw redirect({ to: "/login" });
+		// Match review moved into the metadata tray; keep old links working.
+		if (search.review === "matches") {
+			throw redirect({
+				to: "/dashboard/metadata",
+				search: { view: "pairings" },
+				replace: true,
+			});
+		}
 	},
 });
 

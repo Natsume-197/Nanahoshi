@@ -289,6 +289,17 @@ export class EnrichmentStateRepository {
 		return { ...row, retryGeneration: row.retryGeneration ?? 0 };
 	}
 
+	/** Which tenant a book belongs to, for routing live tray updates. */
+	async serverIdForBook(bookId: number): Promise<string | null> {
+		const [row] = await db
+			.select({ serverId: library.serverId })
+			.from(book)
+			.innerJoin(library, eq(library.id, book.libraryId))
+			.where(eq(book.id, bookId))
+			.limit(1);
+		return row?.serverId ?? null;
+	}
+
 	// Human approval of a weak (title-only) match: review → enriched.
 	async approve(bookIds: number[]) {
 		if (bookIds.length === 0) return 0;

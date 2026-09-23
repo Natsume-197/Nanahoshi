@@ -1,9 +1,6 @@
 import type { Task } from "@nanahoshi/api/modules/taskManager";
 import {
-	ArrowLeft,
 	BookOpen,
-	CaretLeft,
-	CaretRight,
 	Check,
 	CheckCircle,
 	CircleNotch,
@@ -23,9 +20,22 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Fragment, useEffect, useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
-import { visiblePageNumbers } from "@/components/enrichment/pagination";
+import { NavRow } from "@/components/enrichment/match-sidebar";
+import {
+	TrayBulkBar,
+	TrayPagination,
+	TraySearch,
+	TrayToolbar,
+} from "@/components/enrichment/tray-parts";
+import {
+	TrayCell,
+	TrayHeaderCell,
+	TrayRow,
+	TraySelectCell,
+	TrayTable,
+} from "@/components/enrichment/tray-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +57,7 @@ import {
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -116,8 +127,10 @@ export function clampMatchReviewPage(page: number, total: number): number {
 
 const PAGE_SIZE = 10;
 
-export const MATCH_ROW_COLUMNS =
-	"grid min-w-0 flex-1 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_max-content] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_max-content_max-content]";
+// Columns for the shared tray table: checkbox, both publications, then the
+// score badges and actions sized to their widest cell on the page.
+const PAIR_TABLE_GRID =
+	"grid min-w-[760px] grid-cols-[2.5rem_minmax(12rem,1fr)_minmax(12rem,1fr)_auto_auto]";
 
 export function getRemovalTarget(
 	proposal: Pick<Proposal, "id" | "removable" | "status">,
@@ -128,58 +141,6 @@ export function getRemovalTarget(
 				kind: proposal.status === "pending" ? "pending" : "reviewed",
 			}
 		: null;
-}
-
-function MatchStatusNavigation({
-	status,
-	total,
-	onSelect,
-}: {
-	status: ReviewStatus;
-	total: number;
-	onSelect: (status: ReviewStatus) => void;
-}) {
-	return (
-		<nav
-			aria-label={m["read_listen.match_status_filter"]()}
-			className="flex flex-col gap-1"
-		>
-			{(
-				[
-					{
-						value: "pending",
-						label: m["read_listen.pending_matches"](),
-						icon: Hourglass,
-					},
-					{
-						value: "decided",
-						label: m["read_listen.reviewed_matches"](),
-						icon: CheckCircle,
-					},
-				] as const
-			).map((item) => {
-				const Icon = item.icon;
-				const active = status === item.value;
-				return (
-					<button
-						key={item.value}
-						type="button"
-						onClick={() => onSelect(item.value)}
-						aria-current={active ? "page" : undefined}
-						className={cn(
-							"flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 text-start text-sm transition-colors hover:bg-muted/60",
-							active && "bg-muted font-medium text-foreground",
-							!active && "text-muted-foreground",
-						)}
-					>
-						<Icon aria-hidden="true" className="size-4 shrink-0" />
-						<span className="min-w-0 flex-1 truncate">{item.label}</span>
-						{active && <span className="text-xs tabular-nums">{total}</span>}
-					</button>
-				);
-			})}
-		</nav>
-	);
 }
 
 function decisionLabel(action: "approve" | "reject" | "correct"): string {
@@ -395,11 +356,22 @@ function CorrectionDialog({
 	);
 }
 
-export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
+/**
+ * Read & Listen match review as a panel of the metadata tray: the tray's
+ * sidebar owns the status, this owns the list, selection and decisions.
+ * Mount it keyed by status so paging and selection start fresh per view.
+ */
+export function ReadListenReviewPanel({
+	status,
+	scopeButton,
+	onShowPending,
+}: {
+	status: ReviewStatus;
+	/** The tray's sidebar trigger, shown where the sidebar is collapsed. */
+	scopeButton?: ReactNode;
+	onShowPending: () => void;
+}) {
 	const queryClient = useQueryClient();
-	const searchInputId = useId();
-	const [status, setStatus] = useState<ReviewStatus>("pending");
-	const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [page, setPage] = useState(0);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -429,12 +401,11 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	const showLoadError = proposalsQuery.isError && proposals.length === 0;
 	const totalPages = Math.ceil(total / PAGE_SIZE);
 	const currentPage = page + 1;
-	const paginationPages = visiblePageNumbers(currentPage, totalPages);
-	useEffect(() => {
-		if (proposalsQuery.isPlaceholderData) return;
+	// A decision can empty the last page; step back once real totals arrive.
+	if (!proposalsQuery.isPlaceholderData && proposalsQuery.data) {
 		const clampedPage = clampMatchReviewPage(page, total);
 		if (clampedPage !== page) setPage(clampedPage);
-	}, [page, proposalsQuery.isPlaceholderData, total]);
+	}
 	const selectableIds = proposals
 		.filter((proposal) => status === "pending" || getRemovalTarget(proposal))
 		.map((proposal) => proposal.id);
@@ -464,12 +435,6 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 	function clearSelection() {
 		setSelected(new Set());
 		setSelectAllFilter(false);
-	}
-
-	function changeStatus(value: ReviewStatus) {
-		setStatus(value);
-		setPage(0);
-		clearSelection();
 	}
 
 	function changePage(nextPage: number) {
@@ -527,9 +492,9 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 							count: result.candidateCount,
 						}),
 			);
-			setStatus("pending");
 			setPage(0);
 			clearSelection();
+			onShowPending();
 			void queryClient.invalidateQueries({
 				queryKey: orpc.tasks.getActiveTasks.queryOptions().queryKey,
 			});
@@ -618,53 +583,158 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 		bulkDecisionMutation.isPending ||
 		removePairMutation.isPending;
 
-	return (
-		<div className="flex h-full min-h-0 flex-col motion-reduce:[&_button]:transition-none motion-reduce:[&_button]:active:scale-100">
-			<header className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+	const wideTable = useMediaQuery("(min-width: 1024px)");
+	const canSelect = (proposal: Proposal) =>
+		status === "pending" || Boolean(getRemovalTarget(proposal));
+	const displayedEbook = (proposal: Proposal) =>
+		proposal.decision?.selectedEbook ?? proposal.ebook;
+	const renderBadges = (proposal: Proposal) => (
+		<>
+			{proposal.origin === "manual" ? (
+				<span className="font-medium text-muted-foreground text-xs">
+					{m["read_listen.manual_pairing"]()}
+				</span>
+			) : (
+				<Badge variant={proposal.confidence === "high" ? "success" : "warning"}>
+					{m["read_listen.match_score"]({ score: proposal.score ?? 0 })}
+				</Badge>
+			)}
+			{proposal.warnings.map((warning) => {
+				const label = getMatchWarningLabel(warning);
+				return label ? (
+					<Badge key={warning} variant="warning">
+						{label}
+					</Badge>
+				) : null;
+			})}
+			{proposal.origin === "matcher" && proposal.decision && (
+				<Badge variant={decisionBadgeVariant(proposal.decision.action)}>
+					{decisionLabel(proposal.decision.action)}
+				</Badge>
+			)}
+		</>
+	);
+	const renderActions = (proposal: Proposal) => {
+		const isPending =
+			decisionMutation.isPending &&
+			decisionMutation.variables?.proposalUuid === proposal.id;
+		if (status !== "pending") {
+			const target = getRemovalTarget(proposal);
+			return target ? (
 				<Button
-					variant="ghost"
-					size="icon-sm"
-					onClick={onBack}
-					aria-label={m["read_listen.back_to_pairings"]()}
-					title={m["read_listen.back_to_pairings"]()}
-				>
-					<ArrowLeft aria-hidden="true" />
-				</Button>
-				<div className="min-w-0">
-					<h1 className="truncate font-semibold text-lg tracking-tight">
-						{m["read_listen.review_matches"]()}
-					</h1>
-					<p className="hidden max-w-2xl truncate text-muted-foreground text-xs lg:block">
-						{m["read_listen.review_matches_description"]()}
-					</p>
-				</div>
-				<Button
-					variant="ghost"
+					variant="destructive"
 					size="sm"
-					className="ms-auto"
-					disabled={Boolean(analysisTask) || analysisMutation.isPending}
-					onClick={() => analysisMutation.mutate()}
+					disabled={busy}
+					onClick={() => requestRemoval([target])}
 				>
-					{analysisTask || analysisMutation.isPending ? (
+					<Trash aria-hidden="true" data-icon="inline-start" />
+					{proposal.decision?.action === "reject"
+						? m["read_listen.remove_review"]()
+						: m["read_listen.remove_match"]()}
+				</Button>
+			) : null;
+		}
+		return (
+			<>
+				<Button
+					size="sm"
+					disabled={isPending || busy}
+					onClick={() =>
+						decisionMutation.mutate({
+							proposalUuid: proposal.id,
+							action: "approve",
+						})
+					}
+				>
+					{isPending ? (
 						<CircleNotch
 							aria-hidden="true"
 							data-icon="inline-start"
 							className="animate-spin motion-reduce:animate-none"
 						/>
 					) : (
-						<Sparkle aria-hidden="true" data-icon="inline-start" />
+						<Check aria-hidden="true" data-icon="inline-start" />
 					)}
-					<span className="hidden sm:inline">
-						{analysisTask
-							? m["read_listen.match_analysis_progress"]({
-									done: analysisTask.completedJobs,
-									total: analysisTask.totalJobs,
-								})
-							: m["read_listen.analyze_next_batch"]()}
-					</span>
+					{m["read_listen.approve_match"]()}
 				</Button>
-			</header>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							disabled={isPending || busy}
+							aria-label={m["aria.more_actions"]()}
+						>
+							<DotsThree aria-hidden="true" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="min-w-52">
+						<DropdownMenuGroup>
+							<DropdownMenuItem onClick={() => setCorrection(proposal)}>
+								<MagnifyingGlass aria-hidden="true" />
+								{m["read_listen.choose_another_ebook"]()}
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								variant="destructive"
+								onClick={() =>
+									decisionMutation.mutate({
+										proposalUuid: proposal.id,
+										action: "reject",
+									})
+								}
+							>
+								<X aria-hidden="true" />
+								{m["read_listen.reject_match"]()}
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								variant="destructive"
+								onClick={() => {
+									const target = getRemovalTarget(proposal);
+									if (target) requestRemoval([target]);
+								}}
+							>
+								<Trash aria-hidden="true" />
+								{m["read_listen.remove_pending_result"]()}
+							</DropdownMenuItem>
+						</DropdownMenuGroup>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</>
+		);
+	};
 
+	const analysisButton = (
+		<Button
+			variant="ghost"
+			size="sm"
+			disabled={Boolean(analysisTask) || analysisMutation.isPending}
+			onClick={() => analysisMutation.mutate()}
+		>
+			{analysisTask || analysisMutation.isPending ? (
+				<CircleNotch
+					aria-hidden="true"
+					data-icon="inline-start"
+					className="animate-spin motion-reduce:animate-none"
+				/>
+			) : (
+				<Sparkle aria-hidden="true" data-icon="inline-start" />
+			)}
+			<span className="hidden sm:inline">
+				{analysisTask
+					? m["read_listen.match_analysis_progress"]({
+							done: analysisTask.completedJobs,
+							total: analysisTask.totalJobs,
+						})
+					: m["read_listen.analyze_next_batch"]()}
+			</span>
+		</Button>
+	);
+
+	return (
+		<section
+			className="flex min-h-0 min-w-0 flex-1 flex-col motion-reduce:[&_button]:transition-none motion-reduce:[&_button]:active:scale-100"
+			aria-label={m["read_listen.matches"]()}
+		>
 			<p
 				role="status"
 				aria-live="polite"
@@ -677,537 +747,303 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 						? m["read_listen.match_proposals_load_failed"]()
 						: m["read_listen.results_count"]({ count: total })}
 			</p>
+			<TrayToolbar>
+				{scopeButton}
+				<h2 className="hidden font-medium text-sm lg:block">
+					{status === "pending"
+						? m["read_listen.pending_matches"]()
+						: m["read_listen.reviewed_matches"]()}
+				</h2>
+				{analysisButton}
+				<TraySearch
+					value={query}
+					onValueChange={(value) => {
+						setQuery(value);
+						setPage(0);
+						clearSelection();
+					}}
+					placeholder={m["read_listen.search_matches_placeholder"]()}
+				/>
+			</TrayToolbar>
 
-			<div className="flex min-h-0 flex-1 border-border/60 border-t">
-				<aside className="hidden w-52 shrink-0 border-border/60 border-e p-2 lg:block">
-					<MatchStatusNavigation
-						status={status}
-						total={total}
-						onSelect={changeStatus}
-					/>
-				</aside>
-
-				<section
-					className="flex min-h-0 min-w-0 flex-1 flex-col"
-					aria-label={m["read_listen.matches"]()}
-				>
-					<div className="flex shrink-0 items-center gap-2 border-border/60 border-b px-3 py-2.5">
-						<Popover open={statusMenuOpen} onOpenChange={setStatusMenuOpen}>
-							<PopoverTrigger
-								render={
-									<Button variant="outline" size="sm" className="lg:hidden">
-										<FunnelSimple data-icon="inline-start" />
-										{status === "pending"
-											? m["read_listen.pending_matches"]()
-											: m["read_listen.reviewed_matches"]()}
-									</Button>
-								}
-							/>
-							<PopoverContent align="start" className="w-60 p-2">
-								<MatchStatusNavigation
-									status={status}
-									total={total}
-									onSelect={(value) => {
-										changeStatus(value);
-										setStatusMenuOpen(false);
-									}}
-								/>
-							</PopoverContent>
-						</Popover>
-						<h2 className="hidden font-medium text-sm lg:block">
-							{status === "pending"
-								? m["read_listen.pending_matches"]()
-								: m["read_listen.reviewed_matches"]()}
-						</h2>
-						<div className="relative ms-auto w-full min-w-0 max-w-72 flex-1">
-							<label className="sr-only" htmlFor={searchInputId}>
-								{m["read_listen.search_matches"]()}
-							</label>
-							<MagnifyingGlass
-								aria-hidden="true"
-								className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								id={searchInputId}
-								type="search"
-								name="match-search"
-								value={query}
-								onChange={(event) => {
-									setQuery(event.target.value);
-									setPage(0);
-									clearSelection();
-								}}
-								placeholder={m["read_listen.search_matches_placeholder"]()}
-								className="h-8 w-full ps-8"
-							/>
-						</div>
-					</div>
-
-					<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-						{proposalsQuery.isLoading && (
-							<div aria-busy="true">
-								<span className="sr-only">{m["common.loading"]()}</span>
-								<div className="flex h-8 items-center border-border/60 border-b">
-									<div className="flex w-11 shrink-0 justify-center">
-										<Skeleton className="size-4 rounded-[5px]" />
-									</div>
-									<Skeleton className="h-3 w-20 rounded-sm" />
-								</div>
-								{[0, 1, 2, 3, 4, 5, 6, 7].map((key) => (
-									<div
-										key={key}
-										className="flex min-h-16 items-center border-border/40 border-b"
-									>
-										<div className="flex w-11 shrink-0 justify-center">
-											<Skeleton className="size-4 rounded-[5px]" />
-										</div>
-										<div className="flex flex-1 items-center gap-3 pe-3">
-											<Skeleton className="size-11 shrink-0 rounded" />
-											<Skeleton className="h-3.5 w-48 max-w-[35%] rounded-sm" />
-											<Skeleton className="ms-auto hidden h-5 w-20 rounded-2xl md:block" />
-										</div>
-									</div>
-								))}
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+				{proposalsQuery.isLoading && (
+					<div aria-busy="true">
+						<span className="sr-only">{m["common.loading"]()}</span>
+						<div className="flex h-8 items-center border-border/60 border-b">
+							<div className="flex w-11 shrink-0 justify-center">
+								<Skeleton className="size-4 rounded-[5px]" />
 							</div>
-						)}
-
-						{showLoadError && (
-							<EmptyState
-								title={m["read_listen.match_proposals_load_failed"]()}
-								description={m[
-									"read_listen.match_proposals_load_failed_description"
-								]()}
+							<Skeleton className="h-3 w-20 rounded-sm" />
+						</div>
+						{[0, 1, 2, 3, 4, 5, 6, 7].map((key) => (
+							<div
+								key={key}
+								className="flex min-h-16 items-center border-border/40 border-b"
 							>
+								<div className="flex w-11 shrink-0 justify-center">
+									<Skeleton className="size-4 rounded-[5px]" />
+								</div>
+								<div className="flex flex-1 items-center gap-3 pe-3">
+									<Skeleton className="size-11 shrink-0 rounded" />
+									<Skeleton className="h-3.5 w-48 max-w-[35%] rounded-sm" />
+									<Skeleton className="ms-auto hidden h-5 w-20 rounded-2xl md:block" />
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+
+				{showLoadError && (
+					<EmptyState
+						title={m["read_listen.match_proposals_load_failed"]()}
+						description={m[
+							"read_listen.match_proposals_load_failed_description"
+						]()}
+					>
+						<Button variant="outline" onClick={() => proposalsQuery.refetch()}>
+							{m["common.retry"]()}
+						</Button>
+					</EmptyState>
+				)}
+
+				{!proposalsQuery.isLoading &&
+					!showLoadError &&
+					proposals.length === 0 && (
+						<EmptyState
+							title={
+								hasSearch
+									? m["read_listen.no_match_search_results"]({
+											query: debouncedQuery,
+										})
+									: status === "pending"
+										? m["read_listen.no_match_proposals"]()
+										: m["read_listen.no_reviewed_matches"]()
+							}
+							description={
+								hasSearch
+									? m["read_listen.no_match_search_results_description"]()
+									: status === "pending"
+										? m["read_listen.no_match_proposals_description"]()
+										: m["read_listen.no_reviewed_matches_description"]()
+							}
+						>
+							{hasSearch && (
 								<Button
 									variant="outline"
-									onClick={() => proposalsQuery.refetch()}
+									onClick={() => {
+										setQuery("");
+										setPage(0);
+									}}
 								>
-									{m["common.retry"]()}
+									{m["common.clear_search"]()}
 								</Button>
-							</EmptyState>
-						)}
-
-						{!proposalsQuery.isLoading &&
-							!showLoadError &&
-							proposals.length === 0 && (
-								<EmptyState
-									title={
-										hasSearch
-											? m["read_listen.no_match_search_results"]({
-													query: debouncedQuery,
-												})
-											: status === "pending"
-												? m["read_listen.no_match_proposals"]()
-												: m["read_listen.no_reviewed_matches"]()
-									}
-									description={
-										hasSearch
-											? m["read_listen.no_match_search_results_description"]()
-											: status === "pending"
-												? m["read_listen.no_match_proposals_description"]()
-												: m["read_listen.no_reviewed_matches_description"]()
-									}
-								>
-									{hasSearch && (
-										<Button
-											variant="outline"
-											onClick={() => {
-												setQuery("");
-												setPage(0);
-											}}
-										>
-											{m["common.clear_search"]()}
-										</Button>
-									)}
-								</EmptyState>
 							)}
+						</EmptyState>
+					)}
 
-						{!proposalsQuery.isLoading && proposals.length > 0 && (
-							<div>
-								<div className="sticky top-0 z-10 flex items-center border-border/60 border-b bg-background text-muted-foreground text-xs">
-									<div className="flex w-11 shrink-0 justify-center">
-										<Checkbox
-											checked={headerChecked}
-											indeterminate={!headerChecked && somePageSelected}
-											onCheckedChange={togglePageSelection}
-											aria-label={m["read_listen.select_page_matches"]()}
-										/>
-									</div>
-									<div className={cn("py-2 pe-3", MATCH_ROW_COLUMNS)}>
-										<span className="font-medium">
-											{m["read_listen.audiobook"]()}
-										</span>
-										<span className="hidden font-medium md:block">
-											{m["read_listen.ebook"]()}
-										</span>
-										<span className="hidden font-medium md:block">
-											{m["read_listen.matches"]()}
-										</span>
-										<span className="hidden text-end font-medium lg:block">
-											{m["read_listen.actions"]()}
-										</span>
-									</div>
-								</div>
-								<ul>
-									{proposals.map((proposal) => {
-										const isPending =
-											decisionMutation.isPending &&
-											decisionMutation.variables?.proposalUuid === proposal.id;
-										const canSelect =
-											status === "pending" ||
-											Boolean(getRemovalTarget(proposal));
-										const displayedEbook =
-											proposal.decision?.selectedEbook ?? proposal.ebook;
-										return (
-											<li
-												key={proposal.id}
-												className={cn(
-													"group relative isolate flex items-stretch border-border/40 border-b transition-colors hover:bg-muted/20",
-													(selectAllFilter || selected.has(proposal.id)) &&
-														"bg-primary/6",
-												)}
-											>
-												<div className="flex w-11 shrink-0 items-center justify-center">
-													<Checkbox
-														checked={
-															selectAllFilter || selected.has(proposal.id)
-														}
-														disabled={!canSelect || busy}
-														onCheckedChange={() => toggleProposal(proposal.id)}
-														aria-label={m["read_listen.select_match"]({
-															title: proposal.audiobook.title,
-														})}
-													/>
-												</div>
-												<div className={cn("py-2 pe-3", MATCH_ROW_COLUMNS)}>
-													<PublicationLink
-														publication={proposal.audiobook}
-														mediaType="audiobook"
-													/>
-													<PublicationLink
-														publication={displayedEbook}
-														mediaType="ebook"
-													/>
-													<div className="flex min-w-0 flex-wrap items-center gap-1.5 md:content-center">
-														{proposal.origin === "manual" ? (
-															<span className="font-medium text-muted-foreground text-xs">
-																{m["read_listen.manual_pairing"]()}
-															</span>
-														) : (
-															<Badge
-																variant={
-																	proposal.confidence === "high"
-																		? "success"
-																		: "warning"
-																}
-															>
-																{m["read_listen.match_score"]({
-																	score: proposal.score ?? 0,
-																})}
-															</Badge>
-														)}
-														{proposal.warnings.map((warning) => {
-															const label = getMatchWarningLabel(warning);
-															return label ? (
-																<Badge key={warning} variant="warning">
-																	{label}
-																</Badge>
-															) : null;
-														})}
-														{proposal.origin === "matcher" &&
-															proposal.decision && (
-																<Badge
-																	variant={decisionBadgeVariant(
-																		proposal.decision.action,
-																	)}
-																>
-																	{decisionLabel(proposal.decision.action)}
-																</Badge>
-															)}
-													</div>
-													<div className="flex items-center gap-1.5 md:col-span-3 lg:col-span-1 lg:justify-end">
-														{status === "pending" ? (
-															<>
-																<Button
-																	size="sm"
-																	disabled={isPending || busy}
-																	onClick={() =>
-																		decisionMutation.mutate({
-																			proposalUuid: proposal.id,
-																			action: "approve",
-																		})
-																	}
-																>
-																	{isPending ? (
-																		<CircleNotch
-																			aria-hidden="true"
-																			data-icon="inline-start"
-																			className="animate-spin motion-reduce:animate-none"
-																		/>
-																	) : (
-																		<Check
-																			aria-hidden="true"
-																			data-icon="inline-start"
-																		/>
-																	)}
-																	{m["read_listen.approve_match"]()}
-																</Button>
-																<DropdownMenu>
-																	<DropdownMenuTrigger asChild>
-																		<Button
-																			variant="ghost"
-																			size="icon-sm"
-																			disabled={isPending || busy}
-																			aria-label={m["aria.more_actions"]()}
-																		>
-																			<DotsThree aria-hidden="true" />
-																		</Button>
-																	</DropdownMenuTrigger>
-																	<DropdownMenuContent
-																		align="end"
-																		className="min-w-52"
-																	>
-																		<DropdownMenuGroup>
-																			<DropdownMenuItem
-																				onClick={() => setCorrection(proposal)}
-																			>
-																				<MagnifyingGlass aria-hidden="true" />
-																				{m[
-																					"read_listen.choose_another_ebook"
-																				]()}
-																			</DropdownMenuItem>
-																			<DropdownMenuItem
-																				variant="destructive"
-																				onClick={() =>
-																					decisionMutation.mutate({
-																						proposalUuid: proposal.id,
-																						action: "reject",
-																					})
-																				}
-																			>
-																				<X aria-hidden="true" />
-																				{m["read_listen.reject_match"]()}
-																			</DropdownMenuItem>
-																			<DropdownMenuItem
-																				variant="destructive"
-																				onClick={() => {
-																					const target =
-																						getRemovalTarget(proposal);
-																					if (target) requestRemoval([target]);
-																				}}
-																			>
-																				<Trash aria-hidden="true" />
-																				{m[
-																					"read_listen.remove_pending_result"
-																				]()}
-																			</DropdownMenuItem>
-																		</DropdownMenuGroup>
-																	</DropdownMenuContent>
-																</DropdownMenu>
-															</>
-														) : (
-															getRemovalTarget(proposal) && (
-																<Button
-																	variant="destructive"
-																	size="sm"
-																	disabled={busy}
-																	onClick={() => {
-																		const target = getRemovalTarget(proposal);
-																		if (target) requestRemoval([target]);
-																	}}
-																>
-																	<Trash
-																		aria-hidden="true"
-																		data-icon="inline-start"
-																	/>
-																	{proposal.decision?.action === "reject"
-																		? m["read_listen.remove_review"]()
-																		: m["read_listen.remove_match"]()}
-																</Button>
-															)
-														)}
-													</div>
-												</div>
-											</li>
-										);
-									})}
-								</ul>
-							</div>
-						)}
-					</div>
-
-					{selectionCount > 0 && (
-						<div
-							role="toolbar"
-							aria-label={m["read_listen.bulk_actions"]()}
-							className="bar-in flex shrink-0 flex-wrap items-center gap-1.5 border-border/60 border-t bg-muted/40 px-3 py-2"
-						>
-							<span
-								aria-live="polite"
-								className="ps-1 font-medium text-sm tabular-nums"
-							>
-								{m["read_listen.selected_matches"]({ count: selectionCount })}
-							</span>
-							{allPageSelected &&
-								total > selectableIds.length &&
-								!selectAllFilter && (
-									<button
-										type="button"
-										onClick={() => setSelectAllFilter(true)}
-										className="font-medium text-primary text-sm hover:underline"
-									>
-										{m["read_listen.select_all_results"]({ count: total })}
-									</button>
-								)}
-							{status === "pending" ? (
+				{!proposalsQuery.isLoading &&
+					proposals.length > 0 &&
+					(wideTable ? (
+						<TrayTable
+							label={m["read_listen.matches"]()}
+							gridClassName={PAIR_TABLE_GRID}
+							dimmed={proposalsQuery.isPlaceholderData}
+							header={
 								<>
-									<Button
-										size="sm"
-										disabled={busy || hasCompetingSelections}
-										onClick={() =>
-											bulkDecisionMutation.mutate({
-												target: selectionTarget,
-												action: "approve",
-												count: selectionCount,
-											})
-										}
-									>
-										<Check aria-hidden="true" data-icon="inline-start" />
-										{m["read_listen.approve_selected"]()}
-									</Button>
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={busy}
-										onClick={() =>
-											bulkDecisionMutation.mutate({
-												target: selectionTarget,
-												action: "reject",
-												count: selectionCount,
-											})
-										}
-									>
-										<X aria-hidden="true" data-icon="inline-start" />
-										{m["read_listen.reject_selected"]()}
-									</Button>
-									<Button
-										size="sm"
-										variant="destructive"
-										disabled={busy}
-										onClick={() =>
-											setRemovalRequest({
-												target: selectionTarget,
-												count: selectionCount,
-												kind: "pending",
-											})
-										}
-									>
-										<Trash aria-hidden="true" data-icon="inline-start" />
-										{m["read_listen.remove_selected_results"]()}
-									</Button>
+									<TraySelectCell
+										header
+										checked={headerChecked}
+										indeterminate={!headerChecked && somePageSelected}
+										onToggle={togglePageSelection}
+										label={m["read_listen.select_page_matches"]()}
+									/>
+									<TrayHeaderCell>
+										{m["read_listen.audiobook"]()}
+									</TrayHeaderCell>
+									<TrayHeaderCell>{m["read_listen.ebook"]()}</TrayHeaderCell>
+									<TrayHeaderCell>{m["read_listen.matches"]()}</TrayHeaderCell>
+									<TrayHeaderCell className="justify-end">
+										{m["read_listen.actions"]()}
+									</TrayHeaderCell>
 								</>
-							) : (
-								<Button
-									size="sm"
-									variant="destructive"
-									disabled={busy}
-									onClick={() =>
-										setRemovalRequest({
-											target: selectionTarget,
-											count: selectionCount,
-											kind: "reviewed",
-										})
-									}
+							}
+						>
+							{proposals.map((proposal) => (
+								<TrayRow
+									key={proposal.id}
+									rowKey={proposal.id}
+									selected={selectAllFilter || selected.has(proposal.id)}
 								>
-									<Trash aria-hidden="true" data-icon="inline-start" />
-									{m["read_listen.remove_selected_matches"]()}
-								</Button>
+									<TraySelectCell
+										checked={selectAllFilter || selected.has(proposal.id)}
+										disabled={!canSelect(proposal) || busy}
+										onToggle={() => toggleProposal(proposal.id)}
+										label={m["read_listen.select_match"]({
+											title: proposal.audiobook.title,
+										})}
+									/>
+									<TrayCell className="min-h-16">
+										<PublicationLink
+											publication={proposal.audiobook}
+											mediaType="audiobook"
+										/>
+									</TrayCell>
+									<TrayCell>
+										<PublicationLink
+											publication={displayedEbook(proposal)}
+											mediaType="ebook"
+										/>
+									</TrayCell>
+									<TrayCell className="flex-wrap gap-1.5">
+										{renderBadges(proposal)}
+									</TrayCell>
+									<TrayCell className="justify-end gap-1.5">
+										{renderActions(proposal)}
+									</TrayCell>
+								</TrayRow>
+							))}
+						</TrayTable>
+					) : (
+						<ul
+							className={cn(
+								proposalsQuery.isPlaceholderData &&
+									"pointer-events-none opacity-50",
 							)}
-							{status === "pending" && hasCompetingSelections && (
-								<p className="w-full text-muted-foreground text-xs lg:w-auto">
-									{m["read_listen.approve_competing_matches"]()}
-								</p>
-							)}
+						>
+							{proposals.map((proposal) => (
+								<li
+									key={proposal.id}
+									className={cn(
+										"flex items-start gap-3 border-border/50 border-b px-3 py-3",
+										(selectAllFilter || selected.has(proposal.id)) &&
+											"bg-primary/6",
+									)}
+								>
+									<Checkbox
+										checked={selectAllFilter || selected.has(proposal.id)}
+										disabled={!canSelect(proposal) || busy}
+										onCheckedChange={() => toggleProposal(proposal.id)}
+										aria-label={m["read_listen.select_match"]({
+											title: proposal.audiobook.title,
+										})}
+										className="mt-1"
+									/>
+									<div className="flex min-w-0 flex-1 flex-col gap-2">
+										<PublicationLink
+											publication={proposal.audiobook}
+											mediaType="audiobook"
+										/>
+										<PublicationLink
+											publication={displayedEbook(proposal)}
+											mediaType="ebook"
+										/>
+										<div className="flex flex-wrap items-center gap-1.5">
+											{renderBadges(proposal)}
+										</div>
+										<div className="flex items-center gap-1.5">
+											{renderActions(proposal)}
+										</div>
+									</div>
+								</li>
+							))}
+						</ul>
+					))}
+			</div>
+
+			{selectionCount > 0 && (
+				<TrayBulkBar
+					count={selectionCount}
+					total={total}
+					offerSelectAll={
+						allPageSelected && total > selectableIds.length && !selectAllFilter
+					}
+					onSelectAll={() => setSelectAllFilter(true)}
+					onClear={clearSelection}
+					busy={busy}
+				>
+					{status === "pending" ? (
+						<>
 							<Button
 								size="sm"
-								variant="ghost"
-								className="ms-auto"
-								disabled={busy}
-								onClick={clearSelection}
+								disabled={busy || hasCompetingSelections}
+								onClick={() =>
+									bulkDecisionMutation.mutate({
+										target: selectionTarget,
+										action: "approve",
+										count: selectionCount,
+									})
+								}
 							>
-								{m["read_listen.clear_selection"]()}
+								<Check aria-hidden="true" data-icon="inline-start" />
+								{m["read_listen.approve_selected"]()}
 							</Button>
-						</div>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={busy}
+								onClick={() =>
+									bulkDecisionMutation.mutate({
+										target: selectionTarget,
+										action: "reject",
+										count: selectionCount,
+									})
+								}
+							>
+								<X aria-hidden="true" data-icon="inline-start" />
+								{m["read_listen.reject_selected"]()}
+							</Button>
+							<Button
+								size="sm"
+								variant="destructive"
+								disabled={busy}
+								onClick={() =>
+									setRemovalRequest({
+										target: selectionTarget,
+										count: selectionCount,
+										kind: "pending",
+									})
+								}
+							>
+								<Trash aria-hidden="true" data-icon="inline-start" />
+								{m["read_listen.remove_selected_results"]()}
+							</Button>
+						</>
+					) : (
+						<Button
+							size="sm"
+							variant="destructive"
+							disabled={busy}
+							onClick={() =>
+								setRemovalRequest({
+									target: selectionTarget,
+									count: selectionCount,
+									kind: "reviewed",
+								})
+							}
+						>
+							<Trash aria-hidden="true" data-icon="inline-start" />
+							{m["read_listen.remove_selected_matches"]()}
+						</Button>
 					)}
+					{status === "pending" && hasCompetingSelections && (
+						<p className="w-full text-muted-foreground text-xs lg:w-auto">
+							{m["read_listen.approve_competing_matches"]()}
+						</p>
+					)}
+				</TrayBulkBar>
+			)}
 
-					{!proposalsQuery.isLoading && total > 0 && (
-						<div className="flex shrink-0 items-center justify-between gap-3 border-border/60 border-t px-3 py-2">
-							<p className="text-muted-foreground text-xs tabular-nums">
-								{m["read_listen.showing_matches"]({
-									from: page * PAGE_SIZE + 1,
-									to: Math.min((page + 1) * PAGE_SIZE, total),
-									total,
-								})}
-							</p>
-							{totalPages > 1 && (
-								<nav
-									aria-label={m["read_listen.matches_pagination"]()}
-									className="flex items-center gap-1"
-								>
-									<Button
-										size="icon-sm"
-										variant="ghost"
-										disabled={currentPage === 1}
-										onClick={() => changePage(currentPage - 1)}
-										aria-label={m["read_listen.previous_page"]()}
-									>
-										<CaretLeft aria-hidden="true" />
-									</Button>
-									{paginationPages.map((pageNumber, index) => {
-										const previousPage = paginationPages[index - 1];
-										return (
-											<Fragment key={pageNumber}>
-												{previousPage && pageNumber - previousPage > 1 && (
-													<span
-														aria-hidden="true"
-														className="px-1 text-muted-foreground"
-													>
-														…
-													</span>
-												)}
-												<Button
-													size="icon-sm"
-													variant={
-														pageNumber === currentPage ? "default" : "ghost"
-													}
-													onClick={() => changePage(pageNumber)}
-													aria-current={
-														pageNumber === currentPage ? "page" : undefined
-													}
-													aria-label={m["read_listen.go_to_page"]({
-														page: pageNumber,
-													})}
-												>
-													{pageNumber}
-												</Button>
-											</Fragment>
-										);
-									})}
-									<Button
-										size="icon-sm"
-										variant="ghost"
-										disabled={currentPage === totalPages}
-										onClick={() => changePage(currentPage + 1)}
-										aria-label={m["read_listen.next_page"]()}
-									>
-										<CaretRight aria-hidden="true" />
-									</Button>
-								</nav>
-							)}
-						</div>
-					)}
-				</section>
-			</div>
+			{!proposalsQuery.isLoading && total > 0 && (
+				<TrayPagination
+					offset={page * PAGE_SIZE}
+					pageSize={PAGE_SIZE}
+					total={total}
+					currentPage={currentPage}
+					totalPages={totalPages}
+					onPageChange={changePage}
+				/>
+			)}
 
 			{correction && (
 				<CorrectionDialog
@@ -1270,6 +1106,89 @@ export function ReadListenMatchReview({ onBack }: { onBack: () => void }) {
 					}
 				/>
 			)}
+		</section>
+	);
+}
+
+function PairingsNav({
+	status,
+	pendingCount,
+	onSelect,
+}: {
+	status: ReviewStatus;
+	pendingCount: number | undefined;
+	onSelect: (status: ReviewStatus) => void;
+}) {
+	return (
+		<nav
+			aria-label={m["read_listen.match_status_filter"]()}
+			className="flex flex-col gap-0.5"
+		>
+			<NavRow
+				active={status === "pending"}
+				label={m["read_listen.pending_matches"]()}
+				count={pendingCount}
+				icon={<Hourglass />}
+				onClick={() => onSelect("pending")}
+			/>
+			<NavRow
+				active={status === "decided"}
+				label={m["read_listen.reviewed_matches"]()}
+				icon={<CheckCircle />}
+				onClick={() => onSelect("decided")}
+			/>
+		</nav>
+	);
+}
+
+/** The Read & Listen tab of the metadata page: its own nav, its own list. */
+export function ReadListenReviewTab({
+	status,
+	onStatusChange,
+}: {
+	status: ReviewStatus;
+	onStatusChange: (status: ReviewStatus) => void;
+}) {
+	// Only the total matters for the nav badge.
+	const { data: pending } = useQuery(
+		orpc.readListen.listMatchProposals.queryOptions({
+			input: { status: "pending", offset: 0, limit: 1 },
+		}),
+	);
+	const nav = (
+		<PairingsNav
+			status={status}
+			pendingCount={pending?.total}
+			onSelect={onStatusChange}
+		/>
+	);
+	return (
+		<div className="flex min-h-0 flex-1">
+			<div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-border/60 border-e px-2 py-2 lg:block">
+				{nav}
+			</div>
+			<ReadListenReviewPanel
+				key={status}
+				status={status}
+				onShowPending={() => onStatusChange("pending")}
+				scopeButton={
+					<Popover>
+						<PopoverTrigger
+							render={
+								<Button variant="outline" size="sm" className="lg:hidden">
+									<FunnelSimple data-icon="inline-start" />
+									{status === "pending"
+										? m["read_listen.pending_matches"]()
+										: m["read_listen.reviewed_matches"]()}
+								</Button>
+							}
+						/>
+						<PopoverContent align="start" className="w-60 p-2">
+							{nav}
+						</PopoverContent>
+					</Popover>
+				}
+			/>
 		</div>
 	);
 }

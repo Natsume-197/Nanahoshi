@@ -29,6 +29,7 @@ import {
 	secondaryActionsForLifecycle,
 } from "./primary-action";
 import { resolveRetryView } from "./retry-view";
+import { TrayCell, TrayRow, TraySelectCell } from "./tray-table";
 import type { MatchRow, RowActions } from "./types";
 
 function itemExplanation(
@@ -252,67 +253,42 @@ export const EnrichmentRow = memo(function EnrichmentRow({
 }: RowProps) {
 	const actions = useMemo(() => handlers.actions(item), [handlers, item]);
 	return (
-		<tr
-			data-match-row={item.bookUuid}
-			tabIndex={0}
-			onClick={(event) => {
-				if (
-					(event.target as HTMLElement).closest(
-						'button,a,input,[role="checkbox"]',
-					)
-				)
-					return;
-				handlers.open(item);
-			}}
-			onKeyDown={(event) => {
-				if (event.target !== event.currentTarget) return;
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					handlers.open(item);
-				}
-			}}
-			className={cn(
-				ROW_SUBGRID,
-				"group cursor-pointer border-border/40 border-b px-3 outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
-				// Selection needs to read at a glance across 50 rows; the open row
-				// stays clearly the stronger tint so the two never compete.
-				open ? "bg-primary/16" : "hover:bg-muted/55",
-				selected && !open && "bg-primary/6",
-			)}
-			data-active={open}
+		<TrayRow
+			rowKey={item.bookUuid}
+			selected={selected}
+			open={open}
+			onOpen={() => handlers.open(item)}
 		>
-			<td className={cn(CELL, "justify-center")}>
-				<Checkbox
-					checked={selected}
-					onCheckedChange={() => handlers.toggle(item.bookUuid)}
-					aria-label={item.title ?? item.bookUuid}
-				/>
-			</td>
-			<td className={CELL}>
+			<TraySelectCell
+				checked={selected}
+				label={item.title ?? item.bookUuid}
+				onToggle={() => handlers.toggle(item.bookUuid)}
+			/>
+			<TrayCell className={ROW_HEIGHT}>
 				<BookCell item={item} open={open} />
-			</td>
-			<td className={CELL}>
+			</TrayCell>
+			<TrayCell className={ROW_HEIGHT}>
 				<MatchCell item={item} providerLabels={providerLabels} />
-			</td>
-			<td className={CELL}>
+			</TrayCell>
+			<TrayCell className={ROW_HEIGHT}>
 				<LifecycleChip lifecycle={item.lifecycle} />
-			</td>
-			<td className={CELL}>
+			</TrayCell>
+			<TrayCell className={ROW_HEIGHT}>
 				<span className="whitespace-nowrap text-muted-foreground text-xs tabular-nums">
 					{item.lastRunAt
 						? formatRelativeTime(item.lastRunAt)
 						: m["enrichment.never_ran"]()}
 				</span>
-			</td>
-			<td className={cn(CELL, "justify-end gap-0.5")}>
+			</TrayCell>
+			<TrayCell className={cn(ROW_HEIGHT, "justify-end gap-0.5")}>
 				<PrimaryRowButton
 					lifecycle={item.lifecycle}
 					actions={actions}
 					onOpen={() => handlers.open(item)}
 				/>
 				<RowMenuTrigger handle={handlers.menu} item={item} />
-			</td>
-		</tr>
+			</TrayCell>
+		</TrayRow>
 	);
 });
 
@@ -500,5 +476,5 @@ function RowMenuContent({
 	);
 }
 
-const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center";
-const CELL = "flex min-h-[88px] min-w-0 items-center bg-inherit px-1.5 py-2";
+// Two 72px covers per row.
+const ROW_HEIGHT = "min-h-[88px]";

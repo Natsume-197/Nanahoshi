@@ -59,6 +59,9 @@ export const Route = createFileRoute("/dashboard/metadata")({
 		failures: search.failures === true ? true : undefined,
 		q: optionalString(search.q),
 		page: positiveInteger(search.page),
+		// Read & Listen pairing review lives in this tray as its own section.
+		view: search.view === "pairings" ? ("pairings" as const) : undefined,
+		pairs: search.pairs === "decided" ? ("decided" as const) : undefined,
 	}),
 	beforeLoad: ({ context }) => {
 		const session = context.session;
@@ -71,7 +74,7 @@ export const Route = createFileRoute("/dashboard/metadata")({
 	// the notification bell's "attention" link) warms the right entry.
 	loaderDeps: ({ search }) => search,
 	loader: ({ context, deps }) => {
-		if (typeof window === "undefined") return;
+		if (typeof window === "undefined" || deps.view === "pairings") return;
 		context.queryClient.prefetchQuery(
 			orpc.enrichment.list.queryOptions({ input: listInputFromSearch(deps) }),
 		);

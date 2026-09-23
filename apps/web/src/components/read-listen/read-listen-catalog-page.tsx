@@ -1,7 +1,7 @@
 import type { ReadListenPairing } from "@nanahoshi/api/routers/read-listen/read-listen.service";
 import { BookOpen, Headphones, Sparkle } from "@phosphor-icons/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
 	BookContextMenuRoot,
@@ -31,13 +31,10 @@ import {
 } from "@/utils/covers";
 import { formatNames } from "@/utils/format";
 import { orpc } from "@/utils/orpc";
-import { ReadListenMatchReview } from "./read-listen-match-review";
 
 type Publication = ReadListenPairing["ebook"];
 type ReadListenSort = "recent" | "title" | "author";
 type AlignmentFilter = "any" | "ready" | "not_imported" | "stale";
-
-const routeApi = getRouteApi("/dashboard/read-listen");
 
 function PublicationArtwork({
 	publication,
@@ -257,19 +254,8 @@ function PairGridSkeleton() {
 
 export function ReadListenCatalogPage() {
 	const { can } = useAbilities();
-	const routeSearch = routeApi.useSearch();
-	const navigate = routeApi.useNavigate();
 	const canManagePairings = can("book", "editMetadata");
-	const isReviewingMatches = routeSearch.review === "matches";
 	const [alignment, setAlignment] = useState<AlignmentFilter>("ready");
-	const setIsReviewingMatches = (reviewing: boolean) =>
-		navigate({
-			search: (previous) => ({
-				...previous,
-				review: reviewing ? "matches" : undefined,
-			}),
-			replace: true,
-		});
 	const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
 			...orpc.readListen.listPairings.infiniteOptions({
@@ -416,12 +402,6 @@ export function ReadListenCatalogPage() {
 			</FilterField>
 		</FilterBar>
 	);
-	if (isReviewingMatches) {
-		return (
-			<ReadListenMatchReview onBack={() => setIsReviewingMatches(false)} />
-		);
-	}
-
 	return (
 		<BookContextMenuRoot mediaType="audiobook">
 			<CollectionView
@@ -441,12 +421,11 @@ export function ReadListenCatalogPage() {
 				filterBar={filterBar}
 				extraActions={
 					canManagePairings ? (
-						<Button
-							variant="outline"
-							onClick={() => setIsReviewingMatches(true)}
-						>
-							<Sparkle aria-hidden="true" data-icon="inline-start" />
-							{m["read_listen.review_matches"]()}
+						<Button variant="outline" asChild>
+							<Link to="/dashboard/metadata" search={{ view: "pairings" }}>
+								<Sparkle aria-hidden="true" data-icon="inline-start" />
+								{m["read_listen.review_matches"]()}
+							</Link>
 						</Button>
 					) : undefined
 				}

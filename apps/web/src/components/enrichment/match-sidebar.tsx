@@ -55,7 +55,7 @@ const NAV_TREE: { bucket: Bucket; children: Lifecycle[] }[] = [
 ];
 const SHOWN_ONLY_WHEN_PRESENT = new Set<Lifecycle>(["partial"]);
 
-function NavRow({
+export function NavRow({
 	active,
 	label,
 	count,

@@ -46,6 +46,7 @@ import {
 	SharedRowMenu,
 } from "./match-rows";
 import type { ScopeSelection } from "./match-sidebar";
+import { TrayHeaderCell, TrayTable } from "./tray-table";
 import type { MatchRow, RowActions } from "./types";
 
 const MATCH_TABLE_FEATURES = tableFeatures({
@@ -77,7 +78,7 @@ export const SKELETON_ROWS = [
 // "Fix match" button never spills into the neighbouring column.
 export const TABLE_GRID =
 	"grid min-w-[760px] grid-cols-[2.5rem_minmax(14rem,1.7fr)_minmax(11rem,1fr)_auto_auto_auto]";
-export const ROW_SUBGRID = "col-span-full grid grid-cols-subgrid items-center";
+export { TRAY_ROW_SUBGRID as ROW_SUBGRID } from "./tray-table";
 
 type MatchTableOptions = {
 	onPageChange: (page: number) => void;
@@ -381,56 +382,36 @@ export function MatchResults({
 }) {
 	const { matchTable, tableRows, rowHandlers } = table;
 	const results = desktopTable ? (
-		<table
-			aria-label={scopeLabel}
-			className={cn(
-				TABLE_GRID,
-				"border-spacing-0 transition-opacity",
-				isPlaceholderData && "pointer-events-none opacity-50",
-			)}
+		<TrayTable
+			label={scopeLabel}
+			gridClassName={TABLE_GRID}
+			dimmed={isPlaceholderData}
+			header={matchTable.getHeaderGroups()[0]?.headers.map((header) => (
+				<TrayHeaderCell
+					key={header.id}
+					className={cn(
+						header.column.id === "select" && "justify-center",
+						(header.column.id === "book" || header.column.id === "updated") &&
+							"font-normal",
+					)}
+				>
+					{header.isPlaceholder ? null : (
+						<matchTable.FlexRender header={header} />
+					)}
+				</TrayHeaderCell>
+			))}
 		>
-			<thead className="contents">
-				{matchTable.getHeaderGroups().map((headerGroup) => (
-					<tr
-						key={headerGroup.id}
-						className={cn(
-							ROW_SUBGRID,
-							"sticky top-0 z-30 border-border/60 border-b bg-background px-3 text-muted-foreground",
-						)}
-					>
-						{headerGroup.headers.map((header) => (
-							<th
-								key={header.id}
-								scope="col"
-								className={cn(
-									"flex h-[38px] items-center px-1.5",
-									header.column.id === "select" && "justify-center",
-									(header.column.id === "match" ||
-										header.column.id === "status") &&
-										"font-medium text-xs",
-								)}
-							>
-								{header.isPlaceholder ? null : (
-									<matchTable.FlexRender header={header} />
-								)}
-							</th>
-						))}
-					</tr>
-				))}
-			</thead>
-			<tbody className="contents">
-				{tableRows.map((row) => (
-					<EnrichmentRow
-						key={row.id}
-						item={row.original}
-						selected={row.getIsSelected() || selectAllFilter}
-						open={row.id === detailUuid}
-						providerLabels={providerLabels}
-						handlers={rowHandlers}
-					/>
-				))}
-			</tbody>
-		</table>
+			{tableRows.map((row) => (
+				<EnrichmentRow
+					key={row.id}
+					item={row.original}
+					selected={row.getIsSelected() || selectAllFilter}
+					open={row.id === detailUuid}
+					providerLabels={providerLabels}
+					handlers={rowHandlers}
+				/>
+			))}
+		</TrayTable>
 	) : (
 		<ul className={cn(isPlaceholderData && "pointer-events-none opacity-50")}>
 			{tableRows.map((row) => (

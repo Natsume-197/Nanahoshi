@@ -4,6 +4,7 @@ import { logger } from "../../lib/logger";
 import { workerConcurrency } from "../../lib/worker-budget";
 import { enqueueBookRegroup } from "../../modules/duplicateGrouping";
 import { admit } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
+import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events";
 import { dispatchDueMetadataRetries } from "../../modules/metadataRetry/metadata-retry.scheduler";
 import { isTaskCancelled } from "../../modules/taskManager";
 import { audiobookMetadataRepository } from "../../routers/audiobooks/metadata/metadata.repository";
@@ -212,10 +213,22 @@ export const metadataEnrichWorker = new Worker(
 	},
 );
 
+// Every settled book job may have moved a row between tray buckets.
+function announceTrayChange(job: Job | undefined) {
+	const bookId = job?.data?.bookId;
+	if (typeof bookId !== "number") return;
+	enrichmentStateRepository
+		.serverIdForBook(bookId)
+		.then((serverId) => publishTrayChanged(serverId, "metadata"))
+		.catch(() => {});
+}
+
 metadataEnrichWorker.on("completed", (job) => {
 	log.info({ jobId: job?.id }, "Completed metadata enrichment job");
+	announceTrayChange(job);
 });
 
 metadataEnrichWorker.on("failed", (job, err) => {
 	log.error({ err, jobId: job?.id }, "Failed metadata enrichment job");
+	announceTrayChange(job);
 });
