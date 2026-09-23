@@ -69,6 +69,9 @@ export const coverPresets = {
 	// ask for were 61% of the resize cache. 200 is a warm rung, so it is a hit.
 	banner: { widths: [200], defaultWidth: 200, sizes: "200px" },
 	activity: { widths: [128, 200, 300], defaultWidth: 200, sizes: "128px" },
+	// The rail's 52px square. Capped near 2x the tile: a 300w cover shrunk
+	// ~5x aliases, and srcset happily reuses a cached carousel rung.
+	rail: { widths: [128, 200], defaultWidth: 128, sizes: "52px" },
 	// Genre/tag tiles: the artwork is height-driven inside a wide plate, so its
 	// width is bounded by the tile's own ratio (a third of it for a 2:3 cover)
 	// and stays far below a cover tile's.

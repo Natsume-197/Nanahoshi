@@ -18,6 +18,13 @@ describe("coverPresets", () => {
 		}
 	});
 
+	test("the rail square never offers a rung it would shrink past ~4x", () => {
+		expect(Math.max(...coverPresets.rail.widths)).toBeLessThanOrEqual(200);
+		for (const w of coverPresets.rail.widths) {
+			expect(WARM_WIDTHS as readonly number[]).toContain(w);
+		}
+	});
+
 	test("the blurred banner only asks for a warm rung", () => {
 		for (const w of coverPresets.banner.widths) {
 			expect(WARM_WIDTHS as readonly number[]).toContain(w);
