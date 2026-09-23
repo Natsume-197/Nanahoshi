@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents working in this repository.
 
 ## Project Overview
 
@@ -45,7 +45,7 @@ bun run db:studio        # open Drizzle Studio
 # Postgres advisory lock (API and worker processes boot concurrently)
 
 # Testing (Bun test runner, no infrastructure needed)
-bun test packages/api/                                                  # all api tests
+bun run test                                                           # full unit suite, each file in its own process
 bun test packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts  # scanner tests only
 bun test packages/api/src/routers/books/__tests__/book.repository.test.ts  # book repo tests only
 
@@ -124,7 +124,9 @@ Published browser bundles use their own origin; local development sets `VITE_SER
 
 ## Testing
 
-Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` directories next to the code they test. No infrastructure (DB, Redis, etc.) is needed — all external dependencies are mocked with `mock.module()`.
+Uses **Bun's built-in test runner** (`bun:test`). Tests live next to the code they test, including in `__tests__/` directories. Run the unit suite with `bun run test`: it generates required files and runs `scripts/test.sh`, isolating each test file in its own process because `mock.module()` registrations leak between files in a shared Bun process. Use `bun test <file>` for a single file.
+
+Unit tests mock external infrastructure. Integration tests run separately with `bun run test:integration` and require PostgreSQL, Redis, and the environment variables checked by `scripts/test-integration.sh`.
 
 **Test files:**
 - `packages/api/src/modules/scanning/__tests__/libraryScanner.test.ts` — library scanner (scan phases, upsert behavior, job creation, scoping by libraryPathId)
@@ -132,7 +134,7 @@ Uses **Bun's built-in test runner** (`bun:test`). Tests live in `__tests__/` dir
 
 **Mocking pattern:** Tests mock Drizzle's chainable query builder (`db.insert().values().onConflictDoUpdate()`) by returning objects whose methods return `this` and that resolve to configurable arrays when awaited. External modules (`@nanahoshi/db`, queues, filesystem) are mocked via `mock.module()` before the module under test is dynamically imported.
 
-**Important:** When mocking `@nanahoshi/db/schema/general`, re-export all real schema exports (`...realSchema`) to prevent mock pollution across test files that share the same Bun process.
+**Important:** When partially mocking `@nanahoshi/db/schema/general`, re-export all real schema exports (`...realSchema`) so other imports within the test process retain the unmocked exports. Cross-file isolation is handled by `scripts/test.sh`.
 
 ## Key Conventions
 
