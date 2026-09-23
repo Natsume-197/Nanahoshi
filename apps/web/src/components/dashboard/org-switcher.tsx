@@ -81,7 +81,7 @@ export function OrgSwitcher({
 	if (isPending && initialOrganizations === undefined) {
 		return (
 			// The trigger's geometry, so nothing shifts when the org list resolves.
-			<div className="flex h-12 items-center gap-3 md:ms-2 md:ps-3">
+			<div className="flex h-12 items-center gap-3 md:ms-2 md:ps-[calc(var(--rail-item-inset)-0.5rem)] rail-expanded:md:ps-5">
 				<Skeleton className="size-9 rounded-lg" />
 				<Skeleton className="h-4 w-24 rounded-lg md:w-32" />
 			</div>
@@ -145,8 +145,9 @@ export function OrgSwitcher({
 			variant="ghost"
 			// From md it's a card sitting on the rail's 8px gutter; expanded it spans
 			// the rail rows below it, so the dots line up with their trailing edge.
-			// No fill at rest, so it never reads as a second active row.
-			className="group h-12 w-full min-w-0 max-w-full justify-start gap-3 rounded-lg border-0 px-0 py-0 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:ms-2 md:w-fit rail-expanded:md:w-[calc(var(--rail-width)-1.375rem)] md:max-w-72 md:ps-3 md:pe-3 md:aria-expanded:bg-sidebar-accent/70 md:hover:bg-sidebar-accent/70 dark:hover:bg-transparent dark:md:hover:bg-sidebar-accent/70"
+			// No fill at rest, so it never reads as a second active row. The start
+			// padding puts the badge on the rail's icon column in both widths.
+			className="group h-12 w-full min-w-0 max-w-full justify-start gap-3 rounded-lg border-0 px-0 py-0 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:ms-2 md:w-fit rail-expanded:md:w-[calc(var(--rail-width)-1.375rem)] md:max-w-72 md:ps-[calc(var(--rail-item-inset)-0.5rem)] rail-expanded:md:ps-5 md:pe-3 md:aria-expanded:bg-sidebar-accent/70 md:hover:bg-sidebar-accent/70 dark:hover:bg-transparent dark:md:hover:bg-sidebar-accent/70"
 		>
 			<ServerBadge
 				name={activeName}
