@@ -238,11 +238,11 @@ html[data-rail="expanded"] {
 	--sidebar-ring: color-mix(in oklab, #8b7a9e 80%, black);
 	--nav-inactive: color-mix(
 		in oklab,
-		var(--sidebar-foreground) 90%,
+		var(--sidebar-foreground) 78%,
 		var(--sidebar)
 	);
-	/* Opaque and lifted off the chrome: with inactive rows this bright, the
-	   fill carries most of the step that marks the current destination. */
+	/* Opaque and lifted off the chrome, so the current destination reads as
+	   a clear step above the inactive rows. */
 	--nav-active: color-mix(
 		in oklab,
 		var(--sidebar-foreground) 14%,

@@ -1,6 +1,6 @@
 import {
-	CaretDown,
 	Check,
+	DotsThreeVertical,
 	Plus,
 	SignOut,
 	Sliders,
@@ -81,8 +81,8 @@ export function OrgSwitcher({
 	if (isPending && initialOrganizations === undefined) {
 		return (
 			// The trigger's geometry, so nothing shifts when the org list resolves.
-			<div className="flex h-10 items-center gap-2 md:h-12 md:gap-3 rail-expanded:md:gap-[9px] md:ps-[var(--rail-item-inset)] rail-expanded:md:ps-[calc(0.5rem+var(--rail-row-inset)+16px)]">
-				<Skeleton className="size-8 rounded-lg md:size-9" />
+			<div className="flex h-12 items-center gap-3 md:ms-2 md:ps-3">
+				<Skeleton className="size-9 rounded-lg" />
 				<Skeleton className="h-4 w-24 rounded-lg md:w-32" />
 			</div>
 		);
@@ -143,39 +143,35 @@ export function OrgSwitcher({
 	const trigger = (
 		<Button
 			variant="ghost"
-			className="group h-10 w-full min-w-0 max-w-full justify-start gap-2 rounded-lg border-0 py-0 ps-0 pe-1 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:h-12 md:w-fit md:max-w-72 md:gap-3 rail-expanded:md:gap-[9px] md:ps-[var(--rail-item-inset)] rail-expanded:md:ps-[calc(0.5rem+var(--rail-row-inset)+16px)] md:pe-3 dark:hover:bg-transparent"
+			// From md it's a card sitting on the rail's 8px gutter; expanded it spans
+			// the rail rows below it, so the dots line up with their trailing edge.
+			// No fill at rest, so it never reads as a second active row.
+			className="group h-12 w-full min-w-0 max-w-full justify-start gap-3 rounded-lg border-0 px-0 py-0 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:ms-2 md:w-fit rail-expanded:md:w-[calc(var(--rail-width)-1.375rem)] md:max-w-72 md:ps-3 md:pe-3 md:aria-expanded:bg-sidebar-accent/70 md:hover:bg-sidebar-accent/70 dark:hover:bg-transparent dark:md:hover:bg-sidebar-accent/70"
 		>
-			{/* Ring, not padding: the halo grows outside the tile without moving it. */}
-			<span className="grid rounded-lg ring-sidebar-accent/60 transition-[box-shadow] duration-150 ease-out-quart group-hover:ring-4 group-aria-expanded:ring-4">
-				<ServerBadge
-					name={activeName}
-					logo={activeOrg?.logo}
-					className="size-8 text-[10px] md:size-9 md:text-xs"
-				/>
-			</span>
-			{/* flex-initial, not flex-1: growing the label would park the caret at the
-			    far edge of the bar instead of right after the name. It still shrinks,
-			    so a long name truncates against the button's max width. */}
-			<span className="min-w-0 flex-initial text-start">
-				<span className="block truncate font-semibold text-sm leading-tight md:text-base">
+			<ServerBadge
+				name={activeName}
+				logo={activeOrg?.logo}
+				className="size-9 shrink-0 text-xs"
+			/>
+			<span className="min-w-0 flex-1 text-start">
+				<span className="block truncate font-semibold text-sm leading-tight md:text-[15px]">
 					{activeName}
 				</span>
+				<span className="block truncate font-normal text-nav-inactive text-xs leading-tight">
+					Nanahoshi
+				</span>
 			</span>
-			<CaretDown weight="bold" className="size-3.5 shrink-0 text-foreground" />
+			<DotsThreeVertical
+				weight="bold"
+				className="size-4 shrink-0 text-nav-inactive group-hover:text-sidebar-foreground"
+			/>
 		</Button>
 	);
 
 	const dropdown = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="start"
-				sideOffset={6}
-				// The trigger starts flush with the window edge, so the menu takes the
-				// rail's own 8px gutter instead of hugging it.
-				alignOffset={8}
-				className="min-w-60"
-			>
+			<DropdownMenuContent align="start" sideOffset={6} className="min-w-60">
 				<DropdownMenuGroup>
 					<DropdownMenuLabel className="text-muted-foreground text-xs">
 						{m["server.list_label"]()}

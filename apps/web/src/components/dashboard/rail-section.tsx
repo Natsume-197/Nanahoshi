@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const titleClass =
-	"flex h-10 min-w-0 items-center gap-1 rounded-lg ps-[calc(var(--rail-row-inset)+16px)] pe-2 font-semibold text-base text-sidebar-foreground";
+	"flex h-9 min-w-0 flex-1 items-center gap-1 rounded-lg ps-[calc(var(--rail-row-inset)+16px)] pe-2 font-semibold text-nav-inactive text-xs uppercase tracking-[0.08em]";
 
 /**
- * Section title under a divider, YouTube style: sentence case, bold, starting
+ * Uppercase section label that groups the rows below it, starting
  * on the nav icons' left edge (a 24px icon centred in the 48px column), where
  * the collection squares start too. With `to`, the title links to the section's own page and carries
  * a chevron. `actions` sit at the trailing edge of the same row. Expanded only.
@@ -24,7 +24,7 @@ export function RailSectionTitle({
 	actions?: ReactNode;
 }): ReactNode {
 	return (
-		<div className="mt-3 rail-expanded:flex hidden w-full shrink-0 items-center gap-1 pe-1">
+		<div className="mt-1 rail-expanded:flex hidden w-full shrink-0 items-center gap-1">
 			{to ? (
 				<Link
 					to={to}
@@ -36,7 +36,7 @@ export function RailSectionTitle({
 					)}
 				>
 					<h2 className="truncate">{label}</h2>
-					<CaretRight weight="bold" className="size-4 shrink-0" />
+					<CaretRight weight="bold" className="size-3 shrink-0" />
 				</Link>
 			) : (
 				<h2 className={cn(titleClass, "truncate")}>{label}</h2>

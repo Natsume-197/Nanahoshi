@@ -135,7 +135,7 @@ const railGroups: RailGroup[] = [
 const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
 		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
-		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-row-inset)+4px)] rail-expanded:pe-2 rail-expanded:text-[15px]",
+		"rail-expanded:flex-row rail-expanded:gap-0 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-row-inset)+4px)] rail-expanded:pe-2 rail-expanded:text-[15px]",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 		// --nav-inactive, not --muted-foreground: a step below the current
 		// destination that still clears AA at this size. See index.css.
@@ -218,7 +218,7 @@ export function DashboardAppRail({
 				<ScrollArea.Viewport className="h-full overscroll-contain outline-none">
 					<ScrollArea.Content
 						data-rail-content
-						className="flex w-full flex-col items-center gap-0.5 px-2 pt-0 pb-2"
+						className="flex w-full flex-col items-center gap-0.5 px-2 rail-expanded:pe-3.5 pt-0 pb-2"
 					>
 						{railGroups.map((group) => (
 							<Fragment key={group.items[0].section}>
@@ -291,9 +291,10 @@ export function DashboardAppRail({
 						)}
 					</ScrollArea.Content>
 				</ScrollArea.Viewport>
-				{/* Overlays the end padding, so it takes no room. Opacity (unlike a
-				    native thumb's color) fades smoothly. */}
-				<ScrollArea.Scrollbar className="flex w-2 opacity-0 transition-opacity delay-300 duration-500 ease-out-quart data-hovering:opacity-100 data-scrolling:opacity-100 data-hovering:delay-100 data-scrolling:delay-0 data-hovering:duration-200 data-scrolling:duration-100">
+				{/* Overlays the end padding, so it takes no room; expanded, the wider
+				    end padding keeps a gap between it and the rows. Opacity (unlike
+				    a native thumb's color) fades smoothly. */}
+				<ScrollArea.Scrollbar className="flex w-1.5 opacity-0 transition-opacity delay-300 duration-500 ease-out-quart data-hovering:opacity-100 data-scrolling:opacity-100 data-hovering:delay-100 data-scrolling:delay-0 data-hovering:duration-200 data-scrolling:duration-100">
 					<ScrollArea.Thumb className="w-full bg-sidebar-foreground/35 transition-colors hover:bg-sidebar-foreground/50 active:bg-sidebar-foreground/65" />
 				</ScrollArea.Scrollbar>
 			</ScrollArea.Root>

@@ -346,10 +346,10 @@ export function DashboardLayout() {
 					    you which server you're looking at. On mobile it takes the
 					    free space so the name truncates instead of shoving the icon
 					    cluster off the edge; from md the negative margin cancels the
-					    header's own padding so the switcher can lay its badge out on
-					    the app rail's grid below — it carries the rail's 5.5rem box
-					    itself. */}
-						<div className="flex min-w-0 flex-1 items-center max-md:me-1.5 md:col-start-1 md:-ms-3 md:flex-none lg:-ms-4">
+					    header's own padding so the switcher card sits on the rail's
+					    gutter, and expanded the column keeps the rail's full width so
+					    the search can't squeeze the card. */}
+						<div className="flex min-w-0 flex-1 items-center max-md:me-1.5 md:col-start-1 md:-ms-3 rail-expanded:md:min-w-[var(--rail-width)] md:flex-none lg:-ms-4">
 							<OrgSwitcher
 								initialOrganizations={organizations}
 								activeOrganizationId={activeOrganizationId}

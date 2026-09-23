@@ -92,15 +92,14 @@ const shelfRailIcons: Record<ShelfBucket, NavIcon> = {
 };
 
 /** Empty lists keep the same square as the covered ones, holding a line icon
- *  on a soft tint, like the continue cards' cover-tinted surfaces. */
+ *  on a flat gray plate, like Spotify's empty playlists. */
 const neutralTileClass = "grid size-full place-items-center";
 
-// One calm tint for every empty list (the "In progress" violet), so the rail
-// doesn't turn into a rainbow. Mixed in oklab to stay pastel in both themes.
-const emptyTileColor = "oklch(0.72 0.12 290)";
+// Lifted a step off the rail in both themes, the icon muted against it.
 const emptyTileTint: CSSProperties = {
-	backgroundColor: `color-mix(in oklab, ${emptyTileColor} 22%, var(--sidebar))`,
-	color: `color-mix(in oklab, ${emptyTileColor} 60%, var(--sidebar-foreground))`,
+	backgroundColor:
+		"color-mix(in oklab, var(--sidebar-foreground) 10%, var(--sidebar))",
+	color: "color-mix(in oklab, var(--sidebar-foreground) 60%, var(--sidebar))",
 };
 
 type LibraryEntry = {
@@ -167,7 +166,7 @@ function RowBody({
 				>
 					{title}
 				</span>
-				{subtitle && (
+				{(subtitle || pinned) && (
 					<span className="flex min-w-0 items-center gap-1 text-[13px] text-nav-inactive leading-tight">
 						{pinned && (
 							<PushPin
@@ -560,12 +559,9 @@ export function MyLibrarySection({
 		canReadCollections && !collectionsLoading,
 	);
 
+	// An empty list shows its title alone; the plain tile already says it.
 	const itemCount = (count: number | null | undefined) =>
-		count == null
-			? "…"
-			: count === 0
-				? m["nav.empty"]()
-				: m["media.item_count"]({ count });
+		count == null ? "…" : count === 0 ? "" : m["media.item_count"]({ count });
 	const summaryByBucket = new Map(
 		summaries?.map((summary) => [summary.status, summary]),
 	);
