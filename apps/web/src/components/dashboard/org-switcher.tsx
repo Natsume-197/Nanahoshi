@@ -81,7 +81,7 @@ export function OrgSwitcher({
 	if (isPending && initialOrganizations === undefined) {
 		return (
 			// The trigger's geometry, so nothing shifts when the org list resolves.
-			<div className="flex h-10 items-center gap-2 md:h-12 md:gap-3 md:ps-[var(--rail-item-inset)]">
+			<div className="flex h-10 items-center gap-2 md:h-12 md:gap-3 rail-expanded:md:gap-[9px] md:ps-[var(--rail-item-inset)] rail-expanded:md:ps-[calc(0.5rem+var(--rail-row-inset)+11px)]">
 				<Skeleton className="size-8 rounded-lg md:size-9" />
 				<Skeleton className="h-4 w-24 rounded-lg md:w-32" />
 			</div>
@@ -143,7 +143,7 @@ export function OrgSwitcher({
 	const trigger = (
 		<Button
 			variant="ghost"
-			className="group h-10 w-full min-w-0 max-w-full justify-start gap-2 rounded-lg border-0 py-0 ps-0 pe-1 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:h-12 md:w-fit md:max-w-72 md:gap-3 md:ps-[var(--rail-item-inset)] md:pe-3 dark:hover:bg-transparent"
+			className="group h-10 w-full min-w-0 max-w-full justify-start gap-2 rounded-lg border-0 py-0 ps-0 pe-1 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:h-12 md:w-fit md:max-w-72 md:gap-3 rail-expanded:md:gap-[9px] md:ps-[var(--rail-item-inset)] rail-expanded:md:ps-[calc(0.5rem+var(--rail-row-inset)+11px)] md:pe-3 dark:hover:bg-transparent"
 		>
 			{/* Ring, not padding: the halo grows outside the tile without moving it. */}
 			<span className="grid rounded-lg ring-sidebar-accent/60 transition-[box-shadow] duration-150 ease-out-quart group-hover:ring-4 group-aria-expanded:ring-4">
@@ -159,9 +159,6 @@ export function OrgSwitcher({
 			<span className="min-w-0 flex-initial text-start">
 				<span className="block truncate font-semibold text-sm leading-tight md:text-base">
 					{activeName}
-				</span>
-				<span className="block truncate font-medium text-[10px] text-muted-foreground tracking-wide md:text-[11px]">
-					Nanahoshi
 				</span>
 			</span>
 			<CaretDown weight="bold" className="size-3.5 shrink-0 text-foreground" />

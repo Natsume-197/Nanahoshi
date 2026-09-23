@@ -19,7 +19,7 @@ const CreateMenuDialogs = lazy(async () => {
 });
 
 /**
- * The header's create shortcut: one "+" that opens what the user is allowed to
+ * The header's create shortcut: one "+ Create" button that opens what the user is allowed to
  * make — a library, a collection, an upload — so none of them is buried in
  * settings or on its own page. Renders nothing when they can do none.
  */
@@ -57,13 +57,13 @@ export function CreateMenu() {
 				<DropdownMenuTrigger asChild>
 					<Button
 						type="button"
-						variant="ghost"
-						size="icon-lg"
-						aria-label={m["nav.create"]()}
 						title={m["nav.create"]()}
-						className="rounded-full text-foreground [&_svg]:size-[18px]"
+						// The default variant, not ghost: ghost's dark-mode hover and
+						// open-menu fills would override this pill's own states.
+						className="h-9 gap-1.5 rounded-full bg-muted ps-3 pe-4 font-medium text-foreground text-sm hover:bg-[color-mix(in_oklab,var(--muted),var(--foreground)_10%)] aria-expanded:bg-[color-mix(in_oklab,var(--muted),var(--foreground)_10%)] [&_svg]:size-4"
 					>
 						<Plus weight="bold" />
+						{m["nav.create"]()}
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" sideOffset={8} className="w-56">

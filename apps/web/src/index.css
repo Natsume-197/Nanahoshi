@@ -162,6 +162,10 @@
 	);
 	--rail-width: 5.5rem;
 	--rail-item-inset: calc((5.5rem - 2.25rem) / 2);
+	/* Expanded rows don't need the collapsed rail's centering inset: with the
+	   rail's own 0.5rem gutter this puts icons, artwork and titles 19px from
+	   the window edge. */
+	--rail-row-inset: 4px;
 	/* Notifications and members share one overlay width: they toggle from
 	   adjacent buttons, so a width per panel would read as the chrome
 	   resizing rather than swapping contents. Wider than the expanded app
@@ -171,7 +175,7 @@
 }
 
 html[data-rail="expanded"] {
-	--rail-width: 15rem;
+	--rail-width: 16rem;
 }
 
 .dark {
@@ -522,6 +526,79 @@ html[data-rail="expanded"] {
 
 	&::-webkit-scrollbar {
 		display: none;
+	}
+}
+
+/* Spotify-style scrollbar: invisible until the pointer is over (or focus is
+   inside) the scroller, then a soft rounded thumb floating on no track. The
+   gutter keeps its width so nothing reflows when it appears.
+   Chromium ignores the ::-webkit-scrollbar styling whenever scrollbar-width
+   or scrollbar-color are set (the base layer sets both on every element), so
+   engines that support the pseudo-elements reset them to auto; Firefox, which
+   doesn't, keeps the standard properties. */
+@utility scrollbar-hover {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+
+	&:hover,
+	&:focus-within {
+		scrollbar-color: color-mix(
+				in oklab,
+				var(--sidebar-foreground) 35%,
+				transparent
+			)
+			transparent;
+	}
+
+	@supports selector(::-webkit-scrollbar) {
+		&,
+		&:hover,
+		&:focus-within {
+			scrollbar-width: auto;
+			scrollbar-color: auto;
+		}
+	}
+
+	&::-webkit-scrollbar {
+		width: 12px;
+		height: 12px;
+	}
+
+	&::-webkit-scrollbar-track,
+	&::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		border: 3px solid transparent;
+		border-radius: 9999px;
+		background-clip: padding-box;
+		background-color: transparent;
+	}
+
+	&:hover::-webkit-scrollbar-thumb,
+	&:focus-within::-webkit-scrollbar-thumb {
+		background-color: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 30%,
+			transparent
+		);
+	}
+
+	&::-webkit-scrollbar-thumb:hover {
+		background-color: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 50%,
+			transparent
+		);
+	}
+
+	&::-webkit-scrollbar-thumb:active {
+		background-color: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 65%,
+			transparent
+		);
 	}
 }
 

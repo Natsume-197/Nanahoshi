@@ -3,8 +3,6 @@ import {
 	BookOpenText,
 	Books,
 	Buildings,
-	DotsThree,
-	Folder,
 	Headphones,
 	House,
 	Microphone,
@@ -14,19 +12,15 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ComponentType, Fragment, type ReactNode } from "react";
+import { MyLibrarySection } from "@/components/dashboard/my-library-section";
 import {
 	type RailSection,
 	resolveRailSection,
 } from "@/components/dashboard/rail-nav";
+import { RailSectionTitle } from "@/components/dashboard/rail-section";
 import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useWindowEvent } from "@/hooks/use-window-event";
-import { toggleRail, useRailState } from "@/lib/rail-store";
+import { toggleRail } from "@/lib/rail-store";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -42,21 +36,17 @@ interface RailItem {
 		| "/dashboard"
 		| "/dashboard/books"
 		| "/dashboard/read-listen"
-		| "/dashboard/collections"
 		| "/dashboard/series"
-		| "/dashboard/genres";
+		| "/dashboard/genres"
+		| "/dashboard/authors"
+		| "/dashboard/narrators"
+		| "/dashboard/publishers";
 	label: () => string;
 	icon: NavIcon;
 	activeWeight?: "bold" | "fill";
-	section: Exclude<RailSection, null | "more">;
+	section: Exclude<RailSection, null>;
 	/** Catalog destinations require an active server. */
 	needsCatalog?: boolean;
-}
-
-interface MoreItem {
-	href: "/dashboard/authors" | "/dashboard/narrators" | "/dashboard/publishers";
-	label: () => string;
-	icon: NavIcon;
 }
 
 interface RailGroup {
@@ -100,13 +90,6 @@ const railGroups: RailGroup[] = [
 	{
 		label: m["nav.browse"],
 		items: [
-			{
-				href: "/dashboard/collections",
-				label: m["nav.collections"],
-				icon: Folder,
-				section: "collections",
-				needsCatalog: true,
-			},
 			// A single "Series" entry covers both ebook and audiobook series; the
 			// page scopes by format via ?format=audiobooks.
 			{
@@ -123,27 +106,35 @@ const railGroups: RailGroup[] = [
 				section: "genres",
 				needsCatalog: true,
 			},
+			{
+				href: "/dashboard/authors",
+				label: m["nav.authors"],
+				icon: UserCircle,
+				section: "authors",
+				needsCatalog: true,
+			},
+			{
+				href: "/dashboard/narrators",
+				label: m["nav.narrators"],
+				icon: Microphone,
+				section: "narrators",
+				needsCatalog: true,
+			},
+			{
+				href: "/dashboard/publishers",
+				label: m["nav.publishers"],
+				icon: Buildings,
+				section: "publishers",
+				needsCatalog: true,
+			},
 		],
-	},
-];
-
-/** Tail of the Browse group: three more axes than the collapsed rail has room
- *  for, so they hide behind a "More" menu and only lay out flat once the rail
- *  is expanded. */
-const moreItems: MoreItem[] = [
-	{ href: "/dashboard/authors", label: m["nav.authors"], icon: UserCircle },
-	{ href: "/dashboard/narrators", label: m["nav.narrators"], icon: Microphone },
-	{
-		href: "/dashboard/publishers",
-		label: m["nav.publishers"],
-		icon: Buildings,
 	},
 ];
 
 const blockClass = (active: boolean, disabled: boolean) =>
 	cn(
 		"group/rail flex w-full shrink-0 flex-col items-center gap-0.5 rounded-lg py-1 text-xs leading-tight",
-		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2.5 rail-expanded:ps-[calc(var(--rail-item-inset)-0.20rem)] rail-expanded:pe-2 rail-expanded:text-sm",
+		"rail-expanded:flex-row rail-expanded:gap-3 rail-expanded:py-2 rail-expanded:ps-[var(--rail-row-inset)] rail-expanded:pe-2 rail-expanded:text-[15px]",
 		"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 		// --nav-inactive, not --muted-foreground: a step below the current
 		// destination that still clears AA at this size. See index.css.
@@ -171,7 +162,7 @@ function BlockBody({
 		<>
 			<span
 				className={cn(
-					"grid rail-expanded:size-6 size-9 shrink-0 place-items-center rounded-lg transition-colors duration-150 ease-out-quart",
+					"grid size-9 rail-expanded:h-6 rail-expanded:w-11 shrink-0 place-items-center rounded-lg transition-colors duration-150 ease-out-quart",
 					active
 						? "bg-transparent"
 						: "group-hover/rail:bg-sidebar-accent/60 rail-expanded:group-hover/rail:bg-transparent group-aria-expanded/rail:bg-sidebar-accent/60 rail-expanded:group-aria-expanded/rail:bg-transparent",
@@ -180,31 +171,13 @@ function BlockBody({
 				<Icon
 					aria-hidden="true"
 					weight={active ? activeWeight : "regular"}
-					className="rail-expanded:size-6 size-5"
+					className="rail-expanded:size-[22px] size-5"
 				/>
 			</span>
 			<span className="rail-expanded:min-w-0 max-w-full rail-expanded:flex-1 rail-expanded:truncate text-center rail-expanded:text-start font-medium leading-tight">
 				{label}
 			</span>
 		</>
-	);
-}
-
-function RailGroup({ children }: { children: ReactNode }): ReactNode {
-	return (
-		<div className="rail-expanded:flex hidden w-full flex-col gap-0.5">
-			{children}
-		</div>
-	);
-}
-
-/** Expanded only: at 5.5rem a heading would wrap worse than the destinations
- *  it introduces, and the collapsed rail is short enough to read unbroken. */
-function RailGroupHeading({ label }: { label: string }): ReactNode {
-	return (
-		<h2 className="rail-expanded:block hidden w-full shrink-0 ps-[calc(var(--rail-item-inset)-0.5rem)] pt-4 pb-1 font-medium text-nav-inactive text-xs uppercase tracking-wide">
-			{label}
-		</h2>
 	);
 }
 
@@ -217,8 +190,6 @@ export function DashboardAppRail({
 }) {
 	const catalogDisabled = !activeOrganizationId;
 	const section = resolveRailSection(locationPathname);
-	const moreActive = section === "more";
-	const expanded = useRailState() === "expanded";
 	const { data: libraries } = useQuery({
 		...orpc.libraries.getLibraries.queryOptions(),
 		staleTime: 30_000,
@@ -240,15 +211,16 @@ export function DashboardAppRail({
 			aria-label={m["nav.menu"]()}
 			// Labels wrap to keep localized destinations fully visible; every block
 			// also carries a title as an additional escape for narrow rail space.
-			className="theme-gradient-surface relative hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar px-2 motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
+			className="theme-gradient-surface relative hidden w-[var(--rail-width)] shrink-0 flex-col items-center bg-sidebar motion-safe:transition-[width] motion-safe:duration-[220ms] motion-safe:ease-out-quart md:flex"
 		>
 			<div
 				data-rail-content
-				className="no-scrollbar flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain pt-0 pb-2"
+				// Padding lives on the scroller so the scrollbar sits at the window edge.
+				className="scrollbar-hover flex min-h-0 w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto overscroll-contain px-2 rail-expanded:pe-1 pt-0 pb-2 rail-expanded:[scrollbar-gutter:stable]"
 			>
 				{railGroups.map((group) => (
 					<Fragment key={group.items[0].section}>
-						{group.label && <RailGroupHeading label={group.label()} />}
+						{group.label && <RailSectionTitle label={group.label()} />}
 						{group.items.map((item) => {
 							const active = item.section === section;
 							const disabled = item.needsCatalog ? catalogDisabled : false;
@@ -277,112 +249,45 @@ export function DashboardAppRail({
 								</Link>
 							);
 						})}
-						{group.items[0].section === "catalog" && libraries?.length ? (
-							<>
-								<RailGroupHeading label={m["nav.libraries"]()} />
-								{libraries.map((library) => {
-									const active = locationPathname.startsWith(
-										`/dashboard/libraries/${library.uuid}`,
-									);
-									const label = library.name ?? m["library.untitled"]();
-									const Icon =
-										library.mediaType === "audiobook" ? Headphones : BookOpen;
-
-									return (
-										<Link
-											key={library.uuid}
-											to="/dashboard/libraries/$uuid"
-											params={{ uuid: library.uuid }}
-											preload="intent"
-											aria-current={active ? "page" : undefined}
-											aria-disabled={catalogDisabled}
-											tabIndex={catalogDisabled ? -1 : undefined}
-											title={label}
-											className={blockClass(active, catalogDisabled)}
-										>
-											<BlockBody icon={Icon} label={label} active={active} />
-										</Link>
-									);
-								})}
-							</>
-						) : null}
 					</Fragment>
 				))}
 
-				<div className="contents rail-expanded:hidden">
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							type="button"
-							disabled={catalogDisabled}
-							title={m["nav.more"]()}
-							className={blockClass(moreActive, catalogDisabled)}
-						>
-							<BlockBody
-								icon={DotsThree}
-								label={m["nav.more"]()}
-								active={moreActive}
-							/>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							side="right"
-							align="end"
-							sideOffset={8}
-							className="w-auto min-w-52"
-						>
-							{moreItems.map((item) => (
-								<DropdownMenuItem key={item.href} asChild>
-									<Link to={item.href} preload="intent" className="gap-2.5">
-										<item.icon
-											weight={
-												locationPathname.startsWith(item.href)
-													? "fill"
-													: "regular"
-											}
-										/>
-										<span className="flex-1">{item.label()}</span>
-									</Link>
-								</DropdownMenuItem>
-							))}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
+				{/* Your libraries sit just above your collections: both are "yours",
+				    the browse axes above them span the whole catalog. */}
+				{libraries?.length ? (
+					<>
+						<RailSectionTitle label={m["nav.libraries"]()} />
+						{libraries.map((library) => {
+							const active = locationPathname.startsWith(
+								`/dashboard/libraries/${library.uuid}`,
+							);
+							const label = library.name ?? m["library.untitled"]();
+							const Icon =
+								library.mediaType === "audiobook" ? Headphones : BookOpen;
 
-				<RailGroup>
-					{moreItems.map((item) => {
-						const active = locationPathname.startsWith(item.href);
-						const label = item.label();
-						return (
-							<Link
-								key={item.href}
-								to={item.href}
-								preload="intent"
-								aria-current={active ? "page" : undefined}
-								aria-disabled={catalogDisabled}
-								tabIndex={catalogDisabled ? -1 : undefined}
-								title={label}
-								className={blockClass(active, catalogDisabled)}
-							>
-								<BlockBody icon={item.icon} label={label} active={active} />
-							</Link>
-						);
-					})}
-				</RailGroup>
+							return (
+								<Link
+									key={library.uuid}
+									to="/dashboard/libraries/$uuid"
+									params={{ uuid: library.uuid }}
+									preload="intent"
+									aria-current={active ? "page" : undefined}
+									aria-disabled={catalogDisabled}
+									tabIndex={catalogDisabled ? -1 : undefined}
+									title={label}
+									className={blockClass(active, catalogDisabled)}
+								>
+									<BlockBody icon={Icon} label={label} active={active} />
+								</Link>
+							);
+						})}
+					</>
+				) : null}
+
+				{!catalogDisabled && (
+					<MyLibrarySection locationPathname={locationPathname} />
+				)}
 			</div>
-
-			<button
-				type="button"
-				onClick={toggleRail}
-				aria-expanded={expanded}
-				aria-label={m["aria.toggle_sidebar"]()}
-				title={m["aria.toggle_sidebar"]()}
-				className="group/rail-toggle absolute inset-y-0 end-[-0.5rem] z-30 w-4 cursor-pointer touch-manipulation bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-			>
-				<span className="pointer-events-none absolute inset-y-1/2 start-1/2 flex h-9 w-2 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 border-sidebar-border/70 border-x opacity-0 transition-opacity duration-150 ease-out-quart group-hover/rail-toggle:opacity-100 group-focus-visible/rail-toggle:opacity-100">
-					<span className="size-px rounded-full bg-sidebar-foreground/50" />
-					<span className="size-px rounded-full bg-sidebar-foreground/50" />
-					<span className="size-px rounded-full bg-sidebar-foreground/50" />
-				</span>
-			</button>
 		</nav>
 	);
 }

@@ -28,9 +28,9 @@ export function AboutSettings() {
 			<section className="flex flex-col gap-6">
 				<div className="flex items-center gap-4">
 					<img
-						src="/logo.png"
+						src="/logo.svg"
 						alt=""
-						className="size-16 rounded-2xl shadow-sm ring-1 ring-border"
+						className="size-16 rounded-[22%] shadow-sm ring-1 ring-border"
 					/>
 					<div className="min-w-0">
 						<h2 className="font-semibold text-2xl text-foreground">

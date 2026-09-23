@@ -25,14 +25,22 @@ describe("resolveRailSection", () => {
 		);
 	});
 
-	test("the facet pages sit under More", () => {
-		expect(resolveRailSection("/dashboard/authors")).toBe("more");
-		expect(resolveRailSection("/dashboard/narrators/x")).toBe("more");
-		expect(resolveRailSection("/dashboard/publishers")).toBe("more");
+	test("shelves and collections belong to the Collections group", () => {
+		expect(resolveRailSection("/dashboard/collections")).toBe("my-library");
+		expect(resolveRailSection("/dashboard/collections/x")).toBe("my-library");
+		expect(resolveRailSection("/dashboard/shelves/reading")).toBe("my-library");
+		expect(resolveRailSection("/dashboard/shelves/completed")).toBe(
+			"my-library",
+		);
+	});
+
+	test("the facet pages have their own entries", () => {
+		expect(resolveRailSection("/dashboard/authors")).toBe("authors");
+		expect(resolveRailSection("/dashboard/narrators/x")).toBe("narrators");
+		expect(resolveRailSection("/dashboard/publishers")).toBe("publishers");
 	});
 
 	test("the remaining rail destinations resolve to themselves", () => {
-		expect(resolveRailSection("/dashboard/collections/x")).toBe("collections");
 		expect(resolveRailSection("/dashboard/series/x")).toBe("series");
 		expect(resolveRailSection("/dashboard/genres")).toBe("genres");
 	});
