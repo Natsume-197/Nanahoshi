@@ -39,6 +39,7 @@ function mount(desktopTable: boolean) {
 		onFix,
 		onCancelRetry: () => {},
 		onSelectCandidate: () => {},
+		onRestore: () => {},
 	});
 	function Harness() {
 		const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -110,10 +111,10 @@ test("mobile cards expose the same detail and approval actions", () => {
 	expect(view.onApprove).toHaveBeenCalledTimes(1);
 });
 
-test("the shared row menu runs the action for the row that opened it", async () => {
+test("rows offer one action and no overflow menu", () => {
 	const view = mount(true);
-	fireEvent.click(view.getByRole("button", { name: m["enrichment.more"]() }));
-	fireEvent.click(await view.findByText(m["enrichment.fix_match"]()));
-	expect(view.onFix).toHaveBeenCalledTimes(1);
-	expect(view.onOpen).not.toHaveBeenCalled();
+	expect(
+		view.queryByRole("button", { name: m["enrichment.more"]() }),
+	).toBeNull();
+	expect(view.queryByText(m["enrichment.fix_match"]())).toBeNull();
 });

@@ -30,6 +30,7 @@ const api = {
 		list: async () => ({}),
 		actionableCounts: async () => ({}),
 		providerStatus: async () => ({}),
+		detail: async () => null,
 	},
 	libraries: {
 		setAutoEnrichPaused: async () => ({}),
@@ -59,8 +60,11 @@ const { useMatchActions } = await import("./use-match-actions");
 afterEach(() => {
 	cleanup();
 	approve.mockClear();
+	decided.mockClear();
 	restoreOriginal.mockClear();
 });
+
+const decided = mock((_uuid: string) => {});
 
 function mount() {
 	const queryClient = new QueryClient({
@@ -74,7 +78,7 @@ function mount() {
 			failureBanners: [],
 			failingBooks: 0,
 			clearSelection: () => {},
-			closeDetail: () => {},
+			onDecided: decided,
 		});
 		return (
 			<>
@@ -90,6 +94,18 @@ function mount() {
 					onClick={() => actions.requestRestore({ bookUuids: [uuid] }, 1)}
 				>
 					Restore
+				</button>
+				<button
+					type="button"
+					onClick={() =>
+						actions
+							.rowActions({ bookUuid: uuid } as Parameters<
+								typeof actions.rowActions
+							>[0])
+							.onApprove()
+					}
+				>
+					Approve one
 				</button>
 				{actions.dialogs}
 			</>
@@ -134,4 +150,10 @@ test("restore confirms the original selection", async () => {
 			expect.anything(),
 		),
 	);
+});
+
+test("approving one book tells the pane to move on from it", async () => {
+	const view = mount();
+	fireEvent.click(view.getByText("Approve one"));
+	await waitFor(() => expect(decided).toHaveBeenCalledWith("original"));
 });

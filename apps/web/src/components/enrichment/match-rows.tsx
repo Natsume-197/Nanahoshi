@@ -1,13 +1,6 @@
-import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { DotsThreeVertical } from "@phosphor-icons/react";
 import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -23,11 +16,9 @@ import {
 	LifecycleChip,
 	MatchReasonChip,
 	minutesFromMs,
+	previewCoverUrl,
 } from "./lifecycle";
-import {
-	primaryActionForLifecycle,
-	secondaryActionsForLifecycle,
-} from "./primary-action";
+import { primaryActionForLifecycle } from "./primary-action";
 import { resolveRetryView } from "./retry-view";
 import { TrayCell, TrayRow, TraySelectCell } from "./tray-table";
 import type { MatchRow, RowActions } from "./types";
@@ -177,7 +168,7 @@ export function MatchCell({
 		primaryMatch?.previewCover ?? (primaryMatch ? item.cover : null);
 	const matchedCoverFilename = getCoverFilename(matchedCover);
 	const matchedCoverUrl = primaryMatch?.previewCover?.startsWith("http")
-		? primaryMatch.previewCover
+		? previewCoverUrl(primaryMatch.previewCover)
 		: matchedCoverFilename
 			? getCoverUrl(matchedCoverFilename, coverPresets.activity.widths[1])
 			: null;
@@ -230,7 +221,6 @@ export type RowHandlers = {
 	open: (item: MatchRow) => void;
 	toggle: (uuid: string) => void;
 	actions: (item: MatchRow) => RowActions;
-	menu: RowMenuHandle;
 };
 
 type RowProps = {
@@ -270,23 +260,22 @@ export const EnrichmentRow = memo(function EnrichmentRow({
 			<TrayCell className={ROW_HEIGHT}>
 				<MatchCell item={item} providerLabels={providerLabels} />
 			</TrayCell>
-			<TrayCell className={ROW_HEIGHT}>
+			<TrayCell className={cn(ROW_HEIGHT, "justify-center")}>
 				<LifecycleChip lifecycle={item.lifecycle} />
 			</TrayCell>
-			<TrayCell className={ROW_HEIGHT}>
+			<TrayCell className={cn(ROW_HEIGHT, "justify-center")}>
 				<span className="whitespace-nowrap text-muted-foreground text-xs tabular-nums">
 					{item.lastRunAt
 						? formatRelativeTime(item.lastRunAt)
 						: m["enrichment.never_ran"]()}
 				</span>
 			</TrayCell>
-			<TrayCell className={cn(ROW_HEIGHT, "justify-end gap-0.5")}>
+			<TrayCell className={cn(ROW_HEIGHT, "justify-center")}>
 				<PrimaryRowButton
 					lifecycle={item.lifecycle}
 					actions={actions}
 					onOpen={() => handlers.open(item)}
 				/>
-				<RowMenuTrigger handle={handlers.menu} item={item} />
 			</TrayCell>
 		</TrayRow>
 	);
@@ -387,94 +376,10 @@ export const EnrichmentCard = memo(function EnrichmentCard({
 					actions={actions}
 					onOpen={onOpen}
 				/>
-				<RowMenuTrigger handle={handlers.menu} item={item} />
 			</div>
 		</li>
 	);
 });
-
-// One menu instance serves every row: each row only renders a light detached
-// trigger carrying its book as payload. A full Base UI menu per row was the
-// single biggest cost of mounting a 50-row page.
-export function createRowMenuHandle() {
-	return MenuPrimitive.createHandle<MatchRow>();
-}
-export type RowMenuHandle = ReturnType<typeof createRowMenuHandle>;
-
-function RowMenuTrigger({
-	handle,
-	item,
-}: {
-	handle: RowMenuHandle;
-	item: MatchRow;
-}) {
-	if (secondaryActionsForLifecycle(item.lifecycle).length === 0) return null;
-	return (
-		<DropdownMenuTrigger
-			handle={handle}
-			payload={item}
-			render={
-				<Button
-					size="icon-xs"
-					variant="ghost"
-					aria-label={m["enrichment.more"]()}
-					className="rounded-full text-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 max-md:opacity-100"
-				/>
-			}
-		>
-			<DotsThreeVertical weight="bold" />
-		</DropdownMenuTrigger>
-	);
-}
-
-export function SharedRowMenu({ handlers }: { handlers: RowHandlers }) {
-	return (
-		<MenuPrimitive.Root handle={handlers.menu}>
-			{({ payload }) =>
-				payload ? (
-					<RowMenuContent
-						lifecycle={payload.lifecycle}
-						actions={handlers.actions(payload)}
-					/>
-				) : null
-			}
-		</MenuPrimitive.Root>
-	);
-}
-
-function RowMenuContent({
-	lifecycle,
-	actions,
-}: {
-	lifecycle: Lifecycle;
-	actions: RowActions;
-}) {
-	const items = {
-		cancelRetry: {
-			label: m["enrichment.cancel_retry"](),
-			onClick: actions.onCancelRetry,
-		},
-		approve: { label: m["enrichment.approve"](), onClick: actions.onApprove },
-		fix: { label: m["enrichment.fix_match"](), onClick: actions.onFix },
-		retry: {
-			label:
-				lifecycle === "scheduled"
-					? m["enrichment.action_retry_now"]()
-					: m["enrichment.retry"](),
-			// A finished book re-runs in refresh mode so providers get re-consulted.
-			onClick: lifecycle === "done" ? actions.onRefresh : actions.onRetry,
-		},
-	};
-	return (
-		<DropdownMenuContent align="end">
-			{secondaryActionsForLifecycle(lifecycle).map((action) => (
-				<DropdownMenuItem key={action} onClick={items[action].onClick}>
-					{items[action].label}
-				</DropdownMenuItem>
-			))}
-		</DropdownMenuContent>
-	);
-}
 
 // Two 72px covers per row.
 const ROW_HEIGHT = "min-h-[88px]";

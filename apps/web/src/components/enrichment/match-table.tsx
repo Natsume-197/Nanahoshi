@@ -38,13 +38,7 @@ import {
 } from "./filters";
 import { LIFECYCLE_LABELS } from "./lifecycle";
 import { IconSwap } from "./match-controls";
-import {
-	createRowMenuHandle,
-	EnrichmentCard,
-	EnrichmentRow,
-	type RowHandlers,
-	SharedRowMenu,
-} from "./match-rows";
+import { EnrichmentCard, EnrichmentRow, type RowHandlers } from "./match-rows";
 import type { ScopeSelection } from "./match-sidebar";
 import { TrayHeaderCell, TrayTable } from "./tray-table";
 import type { MatchRow, RowActions } from "./types";
@@ -113,7 +107,6 @@ function useStableRowHandlers(latest: {
 	const ref = useRef(latest);
 	ref.current = latest;
 	const [handlers] = useState<RowHandlers>(() => ({
-		menu: createRowMenuHandle(),
 		open: (item) => ref.current.openDetail(item),
 		toggle: (uuid) => ref.current.toggle(uuid),
 		actions: (item) => ({
@@ -124,6 +117,7 @@ function useStableRowHandlers(latest: {
 			onFix: () => ref.current.rowActions(item).onFix(),
 			onSelectCandidate: (candidate) =>
 				ref.current.rowActions(item).onSelectCandidate(candidate),
+			onRestore: () => ref.current.rowActions(item).onRestore(),
 		}),
 	}));
 	return handlers;
@@ -390,7 +384,11 @@ export function MatchResults({
 				<TrayHeaderCell
 					key={header.id}
 					className={cn(
-						header.column.id === "select" && "justify-center",
+						(header.column.id === "select" ||
+							header.column.id === "status" ||
+							header.column.id === "updated" ||
+							header.column.id === "actions") &&
+							"justify-center",
 						(header.column.id === "book" || header.column.id === "updated") &&
 							"font-normal",
 					)}
@@ -426,10 +424,5 @@ export function MatchResults({
 			))}
 		</ul>
 	);
-	return (
-		<>
-			{results}
-			<SharedRowMenu handlers={rowHandlers} />
-		</>
-	);
+	return results;
 }

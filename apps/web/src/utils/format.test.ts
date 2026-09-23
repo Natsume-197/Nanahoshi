@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { capitalizeFirst } from "./format";
+import { describe, expect, it, test } from "bun:test";
+import { capitalizeFirst, formatTimeUntil } from "./format";
 
 describe("capitalizeFirst", () => {
 	it("capitalizes a lowercase facet name", () => {
@@ -26,5 +26,17 @@ describe("capitalizeFirst", () => {
 
 	it("handles an empty name", () => {
 		expect(capitalizeFirst("")).toBe("");
+	});
+});
+
+describe("formatTimeUntil", () => {
+	const now = Date.UTC(2026, 0, 1);
+	test("picks minutes, hours or days by distance", () => {
+		expect(formatTimeUntil(new Date(now + 5 * 60_000), now)).toMatch(/5/);
+		expect(formatTimeUntil(new Date(now + 3 * 3_600_000), now)).toMatch(/3/);
+		expect(formatTimeUntil(new Date(now + 24 * 3_600_000), now)).toMatch(/1/);
+		expect(formatTimeUntil(new Date(now + 24 * 3_600_000), now)).not.toMatch(
+			/1440|24/,
+		);
 	});
 });

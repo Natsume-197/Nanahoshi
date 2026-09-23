@@ -1,5 +1,8 @@
 import type { MatchDecision, MatchDecisionCandidate } from "./types";
 
+// Matches the pipeline's MAX_AMBIGUOUS_CANDIDATES.
+const MAX_CANDIDATES = 5;
+
 export function resolveAmbiguousCandidates(
 	listDecision: MatchDecision | null | undefined,
 	detailDecision: MatchDecision | null | undefined,
@@ -15,7 +18,7 @@ export function resolveAmbiguousCandidates(
 		if (seen.has(key)) continue;
 		seen.add(key);
 		candidates.push({ ...candidate, providerId: candidate.providerId });
-		if (candidates.length === 2) break;
+		if (candidates.length === MAX_CANDIDATES) break;
 	}
 	return candidates;
 }

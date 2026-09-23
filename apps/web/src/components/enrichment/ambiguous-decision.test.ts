@@ -15,12 +15,19 @@ describe("resolveAmbiguousCandidates", () => {
 				{ provider: "ranobedb", providerId: null, title: "Unusable" },
 				{ provider: "ranobedb", providerId: "2", title: "Second" },
 				{ provider: "ranobedb", providerId: "3", title: "Third" },
+				{ provider: "amazon", providerId: "4", title: "Fourth" },
+				{ provider: "amazon", providerId: "5", title: "Fifth" },
+				{ provider: "amazon", providerId: "6", title: "Sixth" },
 			],
 		};
 
-		expect(resolveAmbiguousCandidates(stale, detail)).toEqual([
-			{ provider: "ranobedb", providerId: "1", title: "First" },
-			{ provider: "ranobedb", providerId: "2", title: "Second" },
+		const resolved = resolveAmbiguousCandidates(stale, detail);
+		expect(resolved.map((candidate) => candidate.providerId)).toEqual([
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
 		]);
 	});
 });

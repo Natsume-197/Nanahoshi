@@ -11,6 +11,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
+import { previewCoverUrl } from "@/components/enrichment/lifecycle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -186,7 +187,7 @@ function CandidateRow({
 }) {
 	const cover = candidate.previewCover ? (
 		<img
-			src={candidate.previewCover}
+			src={previewCoverUrl(candidate.previewCover) ?? undefined}
 			alt=""
 			className={cn("shrink-0 rounded object-cover", coverClass)}
 			loading="lazy"

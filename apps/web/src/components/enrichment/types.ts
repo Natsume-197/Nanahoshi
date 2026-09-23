@@ -36,6 +36,7 @@ export type MatchRow = {
 		providerId?: string | null;
 		manual?: boolean;
 		title?: string;
+		byline?: string;
 		previewCover?: string | null;
 		reasons?: string[];
 	}[];
@@ -53,4 +54,5 @@ export type RowActions = {
 	onApprove: () => void;
 	onFix: () => void;
 	onSelectCandidate: (candidate: MatchDecisionCandidate) => void;
+	onRestore: () => void;
 };

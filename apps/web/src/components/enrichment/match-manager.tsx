@@ -303,6 +303,18 @@ export function MatchManager() {
 		setDetailUuid(null);
 		setDetailFallback(null);
 	};
+	// After a verdict the pane moves to the neighbour the user saw at click
+	// time, so a queue can be worked through without reopening rows. The ref
+	// keeps a slow mutation from yanking a pane the user already moved on from.
+	const detailUuidRef = useRef(detailUuid);
+	detailUuidRef.current = detailUuid;
+	const advanceFrom = (bookUuid: string) => {
+		if (detailUuidRef.current !== bookUuid) return;
+		const index = items.findIndex((item) => item.bookUuid === bookUuid);
+		const next = items[index + 1] ?? items[index - 1];
+		if (index >= 0 && next) openDetail(next);
+		else closeDetail();
+	};
 	const openDetail = (item: MatchRow) => {
 		setDetailUuid(item.bookUuid);
 		setDetailFallback(item);
@@ -330,7 +342,7 @@ export function MatchManager() {
 		requestRestore,
 	} = useMatchActions({
 		clearSelection,
-		closeDetail,
+		onDecided: advanceFrom,
 		libraryUuid,
 		providerLabels,
 		cooldowns,
@@ -880,6 +892,15 @@ export function MatchManager() {
 						providerUrlTemplates={data?.providerUrlTemplates}
 						busy={busy}
 						actions={rowActions(detailItem)}
+						position={
+							detailIndex >= 0
+								? {
+										index: offset + detailIndex + 1,
+										// Decided rows stay pinned in place until the page changes.
+										total: Math.max(total, offset + items.length),
+									}
+								: undefined
+						}
 						onPrevious={
 							previousDetail ? () => openDetail(previousDetail) : undefined
 						}

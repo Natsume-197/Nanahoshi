@@ -27,7 +27,7 @@ type FixTarget = {
 type TargetInput = Parameters<typeof client.enrichment.approvalPreview>[0];
 export function useMatchActions({
 	clearSelection,
-	closeDetail,
+	onDecided,
 	libraryUuid,
 	providerLabels,
 	cooldowns,
@@ -35,7 +35,8 @@ export function useMatchActions({
 	failingBooks,
 }: {
 	clearSelection: () => void;
-	closeDetail: () => void;
+	/** A decision on one book landed; the open pane moves on from it. */
+	onDecided: (bookUuid: string) => void;
 	libraryUuid: string;
 	providerLabels: Record<string, string>;
 	cooldowns: [string, number][];
@@ -59,6 +60,7 @@ export function useMatchActions({
 		queryClient.invalidateQueries({
 			queryKey: orpc.enrichment.actionableCounts.key(),
 		});
+		queryClient.invalidateQueries({ queryKey: orpc.enrichment.detail.key() });
 	};
 
 	const mutationSettled = (message: string) => ({
@@ -150,9 +152,9 @@ export function useMatchActions({
 			});
 			if (!result.success) throw new Error(m["match.apply_failed"]());
 		},
-		onSuccess: () => {
+		onSuccess: (_data, { item }) => {
 			toast.success(m["match.applied"]());
-			closeDetail();
+			onDecided(item.bookUuid);
 			invalidateAll();
 		},
 		onError: (error: Error) => toast.error(error.message),
@@ -186,8 +188,22 @@ export function useMatchActions({
 		selectCandidateMutation.isPending;
 
 	// ── Single-book actions ──────────────────────────────────────────────────
+	const decided = (
+		uuid: string,
+		settled: { onSuccess: () => void; onError: (error: Error) => void },
+	) => ({
+		...settled,
+		onSuccess: () => {
+			settled.onSuccess();
+			onDecided(uuid);
+		},
+	});
 	const retryOne = (uuid: string, refresh = false) =>
-		retryMutation.mutate({ bookUuids: [uuid], refresh }, retrySettled(1));
+		retryMutation.mutate(
+			{ bookUuids: [uuid], refresh },
+			// A refresh keeps an already-good book where it is; a retry is a verdict.
+			refresh ? retrySettled(1) : decided(uuid, retrySettled(1)),
+		);
 	const cancelRetryOne = (uuid: string) =>
 		cancelRetryMutation.mutate(
 			{ bookUuids: [uuid] },
@@ -196,7 +212,10 @@ export function useMatchActions({
 	const approveOne = (uuid: string) =>
 		approveMutation.mutate(
 			{ bookUuids: [uuid] },
-			mutationSettled(m["enrichment.approve_enqueued"]({ count: 1 })),
+			decided(
+				uuid,
+				mutationSettled(m["enrichment.approve_enqueued"]({ count: 1 })),
+			),
 		);
 	const openFix = (item: MatchRow) =>
 		setFixTarget({
@@ -223,6 +242,8 @@ export function useMatchActions({
 		onFix: () => openFix(item),
 		onSelectCandidate: (candidate) =>
 			selectCandidateMutation.mutate({ item, candidate }),
+		onRestore: () =>
+			setRestoreRequest({ input: { bookUuids: [item.bookUuid] }, count: 1 }),
 	});
 
 	const togglePause = (paused: boolean) => {

@@ -62,6 +62,16 @@ export function formatRelativeTime(dateStr: string) {
 	return dateFormat(getLocale()).format(new Date(dateStr));
 }
 
+/** "in 5 minutes" / "in 3 hours" / "in 2 days" for a moment ahead. */
+export function formatTimeUntil(target: Date, now = Date.now()) {
+	const minutes = Math.max(1, Math.ceil((target.getTime() - now) / 60_000));
+	const rtf = relativeTimeFormat(getLocale());
+	if (minutes < 60) return rtf.format(minutes, "minute");
+	const hours = Math.round(minutes / 60);
+	if (hours < 24) return rtf.format(hours, "hour");
+	return rtf.format(Math.round(hours / 24), "day");
+}
+
 export function formatReadingTime(seconds: number) {
 	const hours = Math.floor(seconds / 3600);
 	const minutes = Math.floor((seconds % 3600) / 60);

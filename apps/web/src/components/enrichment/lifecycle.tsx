@@ -61,6 +61,35 @@ export function lifecycleDotClass(lifecycle: Lifecycle): string {
 	return TONE_DOT[LIFECYCLE_VARIANTS[lifecycle]];
 }
 
+export type StatusTone = LifecycleTone;
+
+/** The sidebar's status dot, for any tray that groups rows by state. */
+export function StatusDot({
+	tone,
+	waiting = false,
+	className,
+}: {
+	tone: StatusTone;
+	/** Drawn hollow: waiting on a clock, not working now. */
+	waiting?: boolean;
+	className?: string;
+}) {
+	// The pulse says "waiting on a clock", but the ring is what survives
+	// prefers-reduced-motion, which flattens every animation to 0.01ms.
+	return (
+		<span
+			aria-hidden="true"
+			className={cn(
+				"size-2 shrink-0 rounded-full",
+				waiting
+					? "animate-pulse bg-transparent ring-2 ring-info ring-inset"
+					: TONE_DOT[tone],
+				className,
+			)}
+		/>
+	);
+}
+
 export function LifecycleDot({
 	lifecycle,
 	className,
@@ -69,20 +98,12 @@ export function LifecycleDot({
 	className?: string;
 }) {
 	// Running and scheduled share the info tone and sit next to each other in the
-	// nav, so a scheduled retry is drawn hollow. The pulse still says "waiting on
-	// a clock", but the ring is what survives prefers-reduced-motion, which
-	// flattens every animation to 0.01ms.
-	const waiting = lifecycle === "scheduled";
+	// nav, so a scheduled retry is drawn hollow.
 	return (
-		<span
-			aria-hidden="true"
-			className={cn(
-				"size-2 shrink-0 rounded-full",
-				waiting
-					? "animate-pulse bg-transparent ring-2 ring-info ring-inset"
-					: lifecycleDotClass(lifecycle),
-				className,
-			)}
+		<StatusDot
+			tone={LIFECYCLE_VARIANTS[lifecycle]}
+			waiting={lifecycle === "scheduled"}
+			className={className}
 		/>
 	);
 }
@@ -159,6 +180,34 @@ export function MatchReasonChip({ reasons }: { reasons: string[] }) {
 			{strongest.label()}
 		</Badge>
 	);
+}
+
+/** Every distinct piece of evidence, strongest first, for spelling out why. */
+export function matchReasonLabels(reasons: string[]): string[] {
+	const labels = MATCH_REASONS.filter((entry) =>
+		reasons.includes(entry.reason),
+	).map((entry) => entry.label());
+	return [...new Set(labels)];
+}
+
+// Google Books answers zoom=0 with an "image not available" placeholder for
+// many volumes that do have a zoom=1 thumbnail, which is also the right size
+// for a preview.
+export function previewCoverUrl(url: string | null | undefined): string | null {
+	if (!url) return null;
+	try {
+		const parsed = new URL(url);
+		if (
+			parsed.hostname === "books.google.com" &&
+			parsed.pathname === "/books/content"
+		) {
+			parsed.searchParams.set("zoom", "1");
+			return parsed.toString();
+		}
+	} catch {
+		return url;
+	}
+	return url;
 }
 
 export function sourceLabel(

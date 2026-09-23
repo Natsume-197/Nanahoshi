@@ -1,7 +1,7 @@
 import { CircleNotch, LockSimple, LockSimpleOpen } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,14 +53,28 @@ function FieldRow({
 	onChange,
 	lockState,
 	onToggleLock,
+	focused,
 }: {
 	def: FieldDef;
 	value: string;
 	onChange: (value: string) => void;
 	lockState: LockState;
 	onToggleLock: () => void;
+	/** Opened from a specific field (e.g. the tray's "Missing"): land on it. */
+	focused?: boolean;
 }) {
 	const inputId = `edit-meta-${def.key}`;
+	const focusedOnceRef = useRef(false);
+	// A ref callback, not an effect: the dialog moves focus into the popup on
+	// open, so this waits a frame and then takes it.
+	const focusRef = (element: HTMLElement | null) => {
+		if (!element || !focused || focusedOnceRef.current) return;
+		focusedOnceRef.current = true;
+		requestAnimationFrame(() => {
+			element.focus();
+			element.scrollIntoView({ block: "center" });
+		});
+	};
 	const lockIcon =
 		lockState === "locked" ? (
 			<button
@@ -105,6 +119,7 @@ function FieldRow({
 			</div>
 			{def.kind === "textarea" ? (
 				<Textarea
+					ref={focusRef}
 					id={inputId}
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
@@ -112,6 +127,7 @@ function FieldRow({
 				/>
 			) : (
 				<Input
+					ref={focusRef}
 					id={inputId}
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
@@ -143,9 +159,11 @@ function MetadataFormModal({
 	lockedFields,
 	saving,
 	onSave,
+	focusField,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	focusField?: string;
 	fields: FieldDef[];
 	initialValues: Record<string, string>;
 	lockedFields: string[];
@@ -226,6 +244,7 @@ function MetadataFormModal({
 						}
 						lockState={lockStateFor(def.lockKey)}
 						onToggleLock={() => toggleUnlock(def.lockKey)}
+						focused={def.key === focusField}
 					/>
 				))}
 			</div>
@@ -236,6 +255,7 @@ function MetadataFormModal({
 function useSaveMetadata<TArgs>(
 	onOpenChange: (open: boolean) => void,
 	save: (args: TArgs) => Promise<unknown>,
+	onSaved?: () => void,
 ) {
 	const router = useRouter();
 	return useMutation({
@@ -243,6 +263,7 @@ function useSaveMetadata<TArgs>(
 		onSuccess: async () => {
 			toast.success(m["toast.metadata_saved"]());
 			await router.invalidate();
+			onSaved?.();
 			onOpenChange(false);
 		},
 		onError: (error) => {
@@ -279,13 +300,19 @@ export function EditBookMetadataDialog({
 	open,
 	onOpenChange,
 	book,
+	focusField,
+	onSaved,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	book: EditableBook;
+	focusField?: string;
+	onSaved?: () => void;
 }) {
-	const saveMutation = useSaveMetadata(onOpenChange, (args: BookUpdateArgs) =>
-		client.books.updateMetadata(args),
+	const saveMutation = useSaveMetadata(
+		onOpenChange,
+		(args: BookUpdateArgs) => client.books.updateMetadata(args),
+		onSaved,
 	);
 
 	const fields: FieldDef[] = [
@@ -422,6 +449,7 @@ export function EditBookMetadataDialog({
 			fields={fields}
 			initialValues={initialValues}
 			lockedFields={book.lockedFields ?? []}
+			focusField={focusField}
 			saving={saveMutation.isPending}
 			onSave={({ values, dirty, unlockFields }) => {
 				const metadata: BookUpdateArgs["metadata"] = {};
@@ -502,14 +530,19 @@ export function EditAudiobookMetadataDialog({
 	open,
 	onOpenChange,
 	audiobook,
+	focusField,
+	onSaved,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	audiobook: EditableAudiobook;
+	focusField?: string;
+	onSaved?: () => void;
 }) {
 	const saveMutation = useSaveMetadata(
 		onOpenChange,
 		(args: AudiobookUpdateArgs) => client.audiobooks.updateMetadata(args),
+		onSaved,
 	);
 
 	const fields: FieldDef[] = [
@@ -638,6 +671,7 @@ export function EditAudiobookMetadataDialog({
 			fields={fields}
 			initialValues={initialValues}
 			lockedFields={audiobook.lockedFields ?? []}
+			focusField={focusField}
 			saving={saveMutation.isPending}
 			onSave={({ values, dirty, unlockFields }) => {
 				const metadata: AudiobookUpdateArgs["metadata"] = {};
