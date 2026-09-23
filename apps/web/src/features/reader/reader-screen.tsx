@@ -83,6 +83,7 @@ import {
 } from "@/features/reader/renderers/shared/viewport";
 import { resolveVisualReadingDirection } from "@/features/reader/renderers/visual/book-reader-visual";
 import { resolveReadingPosition } from "@/features/reader/session/reader-position";
+import { resolveReaderServerId } from "@/features/reader/session/reader-server-id";
 import { useReaderSession } from "@/features/reader/session/reader-session";
 import { ReaderFooter } from "@/features/reader/ui/chrome/reader-footer";
 import { ReaderHeader } from "@/features/reader/ui/chrome/reader-header";
@@ -141,6 +142,8 @@ interface ReaderScreenProps {
 	switchedOrgId: string | null | undefined;
 	uuid: string;
 	userId: string;
+	/** The session's active server, known before the auth org store loads. */
+	sessionServerId?: string | null;
 	readListenPairUuid?: string;
 }
 
@@ -239,6 +242,7 @@ export function ReaderScreen({
 	switchedOrgId,
 	uuid,
 	userId,
+	sessionServerId,
 	readListenPairUuid,
 }: ReaderScreenProps) {
 	const bookSourceFormat = book?.filename
@@ -296,10 +300,12 @@ export function ReaderScreen({
 		);
 	const [customThemes, setCustomThemes] =
 		useState<CustomReaderThemes>(loadCustomThemes);
-	const [readerViewport, setReaderViewport] = useState(() => ({
-		width: viewportWidth(),
-		height: viewportHeight(),
-	}));
+	// SSR renders only the loading screen, which never reads the viewport.
+	const [readerViewport, setReaderViewport] = useState(() =>
+		typeof window === "undefined"
+			? { width: 0, height: 0 }
+			: { width: viewportWidth(), height: viewportHeight() },
+	);
 	useWindowEvent("resize", () => {
 		setReaderViewport({ width: viewportWidth(), height: viewportHeight() });
 	});
@@ -472,9 +478,14 @@ export function ReaderScreen({
 	]);
 
 	const bookTitle = book?.title ?? book?.filename ?? "Book";
-	const { data: activeOrg } = authClient.useActiveOrganization();
-	// The book's server: its own org when opened cross-org, else the active one.
-	const bookServerId = switchedOrgId ?? activeOrg?.id ?? null;
+	const { data: activeOrg, isPending: activeOrgPending } =
+		authClient.useActiveOrganization();
+	const bookServerId = resolveReaderServerId({
+		switchedOrgId,
+		activeOrgId: activeOrg?.id,
+		activeOrgPending,
+		sessionServerId,
+	});
 	// A rendered EPUB's dimensions depend on its own CSS, fonts and late image
 	// loads. Until a virtual reader can preserve that geometry exactly, use one
 	// complete document so continuous and paginated share the proven position

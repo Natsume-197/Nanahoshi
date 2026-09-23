@@ -5,6 +5,7 @@ import {
 	ReaderScreen,
 } from "@/features/reader/reader-screen";
 import { getBook } from "@/functions/books/get-book";
+import { fetchLoaderQuery } from "@/lib/loader-query";
 import { optionalUuid } from "@/lib/search-validators";
 
 export const Route = createFileRoute("/reader/$uuid")({
@@ -20,9 +21,16 @@ export const Route = createFileRoute("/reader/$uuid")({
 		if (!context.session) throw redirect({ to: "/login" });
 		return { session: context.session };
 	},
-	loader: async ({ params }) => {
+	loader: async ({ params, cause, context }) => {
 		try {
-			return await getBook({ data: params.uuid });
+			// Shares the detail page's entry: Read from the detail page (or a
+			// hovered Read link) opens without a second round trip.
+			return await fetchLoaderQuery(
+				context.queryClient,
+				["loader", "book-detail", params.uuid],
+				() => getBook({ data: params.uuid }),
+				cause,
+			);
 		} catch (error) {
 			if (error instanceof ORPCError && error.status === 404) throw notFound();
 			throw error;
@@ -41,6 +49,7 @@ function ReaderRoute() {
 			switchedOrgId={switchedOrgId}
 			uuid={uuid}
 			userId={session.user.id}
+			sessionServerId={session.session.activeOrganizationId ?? null}
 			readListenPairUuid={pair}
 		/>
 	);

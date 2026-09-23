@@ -141,9 +141,10 @@ export function buildAxisPinnedMatchers(
 	document: Document,
 ): AxisPinnedMatchers {
 	const probe = document.createElement("div");
+	const rules = parseCssRules(styleSheet);
 
 	const buildMatcher = (property: RegExp) => {
-		const selectors = parseCssRules(styleSheet)
+		const selectors = rules
 			.filter((rule) =>
 				rule.declarations.some(
 					(d) =>

@@ -215,13 +215,7 @@ export function useBookLoader({
 						}
 						const { data, lazyBook } = bookSession;
 
-						const serverProgress = await serverProgressPromise;
-						if (cancelled) return;
-						const position = resolveReadingPosition(
-							localPosition,
-							serverProgress,
-							data.characters,
-						);
+						// Formatting does not depend on progress, so it overlaps that request.
 						// Mirrors the max-height caps in reader.css (100vh, and
 						// --book-content-child-height in vertical mode).
 						const imageFitHeight = readerColumnHeight(
@@ -241,6 +235,13 @@ export function useBookLoader({
 							}
 							return;
 						}
+						const serverProgress = await serverProgressPromise;
+						if (cancelled) return;
+						const position = resolveReadingPosition(
+							localPosition,
+							serverProgress,
+							data.characters,
+						);
 
 						onLoadedRef.current({
 							data: renderedData,
