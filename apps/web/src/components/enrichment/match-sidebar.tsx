@@ -44,11 +44,16 @@ const NAV_LIFECYCLE_LABELS: Partial<Record<Lifecycle, () => string>> = {
 // it — one node per concept reads faster and removes the duplicate labels.
 const NAV_TREE: { bucket: Bucket; children: Lifecycle[] }[] = [
 	{ bucket: "in_progress", children: ["running", "scheduled"] },
-	// Keep the useful distinction between a questionable match and no match at
-	// all, while hiding the ambiguous/partial implementation states.
-	{ bucket: "attention", children: ["review", "no_match", "failed"] },
+	// One row per thing you do: approve a match, choose between candidates, find
+	// one by hand. Partial books retry on later scans, so they only get a row
+	// while there are any.
+	{
+		bucket: "attention",
+		children: ["review", "unresolved", "no_match", "partial", "failed"],
+	},
 	{ bucket: "completed", children: [] },
 ];
+const SHOWN_ONLY_WHEN_PRESENT = new Set<Lifecycle>(["partial"]);
 
 function NavRow({
 	active,
@@ -142,26 +147,33 @@ export function MatchSidebar({
 							icon={BUCKET_ICONS[node.bucket]}
 							onClick={() => onSelectScope({ bucket: node.bucket })}
 						/>
-						{node.children.map((child) => (
-							<NavRow
-								key={child}
-								active={lifecycle === child}
-								label={(
-									NAV_LIFECYCLE_LABELS[child] ?? LIFECYCLE_LABELS[child]
-								)()}
-								count={lifecycleNavCount(child, counts, lifecycleCounts)}
-								icon={<LifecycleDot lifecycle={child} />}
-								indented
-								onClick={() =>
-									// The bucket must travel with the lifecycle, or
-									// listInputFromSearch drops it as belonging elsewhere.
-									onSelectScope({
-										bucket: LIFECYCLE_BUCKET[child],
-										lifecycle: child,
-									})
-								}
-							/>
-						))}
+						{node.children
+							.filter(
+								(child) =>
+									!SHOWN_ONLY_WHEN_PRESENT.has(child) ||
+									lifecycle === child ||
+									(lifecycleNavCount(child, counts, lifecycleCounts) ?? 0) > 0,
+							)
+							.map((child) => (
+								<NavRow
+									key={child}
+									active={lifecycle === child}
+									label={(
+										NAV_LIFECYCLE_LABELS[child] ?? LIFECYCLE_LABELS[child]
+									)()}
+									count={lifecycleNavCount(child, counts, lifecycleCounts)}
+									icon={<LifecycleDot lifecycle={child} />}
+									indented
+									onClick={() =>
+										// The bucket must travel with the lifecycle, or
+										// listInputFromSearch drops it as belonging elsewhere.
+										onSelectScope({
+											bucket: LIFECYCLE_BUCKET[child],
+											lifecycle: child,
+										})
+									}
+								/>
+							))}
 					</div>
 				))}
 			</div>

@@ -97,6 +97,7 @@ export function PrimaryRowButton({
 	const primary = primaryActionForLifecycle(lifecycle);
 	const labels = {
 		approve: m["enrichment.approve"](),
+		choose: m["enrichment.choose_candidate"](),
 		details: m["enrichment.view_detail"](),
 		fix: m["enrichment.fix_match"](),
 		retry:
@@ -106,6 +107,7 @@ export function PrimaryRowButton({
 	};
 	const handlers = {
 		approve: actions.onApprove,
+		choose: onOpen,
 		details: onOpen,
 		fix: actions.onFix,
 		retry: actions.onRetry,

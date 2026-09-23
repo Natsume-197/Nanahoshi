@@ -115,16 +115,6 @@ export function resolveBucket(row: LifecycleRow): EnrichmentBucket {
 	return LIFECYCLE_BUCKET[resolveLifecycle(row)];
 }
 
-/** UI filter groups. Review is every match that needs a human decision. */
-export function lifecycleFilterMembers(
-	lifecycle: EnrichmentLifecycle,
-): EnrichmentLifecycle[] {
-	if (lifecycle === "review") {
-		return ["review", "unresolved", "partial"];
-	}
-	return [lifecycle];
-}
-
 /** `CASE … END` yielding the lifecycle string, mirroring {@link resolveLifecycle}. */
 export function lifecycleCaseSql(): SQL {
 	const whens = RULES.map(

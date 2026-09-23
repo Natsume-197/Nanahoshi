@@ -8,7 +8,7 @@ describe("primaryActionForLifecycle", () => {
 	it.each([
 		["review", "approve"],
 		["partial", "fix"],
-		["unresolved", "fix"],
+		["unresolved", "choose"],
 		["no_match", "fix"],
 		["scheduled", "retry"],
 		["failed", "retry"],
@@ -23,7 +23,7 @@ describe("secondaryActionsForLifecycle", () => {
 	it.each([
 		["review", ["fix", "retry"]],
 		["partial", ["retry"]],
-		["unresolved", ["retry"]],
+		["unresolved", ["fix", "retry"]],
 		["no_match", ["retry"]],
 		["scheduled", ["cancelRetry"]],
 		["failed", ["fix"]],

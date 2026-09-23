@@ -23,13 +23,6 @@ export function lifecycleNavCount(
 	lifecycleCounts: LifecycleCounts,
 ): number | undefined {
 	if (lifecycleCounts == null) return undefined;
-	if (lifecycle === "review") {
-		return (
-			(lifecycleCounts.review ?? 0) +
-			(lifecycleCounts.unresolved ?? 0) +
-			(lifecycleCounts.partial ?? 0)
-		);
-	}
 	// The API omits empty lifecycles, so once counts have loaded a missing key
 	// is a real zero rather than "unknown".
 	return lifecycleCounts[lifecycle] ?? 0;

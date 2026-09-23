@@ -24,7 +24,6 @@ import {
 	type EnrichmentBucket,
 	type EnrichmentLifecycle,
 	lifecycleCaseSql,
-	lifecycleFilterMembers,
 } from "../../modules/metadataEnrichment/enrichment-lifecycle";
 import {
 	type AdmissionFacts,
@@ -609,21 +608,11 @@ export class EnrichmentStateRepository {
 	// Shared tray scoping: server + non-duplicate, plus optional bucket, library,
 	// and text filters. Requires the es/b/l joins and the bm/am joins for search.
 	#trayConditions(serverId: string, filter: TrayFilter): SQL {
-		const lifecycles = filter.lifecycle
-			? lifecycleFilterMembers(filter.lifecycle)
-			: [];
 		return sql`
 			l.server_id = ${serverId}
 			AND b.duplicate_of_book_id IS NULL
 				${filter.bucket ? sql`AND ${bucketCaseSql()} = ${filter.bucket}` : sql``}
-			${
-				lifecycles.length > 0
-					? sql`AND ${lifecycleCaseSql()} IN (${sql.join(
-							lifecycles.map((lifecycle) => sql`${lifecycle}`),
-							sql`, `,
-						)})`
-					: sql``
-			}
+			${filter.lifecycle ? sql`AND ${lifecycleCaseSql()} = ${filter.lifecycle}` : sql``}
 			${filter.libraryUuid ? sql`AND l.uuid = ${filter.libraryUuid}` : sql``}
 			${filter.mediaType ? sql`AND l.media_type = ${filter.mediaType}` : sql``}
 			${filter.withFailures ? sql`AND jsonb_array_length(es.failures) > 0` : sql``}

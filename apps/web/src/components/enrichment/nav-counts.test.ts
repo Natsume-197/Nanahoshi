@@ -2,14 +2,14 @@ import { describe, expect, it } from "bun:test";
 import { lifecycleNavCount } from "./nav-counts";
 
 describe("lifecycleNavCount", () => {
-	it("groups every match that needs human review", () => {
+	it("counts each lifecycle on its own", () => {
 		expect(
 			lifecycleNavCount("review", undefined, {
 				review: 1,
 				unresolved: 2,
 				partial: 4,
 			}),
-		).toBe(7);
+		).toBe(1);
 	});
 
 	it("reads a lifecycle missing from loaded counts as zero", () => {
