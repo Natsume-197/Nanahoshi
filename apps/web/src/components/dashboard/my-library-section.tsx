@@ -91,7 +91,7 @@ const shelfRailIcons: Record<ShelfBucket, NavIcon> = {
 	completed: Check,
 };
 
-/** Empty lists keep the same square as the covered ones, holding a line icon
+/** Empty lists keep the same tile as the covered ones, holding a line icon
  *  on a flat gray plate, like Spotify's empty playlists. */
 const neutralTileClass = "grid size-full place-items-center";
 
@@ -118,10 +118,10 @@ const focusRing =
 
 const rowClass = (active: boolean) =>
 	cn(
-		"flex w-full shrink-0 items-center justify-center rounded-lg py-1 transition-colors duration-150 ease-out-quart",
-		// Expanded: a uniform 48px square per row, Spotify style, starting on the
+		"flex w-full shrink-0 items-center justify-center rounded-lg py-2 transition-colors duration-150 ease-out-quart",
+		// Expanded: a uniform 52px square per row, Spotify style, starting on the
 		// nav icons' and section titles' left edge; text gets its own column.
-		"rail-expanded:justify-start rail-expanded:gap-3 rail-expanded:py-1.5 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2",
+		"rail-expanded:justify-start rail-expanded:gap-3 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2",
 		active
 			? "rail-expanded:bg-nav-active"
 			: "rail-expanded:hover:bg-sidebar-accent/40",
@@ -150,13 +150,13 @@ function RowBody({
 }): ReactNode {
 	return (
 		<>
-			<span className="rail-expanded:size-12 size-10 shrink-0 overflow-hidden rounded-[4px] bg-sidebar-accent/50">
+			<span className="rail-expanded:size-13 size-10 shrink-0 overflow-hidden rounded-[4px] bg-sidebar-accent/50">
 				{artwork}
 			</span>
-			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-1 text-start">
+			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-0.5 text-start">
 				<span
 					className={cn(
-						"truncate text-[15px] leading-tight",
+						"truncate text-base leading-snug",
 						active
 							? "font-semibold text-sidebar-foreground"
 							: muted
@@ -167,7 +167,7 @@ function RowBody({
 					{title}
 				</span>
 				{(subtitle || pinned) && (
-					<span className="flex min-w-0 items-center gap-1 text-[13px] text-nav-inactive leading-tight">
+					<span className="flex min-w-0 items-center gap-1 text-nav-inactive text-sm leading-snug">
 						{pinned && (
 							<PushPin
 								weight="fill"
@@ -392,7 +392,7 @@ function SortableGroup({
 	if (entries.length === 0) return null;
 	return (
 		<div
-			className="flex w-full flex-col items-center gap-0.5"
+			className="flex w-full flex-col items-center gap-0"
 			onClickCapture={(event) => {
 				if (!suppressClick.current) return;
 				event.preventDefault();
@@ -469,9 +469,9 @@ function SkeletonRow(): ReactNode {
 	return (
 		<div
 			aria-hidden="true"
-			className="flex w-full shrink-0 items-center rail-expanded:justify-start justify-center rail-expanded:gap-3 py-1 rail-expanded:py-1.5 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2"
+			className="flex w-full shrink-0 items-center rail-expanded:justify-start justify-center rail-expanded:gap-3 py-2 rail-expanded:ps-[calc(var(--rail-row-inset)+16px)] rail-expanded:pe-2"
 		>
-			<Skeleton className="rail-expanded:size-12 size-10 shrink-0 rounded-[4px]" />
+			<Skeleton className="rail-expanded:size-13 size-10 shrink-0 rounded-[4px]" />
 			<span className="rail-expanded:flex hidden min-w-0 flex-1 flex-col gap-1.5">
 				<Skeleton className="h-3 w-3/4 rounded" />
 				<Skeleton className="h-2.5 w-1/2 rounded" />
@@ -480,8 +480,8 @@ function SkeletonRow(): ReactNode {
 	);
 }
 
-/** The latest cover, cropped to the row's square: a mosaic at this size is
- *  four unreadable crops. */
+/** The latest cover, filling the row's tile: a mosaic at this size is four
+ *  unreadable crops. */
 function RailCover({
 	covers,
 	fallback,
@@ -495,9 +495,9 @@ function RailCover({
 	if (!filename) return fallback;
 	return (
 		<img
-			src={getCoverPresetUrl(filename, coverPresets.small)}
-			srcSet={getCoverSrcSet(filename, coverPresets.small.widths)}
-			sizes="48px"
+			src={getCoverPresetUrl(filename, coverPresets.rail)}
+			srcSet={getCoverSrcSet(filename, coverPresets.rail.widths)}
+			sizes={coverPresets.rail.sizes}
 			alt=""
 			loading="lazy"
 			draggable={false}
@@ -559,9 +559,14 @@ export function MyLibrarySection({
 		canReadCollections && !collectionsLoading,
 	);
 
-	// An empty list shows its title alone; the plain tile already says it.
-	const itemCount = (count: number | null | undefined) =>
-		count == null ? "…" : count === 0 ? "" : m["media.item_count"]({ count });
+	// "Estante • 3 elementos", like Spotify's "Playlist • owner"; an empty list
+	// keeps the kind alone so every row still has two lines.
+	const subtitleFor = (kind: string, count: number | null | undefined) =>
+		count == null
+			? `${kind} • …`
+			: count === 0
+				? kind
+				: `${kind} • ${m["media.item_count"]({ count })}`;
 	const summaryByBucket = new Map(
 		summaries?.map((summary) => [summary.status, summary]),
 	);
@@ -578,7 +583,7 @@ export function MyLibrarySection({
 			status,
 			key: `shelf-${status}`,
 			title: label(),
-			subtitle: itemCount(count),
+			subtitle: subtitleFor(m["book.shelf"](), count),
 			active: locationPathname.startsWith(`/dashboard/shelves/${status}`),
 			artwork: (
 				<RailCover
@@ -618,7 +623,7 @@ export function MyLibrarySection({
 				isDynamic: collection.kind === "dynamic",
 				key: `collection-${collection.id}`,
 				title: collection.name,
-				subtitle: itemCount(count),
+				subtitle: subtitleFor(m["collection.kind_label"](), count),
 				active: locationPathname.startsWith(
 					`/dashboard/collections/${collection.id}`,
 				),
@@ -676,7 +681,7 @@ export function MyLibrarySection({
 				to="/dashboard/collections"
 			/>
 
-			<div className="flex w-full flex-col items-center gap-0.5">
+			<div className="flex w-full flex-col items-center gap-0">
 				{/* The four shelves. */}
 				{loadingSystem &&
 					[0, 1, 2, 3].map((index) => (

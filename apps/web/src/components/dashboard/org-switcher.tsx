@@ -1,11 +1,4 @@
-import {
-	Check,
-	DotsThreeVertical,
-	Plus,
-	SignOut,
-	Sliders,
-	UserPlus,
-} from "@phosphor-icons/react";
+import { Check, Plus, SignOut, Sliders, UserPlus } from "@phosphor-icons/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -144,10 +137,10 @@ export function OrgSwitcher({
 		<Button
 			variant="ghost"
 			// From md it's a card sitting on the rail's 8px gutter; expanded it spans
-			// the rail rows below it, so the dots line up with their trailing edge.
+			// the rail rows below it, lining up with their trailing edge.
 			// No fill at rest, so it never reads as a second active row. The start
 			// padding puts the badge on the rail's icon column in both widths.
-			className="group h-12 w-full min-w-0 max-w-full justify-start gap-3 rounded-lg border-0 px-0 py-0 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:ms-2 md:w-fit rail-expanded:md:w-[calc(var(--rail-width)-1.375rem)] md:max-w-72 md:ps-[calc(var(--rail-item-inset)-0.5rem)] rail-expanded:md:ps-5 md:pe-3 md:aria-expanded:bg-sidebar-accent/70 md:hover:bg-sidebar-accent/70 dark:hover:bg-transparent dark:md:hover:bg-sidebar-accent/70"
+			className="h-12 w-full min-w-0 max-w-full justify-start gap-3 rounded-lg border-0 px-0 py-0 hover:bg-transparent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset aria-expanded:bg-transparent md:ms-2 md:w-fit rail-expanded:md:w-[calc(var(--rail-width)-1.375rem)] md:max-w-72 md:ps-[calc(var(--rail-item-inset)-0.5rem)] rail-expanded:md:ps-5 md:pe-3 md:aria-expanded:bg-sidebar-accent/70 md:hover:bg-sidebar-accent/70 dark:hover:bg-transparent dark:md:hover:bg-sidebar-accent/70"
 		>
 			<ServerBadge
 				name={activeName}
@@ -162,10 +155,6 @@ export function OrgSwitcher({
 					Nanahoshi
 				</span>
 			</span>
-			<DotsThreeVertical
-				weight="bold"
-				className="size-4 shrink-0 text-nav-inactive group-hover:text-sidebar-foreground"
-			/>
 		</Button>
 	);
 
