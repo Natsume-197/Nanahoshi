@@ -136,6 +136,7 @@ export function useBookContextMenuActions(
 			);
 			await invalidateEverywhere(queryClient, [
 				orpc.collections.list.key(),
+				orpc.collections.previewBatch.key(),
 				orpc.collections.discover.key(),
 				["collections", "search"],
 			]);
@@ -182,6 +183,8 @@ export function useBookContextMenuActions(
 					input: { collectionId: variables.collectionId },
 				}),
 				orpc.collections.list.key(),
+				// Dynamic and library-scoped collections take covers/counts from here.
+				orpc.collections.previewBatch.key(),
 				orpc.collections.discover.key(),
 				["collections", "search"],
 			]);
@@ -259,6 +262,8 @@ export function useBookContextMenuActions(
 				];
 		// shelf placement is a recommendation seed and gates continueSeries
 		keys.push(orpc.recommendations.key());
+		// Sidebar shelf rows, and dynamic collections with shelf rules.
+		keys.push(orpc.shelves.key(), orpc.collections.previewBatch.key());
 		await invalidateEverywhere(queryClient, keys);
 	}, [queryClient, isAudiobook]);
 
