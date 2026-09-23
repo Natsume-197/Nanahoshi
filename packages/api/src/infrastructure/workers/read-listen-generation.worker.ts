@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import path from "node:path";
 import { type Job, Worker } from "bullmq";
 import { logger } from "../../lib/logger";
+import { publishTrayChanged } from "../../modules/metadataEnrichment/tray.events";
 import {
 	isTaskCancelled,
 	updateTaskOperationProgress,
@@ -152,6 +153,7 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 		}
 	};
 	await readListenRepository.updateGenerationStatus(taskId, "running");
+	publishTrayChanged(serverId, "pairings");
 	await reportProgress({ phase: "preparing", percent: 2 });
 	const workDirectory = path.resolve(
 		process.cwd(),
@@ -288,6 +290,12 @@ const concurrencyRefresh = setInterval(() => {
 }, 30_000);
 concurrencyRefresh.unref();
 
+// Completion and failure both move the pair between tray states.
+readListenGenerationWorker.on("completed", (job) => {
+	publishTrayChanged(job?.data?.serverId, "pairings");
+});
+
 readListenGenerationWorker.on("failed", (job, error) => {
 	log.error({ err: error, jobId: job?.id }, "Honomiya generation failed");
+	publishTrayChanged(job?.data?.serverId, "pairings");
 });

@@ -20,7 +20,7 @@ describe("getMatchWarningLabel", () => {
 
 describe("clampMatchReviewPage", () => {
 	test("moves an out-of-range page to the last real page", () => {
-		expect(clampMatchReviewPage(4, 23)).toBe(2);
+		expect(clampMatchReviewPage(4, 123)).toBe(2);
 		expect(clampMatchReviewPage(2, 0)).toBe(0);
 	});
 });

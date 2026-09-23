@@ -8,6 +8,7 @@ import {
 	ReadListenMatchAnalysisCoordinator,
 	type ReadListenMatchAnalysisJobData,
 } from "../read-listen-match-analysis";
+import { READ_LISTEN_MATCHER_VERSION } from "../read-listen-matcher";
 
 function analysisRow(overrides: Partial<ReadListenMatchAnalysisRow> = {}) {
 	return {
@@ -60,6 +61,7 @@ function createHarness(candidates: ReadListenPublication[]) {
 			Promise.resolve({ analysis: row, reused: false }),
 		),
 		updateMatchAnalysisStatus: mock(() => Promise.resolve(row)),
+		supersedeOutdatedPendingProposals: mock(() => Promise.resolve(0)),
 	};
 	const tasks = {
 		create: mock(() => Promise.resolve({} as Task)),
@@ -102,6 +104,20 @@ describe("ReadListenMatchAnalysisCoordinator", () => {
 			expect.objectContaining({ totalJobs: 125, sealed: true }),
 		);
 		expect(queue.addBulk.mock.calls[0]?.[0]).toHaveLength(125);
+	});
+
+	test("retires pending proposals left by an older matcher before analysing", async () => {
+		const { coordinator, store } = createHarness([]);
+
+		await coordinator.enqueue({
+			serverId: "server-1",
+			requestedByUserId: "user-1",
+		});
+
+		expect(store.supersedeOutdatedPendingProposals).toHaveBeenCalledWith(
+			"server-1",
+			READ_LISTEN_MATCHER_VERSION,
+		);
 	});
 
 	test("completes immediately when every audiobook already has an evaluation", async () => {

@@ -32,6 +32,7 @@ import {
 	toReadListenPublicationView as toPublicationView,
 } from "./read-listen-match-view";
 import { READ_LISTEN_MATCHER_VERSION } from "./read-listen-matcher";
+import type { ReadListenPairState } from "./read-listen-pair-state";
 import { ReadListenProposalGeneration } from "./read-listen-proposal-generation";
 import {
 	discoverTimedTextCandidates,
@@ -62,6 +63,10 @@ type ReadListenStore = Pick<
 	| "recordMatchEvaluation"
 	| "listMatchProposalRows"
 	| "listMatchProposalPage"
+	| "listPairQueuePage"
+	| "countPairStates"
+	| "listUnmatchedAudiobookPage"
+	| "countUnmatchedAudiobooks"
 >;
 
 type SearchPort = {
@@ -360,6 +365,70 @@ export class ReadListenService {
 			page.alignment ?? "any",
 		);
 		return this.buildPairings(rows, serverId, scope);
+	}
+
+	/** One page of pairs in a lifecycle state, as the tray lists them. */
+	async listPairQueue(input: {
+		state: ReadListenPairState;
+		query?: string;
+		offset: number;
+		limit: number;
+		serverId: string;
+		scope: LibraryScope;
+	}) {
+		const { rows, total } = await this.store.listPairQueuePage(
+			input.serverId,
+			input.scope,
+			input,
+		);
+		const items = await this.buildPairings(rows, input.serverId, input.scope);
+		return { items, total };
+	}
+
+	/** Nav counts for every pair state plus the audiobooks nobody matched. */
+	async pairQueueCounts(serverId: string, scope: LibraryScope) {
+		const [states, unmatched] = await Promise.all([
+			this.store.countPairStates(serverId, scope),
+			this.store.countUnmatchedAudiobooks(
+				serverId,
+				scope,
+				READ_LISTEN_MATCHER_VERSION,
+			),
+		]);
+		return { ...states, unmatched };
+	}
+
+	async listUnmatchedAudiobooks(input: {
+		query?: string;
+		offset: number;
+		limit: number;
+		serverId: string;
+		scope: LibraryScope;
+	}) {
+		const { rows, total } = await this.store.listUnmatchedAudiobookPage(
+			input.serverId,
+			input.scope,
+			{ ...input, matcherVersion: READ_LISTEN_MATCHER_VERSION },
+		);
+		const publications = await this.store.listPublicationsByIds(
+			rows.map((row) => row.bookId),
+			input.serverId,
+			input.scope,
+		);
+		const byId = new Map(publications.map((entry) => [entry.id, entry]));
+		const items = rows.flatMap((row) => {
+			const publication = byId.get(row.bookId);
+			return publication
+				? [
+						{
+							audiobook: toPublicationView(publication),
+							candidateCount: row.candidateCount,
+							maxScore: row.maxScore,
+						},
+					]
+				: [];
+		});
+		return { items, total };
 	}
 
 	private async buildPairings(

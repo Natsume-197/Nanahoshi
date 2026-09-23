@@ -13,6 +13,14 @@ import { orpc } from "@/utils/orpc";
 
 const BUCKET_VALUES = ["all", "in_progress", "attention", "completed"] as const;
 const TYPE_VALUES = ["ebook", "audiobook"] as const;
+const PAIR_VIEW_VALUES = [
+	"decided",
+	"no_alignment",
+	"failed",
+	"unmatched",
+	"generating",
+	"ready",
+] as const;
 const LIFECYCLE_VALUES = [
 	"scheduled",
 	"review",
@@ -61,7 +69,7 @@ export const Route = createFileRoute("/dashboard/metadata")({
 		page: positiveInteger(search.page),
 		// Read & Listen pairing review lives in this tray as its own section.
 		view: search.view === "pairings" ? ("pairings" as const) : undefined,
-		pairs: search.pairs === "decided" ? ("decided" as const) : undefined,
+		pairs: oneOf(PAIR_VIEW_VALUES, search.pairs),
 	}),
 	beforeLoad: ({ context }) => {
 		const session = context.session;

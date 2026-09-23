@@ -12,7 +12,11 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
-import { ReadListenReviewTab } from "@/components/read-listen/read-listen-match-review";
+import {
+	PAIR_VIEWS,
+	type PairView,
+	ReadListenReviewTab,
+} from "@/components/read-listen/read-listen-tray";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,7 +95,10 @@ export function MatchManager() {
 	const bucket =
 		urlSearch.bucket ?? (emptyDefault ? ALL_BUCKETS : DEFAULT_BUCKET);
 	const pairingsView = urlSearch.view === "pairings";
-	const pairStatus = urlSearch.pairs === "decided" ? "decided" : "pending";
+	const pairView: PairView =
+		urlSearch.pairs && PAIR_VIEWS.includes(urlSearch.pairs)
+			? urlSearch.pairs
+			: "pending";
 	const libraryUuid = urlSearch.library ?? ALL_LIBRARIES;
 	const sort = urlSearch.sort;
 	const onlyFailures = urlSearch.failures ?? false;
@@ -433,11 +440,11 @@ export function MatchManager() {
 		});
 		closeDetail();
 	};
-	const setPairStatus = (status: "pending" | "decided") =>
+	const setPairView = (next: PairView) =>
 		navigate({
 			search: (prev) => ({
 				...prev,
-				pairs: status === "decided" ? ("decided" as const) : undefined,
+				pairs: next === "pending" ? undefined : next,
 			}),
 			replace: true,
 		});
@@ -558,10 +565,7 @@ export function MatchManager() {
 			</header>
 
 			{pairingsView ? (
-				<ReadListenReviewTab
-					status={pairStatus}
-					onStatusChange={setPairStatus}
-				/>
+				<ReadListenReviewTab view={pairView} onViewChange={setPairView} />
 			) : (
 				<>
 					{(isPaused || failureBanners.length > 0 || cooldowns.length > 0) && (

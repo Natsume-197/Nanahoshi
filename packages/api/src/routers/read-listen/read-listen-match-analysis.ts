@@ -26,6 +26,7 @@ type AnalysisStore = Pick<
 	| "listUnevaluatedCanonicalAudiobooks"
 	| "createMatchAnalysisAttempt"
 	| "updateMatchAnalysisStatus"
+	| "supersedeOutdatedPendingProposals"
 >;
 
 export type EnqueueReadListenMatchAnalysisResult = {
@@ -63,6 +64,12 @@ export class ReadListenMatchAnalysisCoordinator {
 		const scope = await this.editableScope(
 			input.requestedByUserId,
 			input.serverId,
+		);
+		// A new matcher version re-evaluates everything; close the old version's
+		// open proposals so they stop lingering as invisible pending work.
+		await this.store.supersedeOutdatedPendingProposals(
+			input.serverId,
+			READ_LISTEN_MATCHER_VERSION,
 		);
 		const candidates = await this.store.listUnevaluatedCanonicalAudiobooks(
 			input.serverId,

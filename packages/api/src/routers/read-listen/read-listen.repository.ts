@@ -41,6 +41,11 @@ import {
 	type LibraryScope,
 	visibleBookSql,
 } from "../_shared/library-scope";
+import {
+	pairStateCaseSql,
+	READ_LISTEN_PAIR_STATES,
+	type ReadListenPairState,
+} from "./read-listen-pair-state";
 
 export type ReadListenMediaType = "ebook" | "audiobook";
 export type ReadListenAlignmentFilter =
@@ -1422,6 +1427,217 @@ export class ReadListenRepository {
 			}
 			return removed;
 		});
+	}
+
+	// Shared FROM/WHERE for the pair queue: every pair on the server whose two
+	// publications are visible and editable, with its alignment and latest
+	// generation joined under the aliases pairStateCaseSql() expects.
+	#pairQueueSource(serverId: string, scope: LibraryScope, query?: string): SQL {
+		const audiobookScope = accessiblePredicateSql(scope, "ab");
+		const ebookScope = accessiblePredicateSql(scope, "eb");
+		const search = query?.trim();
+		return sql`
+			FROM read_listen_pair rp
+			JOIN book ab ON ab.id = rp.audiobook_book_id
+			JOIN library al ON al.id = ab.library_id
+			JOIN book eb ON eb.id = rp.ebook_book_id
+			JOIN library el ON el.id = eb.library_id
+			LEFT JOIN audiobook_metadata am ON am.book_id = ab.id
+			LEFT JOIN book_metadata bm ON bm.book_id = eb.id
+			LEFT JOIN read_listen_alignment a ON a.pair_id = rp.id
+			LEFT JOIN LATERAL (
+				SELECT g.status, g.updated_at
+				FROM read_listen_generation g
+				WHERE g.pair_id = rp.id
+				ORDER BY g.created_at DESC
+				LIMIT 1
+			) lg ON TRUE
+			WHERE rp.server_id = ${serverId}
+				AND al.server_id = ${serverId}
+				AND el.server_id = ${serverId}
+				AND ${visibleBookSql("ab")}
+				AND ${visibleBookSql("eb")}
+				${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
+				${ebookScope ? sql`AND ${ebookScope}` : sql``}
+				${
+					search
+						? sql`AND (
+							COALESCE(am.title, ab.filename) ILIKE ${`%${search}%`}
+							OR COALESCE(bm.title, eb.filename) ILIKE ${`%${search}%`}
+						)`
+						: sql``
+				}
+		`;
+	}
+
+	/** One page of pairs in a given state, newest activity first. */
+	async listPairQueuePage(
+		serverId: string,
+		scope: LibraryScope,
+		options: {
+			state: ReadListenPairState;
+			query?: string;
+			offset: number;
+			limit: number;
+		},
+	): Promise<{ rows: ReadListenPairRow[]; total: number }> {
+		const { rows } = await db.execute(sql`
+			WITH queue AS (
+				SELECT
+					rp.id,
+					GREATEST(rp.updated_at, COALESCE(lg.updated_at, rp.updated_at)) AS activity_at,
+					${pairStateCaseSql()} AS state
+				${this.#pairQueueSource(serverId, scope, options.query)}
+			)
+			SELECT id, count(*) OVER ()::int AS total
+			FROM queue
+			WHERE state = ${options.state}
+			ORDER BY activity_at DESC, id
+			OFFSET ${options.offset}
+			LIMIT ${options.limit}
+		`);
+		const page = rows as { id: string; total: number }[];
+		if (page.length === 0) return { rows: [], total: 0 };
+		const pairRows = await db
+			.select(readListenPairSelection)
+			.from(readListenPair)
+			.where(
+				inArray(
+					readListenPair.id,
+					page.map((row) => row.id),
+				),
+			);
+		const byId = new Map(pairRows.map((row) => [row.id, row]));
+		return {
+			rows: page.flatMap((row) => {
+				const pair = byId.get(row.id);
+				return pair ? [pair] : [];
+			}),
+			total: page[0]?.total ?? 0,
+		};
+	}
+
+	/** How many pairs sit in each state, for the tray nav. */
+	async countPairStates(
+		serverId: string,
+		scope: LibraryScope,
+	): Promise<Record<ReadListenPairState, number>> {
+		const { rows } = await db.execute(sql`
+			SELECT ${pairStateCaseSql()} AS state, count(*)::int AS count
+			${this.#pairQueueSource(serverId, scope)}
+			GROUP BY 1
+		`);
+		const counts = Object.fromEntries(
+			READ_LISTEN_PAIR_STATES.map((state) => [state, 0]),
+		) as Record<ReadListenPairState, number>;
+		for (const row of rows as { state: ReadListenPairState; count: number }[]) {
+			counts[row.state] = row.count;
+		}
+		return counts;
+	}
+
+	// Audiobooks the current matcher evaluated without proposing any ebook, and
+	// that no pair covers — the ones a human has to pair by hand.
+	#unmatchedSource(
+		serverId: string,
+		scope: LibraryScope,
+		matcherVersion: string,
+		query?: string,
+	): SQL {
+		const audiobookScope = accessiblePredicateSql(scope, "ab");
+		const search = query?.trim();
+		return sql`
+			FROM read_listen_match_evaluation ev
+			JOIN book ab ON ab.id = ev.audiobook_book_id
+			JOIN library al ON al.id = ab.library_id
+			LEFT JOIN audiobook_metadata am ON am.book_id = ab.id
+			WHERE ev.server_id = ${serverId}
+				AND ev.matcher_version = ${matcherVersion}
+				AND ev.proposal_count = 0
+				AND al.server_id = ${serverId}
+				AND ${visibleBookSql("ab")}
+				${audiobookScope ? sql`AND ${audiobookScope}` : sql``}
+				AND NOT EXISTS (
+					SELECT 1 FROM read_listen_pair rp
+					WHERE rp.server_id = ${serverId}
+						AND rp.audiobook_book_id = ab.id
+				)
+				${
+					search
+						? sql`AND COALESCE(am.title, ab.filename) ILIKE ${`%${search}%`}`
+						: sql``
+				}
+		`;
+	}
+
+	async listUnmatchedAudiobookPage(
+		serverId: string,
+		scope: LibraryScope,
+		options: {
+			matcherVersion: string;
+			query?: string;
+			offset: number;
+			limit: number;
+		},
+	): Promise<{
+		rows: { bookId: number; candidateCount: number; maxScore: number | null }[];
+		total: number;
+	}> {
+		const { rows } = await db.execute(sql`
+			SELECT
+				ab.id::float8 AS "bookId",
+				ev.candidate_count AS "candidateCount",
+				ev.max_score AS "maxScore",
+				count(*) OVER ()::int AS total
+			${this.#unmatchedSource(serverId, scope, options.matcherVersion, options.query)}
+			ORDER BY ev.created_at DESC, ab.id
+			OFFSET ${options.offset}
+			LIMIT ${options.limit}
+		`);
+		const page = rows as {
+			bookId: number;
+			candidateCount: number;
+			maxScore: number | null;
+			total: number;
+		}[];
+		return {
+			rows: page.map(({ total: _total, ...row }) => row),
+			total: page[0]?.total ?? 0,
+		};
+	}
+
+	async countUnmatchedAudiobooks(
+		serverId: string,
+		scope: LibraryScope,
+		matcherVersion: string,
+	): Promise<number> {
+		const { rows } = await db.execute(sql`
+			SELECT count(*)::int AS count
+			${this.#unmatchedSource(serverId, scope, matcherVersion)}
+		`);
+		return (rows as { count: number }[])[0]?.count ?? 0;
+	}
+
+	/**
+	 * Pending proposals from an older matcher are hidden from review but were
+	 * never closed; retire them so they stop counting as open work.
+	 */
+	async supersedeOutdatedPendingProposals(
+		serverId: string,
+		currentMatcherVersion: string,
+	): Promise<number> {
+		const updated = await db
+			.update(readListenMatchProposal)
+			.set({ status: "superseded", updatedAt: sql`now()` })
+			.where(
+				and(
+					eq(readListenMatchProposal.serverId, serverId),
+					eq(readListenMatchProposal.status, "pending"),
+					ne(readListenMatchProposal.matcherVersion, currentMatcherVersion),
+				),
+			)
+			.returning({ id: readListenMatchProposal.id });
+		return updated.length;
 	}
 
 	async createPair(input: {

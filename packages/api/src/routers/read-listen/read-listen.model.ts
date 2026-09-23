@@ -40,6 +40,23 @@ export const ListReadListenMatchProposalsInput = z.object({
 	limit: z.number().int().min(1).max(50).default(30),
 });
 
+export const ListReadListenPairQueueInput = z.object({
+	state: z.enum(["generating", "failed", "no_alignment", "ready"]),
+	query: z.string().trim().max(200).optional(),
+	offset: z.number().int().min(0).default(0),
+	limit: z.number().int().min(1).max(50).default(50),
+});
+
+export const ListReadListenUnmatchedInput = z.object({
+	query: z.string().trim().max(200).optional(),
+	offset: z.number().int().min(0).default(0),
+	limit: z.number().int().min(1).max(50).default(50),
+});
+
+export const GenerateReadListenAlignmentsInput = z.object({
+	pairUuids: z.array(z.string().uuid()).min(1).max(100),
+});
+
 export const DecideReadListenMatchProposalInput = z.discriminatedUnion(
 	"action",
 	[

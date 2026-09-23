@@ -1,13 +1,9 @@
 import type { Task } from "@nanahoshi/api/modules/taskManager";
 import {
-	BookOpen,
 	Check,
-	CheckCircle,
 	CircleNotch,
 	DotsThree,
-	FunnelSimple,
-	Headphones,
-	Hourglass,
+	Info,
 	MagnifyingGlass,
 	Sparkle,
 	Trash,
@@ -19,10 +15,8 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { NavRow } from "@/components/enrichment/match-sidebar";
 import {
 	TrayBulkBar,
 	TrayPagination,
@@ -47,35 +41,28 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import {
-	COVER_EDGE,
-	coverPresets,
-	getCoverFilename,
-	getCoverPresetUrl,
-	getCoverSrcSet,
-} from "@/utils/covers";
-import { formatNames, getErrorMessage } from "@/utils/format";
+import { getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import { EbookPickerDialog, ProposalDetailDialog } from "./read-listen-dialogs";
+import {
+	getMatchWarningLabel,
+	PublicationLink,
+} from "./read-listen-publication";
+
+export {
+	getMatchWarningLabel,
+	MatchPublicationArtwork,
+} from "./read-listen-publication";
 
 type Proposal = Awaited<
 	ReturnType<typeof client.readListen.listMatchProposals>
 >["items"][number];
-type Candidate = Awaited<
-	ReturnType<typeof client.readListen.searchCandidates>
->["candidates"][number];
 
 type ReviewStatus = "pending" | "decided";
 type RemovalTarget = {
@@ -125,7 +112,7 @@ export function clampMatchReviewPage(page: number, total: number): number {
 	);
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
 
 // Columns for the shared tray table: checkbox, both publications, then the
 // score badges and actions sized to their widest cell on the page.
@@ -157,205 +144,6 @@ function decisionBadgeVariant(
 	return "info";
 }
 
-export function getMatchWarningLabel(warning: string): string | null {
-	if (warning === "title.weak") return m["read_listen.match_title_weak"]();
-	if (warning === "author.mismatch")
-		return m["read_listen.match_author_mismatch"]();
-	if (warning === "series.position.conflict")
-		return m["read_listen.match_series_position_mismatch"]();
-	return null;
-}
-
-export function MatchPublicationArtwork({
-	cover,
-	mediaType,
-}: {
-	cover: string | null;
-	mediaType: "ebook" | "audiobook";
-}) {
-	const coverFilename = getCoverFilename(cover);
-	const isAudiobook = mediaType === "audiobook";
-	const frameClass = isAudiobook ? "size-11" : "h-11 w-8";
-
-	if (coverFilename) {
-		return (
-			<img
-				alt=""
-				width={isAudiobook ? 44 : 32}
-				height={44}
-				loading="lazy"
-				decoding="async"
-				src={getCoverPresetUrl(coverFilename, coverPresets.thumbnail)}
-				srcSet={getCoverSrcSet(coverFilename, coverPresets.thumbnail.widths)}
-				sizes={coverPresets.thumbnail.sizes}
-				className={cn(
-					frameClass,
-					COVER_EDGE,
-					"shrink-0 rounded-md object-cover",
-				)}
-			/>
-		);
-	}
-
-	const Icon = isAudiobook ? Headphones : BookOpen;
-	return (
-		<div
-			aria-hidden="true"
-			className={cn(
-				frameClass,
-				"grid shrink-0 place-items-center rounded-md bg-background text-muted-foreground shadow-sm",
-			)}
-		>
-			<Icon className="size-5" />
-		</div>
-	);
-}
-
-function PublicationLink({
-	publication,
-	mediaType,
-}: {
-	publication: Proposal["ebook"] | Proposal["audiobook"];
-	mediaType: "ebook" | "audiobook";
-}) {
-	return (
-		<Link
-			to={
-				mediaType === "ebook"
-					? "/dashboard/books/$uuid"
-					: "/dashboard/audiobooks/$uuid"
-			}
-			params={{ uuid: publication.uuid }}
-			preload="intent"
-			className="group flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-		>
-			<MatchPublicationArtwork
-				cover={publication.cover}
-				mediaType={mediaType}
-			/>
-			<div className="min-w-0">
-				<p className="text-[0.6875rem] text-muted-foreground leading-none md:hidden">
-					{mediaType === "ebook"
-						? m["read_listen.ebook"]()
-						: m["read_listen.audiobook"]()}
-				</p>
-				<p
-					title={publication.title}
-					className="truncate font-medium text-sm group-hover:underline group-hover:decoration-1 group-hover:underline-offset-2"
-				>
-					{publication.title}
-				</p>
-				{publication.authors.length > 0 && (
-					<p className="truncate text-muted-foreground text-xs">
-						{formatNames(publication.authors)}
-					</p>
-				)}
-			</div>
-		</Link>
-	);
-}
-
-function CorrectionDialog({
-	proposal,
-	onOpenChange,
-	onSelect,
-	isPending,
-}: {
-	proposal: Proposal;
-	onOpenChange: (open: boolean) => void;
-	onSelect: (candidate: Candidate) => void;
-	isPending: boolean;
-}) {
-	const inputId = useId();
-	const [query, setQuery] = useState(proposal.audiobook.title);
-	const debouncedQuery = useDebounce(query.trim(), 300);
-	const candidatesQuery = useQuery({
-		...orpc.readListen.searchCandidates.queryOptions({
-			input: {
-				publicationUuid: proposal.audiobook.uuid,
-				query: debouncedQuery || proposal.audiobook.title,
-				limit: 8,
-			},
-		}),
-		enabled: debouncedQuery.length > 0,
-	});
-	const candidates = (candidatesQuery.data?.candidates ?? []).filter(
-		(candidate) =>
-			candidate.uuid !== proposal.ebook.uuid && !candidate.isPaired,
-	);
-
-	return (
-		<Modal
-			open
-			onOpenChange={(open) => {
-				if (!isPending) onOpenChange(open);
-			}}
-			title={m["read_listen.correct_match_title"]()}
-			description={m["read_listen.correct_match_description"]()}
-			className="sm:max-w-xl"
-		>
-			<div className="flex flex-col gap-4">
-				<FieldGroup>
-					<Field>
-						<FieldLabel htmlFor={inputId}>
-							{m["read_listen.search_ebook_label"]()}
-						</FieldLabel>
-						<Input
-							id={inputId}
-							type="search"
-							name="ebook-search"
-							autoFocus
-							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder={m["read_listen.search_placeholder"]()}
-							className="h-10! sm:h-8!"
-						/>
-					</Field>
-				</FieldGroup>
-				{candidatesQuery.isFetching ? (
-					<div className="flex items-center gap-2 py-6 text-muted-foreground text-sm">
-						<CircleNotch
-							aria-hidden="true"
-							className="size-4 animate-spin motion-reduce:animate-none"
-						/>
-						{m["read_listen.searching"]()}
-					</div>
-				) : (
-					<div className="flex flex-col gap-2">
-						{candidates.map((candidate) => (
-							<button
-								type="button"
-								key={candidate.uuid}
-								disabled={isPending}
-								onClick={() => onSelect(candidate)}
-								className="flex w-full items-center gap-3 rounded-xl bg-muted/45 p-3 text-start transition-[background-color,transform] hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
-							>
-								<BookOpen aria-hidden="true" className="size-4 shrink-0" />
-								<span className="min-w-0">
-									<span
-										title={candidate.title}
-										className="block truncate font-medium"
-									>
-										{candidate.title}
-									</span>
-									<span className="block truncate text-muted-foreground text-xs">
-										{candidate.filename}
-									</span>
-								</span>
-							</button>
-						))}
-						{debouncedQuery && candidates.length === 0 && (
-							<p className="py-6 text-muted-foreground text-sm">
-								{m["read_listen.no_matches"]()}
-							</p>
-						)}
-					</div>
-				)}
-			</div>
-		</Modal>
-	);
-}
-
 /**
  * Read & Listen match review as a panel of the metadata tray: the tray's
  * sidebar owns the status, this owns the list, selection and decisions.
@@ -377,6 +165,7 @@ export function ReadListenReviewPanel({
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [selectAllFilter, setSelectAllFilter] = useState(false);
 	const [correction, setCorrection] = useState<Proposal | null>(null);
+	const [detailId, setDetailId] = useState<string | null>(null);
 	const [removalRequest, setRemovalRequest] = useState<RemovalRequest | null>(
 		null,
 	);
@@ -703,6 +492,19 @@ export function ReadListenReviewPanel({
 		);
 	};
 
+	const detailIndex = proposals.findIndex(
+		(proposal) => proposal.id === detailId,
+	);
+	const detailProposal = detailIndex >= 0 ? proposals[detailIndex] : undefined;
+	// Deciding from the detail moves straight on to the next proposal.
+	const decideFromDetail = (action: "approve" | "reject") => {
+		if (!detailProposal) return;
+		const next =
+			proposals[detailIndex + 1] ?? proposals[detailIndex - 1] ?? null;
+		decisionMutation.mutate({ proposalUuid: detailProposal.id, action });
+		setDetailId(next?.id ?? null);
+	};
+
 	const analysisButton = (
 		<Button
 			variant="ghost"
@@ -874,6 +676,8 @@ export function ReadListenReviewPanel({
 									key={proposal.id}
 									rowKey={proposal.id}
 									selected={selectAllFilter || selected.has(proposal.id)}
+									open={detailId === proposal.id}
+									onOpen={() => setDetailId(proposal.id)}
 								>
 									<TraySelectCell
 										checked={selectAllFilter || selected.has(proposal.id)}
@@ -943,6 +747,15 @@ export function ReadListenReviewPanel({
 										</div>
 										<div className="flex items-center gap-1.5">
 											{renderActions(proposal)}
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												className="ms-auto"
+												onClick={() => setDetailId(proposal.id)}
+												aria-label={m["read_listen.detail_title"]()}
+											>
+												<Info />
+											</Button>
 										</div>
 									</div>
 								</li>
@@ -1045,11 +858,51 @@ export function ReadListenReviewPanel({
 				/>
 			)}
 
+			{detailProposal && (
+				<ProposalDetailDialog
+					proposal={detailProposal}
+					onClose={() => setDetailId(null)}
+					onPrevious={
+						detailIndex > 0
+							? () => setDetailId(proposals[detailIndex - 1]?.id ?? null)
+							: undefined
+					}
+					onNext={
+						detailIndex < proposals.length - 1
+							? () => setDetailId(proposals[detailIndex + 1]?.id ?? null)
+							: undefined
+					}
+					actions={
+						status === "pending"
+							? {
+									busy,
+									onApprove: () => decideFromDetail("approve"),
+									onReject: () => decideFromDetail("reject"),
+									onChooseAnother: () => {
+										setDetailId(null);
+										setCorrection(detailProposal);
+									},
+								}
+							: undefined
+					}
+				/>
+			)}
 			{correction && (
-				<CorrectionDialog
-					proposal={correction}
-					onOpenChange={(open) => !open && setCorrection(null)}
+				<EbookPickerDialog
+					audiobook={correction.audiobook}
+					title={m["read_listen.correct_match_title"]()}
+					description={m["read_listen.correct_match_description"]()}
+					// Other ebooks the matcher proposed for the same audiobook.
+					suggestions={proposals
+						.filter(
+							(proposal) =>
+								proposal.id !== correction.id &&
+								proposal.audiobook.uuid === correction.audiobook.uuid,
+						)
+						.map((proposal) => proposal.ebook)}
+					excludeUuids={[correction.ebook.uuid]}
 					isPending={decisionMutation.isPending}
+					onOpenChange={(open) => !open && setCorrection(null)}
 					onSelect={(candidate) =>
 						decisionMutation.mutate({
 							proposalUuid: correction.id,
@@ -1107,88 +960,5 @@ export function ReadListenReviewPanel({
 				/>
 			)}
 		</section>
-	);
-}
-
-function PairingsNav({
-	status,
-	pendingCount,
-	onSelect,
-}: {
-	status: ReviewStatus;
-	pendingCount: number | undefined;
-	onSelect: (status: ReviewStatus) => void;
-}) {
-	return (
-		<nav
-			aria-label={m["read_listen.match_status_filter"]()}
-			className="flex flex-col gap-0.5"
-		>
-			<NavRow
-				active={status === "pending"}
-				label={m["read_listen.pending_matches"]()}
-				count={pendingCount}
-				icon={<Hourglass />}
-				onClick={() => onSelect("pending")}
-			/>
-			<NavRow
-				active={status === "decided"}
-				label={m["read_listen.reviewed_matches"]()}
-				icon={<CheckCircle />}
-				onClick={() => onSelect("decided")}
-			/>
-		</nav>
-	);
-}
-
-/** The Read & Listen tab of the metadata page: its own nav, its own list. */
-export function ReadListenReviewTab({
-	status,
-	onStatusChange,
-}: {
-	status: ReviewStatus;
-	onStatusChange: (status: ReviewStatus) => void;
-}) {
-	// Only the total matters for the nav badge.
-	const { data: pending } = useQuery(
-		orpc.readListen.listMatchProposals.queryOptions({
-			input: { status: "pending", offset: 0, limit: 1 },
-		}),
-	);
-	const nav = (
-		<PairingsNav
-			status={status}
-			pendingCount={pending?.total}
-			onSelect={onStatusChange}
-		/>
-	);
-	return (
-		<div className="flex min-h-0 flex-1">
-			<div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-border/60 border-e px-2 py-2 lg:block">
-				{nav}
-			</div>
-			<ReadListenReviewPanel
-				key={status}
-				status={status}
-				onShowPending={() => onStatusChange("pending")}
-				scopeButton={
-					<Popover>
-						<PopoverTrigger
-							render={
-								<Button variant="outline" size="sm" className="lg:hidden">
-									<FunnelSimple data-icon="inline-start" />
-									{status === "pending"
-										? m["read_listen.pending_matches"]()
-										: m["read_listen.reviewed_matches"]()}
-								</Button>
-							}
-						/>
-						<PopoverContent align="start" className="w-60 p-2">
-							{nav}
-						</PopoverContent>
-					</Popover>
-				}
-			/>
-		</div>
 	);
 }

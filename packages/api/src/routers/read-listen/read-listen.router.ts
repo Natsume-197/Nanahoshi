@@ -10,6 +10,7 @@ import {
 	DecideReadListenMatchProposalInput,
 	DecideReadListenMatchProposalsInput,
 	GenerateReadListenAlignmentInput,
+	GenerateReadListenAlignmentsInput,
 	GenerateReadListenMatchProposalsInput,
 	GetReadListenAlignmentDiagnosticsInput,
 	GetReadListenPairingsInput,
@@ -18,6 +19,8 @@ import {
 	ImportExistingReadListenAlignmentInput,
 	ListReadListenMatchProposalsInput,
 	ListReadListenPairingsInput,
+	ListReadListenPairQueueInput,
+	ListReadListenUnmatchedInput,
 	RemoveReadListenPairInput,
 	RemoveReadListenReviewedMatchesInput,
 	SearchReadListenCandidatesInput,
@@ -281,6 +284,90 @@ export function createReadListenRouter(
 				});
 			}),
 
+		pairQueue: orgReadProcedure
+			.input(ListReadListenPairQueueInput)
+			.handler(async ({ input, context }) => {
+				const scope = await getLibraryIdsForBookAction(
+					context.session.user.id,
+					context.serverId,
+					context.pc,
+					"editMetadata",
+				);
+				return service.listPairQueue({
+					...input,
+					serverId: context.serverId,
+					scope,
+				});
+			}),
+
+		pairQueueCounts: orgReadProcedure.handler(async ({ context }) => {
+			const scope = await getLibraryIdsForBookAction(
+				context.session.user.id,
+				context.serverId,
+				context.pc,
+				"editMetadata",
+			);
+			return service.pairQueueCounts(context.serverId, scope);
+		}),
+
+		unmatchedAudiobooks: orgReadProcedure
+			.input(ListReadListenUnmatchedInput)
+			.handler(async ({ input, context }) => {
+				const scope = await getLibraryIdsForBookAction(
+					context.session.user.id,
+					context.serverId,
+					context.pc,
+					"editMetadata",
+				);
+				return service.listUnmatchedAudiobooks({
+					...input,
+					serverId: context.serverId,
+					scope,
+				});
+			}),
+
+		// Bulk "generate alignment" from the tray. Each pair goes through the same
+		// permission check as the single action; one failure never blocks the rest.
+		generateAlignments: orgReadProcedure
+			.input(GenerateReadListenAlignmentsInput)
+			.handler(async ({ input, context }) => {
+				let enqueued = 0;
+				const failed: { pairUuid: string; message: string }[] = [];
+				for (const pairUuid of input.pairUuids) {
+					try {
+						const pair = await service.getPairForManagement(
+							pairUuid,
+							context.serverId,
+							context.accessibleLibraryIds,
+						);
+						if (
+							!(await canEditPublications(context.session, [
+								pair.ebook.uuid,
+								pair.audiobook.uuid,
+							]))
+						) {
+							throw new ForbiddenError(
+								"You cannot generate an alignment for this Read & Listen pair",
+							);
+						}
+						await service.generateAlignment(
+							pairUuid,
+							context.session.user.id,
+							context.serverId,
+							context.accessibleLibraryIds,
+						);
+						enqueued++;
+					} catch (error) {
+						failed.push({
+							pairUuid,
+							message: error instanceof Error ? error.message : String(error),
+						});
+					}
+				}
+				publishTrayChanged(context.serverId, "pairings");
+				return { enqueued, failed };
+			}),
+
 		decideMatchProposal: orgReadProcedure
 			.input(DecideReadListenMatchProposalInput)
 			.handler(async ({ input, context }) => {
@@ -383,7 +470,7 @@ export function createReadListenRouter(
 					);
 				}
 
-				return service.generateAlignment(
+				const result = await service.generateAlignment(
 					input.pairUuid,
 					context.session.user.id,
 					context.serverId,
@@ -394,6 +481,8 @@ export function createReadListenRouter(
 						verifyTimedText: input.verifyTimedText,
 					},
 				);
+				publishTrayChanged(context.serverId, "pairings");
+				return result;
 			}),
 
 		getTimedTextCandidates: orgReadProcedure
