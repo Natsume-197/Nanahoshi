@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
+import type { HistoryCopy } from "./history-copy";
 import { addDays } from "./reading-history-model";
-
 export function ReadingGoalDialog({
 	bookUuid,
 	runId,
 	goalDate,
 	today,
+	copy,
 	onClose,
 	onSaved,
 }: {
@@ -18,6 +19,7 @@ export function ReadingGoalDialog({
 	runId: string;
 	goalDate: string | null;
 	today: string;
+	copy: HistoryCopy;
 	onClose: () => void;
 	onSaved: () => void;
 }) {
@@ -33,8 +35,8 @@ export function ReadingGoalDialog({
 			onOpenChange={(open) => {
 				if (!open) onClose();
 			}}
-			title={m.reading_goal_title()}
-			description={m.reading_goal_hint()}
+			title={copy.goalTitle()}
+			description={copy.goalHint()}
 			onSubmit={(event) => {
 				event.preventDefault();
 				mutation.mutate(value);

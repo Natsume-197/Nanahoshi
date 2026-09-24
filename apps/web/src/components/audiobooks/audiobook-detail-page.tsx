@@ -54,6 +54,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
+import { ReadingHistory } from "@/features/reading-sessions/reading-history";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -313,6 +314,12 @@ export function AudiobookDetailPage() {
 												{m["audiobook.tab_chapters"]()}
 											</TabsTrigger>
 										)}
+										<TabsTrigger
+											value="listening"
+											className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
+										>
+											{m.listening_title()}
+										</TabsTrigger>
 									</TabsList>
 								</div>
 
@@ -348,6 +355,14 @@ export function AudiobookDetailPage() {
 										<ChaptersSection audiobook={audiobook} />
 									</TabsContent>
 								)}
+								<TabsContent value="listening" className="pt-8">
+									<ReadingHistory
+										bookUuid={audiobook.uuid}
+										durationSeconds={audiobook.duration}
+										chapters={audiobook.chapters ?? undefined}
+										medium="listening"
+									/>
+								</TabsContent>
 							</div>
 						</Tabs>
 

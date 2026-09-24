@@ -3275,5 +3275,82 @@
 	"reading_finish_label": "Fin estimado",
 	"reading_since": "Desde el {date}",
 	"reading_today_target": "Meta de hoy",
-	"reading_your_average": "Tu media"
+	"reading_your_average": "Tu media",
+	"listening_title": "Historial de escucha",
+	"listening_loading": "Cargando historial de escucha…",
+	"listening_run": "Escucha {number}",
+	"listening_previous": "Tus escuchas",
+	"listening_relisten": "Volver a escuchar",
+	"listening_relisten_hint": "Inicia otra escucha y conserva las sesiones anteriores. Tu posición guardada sigue disponible.",
+	"listening_complete_run": "Terminar esta escucha",
+	"listening_leave_run": "Dejar esta escucha",
+	"listening_delete_run": "Eliminar escucha",
+	"listening_delete_run_hint": "Se eliminarán esta escucha y todas sus sesiones. Esta acción no se puede deshacer.",
+	"listening_actions": "Acciones de escucha",
+	"listening_best_day": "Día con más escucha",
+	"listening_days": "Días de escucha",
+	"listening_evolution": "Tu escucha en el tiempo",
+	"listening_diary": "Diario de escucha",
+	"listening_chart_empty": "No escuchaste en este período.",
+	"listening_no_listening": "Sin escucha",
+	"listening_summary_title": "¡Audiolibro terminado!",
+	"listening_today_nothing": "Aún no has escuchado",
+	"listening_finish_hours": "≈ {duration} de escucha",
+	"listening_empty": "Tu historia de escucha empieza aquí",
+	"listening_empty_title": "Todavía no hay escuchas registradas",
+	"listening_empty_hint": "Escucha unos minutos y aquí verás tu ritmo, tu progreso y cuándo terminarás el audiolibro.",
+	"listening_empty_start": "Empezar a escuchar",
+	"listening_goal_title": "Meta de escucha",
+	"listening_goal_hint": "Elige el día en que quieres terminar el audiolibro.",
+	"listening_minutes": "Minutos de escucha",
+	"listening_total_run": "Total de esta escucha",
+	"listening_speed": "{value}×",
+	"listening_audio_of_total": "{heard} de {total}",
+	"listening_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "en 1 día de escucha",
+				"countPlural=other": "en {count} días de escucha"
+			}
+		}
+	],
+	"listening_speed_label": "Velocidad",
+	"listening_finished_on": "Terminado el {date}",
+	"listening_projection_goal": "Fin ≈ {date}",
+	"listening_col_journey": "Recorrido",
+	"listening_finish_label": "Fin estimado",
+	"listening_insufficient": "Sigue escuchando para obtener una estimación",
+	"listening_chart_sr": "{days} días con escucha en este período. Media: {average} al día. Mejor día: {best}, con {bestAmount}. Progreso del audiolibro: {position}.",
+	"reading_chapter": "Cap. {number}",
+	"reading_chapter_span": "Cap. {from} → {to}",
+	"reading_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 día seguido",
+				"countPlural=other": "{count} días seguidos"
+			}
+		}
+	],
+	"reading_best_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Mejor racha: 1 día",
+				"countPlural=other": "Mejor racha: {count} días"
+			}
+		}
+	],
+	"listening_from": "Inicio (h:mm:ss)",
+	"listening_to": "Final (h:mm:ss)",
+	"reading_chapter_left": "Quedan {duration} de este capítulo",
+	"reading_today_short": "Hoy",
+	"reading_whole_book": "Todo el libro",
+	"reading_day_start": "El día empieza a las",
+	"reading_day_start_midnight": "Medianoche",
+	"reading_day_start_hint": "Lo que leas o escuches antes de esa hora cuenta para el día anterior."
 }

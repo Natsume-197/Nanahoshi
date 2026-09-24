@@ -1,0 +1,88 @@
+import { m } from "@/paraglide/messages";
+
+export type Medium = "reading" | "listening";
+
+const reading = {
+	title: m.reading_title,
+	loading: m.reading_loading,
+	run: m.reading_run,
+	previous: m.reading_previous,
+	again: m.reading_reread,
+	againHint: m.reading_reread_hint,
+	completeRun: m.reading_complete_run,
+	leaveRun: m.reading_leave_run,
+	deleteRun: m.reading_delete_run,
+	deleteRunHint: m.reading_delete_run_hint,
+	actions: m.reading_actions,
+	bestDay: m.reading_best_day,
+	days: m.reading_days,
+	inDays: m.reading_in_days,
+	evolution: m.reading_evolution,
+	diary: m.reading_diary,
+	chartEmpty: m.reading_chart_empty,
+	nothing: m.reading_no_reading,
+	summaryTitle: m.reading_summary_title,
+	todayNothing: m.reading_today_nothing,
+	finishHours: m.reading_finish_hours,
+	empty: m.reading_empty,
+	emptyTitle: m.reading_empty_title,
+	emptyHint: m.reading_empty_hint,
+	emptyStart: m.reading_empty_start,
+	goalTitle: m.reading_goal_title,
+	goalHint: m.reading_goal_hint,
+	minutes: m.reading_minutes,
+	totalRun: m.reading_total_run,
+	speed: m.reading_speed,
+	finishedOn: m.reading_finished_on,
+	projectionGoal: m.reading_projection_goal,
+	journey: m.reading_col_journey,
+	finishLabel: m.reading_finish_label,
+	insufficient: m.reading_insufficient,
+	chartSummary: m.reading_chart_sr,
+};
+
+const listening: typeof reading = {
+	title: m.listening_title,
+	loading: m.listening_loading,
+	run: m.listening_run,
+	previous: m.listening_previous,
+	again: m.listening_relisten,
+	againHint: m.listening_relisten_hint,
+	completeRun: m.listening_complete_run,
+	leaveRun: m.listening_leave_run,
+	deleteRun: m.listening_delete_run,
+	deleteRunHint: m.listening_delete_run_hint,
+	actions: m.listening_actions,
+	bestDay: m.listening_best_day,
+	days: m.listening_days,
+	inDays: m.listening_in_days,
+	evolution: m.listening_evolution,
+	diary: m.listening_diary,
+	chartEmpty: m.listening_chart_empty,
+	nothing: m.listening_no_listening,
+	summaryTitle: m.listening_summary_title,
+	todayNothing: m.listening_today_nothing,
+	finishHours: m.listening_finish_hours,
+	empty: m.listening_empty,
+	emptyTitle: m.listening_empty_title,
+	emptyHint: m.listening_empty_hint,
+	emptyStart: m.listening_empty_start,
+	goalTitle: m.listening_goal_title,
+	goalHint: m.listening_goal_hint,
+	minutes: m.listening_minutes,
+	totalRun: m.listening_total_run,
+	speed: m.listening_speed_label,
+	finishedOn: m.listening_finished_on,
+	projectionGoal: m.listening_projection_goal,
+	journey: m.listening_col_journey,
+	finishLabel: m.listening_finish_label,
+	insufficient: m.listening_insufficient,
+	chartSummary: m.listening_chart_sr,
+};
+
+export type HistoryCopy = typeof reading;
+
+/** The history reads the same for books and audiobooks except where it names the activity. */
+export function historyCopy(medium: Medium): HistoryCopy {
+	return medium === "listening" ? listening : reading;
+}

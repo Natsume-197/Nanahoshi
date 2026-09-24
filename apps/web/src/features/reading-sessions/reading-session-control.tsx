@@ -14,6 +14,15 @@ import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
 import { readingDuration, sessionDuration } from "./reading-duration";
 import { ReadingHistory } from "./reading-history";
+import { formatAmount } from "./reading-history-chart";
+import {
+	chapterLeft,
+	displaySpeed,
+	progressAmount,
+	readingDay,
+	readingScale,
+	timeFor,
+} from "./reading-history-model";
 import type { TrackingMode } from "./session-clock";
 import type { ReadingTracker } from "./use-reading-tracker";
 export function ReadingSessionControl({
@@ -89,11 +98,15 @@ export function ReadingSessionControl({
 			</span>
 		</button>
 	);
-	const change = async (mode: TrackingMode, idleMinutes: number) => {
+	const change = async (
+		mode: TrackingMode,
+		idleMinutes: number,
+		dayStartHour?: number,
+	) => {
 		setSaving(true);
 		setFailed(false);
 		try {
-			await tracker.setPreferences(mode, idleMinutes);
+			await tracker.setPreferences(mode, idleMinutes, dayStartHour);
 		} catch {
 			setFailed(true);
 		} finally {
@@ -241,7 +254,7 @@ export function ReadingSessionControl({
 					)}
 				</div>
 			)}
-			<ReadingToday bookUuid={tracker.bookUuid} />
+			<ReadingSummary tracker={tracker} />
 			<Button
 				variant="outline"
 				className="min-h-11 w-full whitespace-normal"
@@ -291,6 +304,35 @@ export function ReadingSessionControl({
 						))}
 					</select>
 				</label>
+				<label className="grid gap-2 text-sm">
+					{m.reading_day_start()}
+					<select
+						className="min-h-11 rounded-lg border bg-background px-3 text-foreground"
+						value={tracker.preferences?.dayStartHour ?? 0}
+						disabled={saving || !tracker.preferences}
+						onChange={(e) =>
+							void change(
+								tracker.preferences?.mode ?? "automatic",
+								tracker.preferences?.idleMinutes ?? 5,
+								Number(e.target.value),
+							)
+						}
+					>
+						{[0, 1, 2, 3, 4, 5, 6].map((hour) => (
+							<option key={hour} value={hour}>
+								{hour === 0
+									? m.reading_day_start_midnight()
+									: new Intl.DateTimeFormat(getLocale(), {
+											timeStyle: "short",
+											timeZone: "UTC",
+										}).format(Date.UTC(2026, 0, 1, hour))}
+							</option>
+						))}
+					</select>
+					<span className="text-muted-foreground text-xs">
+						{m.reading_day_start_hint()}
+					</span>
+				</label>
 				<p className="text-muted-foreground text-xs leading-relaxed">
 					{m.reading_explain()} {m.reading_characters_hint()}
 				</p>
@@ -337,27 +379,78 @@ export function ReadingSessionControl({
 	);
 }
 
-function ReadingToday({ bookUuid }: { bookUuid: string }) {
+/** Today and the whole book beside the live session, plus how long the chapter still takes. */
+function ReadingSummary({ tracker }: { tracker: ReadingTracker }) {
 	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const query = useQuery(
 		orpc.readingSessions.history.queryOptions({
-			input: { bookUuid, timeZone },
+			input: { bookUuid: tracker.bookUuid, timeZone },
 		}),
 	);
-	const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
-		new Date(),
-	);
-	const day = query.data?.days.find((day) => day.day === today);
+	if (query.isError)
+		return (
+			<p className="border-t pt-4 text-muted-foreground text-sm">
+				{m.reading_today_unavailable()}
+			</p>
+		);
+	const data = query.data;
+	const scale = readingScale(data?.characterCount);
+	const today = data
+		? data.days.find(
+				(d) => d.day === readingDay(Date.now(), timeZone, data.dayStartHour),
+			)
+		: undefined;
+	const chars = (progress: number) =>
+		scale.unit === "chars"
+			? m.reading_amount_chars({
+					value: formatAmount(progressAmount(progress, scale), scale.unit),
+				})
+			: null;
+	const speed = data ? displaySpeed(data.speed, scale) : null;
+	const position = tracker.position ?? data?.position ?? null;
+	const left =
+		position === null
+			? null
+			: chapterLeft(tracker.chapters() ?? data?.chapters ?? [], position);
+	const chapterSeconds =
+		left === null ? null : timeFor(left, data?.speed ?? null);
+	const rows = [
+		{
+			label: m.reading_today_short(),
+			value: data ? readingDuration(today?.seconds ?? 0) : "…",
+			detail: today ? chars(today.progress) : null,
+		},
+		{
+			label: m.reading_whole_book(),
+			value: data ? readingDuration(data.totalSeconds) : "…",
+			detail:
+				data && speed !== null && scale.unit === "chars"
+					? m.reading_speed_chars({ value: formatAmount(speed, scale.unit) })
+					: null,
+		},
+	];
 	return (
-		<div className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-4 text-sm">
-			<span className="text-muted-foreground">{m.reading_today_run()}</span>
-			<span className="font-medium tabular-nums">
-				{query.isError
-					? m.reading_today_unavailable()
-					: query.isPending
-						? "…"
-						: readingDuration(day?.seconds ?? 0)}
-			</span>
+		<div className="space-y-3 border-t pt-4 text-sm">
+			<dl className="grid grid-cols-2 gap-3">
+				{rows.map((row) => (
+					<div key={row.label} className="min-w-0">
+						<dt className="text-muted-foreground text-xs">{row.label}</dt>
+						<dd className="font-medium tabular-nums">{row.value}</dd>
+						{row.detail && (
+							<dd className="text-muted-foreground text-xs tabular-nums">
+								{row.detail}
+							</dd>
+						)}
+					</div>
+				))}
+			</dl>
+			{chapterSeconds !== null && chapterSeconds >= 60 && (
+				<p className="text-muted-foreground tabular-nums">
+					{m.reading_chapter_left({
+						duration: readingDuration(chapterSeconds),
+					})}
+				</p>
+			)}
 		</div>
 	);
 }

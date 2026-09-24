@@ -3217,5 +3217,82 @@
 	"reading_finish_label": "読了予定",
 	"reading_since": "{date}から",
 	"reading_today_target": "今日の目標",
-	"reading_your_average": "平均"
+	"reading_your_average": "平均",
+	"listening_title": "リスニング履歴",
+	"listening_loading": "リスニング履歴を読み込み中…",
+	"listening_run": "{number}回目",
+	"listening_previous": "あなたのリスニング",
+	"listening_relisten": "もう一度聴く",
+	"listening_relisten_hint": "新しいリスニングを始め、これまでのセッションは残します。保存された位置はそのまま使えます。",
+	"listening_complete_run": "このリスニングを完了",
+	"listening_leave_run": "このリスニングをやめる",
+	"listening_delete_run": "リスニングを削除",
+	"listening_delete_run_hint": "このリスニングとすべてのセッションが削除されます。元に戻せません。",
+	"listening_actions": "リスニングの操作",
+	"listening_best_day": "最も聴いた日",
+	"listening_days": "リスニング日数",
+	"listening_evolution": "リスニングの推移",
+	"listening_diary": "リスニング日記",
+	"listening_chart_empty": "この期間は聴いていません。",
+	"listening_no_listening": "リスニングなし",
+	"listening_summary_title": "オーディオブック完了！",
+	"listening_today_nothing": "今日はまだ聴いていません",
+	"listening_finish_hours": "あと約{duration}",
+	"listening_empty": "ここからリスニングの記録が始まります",
+	"listening_empty_title": "まだリスニングの記録がありません",
+	"listening_empty_hint": "数分聴くと、ペース・進み具合・聴き終わる予定日がここに表示されます。",
+	"listening_empty_start": "聴きはじめる",
+	"listening_goal_title": "リスニング目標",
+	"listening_goal_hint": "オーディオブックを聴き終えたい日を選んでください。",
+	"listening_minutes": "聴いた時間（分）",
+	"listening_total_run": "このリスニングの合計",
+	"listening_speed": "{value}×",
+	"listening_audio_of_total": "{total}中{heard}",
+	"listening_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日のリスニング",
+				"countPlural=other": "{count}日のリスニング"
+			}
+		}
+	],
+	"listening_speed_label": "リスニング速度",
+	"listening_finished_on": "{date}に聴き終わりました",
+	"listening_projection_goal": "{date}ごろ聴き終わる",
+	"listening_col_journey": "聴いた範囲",
+	"listening_finish_label": "聴き終わる予定",
+	"listening_insufficient": "聴き続けると推定できます",
+	"listening_chart_sr": "この期間のリスニング日数は{days}日。1日平均{average}。最も聴いた日は{best}で{bestAmount}。オーディオブックの進捗は{position}。",
+	"reading_chapter": "第{number}章",
+	"reading_chapter_span": "第{from}→{to}章",
+	"reading_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日連続",
+				"countPlural=other": "{count}日連続"
+			}
+		}
+	],
+	"reading_best_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "最長連続: 1日",
+				"countPlural=other": "最長連続: {count}日"
+			}
+		}
+	],
+	"listening_from": "開始位置（時:分:秒）",
+	"listening_to": "終了位置（時:分:秒）",
+	"reading_chapter_left": "この章の残り {duration}",
+	"reading_today_short": "今日",
+	"reading_whole_book": "本全体",
+	"reading_day_start": "1日の区切り",
+	"reading_day_start_midnight": "午前0時",
+	"reading_day_start_hint": "この時刻より前の読書やリスニングは前日に記録されます。"
 }

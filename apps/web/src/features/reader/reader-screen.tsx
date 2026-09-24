@@ -92,6 +92,7 @@ import { ReaderLoadingScreen } from "@/features/reader/ui/chrome/reader-loading-
 import { ReaderReadingPoint } from "@/features/reader/ui/chrome/reader-reading-point";
 import { ReaderToc } from "@/features/reader/ui/chrome/reader-toc";
 import { ReaderQuickSettings } from "@/features/reader/ui/settings/reader-quick-settings";
+import { readerChapters } from "@/features/reading-sessions/reading-history-model";
 import { ReadingSessionControl } from "@/features/reading-sessions/reading-session-control";
 import { useReadingTracker } from "@/features/reading-sessions/use-reading-tracker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -547,6 +548,13 @@ export function ReaderScreen({
 		readerSessionRef.current?.snapshot().position;
 	const readingTracker = useReadingTracker({
 		getLocator: () => JSON.stringify(getTrackingPosition()) ?? null,
+		getChapters: () =>
+			isPdfBook
+				? null
+				: readerChapters(
+						[...sectionProgress.values()],
+						bookCharCountRef.current,
+					),
 		userId,
 		bookUuid: uuid,
 		contentVersion: book?.filehash ?? uuid,

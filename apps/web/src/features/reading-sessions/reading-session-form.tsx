@@ -5,7 +5,9 @@ import { Modal } from "@/components/ui/modal";
 import { posthog } from "@/lib/posthog";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
+import type { HistoryCopy } from "./history-copy";
 import type { ReadingHistoryData } from "./reading-history";
+import { formatClock, parseClock } from "./reading-history-model";
 
 function localDate(iso: string) {
 	const date = new Date(iso);
@@ -13,10 +15,13 @@ function localDate(iso: string) {
 		.toISOString()
 		.slice(0, 16);
 }
+
 export function ReadingSessionForm({
 	bookUuid,
 	runId,
 	timeZone,
+	copy,
+	audioDuration,
 	session,
 	segments,
 	onClose,
@@ -26,6 +31,9 @@ export function ReadingSessionForm({
 	bookUuid: string;
 	runId: string | null;
 	timeZone: string;
+	copy: HistoryCopy;
+	// Audiobooks name places as player times rather than percentages.
+	audioDuration?: number;
 	session?: ReadingHistoryData["sessions"][number];
 	segments: ReadingHistoryData["segments"];
 	onClose: () => void;
@@ -49,16 +57,22 @@ export function ReadingSessionForm({
 				: 30,
 		),
 	);
-	const [from, setFrom] = useState(() =>
-		segments[0]?.startPosition == null
+	const place = (position: number | null | undefined) =>
+		position == null
 			? ""
-			: String(Math.round(segments[0].startPosition * 100)),
-	);
-	const [to, setTo] = useState(() =>
-		segments.at(-1)?.endPosition == null
-			? ""
-			: String(Math.round((segments.at(-1)?.endPosition ?? 0) * 100)),
-	);
+			: audioDuration
+				? formatClock(position * audioDuration)
+				: String(Math.round(position * 100));
+	const [from, setFrom] = useState(() => place(segments[0]?.startPosition));
+	const [to, setTo] = useState(() => place(segments.at(-1)?.endPosition));
+	const position = (value: string) => {
+		if (value === "") return null;
+		if (!audioDuration) return Number(value) / 100;
+		const seconds = parseClock(value);
+		return seconds === null
+			? null
+			: Math.min(1, Math.max(0, seconds / audioDuration));
+	};
 	const mutation = useMutation({
 		mutationFn: async () => {
 			const start = new Date(date);
@@ -68,8 +82,8 @@ export function ReadingSessionForm({
 				startedAt: start.toISOString(),
 				endedAt: end.toISOString(),
 				seconds: Number(minutes) * 60,
-				startPosition: from === "" ? null : Number(from) / 100,
-				endPosition: to === "" ? null : Number(to) / 100,
+				startPosition: position(from),
+				endPosition: position(to),
 				kind: "manual" as const,
 			};
 			if (session)
@@ -157,7 +171,7 @@ export function ReadingSessionForm({
 				/>
 			</label>
 			<label className="grid gap-2">
-				{m.reading_minutes()}
+				{copy.minutes()}
 				<input
 					required
 					type="number"
@@ -169,28 +183,28 @@ export function ReadingSessionForm({
 				/>
 			</label>
 			<div className="grid grid-cols-2 gap-4">
-				<label className="grid gap-2">
-					{m.reading_from()}
-					<input
-						type="number"
-						min="0"
-						max="100"
-						className={inputClass}
-						value={from}
-						onChange={(e) => setFrom(e.target.value)}
-					/>
-				</label>
-				<label className="grid gap-2">
-					{m.reading_to()}
-					<input
-						type="number"
-						min="0"
-						max="100"
-						className={inputClass}
-						value={to}
-						onChange={(e) => setTo(e.target.value)}
-					/>
-				</label>
+				{(
+					[
+						[from, setFrom, audioDuration ? m.listening_from : m.reading_from],
+						[to, setTo, audioDuration ? m.listening_to : m.reading_to],
+					] as const
+				).map(([value, setValue, label]) => (
+					<label key={label()} className="grid gap-2">
+						{label()}
+						<input
+							{...(audioDuration
+								? {
+										inputMode: "numeric" as const,
+										placeholder: formatClock(audioDuration),
+										pattern: "\\d+:\\d{1,2}(:\\d{1,2})?",
+									}
+								: { type: "number", min: "0", max: "100" })}
+							className={inputClass}
+							value={value}
+							onChange={(e) => setValue(e.target.value)}
+						/>
+					</label>
+				))}
 			</div>
 			{mutation.isError && (
 				<p role="alert" className="text-destructive">

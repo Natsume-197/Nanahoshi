@@ -1,5 +1,11 @@
-export type ReadingUnit = "chars" | "percent";
+export type ReadingUnit = "chars" | "percent" | "audio";
 export type ChartPeriod = "week" | "month" | "all";
+
+/** What one whole book measures: characters, seconds of audio, or plain percent. */
+export interface ReadingScale {
+	unit: ReadingUnit;
+	total: number;
+}
 
 export interface HistoryDay {
 	day: string;
@@ -30,28 +36,36 @@ export interface ChartSlot {
 // Past this many calendar days "all" collapses to reading days only, so bars stay legible.
 const MAX_CALENDAR_SLOTS = 90;
 
-export function readingUnit(amountChars: number | null | undefined) {
-	return amountChars && amountChars > 0 ? "chars" : "percent";
+export function readingScale(
+	amountChars: number | null | undefined,
+): ReadingScale {
+	return amountChars && amountChars > 0
+		? { unit: "chars", total: amountChars }
+		: { unit: "percent", total: 100 };
 }
 
-/** Characters read, or percentage points of the book when no count exists. */
-export function progressAmount(
-	progress: number,
-	amountChars: number | null | undefined,
-) {
-	return readingUnit(amountChars) === "chars"
-		? Math.round(progress * (amountChars ?? 0))
-		: progress * 100;
+export function listeningScale(
+	durationSeconds: number | null | undefined,
+): ReadingScale {
+	return durationSeconds && durationSeconds > 0
+		? { unit: "audio", total: durationSeconds }
+		: { unit: "percent", total: 100 };
 }
 
-export function speedPerHour(
-	speed: number | null,
-	amountChars: number | null | undefined,
-) {
+/** Characters read, seconds of audio heard, or percentage points of the book. */
+export function progressAmount(progress: number, scale: ReadingScale) {
+	return scale.unit === "chars"
+		? Math.round(progress * scale.total)
+		: progress * scale.total;
+}
+
+/** Characters or percent per hour; for audio, the multiple of real time (1.5 = 1.5×). */
+export function displaySpeed(speed: number | null, scale: ReadingScale) {
 	if (speed === null) return null;
+	if (scale.unit === "audio") return speed * scale.total;
 	const perHour = speed * 3600;
-	return readingUnit(amountChars) === "chars"
-		? Math.round((perHour * (amountChars ?? 0)) / 100) * 100
+	return scale.unit === "chars"
+		? Math.round((perHour * scale.total) / 100) * 100
 		: perHour * 100;
 }
 
@@ -89,7 +103,7 @@ export function chartSlots(
 	days: HistoryDay[],
 	period: ChartPeriod,
 	today: string,
-	amountChars: number | null | undefined,
+	scale: ReadingScale,
 	// Stretch "all" to today, so an in-progress book's line meets the projection.
 	untilToday = false,
 ): ChartSlot[] {
@@ -124,9 +138,9 @@ export function chartSlots(
 		return {
 			day,
 			seconds: d?.seconds ?? 0,
-			amount: d ? progressAmount(d.progress, amountChars) : 0,
+			amount: d ? progressAmount(d.progress, scale) : 0,
 			manualSeconds: d ? Math.max(0, d.seconds - d.observedSeconds) : 0,
-			manualAmount: d ? progressAmount(d.manualProgress, amountChars) : 0,
+			manualAmount: d ? progressAmount(d.manualProgress, scale) : 0,
 			startPosition: d?.startPosition ?? null,
 			endPosition: d?.endPosition ?? null,
 			position: day > today ? null : position,
@@ -171,27 +185,30 @@ export function timeMaximum(seconds: number) {
 	return step * 4;
 }
 
-/** Today's reading against the average of earlier reading days, so today never skews its own baseline. */
+/**
+ * Today's reading against the average of earlier reading days, so today never
+ * skews its own baseline. `time` compares real seconds, as listening does.
+ */
 export function todayVersusAverage(
 	days: HistoryDay[],
 	today: string,
-	amountChars: number | null | undefined,
+	scale: ReadingScale,
+	measure: "progress" | "time" = "progress",
 ) {
+	const value = (d: HistoryDay) =>
+		measure === "time" ? d.seconds : progressAmount(d.progress, scale);
 	const current = days.find((d) => d.day === today);
-	const earlier = days.filter((d) => d.day < today && d.progress > 0);
+	const earlier = days.filter((d) => d.day < today && value(d) > 0);
 	const average = earlier.length
-		? progressAmount(
-				earlier.reduce((sum, d) => sum + d.progress, 0) / earlier.length,
-				amountChars,
-			)
+		? earlier.reduce((sum, d) => sum + value(d), 0) / earlier.length
 		: null;
-	const amount = current ? progressAmount(current.progress, amountChars) : 0;
+	const amount = current ? value(current) : 0;
 	return {
 		amount,
 		average,
-		// Whole percent above the average; null when not ahead.
+		// Whole percent above the average; null when not ahead by at least 1 %.
 		ahead:
-			average && amount > average
+			average && Math.round((amount / average - 1) * 100) >= 1
 				? Math.round((amount / average - 1) * 100)
 				: null,
 	};
@@ -334,10 +351,10 @@ export function groupByWeek<Day extends { day: string }>(days: Day[]) {
 export function rowSpeed(
 	progress: number,
 	seconds: number,
-	amountChars: number | null | undefined,
+	scale: ReadingScale,
 ) {
 	if (seconds < 60 || progress <= 0) return null;
-	return speedPerHour(progress / seconds, amountChars);
+	return displaySpeed(progress / seconds, scale);
 }
 
 export interface ReadRange {
@@ -460,4 +477,120 @@ export function goalTimeline(input: {
 		finish: input.finishDay ? at(input.finishDay) : null,
 		late: input.finishDay ? input.finishDay > input.goalDay : null,
 	};
+}
+
+/** Consecutive days with activity; a streak ending yesterday is still alive until today ends. */
+export function streaks(
+	days: { day: string; seconds: number }[],
+	today: string,
+) {
+	const active = days
+		.filter((d) => d.seconds > 0)
+		.map((d) => d.day)
+		.sort();
+	let best = 0;
+	let run = 0;
+	let previous: string | undefined;
+	for (const day of active) {
+		run = previous && daysBetween(previous, day) === 1 ? run + 1 : 1;
+		best = Math.max(best, run);
+		previous = day;
+	}
+	const alive = previous !== undefined && daysBetween(previous, today) <= 1;
+	return { current: alive ? run : 0, best };
+}
+
+/** Audio time as a player shows it: 52:10, or 4:52:10 past the hour. */
+export function formatClock(seconds: number) {
+	const total = Math.max(0, Math.floor(seconds));
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const s = total % 60;
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+/** A chapter start as a fraction of the book, shared by text and audio. */
+export interface BookChapter {
+	title: string | null;
+	start: number;
+}
+
+/** 1-based chapter holding a book position; null without chapters or before the first. */
+export function chapterAt(chapters: BookChapter[], position: number) {
+	let found: number | null = null;
+	for (let i = 0; i < chapters.length; i++)
+		if ((chapters[i]?.start ?? 0) <= position + 1e-6) found = i + 1;
+	return found;
+}
+
+/**
+ * The reader's table of contents as book fractions. Only labelled top-level
+ * sections count, so covers and title pages do not become "Chapter 1".
+ */
+export function readerChapters(
+	sections: {
+		label?: string;
+		startCharacter?: number;
+		parentChapter?: string;
+	}[],
+	totalCharacters: number,
+): BookChapter[] | null {
+	if (totalCharacters <= 0) return null;
+	const chapters = sections
+		.filter(
+			(s) => s.label && !s.parentChapter && s.startCharacter !== undefined,
+		)
+		.map((s) => ({
+			title: s.label?.trim().slice(0, 300) || null,
+			start: Math.min(
+				1,
+				Math.max(0, (s.startCharacter ?? 0) / totalCharacters),
+			),
+		}))
+		.sort((a, b) => a.start - b.start)
+		.slice(0, 500);
+	// Cover, title page and contents are listed too; tiny leading entries are not chapters.
+	while (
+		chapters.length > 1 &&
+		(chapters[1]?.start ?? 1) - (chapters[0]?.start ?? 0) < 0.01
+	)
+		chapters.shift();
+	return chapters.length ? chapters : null;
+}
+
+/** Seconds from "m:ss" or "h:mm:ss", the inverse of formatClock; null when unreadable. */
+export function parseClock(text: string) {
+	const parts = text.trim().split(":");
+	if (
+		parts.length < 2 ||
+		parts.length > 3 ||
+		!parts.every((p) => /^\d+$/.test(p))
+	)
+		return null;
+	const [h, m, s] =
+		parts.length === 3 ? parts.map(Number) : [0, ...parts.map(Number)];
+	if ((m ?? 0) >= 60 && parts.length === 3) return null;
+	if ((s ?? 0) >= 60) return null;
+	return (h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0);
+}
+
+/** The reading day an instant falls on, matching the server's day grouping. */
+export function readingDay(ms: number, timeZone: string, startHour = 0) {
+	return new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+		ms - startHour * 3600_000,
+	);
+}
+
+/** Book fraction left until the next chapter starts, or the end of the book. */
+export function chapterLeft(chapters: BookChapter[], position: number) {
+	const number = chapterAt(chapters, position);
+	if (number === null) return null;
+	const end = chapters[number]?.start ?? 1;
+	return Math.max(0, end - position);
+}
+
+/** Time to cover a book fraction at the measured speed (fraction per second). */
+export function timeFor(fraction: number, speed: number | null) {
+	return speed && speed > 0 ? fraction / speed : null;
 }

@@ -1,8 +1,10 @@
-import { BookOpen, Flag, Plus } from "@phosphor-icons/react";
+import { BookOpen, Flag, Headphones, Plus } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
+import { usePlayAudiobook } from "@/components/audio-player/use-play-audiobook";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { type HistoryCopy, historyCopy, type Medium } from "./history-copy";
 import type { GoalStatus } from "./reading-history-model";
 
 const PACE_SESSIONS = 3;
@@ -182,40 +184,62 @@ function GoalTimeline({
 /** One welcoming block instead of a page of empty cards and dashes. */
 export function EmptyHistory({
 	bookUuid,
+	medium,
 	onAddSession,
 }: {
 	bookUuid: string;
+	medium: Medium;
 	onAddSession: () => void;
 }) {
+	const copy = historyCopy(medium);
+	const Icon = medium === "listening" ? Headphones : BookOpen;
 	return (
 		<div
 			role="status"
 			className="flex flex-col items-center gap-5 rounded-3xl bg-muted/30 px-6 py-14 text-center"
 		>
 			<span className="grid size-14 place-items-center rounded-full bg-primary/15 text-primary">
-				<BookOpen aria-hidden="true" className="size-7" />
+				<Icon aria-hidden="true" className="size-7" />
 			</span>
 			<div className="max-w-md space-y-2">
 				<p className="font-medium text-xl tracking-tight">
-					{m.reading_empty_title()}
+					{copy.emptyTitle()}
 				</p>
-				<p className="text-muted-foreground text-sm">
-					{m.reading_empty_hint()}
-				</p>
+				<p className="text-muted-foreground text-sm">{copy.emptyHint()}</p>
 			</div>
 			<div className="flex flex-wrap justify-center gap-2">
-				<Button asChild size="lg">
-					<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
-						<BookOpen aria-hidden="true" weight="bold" />
-						{m.reading_empty_start()}
-					</Link>
-				</Button>
+				{medium === "listening" ? (
+					<ListenButton bookUuid={bookUuid} copy={copy} />
+				) : (
+					<Button asChild size="lg">
+						<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
+							<BookOpen aria-hidden="true" weight="bold" />
+							{copy.emptyStart()}
+						</Link>
+					</Button>
+				)}
 				<Button variant="secondary" size="lg" onClick={onAddSession}>
 					<Plus aria-hidden="true" />
 					{m.reading_empty_manual()}
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+function ListenButton({
+	bookUuid,
+	copy,
+}: {
+	bookUuid: string;
+	copy: HistoryCopy;
+}) {
+	const play = usePlayAudiobook();
+	return (
+		<Button size="lg" onClick={() => void play(bookUuid)}>
+			<Headphones aria-hidden="true" weight="bold" />
+			{copy.emptyStart()}
+		</Button>
 	);
 }
 

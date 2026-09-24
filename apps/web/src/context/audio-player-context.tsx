@@ -61,6 +61,7 @@ import {
 	nextTrackPosition,
 } from "@/components/audio-player/track-transition";
 import { usePlayerSync } from "@/components/audio-player/use-player-sync";
+import { useListeningTracker } from "@/features/reading-sessions/use-listening-tracker";
 import { useInterval } from "@/hooks/use-interval";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
@@ -229,7 +230,14 @@ const AudioPlayerNowPlayingContext = createContext<{
 } | null>(null);
 const AudioPlayerExpandedContext = createContext(false);
 
-export function AudioPlayerProvider({ children }: { children: ReactNode }) {
+export function AudioPlayerProvider({
+	children,
+	userId,
+}: {
+	children: ReactNode;
+	// Listening history is recorded only for a known account.
+	userId?: string;
+}) {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
 
 	const [audiobook, setAudiobook] = useState<AudiobookPlayerData | null>(null);
@@ -371,6 +379,12 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
 		bookUuid: audiobook?.uuid ?? "",
 		enabled: !!audiobook && !isLoading,
 		active: isPlaying && !isLoading,
+		getPlaybackState,
+	});
+	useListeningTracker({
+		userId,
+		bookUuid: audiobook?.uuid ?? "",
+		active: !!audiobook && isPlaying && !isLoading,
 		getPlaybackState,
 	});
 

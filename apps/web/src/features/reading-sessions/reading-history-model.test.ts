@@ -1,25 +1,34 @@
 import { expect, test } from "bun:test";
 import {
 	addDays,
+	chapterAt,
+	chapterLeft,
 	chartSlots,
 	daysToFinish,
 	defaultPeriod,
+	displaySpeed,
 	finishInDays,
+	formatClock,
 	goalStatus,
 	goalTimeline,
 	groupByWeek,
 	type HistoryDay,
+	listeningScale,
 	mergeRanges,
 	niceMaximum,
 	paceChange,
 	paceDomain,
 	paceTrend,
+	parseClock,
 	progressAmount,
-	readingUnit,
+	readerChapters,
+	readingDay,
+	readingScale,
 	readRanges,
 	rowSpeed,
 	runSummary,
-	speedPerHour,
+	streaks,
+	timeFor,
 	todayVersusAverage,
 	weekStart,
 	withProjection,
@@ -38,17 +47,27 @@ function day(overrides: Partial<HistoryDay> & { day: string }): HistoryDay {
 }
 
 test("books without a character count fall back to percentage points", () => {
-	expect(readingUnit(120_000)).toBe("chars");
-	expect(readingUnit(null)).toBe("percent");
-	expect(readingUnit(0)).toBe("percent");
-	expect(progressAmount(0.05, 200_000)).toBe(10_000);
-	expect(progressAmount(0.05, null)).toBeCloseTo(5);
+	expect(readingScale(120_000).unit).toBe("chars");
+	expect(readingScale(null).unit).toBe("percent");
+	expect(readingScale(0).unit).toBe("percent");
+	expect(progressAmount(0.05, readingScale(200_000))).toBe(10_000);
+	expect(progressAmount(0.05, readingScale(null))).toBeCloseTo(5);
 });
 
 test("speed converts book fraction per second into characters per hour", () => {
-	expect(speedPerHour(0.02 / 600, 300_000)).toBe(36_000);
-	expect(speedPerHour(0.02 / 600, null)).toBeCloseTo(12);
-	expect(speedPerHour(null, 300_000)).toBeNull();
+	expect(displaySpeed(0.02 / 600, readingScale(300_000))).toBe(36_000);
+	expect(displaySpeed(0.02 / 600, readingScale(null))).toBeCloseTo(12);
+	expect(displaySpeed(null, readingScale(300_000))).toBeNull();
+});
+
+test("audiobooks measure progress in audio seconds and speed as a multiple", () => {
+	const scale = listeningScale(36_000);
+	expect(scale.unit).toBe("audio");
+	expect(listeningScale(null).unit).toBe("percent");
+	expect(progressAmount(0.05, scale)).toBe(1_800);
+	// 1.5 minutes of audio per real minute.
+	expect(displaySpeed(1.5 / 36_000, scale)).toBeCloseTo(1.5);
+	expect(rowSpeed(0.025, 600, scale)).toBeCloseTo(1.5);
 });
 
 test("days to finish uses the average reading day", () => {
@@ -79,7 +98,7 @@ test("week slots fill idle days and carry the position forward", () => {
 		],
 		"week",
 		"2026-09-23",
-		100_000,
+		readingScale(100_000),
 	);
 	expect(slots.map((s) => s.day)).toEqual([
 		"2026-09-17",
@@ -100,14 +119,14 @@ test("all-time slots collapse to reading days when the span is too long", () => 
 		[day({ day: "2026-09-01" }), day({ day: "2026-09-05" })],
 		"all",
 		"2026-09-23",
-		null,
+		readingScale(null),
 	);
 	expect(short).toHaveLength(5);
 	const long = chartSlots(
 		[day({ day: "2025-01-01" }), day({ day: "2026-09-05" })],
 		"all",
 		"2026-09-23",
-		null,
+		readingScale(null),
 	);
 	expect(long.map((s) => s.day)).toEqual(["2025-01-01", "2026-09-05"]);
 });
@@ -125,17 +144,25 @@ test("today is compared against earlier reading days only", () => {
 		day({ day: "2026-09-21", progress: 0.04 }),
 		day({ day: "2026-09-23", progress: 0.06 }),
 	];
-	expect(todayVersusAverage(days, "2026-09-23", 100_000)).toEqual({
-		amount: 6_000,
-		average: 3_000,
-		ahead: 100,
-	});
-	expect(todayVersusAverage(days, "2026-09-24", 100_000)).toMatchObject({
+	expect(todayVersusAverage(days, "2026-09-23", readingScale(100_000))).toEqual(
+		{
+			amount: 6_000,
+			average: 3_000,
+			ahead: 100,
+		},
+	);
+	expect(
+		todayVersusAverage(days, "2026-09-24", readingScale(100_000)),
+	).toMatchObject({
 		amount: 0,
 		ahead: null,
 	});
 	expect(
-		todayVersusAverage([days[2] as HistoryDay], "2026-09-23", null),
+		todayVersusAverage(
+			[days[2] as HistoryDay],
+			"2026-09-23",
+			readingScale(null),
+		),
 	).toMatchObject({ average: null, ahead: null });
 });
 
@@ -152,7 +179,7 @@ test("manual portions of a day are split out of the slot", () => {
 		],
 		"all",
 		"2026-09-23",
-		100_000,
+		readingScale(100_000),
 	);
 	expect(slot).toMatchObject({ manualSeconds: 300, manualAmount: 1_000 });
 });
@@ -197,7 +224,7 @@ test("projection appends future days up to a share of the window", () => {
 		],
 		"week",
 		"2026-09-23",
-		null,
+		readingScale(null),
 	);
 	const near = withProjection(slots, 2, "2026-09-23");
 	expect(near.slots).toHaveLength(9);
@@ -220,7 +247,7 @@ test("all-time slots can stretch to today for in-progress books", () => {
 		[day({ day: "2026-09-20" })],
 		"all",
 		"2026-09-23",
-		null,
+		readingScale(null),
 		true,
 	);
 	expect(slots.at(-1)?.day).toBe("2026-09-23");
@@ -237,7 +264,7 @@ test("month window starts at the first reading day when it began inside it", () 
 		[day({ day: "2026-09-20" })],
 		"month",
 		"2026-09-23",
-		null,
+		readingScale(null),
 	);
 	expect(slots.map((s) => s.day)).toEqual([
 		"2026-09-20",
@@ -272,9 +299,9 @@ test("weeks start on Monday and group consecutive days", () => {
 });
 
 test("row speed needs a minute of reading and some progress", () => {
-	expect(rowSpeed(0.01, 600, 360_000)).toBe(21_600);
-	expect(rowSpeed(0.01, 30, 360_000)).toBeNull();
-	expect(rowSpeed(0, 600, 360_000)).toBeNull();
+	expect(rowSpeed(0.01, 600, readingScale(360_000))).toBe(21_600);
+	expect(rowSpeed(0.01, 30, readingScale(360_000))).toBeNull();
+	expect(rowSpeed(0, 600, readingScale(360_000))).toBeNull();
 });
 
 test("read ranges drop jumps and backward moves and sort by start", () => {
@@ -381,4 +408,117 @@ test("goal timeline spans the reading up to the later of goal and finish", () =>
 			finishDay: null,
 		}),
 	).toMatchObject({ finish: null, late: null, goal: 1 });
+});
+
+test("streaks count consecutive active days and survive until today ends", () => {
+	const days = [
+		"2026-09-01",
+		"2026-09-02",
+		"2026-09-03",
+		"2026-09-10",
+		"2026-09-11",
+	].map((d) => day({ day: d }));
+	expect(streaks(days, "2026-09-12")).toEqual({ current: 2, best: 3 });
+	expect(streaks(days, "2026-09-11")).toEqual({ current: 2, best: 3 });
+	expect(streaks(days, "2026-09-13")).toEqual({ current: 0, best: 3 });
+	expect(
+		streaks([day({ day: "2026-09-11", seconds: 0 })], "2026-09-11"),
+	).toEqual({
+		current: 0,
+		best: 0,
+	});
+	expect(streaks([], "2026-09-11")).toEqual({ current: 0, best: 0 });
+});
+
+test("audio clock and chapter lookup", () => {
+	expect(formatClock(59.9)).toBe("0:59");
+	expect(formatClock(3130)).toBe("52:10");
+	expect(formatClock(17530)).toBe("4:52:10");
+	const chapters = [0, 600, 1800].map((t) => ({
+		title: null,
+		start: t / 3600,
+	}));
+	expect(chapterAt(chapters, 0)).toBe(1);
+	expect(chapterAt(chapters, 600 / 3600)).toBe(2);
+	expect(chapterAt(chapters, 0.99)).toBe(3);
+	expect(chapterAt([], 0.5)).toBeNull();
+	expect(chapterAt([{ title: null, start: 0.1 }], 0.05)).toBeNull();
+});
+
+test("reader chapters keep labelled top-level sections as book fractions", () => {
+	expect(
+		readerChapters(
+			[
+				{ startCharacter: 0 },
+				{ label: " 第一章 ", startCharacter: 100 },
+				{ label: "節", startCharacter: 150, parentChapter: "c1" },
+				{ label: "第二章", startCharacter: 600 },
+				{ label: "目次" },
+			],
+			1000,
+		),
+	).toEqual([
+		{ title: "第一章", start: 0.1 },
+		{ title: "第二章", start: 0.6 },
+	]);
+	expect(readerChapters([{ startCharacter: 0 }], 1000)).toBeNull();
+	expect(readerChapters([{ label: "a", startCharacter: 0 }], 0)).toBeNull();
+});
+test("matching the average up to rounding is not reported as 0 % more", () => {
+	const days = [
+		day({ day: "2026-09-22", progress: 0.03 }),
+		day({ day: "2026-09-23", progress: 0.03001 }),
+	];
+	expect(
+		todayVersusAverage(days, "2026-09-23", readingScale(100_000)).ahead,
+	).toBeNull();
+});
+
+test("audio clock text parses back to seconds", () => {
+	expect(parseClock("4:52:10")).toBe(17530);
+	expect(parseClock(" 52:10 ")).toBe(3130);
+	expect(parseClock("75:00")).toBe(4500);
+	expect(parseClock(formatClock(17530))).toBe(17530);
+	for (const bad of ["", "52", "1:60", "1:61:00", "a:10", "1:2:3:4"])
+		expect(parseClock(bad)).toBeNull();
+});
+
+test("listening compares today's real time with earlier days", () => {
+	const days = [
+		day({ day: "2026-09-22", seconds: 1200, progress: 0.5 }),
+		day({ day: "2026-09-23", seconds: 1800, progress: 0.01 }),
+	];
+	expect(
+		todayVersusAverage(days, "2026-09-23", readingScale(null), "time"),
+	).toEqual({ amount: 1800, average: 1200, ahead: 50 });
+});
+
+test("reader chapters skip tiny front matter but keep short chapters later on", () => {
+	const sections = [
+		{ label: "表紙", startCharacter: 0 },
+		{ label: "目次", startCharacter: 2 },
+		{ label: "一章", startCharacter: 40 },
+		{ label: "幕間", startCharacter: 5000 },
+		{ label: "二章", startCharacter: 5050 },
+	];
+	expect(readerChapters(sections, 10_000)?.map((c) => c.title)).toEqual([
+		"一章",
+		"幕間",
+		"二章",
+	]);
+});
+
+test("the reading day can start after midnight", () => {
+	const lateNight = Date.parse("2026-01-03T06:30:00Z"); // 01:30 in Bogotá
+	expect(readingDay(lateNight, "America/Bogota")).toBe("2026-01-03");
+	expect(readingDay(lateNight, "America/Bogota", 4)).toBe("2026-01-02");
+});
+
+test("chapter time left runs to the next chapter or the end", () => {
+	const chapters = [0.1, 0.4, 0.8].map((start) => ({ title: null, start }));
+	expect(chapterLeft(chapters, 0.3)).toBeCloseTo(0.1);
+	expect(chapterLeft(chapters, 0.9)).toBeCloseTo(0.1);
+	expect(chapterLeft(chapters, 0.05)).toBeNull();
+	expect(timeFor(0.01, 0.01 / 600)).toBeCloseTo(600);
+	expect(timeFor(0.01, null)).toBeNull();
 });

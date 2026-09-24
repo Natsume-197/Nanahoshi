@@ -4,11 +4,11 @@ import { getLocale } from "@/paraglide/runtime";
 import { sessionDuration } from "./reading-duration";
 import { formatAmount } from "./reading-history-chart";
 import {
+	displaySpeed,
 	paceChange,
 	paceDomain,
 	paceTrend,
-	type ReadingUnit,
-	speedPerHour,
+	type ReadingScale,
 } from "./reading-history-model";
 
 const TOP = 8;
@@ -23,18 +23,17 @@ export interface Pace {
 
 export function ReadingPaceChart({
 	paces,
-	unit,
-	amountChars,
+	scale,
 	timeZone,
 }: {
 	paces: Pace[];
-	unit: ReadingUnit;
-	amountChars: number | null;
+	scale: ReadingScale;
 	timeZone: string;
 }) {
+	const { unit } = scale;
 	const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 	const [activeIndex, setActiveIndex] = useState<number>();
-	const speeds = paces.map((pace) => speedPerHour(pace.rate, amountChars) ?? 0);
+	const speeds = paces.map((pace) => displaySpeed(pace.rate, scale) ?? 0);
 	const trend = paceTrend(speeds);
 	const change = paceChange(speeds);
 	const { low, high, ticks } = paceDomain(speeds);

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
+import type { HistoryCopy } from "./history-copy";
 import { readingDuration } from "./reading-duration";
 import type { ReadingHistoryData } from "./reading-history";
 import { formatAmount, HATCH } from "./reading-history-chart";
@@ -17,7 +18,7 @@ import {
 	addDays,
 	mergeRanges,
 	progressAmount,
-	type ReadingUnit,
+	type ReadingScale,
 	type ReadRange,
 	readRanges,
 	rowSpeed,
@@ -51,6 +52,42 @@ function journeyText(from: number | null, to: number | null) {
  * The stretches of the book a row covered, on a fixed 0–100 % track shared by
  * every row. Separate blocks reveal skipped chapters; overlapping ones rereads.
  */
+export type Journey = (
+	from: number | null,
+	to: number | null,
+	// Session rows show exact places; days and weeks a coarser span.
+	precise: boolean,
+) => { text: string; title?: string };
+
+function JourneyLabel({
+	journey,
+	from,
+	to,
+	precise = false,
+}: {
+	journey?: Journey;
+	from: number | null;
+	to: number | null;
+	precise?: boolean;
+}) {
+	const place =
+		to !== null && journey
+			? journey(from, to, precise)
+			: { text: journeyText(from, to) };
+	return (
+		<span
+			className={cn(
+				"min-w-20 text-right",
+				// Exact times wrap at the arrow rather than widen a crowded table.
+				precise && "whitespace-normal",
+			)}
+			title={place.title}
+		>
+			{place.text}
+		</span>
+	);
+}
+
 function JourneyBar({
 	ranges,
 	from,
@@ -80,7 +117,7 @@ function JourneyBar({
 	return (
 		<span
 			aria-hidden="true"
-			className="relative @xl:block hidden h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]"
+			className="relative @xl:block hidden h-2 min-w-16 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]"
 		>
 			<span
 				className="absolute inset-y-0 left-0 bg-primary/25"
@@ -129,8 +166,9 @@ export function ReadingDiary({
 	sessionById,
 	sessionProgress,
 	sessionRanges,
-	amountChars,
-	unit,
+	scale,
+	copy,
+	journey,
 	timeZone,
 	today,
 	historyId,
@@ -147,8 +185,9 @@ export function ReadingDiary({
 	sessionById: Map<string, Session>;
 	sessionProgress: Map<string, number>;
 	sessionRanges: Map<string, ReadRange[]>;
-	amountChars: number | null;
-	unit: ReadingUnit;
+	scale: ReadingScale;
+	copy: HistoryCopy;
+	journey?: Journey;
 	timeZone: string;
 	today: string;
 	historyId: string;
@@ -170,15 +209,19 @@ export function ReadingDiary({
 		new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone }).format(
 			new Date(iso),
 		);
+	const { unit } = scale;
+	// Listening shows time alone: audio is time × speed, and the speed is the player setting.
+	const amountColumn = unit === "audio" ? "hidden" : undefined;
+	const speedColumn = unit === "audio" ? "hidden" : SPEED;
 	const amount = (progress: number) => {
 		if (progress <= 0) return "—";
-		const value = progressAmount(progress, amountChars);
-		return unit === "chars"
-			? formatAmount(value, unit)
-			: `+${formatAmount(value, unit)}`;
+		const value = progressAmount(progress, scale);
+		return unit === "percent"
+			? `+${formatAmount(value, unit)}`
+			: formatAmount(value, unit);
 	};
 	const speed = (progress: number, seconds: number) => {
-		const value = rowSpeed(progress, seconds, amountChars);
+		const value = rowSpeed(progress, seconds, scale);
 		return value === null
 			? "—"
 			: unit === "chars"
@@ -254,6 +297,7 @@ export function ReadingDiary({
 							scope="col"
 							className={cn(
 								STICKY,
+								amountColumn,
 								"border-border/50 border-b px-3 py-3 text-right font-medium",
 							)}
 						>
@@ -264,12 +308,12 @@ export function ReadingDiary({
 						<th
 							scope="col"
 							className={cn(
-								SPEED,
+								speedColumn,
 								STICKY,
 								"border-border/50 border-b px-3 py-3 text-right font-medium",
 							)}
 						>
-							{m.reading_speed()}{" "}
+							{copy.speed()}{" "}
 							<span className="font-normal normal-case tracking-normal opacity-70">
 								{speedUnit}
 							</span>
@@ -282,20 +326,20 @@ export function ReadingDiary({
 								"@xl:w-[40%] border-border/50 border-b px-3 py-3 font-medium",
 							)}
 						>
-							{m.reading_col_journey()}
+							{copy.journey()}
 						</th>
 						<th
 							scope="col"
 							className={cn(STICKY, "w-12 border-border/50 border-b px-3 py-3")}
 						>
-							<span className="sr-only">{m.reading_actions()}</span>
+							<span className="sr-only">{copy.actions()}</span>
 						</th>
 					</tr>
 				</thead>
 				{weeks.map((week) => {
 					const seconds = sum(week.days, (d) => d.seconds);
 					const progress = sum(week.days, (d) => d.progress);
-					const journey = span(week.days);
+					const weekSpan = span(week.days);
 					return (
 						<tbody key={week.start} className="border-border/50 border-b">
 							<tr className="text-xs tabular-nums">
@@ -308,12 +352,17 @@ export function ReadingDiary({
 								<td className="px-3 pt-6 pb-2 text-right font-medium text-muted-foreground">
 									{readingDuration(seconds)}
 								</td>
-								<td className="px-3 pt-6 pb-2 text-right font-medium text-muted-foreground">
+								<td
+									className={cn(
+										amountColumn,
+										"px-3 pt-6 pb-2 text-right font-medium text-muted-foreground",
+									)}
+								>
 									{amount(progress)}
 								</td>
 								<td
 									className={cn(
-										SPEED,
+										speedColumn,
 										"px-3 pt-6 pb-2 text-right text-muted-foreground",
 									)}
 								>
@@ -326,10 +375,12 @@ export function ReadingDiary({
 									)}
 								>
 									<span className="flex items-center gap-3">
-										<JourneyBar {...journey} muted />
-										<span className="min-w-20 text-right">
-											{journeyText(journey.from, journey.to)}
-										</span>
+										<JourneyBar {...weekSpan} muted />
+										<JourneyLabel
+											journey={journey}
+											from={weekSpan.from}
+											to={weekSpan.to}
+										/>
 									</span>
 								</td>
 								<td className="pt-6 pb-2" />
@@ -385,12 +436,18 @@ export function ReadingDiary({
 											<td className={cn(CELL, "text-right font-medium")}>
 												{readingDuration(day.seconds)}
 											</td>
-											<td className={cn(CELL, "text-right text-primary")}>
+											<td
+												className={cn(
+													amountColumn,
+													CELL,
+													"text-right text-primary",
+												)}
+											>
 												{amount(day.progress)}
 											</td>
 											<td
 												className={cn(
-													SPEED,
+													speedColumn,
 													CELL,
 													"text-right text-muted-foreground",
 												)}
@@ -406,9 +463,11 @@ export function ReadingDiary({
 														from={day.startPosition}
 														to={day.endPosition}
 													/>
-													<span className="min-w-20 text-right">
-														{journeyText(day.startPosition, day.endPosition)}
-													</span>
+													<JourneyLabel
+														journey={journey}
+														from={day.startPosition}
+														to={day.endPosition}
+													/>
 												</span>
 											</td>
 											<td className={cn(CELL, "text-center")}>
@@ -479,10 +538,20 @@ export function ReadingDiary({
 														<td className="px-3 py-2 text-right text-foreground">
 															{shortDuration(row.seconds)}
 														</td>
-														<td className="px-3 py-2 text-right text-primary">
+														<td
+															className={cn(
+																amountColumn,
+																"px-3 py-2 text-right text-primary",
+															)}
+														>
 															{amount(advance)}
 														</td>
-														<td className={cn(SPEED, "px-3 py-2 text-right")}>
+														<td
+															className={cn(
+																speedColumn,
+																"px-3 py-2 text-right",
+															)}
+														>
 															{speed(advance, row.seconds)}
 														</td>
 														<td className={cn(JOURNEY, "px-3 py-2")}>
@@ -493,12 +562,12 @@ export function ReadingDiary({
 																	to={row.endPosition}
 																	muted
 																/>
-																<span className="min-w-20 text-right">
-																	{journeyText(
-																		row.startPosition,
-																		row.endPosition,
-																	)}
-																</span>
+																<JourneyLabel
+																	journey={journey}
+																	from={row.startPosition}
+																	to={row.endPosition}
+																	precise
+																/>
 															</span>
 														</td>
 														<td className="px-3 py-2 text-center">
@@ -527,17 +596,19 @@ export function ReadingDiary({
 							scope="row"
 							className="px-3 py-4 text-left text-[11px] text-muted-foreground uppercase tracking-wider"
 						>
-							{m.reading_total_run()}
+							{copy.totalRun()}
 						</th>
 						<td className="px-3 py-3 text-right">
 							{readingDuration(totalSeconds)}
 						</td>
-						<td className="px-3 py-3 text-right text-primary">
+						<td
+							className={cn(amountColumn, "px-3 py-3 text-right text-primary")}
+						>
 							{amount(totalProgress)}
 						</td>
 						<td
 							className={cn(
-								SPEED,
+								speedColumn,
 								"px-3 py-3 text-right text-muted-foreground",
 							)}
 						>
@@ -546,9 +617,11 @@ export function ReadingDiary({
 						<td className={cn(JOURNEY, "px-3 py-3 text-muted-foreground")}>
 							<span className="flex items-center gap-3">
 								<JourneyBar {...total} />
-								<span className="min-w-20 text-right">
-									{journeyText(total.from, total.to)}
-								</span>
+								<JourneyLabel
+									journey={journey}
+									from={total.from}
+									to={total.to}
+								/>
 							</span>
 						</td>
 						<td />

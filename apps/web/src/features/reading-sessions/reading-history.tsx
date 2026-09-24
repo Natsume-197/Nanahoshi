@@ -2,6 +2,7 @@ import {
 	ArrowCounterClockwise,
 	Check,
 	DotsThreeVertical,
+	Fire,
 	Flag,
 	Plus,
 	Trash,
@@ -23,27 +24,36 @@ import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { client, orpc } from "@/utils/orpc";
 import { createDayStore } from "./day-store";
-import { ReadingDiary } from "./reading-diary";
+import { type HistoryCopy, historyCopy, type Medium } from "./history-copy";
+import { type Journey, ReadingDiary } from "./reading-diary";
 import { readingDuration } from "./reading-duration";
 import { EmptyHistory, GoalPanel, PaceUnlock } from "./reading-goal";
 import { ReadingGoalDialog } from "./reading-goal-dialog";
 import { formatAmount, ReadingHistoryChart } from "./reading-history-chart";
 import {
 	addDays,
+	type BookChapter,
 	type ChartPeriod,
+	chapterAt,
+	chapterLeft,
 	chartSlots,
 	daysBetween,
 	defaultPeriod,
+	displaySpeed,
 	finishInDays,
+	formatClock,
 	goalStatus,
 	goalTimeline,
 	groupByWeek,
+	listeningScale,
 	progressAmount,
 	type ReadRange,
-	readingUnit,
+	readingDay,
+	readingScale,
 	readRanges,
 	runSummary,
-	speedPerHour,
+	streaks,
+	timeFor,
 	todayVersusAverage,
 	withProjection,
 } from "./reading-history-model";
@@ -56,18 +66,33 @@ export type ReadingHistoryData = Awaited<
 export function percentage(value: number | null) {
 	return value === null ? "—" : `${Math.round(value * 100)} %`;
 }
+export interface HistoryChapter {
+	title: string | null;
+	startTime: number;
+}
+
 export function ReadingHistory({
 	bookUuid,
 	amountChars,
+	durationSeconds,
+	chapters,
+	medium = "reading",
 }: {
 	bookUuid: string;
 	amountChars?: number | null;
+	// Audiobook length, used until a listening session reports its own.
+	durationSeconds?: number | null;
+	chapters?: HistoryChapter[];
+	medium?: Medium;
 }) {
 	return (
 		<BookReadingHistory
 			key={bookUuid}
 			bookUuid={bookUuid}
 			amountChars={amountChars ?? null}
+			durationSeconds={durationSeconds ?? null}
+			chapters={chapters ?? []}
+			medium={medium}
 		/>
 	);
 }
@@ -169,10 +194,10 @@ function HistorySection({
 	);
 }
 
-function ReadingHistorySkeleton() {
+function ReadingHistorySkeleton({ copy }: { copy: HistoryCopy }) {
 	return (
 		<div role="status" className="@container min-w-0 space-y-10">
-			<span className="sr-only">{m.reading_loading()}</span>
+			<span className="sr-only">{copy.loading()}</span>
 			<div className="flex items-center justify-between">
 				<Skeleton className="h-8 w-56" />
 				<Skeleton className="h-8 w-36" />
@@ -192,10 +217,17 @@ function ReadingHistorySkeleton() {
 function BookReadingHistory({
 	bookUuid,
 	amountChars: bookAmountChars,
+	durationSeconds: bookDuration,
+	chapters,
+	medium,
 }: {
 	bookUuid: string;
 	amountChars: number | null;
+	durationSeconds: number | null;
+	chapters: HistoryChapter[];
+	medium: Medium;
 }) {
+	const copy = historyCopy(medium);
 	const historyId = useId();
 	const [runId, setRunId] = useState<string>();
 	const [timeZone] = useState(
@@ -246,7 +278,7 @@ function BookReadingHistory({
 			void refresh();
 		},
 	});
-	if (query.isPending) return <ReadingHistorySkeleton />;
+	if (query.isPending) return <ReadingHistorySkeleton copy={copy} />;
 	if (query.isError)
 		return (
 			<div role="alert" className="space-y-3 py-8">
@@ -261,12 +293,57 @@ function BookReadingHistory({
 			</div>
 		);
 	const data = query.data;
-	const amountChars = data.characterCount ?? bookAmountChars;
-	const unit = readingUnit(amountChars);
+	const scale =
+		medium === "listening"
+			? listeningScale(data.durationSeconds ?? bookDuration)
+			: readingScale(data.characterCount ?? bookAmountChars);
+	const { unit } = scale;
+	// Audio chapters arrive in seconds; books carry the reader's map as fractions.
+	const bookChapters: BookChapter[] =
+		medium === "listening"
+			? unit === "audio"
+				? chapters.map((c) => ({
+						title: c.title,
+						start: c.startTime / scale.total,
+					}))
+				: []
+			: (data.chapters ?? []);
+	const chapterLabel = (position: number) => {
+		const number = chapterAt(bookChapters, position);
+		if (number === null) return null;
+		const title = bookChapters[number - 1]?.title;
+		return title ? `${number}. ${title}` : m.reading_chapter({ number });
+	};
+	// Days and weeks name chapters; sessions give the exact place, as the player or the percentage.
+	const journey: Journey | undefined =
+		bookChapters.length || unit === "audio"
+			? (from, to, precise) => {
+					const end = to ?? 0;
+					const start = from ?? end;
+					const place = (p: number) =>
+						unit === "audio"
+							? formatClock(p * scale.total)
+							: `${Math.round(p * 100)} %`;
+					const exact =
+						from === null ? place(end) : `${place(start)} → ${place(end)}`;
+					const first = chapterAt(bookChapters, start);
+					const last = chapterAt(bookChapters, end);
+					const titles = [chapterLabel(start), chapterLabel(end)]
+						.filter((label, i, all) => label && all.indexOf(label) === i)
+						.join(" → ");
+					if ((precise && unit === "audio") || first === null || last === null)
+						return { text: exact, title: titles || undefined };
+					return {
+						text:
+							first === last
+								? m.reading_chapter({ number: first })
+								: m.reading_chapter_span({ from: first, to: last }),
+						title: `${exact}${titles ? ` · ${titles}` : ""}`,
+					};
+				}
+			: undefined;
 	const current = data.runs.find((r) => r.id === data.runId);
-	const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
-		new Date(),
-	);
+	const today = readingDay(Date.now(), timeZone, data.dayStartHour);
 	// A finished book reads best as the whole journey.
 	const activePeriod =
 		period ??
@@ -275,7 +352,7 @@ function BookReadingHistory({
 		data.days,
 		activePeriod,
 		today,
-		amountChars,
+		scale,
 		current?.state !== "finished",
 	);
 	const ordered = [...data.days].reverse();
@@ -329,11 +406,28 @@ function BookReadingHistory({
 		);
 	const sessionToEdit = data.sessions.find((s) => s.id === form);
 	const position = data.position ?? 0;
-	const speed = speedPerHour(data.speed, amountChars);
+	const speed = displaySpeed(data.speed, scale);
+	// Audio length is known up front, so the estimate needs no sessions: real time at the measured speed, else 1×.
+	const remainingSeconds =
+		unit === "audio" && data.remainingSeconds === null && data.position !== null
+			? Math.max(
+					data.position < 1 ? 60 : 0,
+					Math.round(((1 - data.position) * scale.total) / (speed ?? 1) / 60) *
+						60,
+				)
+			: data.remainingSeconds;
+	const chapterFraction =
+		data.position === null ? null : chapterLeft(bookChapters, data.position);
+	// Audio falls back to 1× until a session measures the listening speed.
+	const chapterSeconds =
+		chapterFraction === null
+			? null
+			: (timeFor(chapterFraction, data.speed) ??
+				(unit === "audio" ? chapterFraction * scale.total : null));
 	const finishIn =
 		current?.state === "reading"
 			? finishInDays({
-					remainingSeconds: data.remainingSeconds,
+					remainingSeconds,
 					totalSeconds: data.totalSeconds,
 					position: data.position,
 					days: data.days,
@@ -346,19 +440,40 @@ function BookReadingHistory({
 	const hasActivity = data.days.length > 0;
 	const finished = current?.state === "finished";
 	const summary = runSummary(data.days);
+	const streak = streaks(data.days, today);
+	const listening = unit === "audio";
+	// Audio is shown as listening time: book amounts become minutes at the playback speed.
+	const listenTime = (audioSeconds: number) => audioSeconds / (speed ?? 1);
 	const speedLabel =
 		speed === null
 			? "—"
-			: unit === "chars"
-				? m.reading_speed_chars({ value: formatAmount(speed, unit) })
-				: m.reading_speed_percent({ value: speed.toFixed(speed < 10 ? 1 : 0) });
-	const versus = todayVersusAverage(data.days, today, amountChars);
+			: listening
+				? m.listening_speed({
+						value: (Math.round(speed * 20) / 20).toFixed(2),
+					})
+				: unit === "chars"
+					? m.reading_speed_chars({ value: formatAmount(speed, unit) })
+					: m.reading_speed_percent({
+							value: speed.toFixed(speed < 10 ? 1 : 0),
+						});
+	const versus = todayVersusAverage(
+		data.days,
+		today,
+		scale,
+		listening ? "time" : "progress",
+	);
+	const goalAmount = (progress: number) =>
+		listening
+			? listenTime(progressAmount(progress, scale))
+			: progressAmount(progress, scale);
 	const amountText = (value: number) =>
-		unit === "chars"
-			? m.reading_amount_chars({ value: formatAmount(value, unit) })
-			: m.reading_amount_percent({ value: formatAmount(value, unit) });
+		listening
+			? readingDuration(value)
+			: unit === "chars"
+				? m.reading_amount_chars({ value: formatAmount(value, unit) })
+				: m.reading_amount_percent({ value: formatAmount(value, unit) });
 	const localDay = (iso: string) =>
-		new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(iso));
+		readingDay(Date.parse(iso), timeZone, data.dayStartHour);
 	const goal = goalStatus({
 		goalDate: current?.goalDate ?? null,
 		today,
@@ -392,7 +507,7 @@ function BookReadingHistory({
 			detail: longestSession ? date(longestSession.startedAt) : undefined,
 		},
 		{
-			label: m.reading_best_day(),
+			label: copy.bestDay(),
 			value: data.bestDay ? readingDuration(data.bestDay.seconds) : "—",
 			detail: data.bestDay ? date(data.bestDay.day) : undefined,
 		},
@@ -401,31 +516,44 @@ function BookReadingHistory({
 		{
 			label: m.reading_recorded(),
 			value: readingDuration(data.totalSeconds),
-			detail: m.reading_in_days({ count: data.days.length }),
+			detail: copy.inDays({ count: data.days.length }),
 		},
 		{
-			label: m.reading_speed(),
+			label: copy.speed(),
 			value: speedLabel,
-			detail: speed === null ? m.reading_speed_pending() : undefined,
+			detail:
+				speed === null && !listening ? m.reading_speed_pending() : undefined,
 		},
 		...recordFigures,
 	];
 	const finishedFigures: Figure[] = summary
 		? [
-				{ label: m.reading_days(), value: String(summary.readingDays) },
+				{
+					label: copy.days(),
+					value: String(summary.readingDays),
+					detail:
+						streak.best >= 2
+							? m.reading_best_streak({ count: streak.best })
+							: undefined,
+				},
 				{
 					label: m.reading_recorded(),
 					value: readingDuration(data.totalSeconds),
 				},
-				unit === "chars" && amountChars
+				unit === "chars"
 					? {
 							label: m.reading_summary_chars(),
-							value: formatAmount(amountChars, unit),
+							value: formatAmount(scale.total, unit),
 						}
-					: {
-							label: m.reading_summary_sessions(),
-							value: String(data.sessions.length),
-						},
+					: unit === "audio"
+						? {
+								label: m["audiobook.duration"](),
+								value: formatAmount(scale.total, unit),
+							}
+						: {
+								label: m.reading_summary_sessions(),
+								value: String(data.sessions.length),
+							},
 				{ label: m.reading_average_speed(), value: speedLabel },
 				...recordFigures,
 			]
@@ -433,7 +561,7 @@ function BookReadingHistory({
 	// Today's target: the goal's daily share when there is one, else the usual day.
 	const todayTarget =
 		goal?.kind === "active" && goal.perDay > 0
-			? progressAmount(goal.perDay, amountChars)
+			? goalAmount(goal.perDay)
 			: versus.average;
 	const todayNote =
 		goal?.kind === "active"
@@ -441,7 +569,7 @@ function BookReadingHistory({
 				? { text: m.reading_goal_today_done(), positive: true }
 				: {
 						text: m.reading_goal_today_left({
-							amount: amountText(progressAmount(goal.todayLeft, amountChars)),
+							amount: amountText(goalAmount(goal.todayLeft)),
 						}),
 						positive: false,
 					}
@@ -455,18 +583,18 @@ function BookReadingHistory({
 					: null;
 	return (
 		<section
-			aria-label={m.reading_title()}
+			aria-label={copy.title()}
 			className="@container min-w-0 space-y-10"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				{data.runs.length > 1 ? (
 					<Segmented
-						label={m.reading_previous()}
+						label={copy.previous()}
 						value={data.runId ?? ""}
 						options={data.runs.map((run, i) => ({
 							value: run.id,
 							label: () =>
-								`${m.reading_run({ number: data.runs.length - i })} · ${runState(run.state)}`,
+								`${copy.run({ number: data.runs.length - i })} · ${runState(run.state)}`,
 						}))}
 						onChange={(id) => {
 							setRunId(id);
@@ -489,7 +617,7 @@ function BookReadingHistory({
 								size="icon"
 								variant="secondary"
 								disabled={mutation.isPending}
-								aria-label={m.reading_actions()}
+								aria-label={copy.actions()}
 							>
 								<DotsThreeVertical aria-hidden="true" />
 							</Button>
@@ -502,14 +630,14 @@ function BookReadingHistory({
 											mutation.mutate({ type: "finish", id: current.id })
 										}
 									>
-										{m.reading_complete_run()}
+										{copy.completeRun()}
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										onClick={() =>
 											mutation.mutate({ type: "leave", id: current.id })
 										}
 									>
-										{m.reading_leave_run()}
+										{copy.leaveRun()}
 									</DropdownMenuItem>
 								</>
 							) : (
@@ -519,7 +647,7 @@ function BookReadingHistory({
 									}
 								>
 									<ArrowCounterClockwise aria-hidden="true" />
-									{m.reading_reread()}
+									{copy.again()}
 								</DropdownMenuItem>
 							)}
 							{current && (
@@ -532,7 +660,7 @@ function BookReadingHistory({
 										}
 									>
 										<Trash aria-hidden="true" />
-										{m.reading_delete_run()}
+										{copy.deleteRun()}
 									</DropdownMenuItem>
 								</>
 							)}
@@ -541,7 +669,11 @@ function BookReadingHistory({
 				</div>
 			</div>
 			{!hasActivity ? (
-				<EmptyHistory bookUuid={bookUuid} onAddSession={() => setForm("new")} />
+				<EmptyHistory
+					bookUuid={bookUuid}
+					medium={medium}
+					onAddSession={() => setForm("new")}
+				/>
 			) : (
 				<>
 					{finished && summary ? (
@@ -552,11 +684,11 @@ function BookReadingHistory({
 								</span>
 								<div className="min-w-0 space-y-0.5">
 									<p className="font-semibold text-3xl tracking-tight">
-										{m.reading_summary_title()}
+										{copy.summaryTitle()}
 									</p>
 									<p className="text-muted-foreground text-sm">
 										{current?.endedAt &&
-											`${m.reading_finished_on({ date: date(current.endedAt) })} · `}
+											`${copy.finishedOn({ date: date(current.endedAt) })} · `}
 										{dayRange(summary.first, summary.last)}
 									</p>
 									{goal?.kind === "met" && (
@@ -583,7 +715,7 @@ function BookReadingHistory({
 								<div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
 									<div className="min-w-0">
 										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
-											{current ? runState(current.state) : m.reading_empty()}
+											{current ? runState(current.state) : copy.empty()}
 										</p>
 										<p className="mt-1 font-semibold text-7xl tabular-nums leading-none tracking-tighter">
 											<span className="sr-only">{m.reading_position()}: </span>
@@ -597,34 +729,44 @@ function BookReadingHistory({
 									</div>
 									<div className="min-w-0 @sm:text-right">
 										<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
-											{m.reading_finish_label()}
+											{copy.finishLabel()}
 										</p>
 										{finishIn !== null ? (
 											<>
 												<p className="mt-1 font-semibold text-2xl tracking-tight first-letter:uppercase">
 													{goalDay(addDays(today, finishIn))}
 												</p>
-												{data.remainingSeconds !== null && (
+												{remainingSeconds !== null && (
 													<p className="text-muted-foreground text-sm tabular-nums">
-														{m.reading_finish_hours({
-															duration: readingDuration(data.remainingSeconds),
+														{copy.finishHours({
+															duration: readingDuration(remainingSeconds),
 														})}
 													</p>
 												)}
 											</>
 										) : (
 											<p className="mt-1 max-w-56 text-muted-foreground text-sm">
-												{data.estimateNeeds?.sessions
-													? m.reading_needs_sessions({
-															count: data.estimateNeeds.sessions,
-														})
-													: data.estimateNeeds?.seconds
-														? m.reading_needs_minutes({
-																count: Math.ceil(
-																	data.estimateNeeds.seconds / 60,
-																),
+												{unit === "audio"
+													? copy.insufficient()
+													: data.estimateNeeds?.sessions
+														? m.reading_needs_sessions({
+																count: data.estimateNeeds.sessions,
 															})
-														: m.reading_insufficient()}
+														: data.estimateNeeds?.seconds
+															? m.reading_needs_minutes({
+																	count: Math.ceil(
+																		data.estimateNeeds.seconds / 60,
+																	),
+																})
+															: copy.insufficient()}
+											</p>
+										)}
+										{/* Needs only the measured speed, not the whole-book estimate. */}
+										{chapterSeconds !== null && chapterSeconds >= 60 && (
+											<p className="text-muted-foreground text-sm tabular-nums">
+												{m.reading_chapter_left({
+													duration: readingDuration(chapterSeconds),
+												})}
 											</p>
 										)}
 									</div>
@@ -632,16 +774,29 @@ function BookReadingHistory({
 								<RangeBar start={0} end={position} className="h-3" />
 								<div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-muted-foreground text-xs tabular-nums">
 									<p>
-										{unit === "chars" &&
-											amountChars &&
-											data.position !== null &&
-											m.reading_chars_of_total({
-												read: formatAmount(
-													Math.round(position * amountChars),
-													unit,
-												),
-												total: formatAmount(amountChars, unit),
-											})}
+										{data.position !== null &&
+											[
+												unit === "chars"
+													? m.reading_chars_of_total({
+															read: formatAmount(
+																Math.round(position * scale.total),
+																unit,
+															),
+															total: formatAmount(scale.total, unit),
+														})
+													: unit === "audio"
+														? m.listening_audio_of_total({
+																heard: formatAmount(
+																	position * scale.total,
+																	unit,
+																),
+																total: formatAmount(scale.total, unit),
+															})
+														: null,
+												chapterLabel(position),
+											]
+												.filter(Boolean)
+												.join(" · ")}
 									</p>
 									{data.days[0] && (
 										<p>
@@ -672,7 +827,7 @@ function BookReadingHistory({
 											<p className="font-semibold text-2xl tabular-nums tracking-tight">
 												{versus.amount > 0
 													? amountText(versus.amount)
-													: m.reading_today_nothing()}
+													: copy.todayNothing()}
 											</p>
 											{todayNote && (
 												<p
@@ -684,6 +839,16 @@ function BookReadingHistory({
 													)}
 												>
 													{todayNote.text}
+												</p>
+											)}
+											{streak.current >= 2 && (
+												<p className="flex items-center gap-1.5 font-medium text-sm">
+													<Fire
+														aria-hidden="true"
+														weight="fill"
+														className="text-primary"
+													/>
+													{m.reading_streak({ count: streak.current })}
 												</p>
 											)}
 										</div>
@@ -734,7 +899,7 @@ function BookReadingHistory({
 																finishLabel:
 																	finishIn === null
 																		? null
-																		: m.reading_projection_goal({
+																		: copy.projectionGoal({
 																				date: goalDay(addDays(today, finishIn)),
 																			}),
 															}
@@ -749,24 +914,27 @@ function BookReadingHistory({
 						</div>
 					)}
 					<HistorySection
-						title={m.reading_evolution()}
+						title={copy.evolution()}
 						actions={
 							<div className="flex flex-wrap items-center gap-2">
-								<Segmented
-									label={m.reading_evolution()}
-									value={metric}
-									options={[
-										{
-											value: "amount",
-											label:
-												unit === "chars"
-													? m.reading_characters_short
-													: m.reading_progress_short,
-										},
-										{ value: "time", label: m.reading_time },
-									]}
-									onChange={setMetric}
-								/>
+								{/* Audio amount is time × speed, so listening shows time alone. */}
+								{!listening && (
+									<Segmented
+										label={copy.evolution()}
+										value={metric}
+										options={[
+											{
+												value: "amount",
+												label:
+													unit === "chars"
+														? m.reading_characters_short
+														: m.reading_progress_short,
+											},
+											{ value: "time", label: m.reading_time },
+										]}
+										onChange={setMetric}
+									/>
+								)}
 								<Segmented
 									label={m.reading_period()}
 									value={activePeriod}
@@ -785,7 +953,8 @@ function BookReadingHistory({
 									key={`${data.runId}:${activePeriod}`}
 									slots={slots}
 									unit={unit}
-									metric={metric}
+									copy={copy}
+									metric={listening ? "time" : metric}
 									selectedDay={selectedDay}
 									onSelectDay={selectDay}
 									highlight={hoverStore}
@@ -793,19 +962,19 @@ function BookReadingHistory({
 								/>
 							) : (
 								<p className="py-16 text-center text-muted-foreground text-sm">
-									{m.reading_chart_empty()}
+									{copy.chartEmpty()}
 								</p>
 							)}
 						</div>
 					</HistorySection>
-					{(data.paces.length >= 3 || !finished) && (
+					{/* A listening speed is the player setting, not a skill that trends. */}
+					{!listening && (data.paces.length >= 3 || !finished) && (
 						<HistorySection title={m.reading_pace_title()}>
 							<div className="rounded-3xl bg-muted/30 @sm:p-6 p-4">
 								{data.paces.length >= 3 ? (
 									<ReadingPaceChart
 										paces={data.paces}
-										unit={unit}
-										amountChars={amountChars}
+										scale={scale}
 										timeZone={timeZone}
 									/>
 								) : (
@@ -814,7 +983,7 @@ function BookReadingHistory({
 							</div>
 						</HistorySection>
 					)}
-					<HistorySection title={m.reading_diary()}>
+					<HistorySection title={copy.diary()}>
 						<ReadingDiary
 							weeks={weeks.slice(0, weekCount)}
 							allDays={ordered}
@@ -827,8 +996,9 @@ function BookReadingHistory({
 								data.sessions.length >= 3 ? data.longestSession?.id : undefined
 							}
 							onHoverDay={hoverStore.set}
-							amountChars={amountChars}
-							unit={unit}
+							scale={scale}
+							copy={copy}
+							journey={journey}
 							timeZone={timeZone}
 							today={today}
 							historyId={historyId}
@@ -869,6 +1039,7 @@ function BookReadingHistory({
 					runId={data.runId}
 					goalDate={current?.goalDate ?? null}
 					today={today}
+					copy={copy}
 					onClose={() => setGoalOpen(false)}
 					onSaved={() => {
 						setGoalOpen(false);
@@ -881,6 +1052,8 @@ function BookReadingHistory({
 					bookUuid={bookUuid}
 					runId={data.runId}
 					timeZone={timeZone}
+					copy={copy}
+					audioDuration={listening ? scale.total : undefined}
 					session={sessionToEdit}
 					segments={data.segments.filter((s) => s.sessionId === form)}
 					onClose={() => setForm(null)}
@@ -901,16 +1074,16 @@ function BookReadingHistory({
 				}}
 				title={
 					confirm?.type === "reread"
-						? m.reading_reread()
+						? copy.again()
 						: confirm?.type === "discardRun"
-							? m.reading_delete_run()
+							? copy.deleteRun()
 							: m.reading_discard()
 				}
 				description={
 					confirm?.type === "reread"
-						? m.reading_reread_hint()
+						? copy.againHint()
 						: confirm?.type === "discardRun"
-							? m.reading_delete_run_hint()
+							? copy.deleteRunHint()
 							: m.reading_discard_hint()
 				}
 				footer={
@@ -930,9 +1103,9 @@ function BookReadingHistory({
 							}}
 						>
 							{confirm?.type === "reread"
-								? m.reading_reread()
+								? copy.again()
 								: confirm?.type === "discardRun"
-									? m.reading_delete_run()
+									? copy.deleteRun()
 									: m.reading_discard()}
 						</Button>
 					</>

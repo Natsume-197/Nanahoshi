@@ -3275,5 +3275,82 @@
 	"reading_finish_label": "Estimated finish",
 	"reading_since": "Since {date}",
 	"reading_today_target": "Today's target",
-	"reading_your_average": "Your average"
+	"reading_your_average": "Your average",
+	"listening_title": "Listening history",
+	"listening_loading": "Loading listening history…",
+	"listening_run": "Listen {number}",
+	"listening_previous": "Your listens",
+	"listening_relisten": "Listen again",
+	"listening_relisten_hint": "Starts another listen and keeps the previous sessions. Your saved position stays available.",
+	"listening_complete_run": "Finish this listen",
+	"listening_leave_run": "Stop this listen",
+	"listening_delete_run": "Delete listen",
+	"listening_delete_run_hint": "This listen and all its sessions will be deleted. This can't be undone.",
+	"listening_actions": "Listening actions",
+	"listening_best_day": "Top listening day",
+	"listening_days": "Listening days",
+	"listening_evolution": "Your listening over time",
+	"listening_diary": "Listening diary",
+	"listening_chart_empty": "You didn't listen in this period.",
+	"listening_no_listening": "No listening",
+	"listening_summary_title": "Audiobook finished!",
+	"listening_today_nothing": "Nothing yet today",
+	"listening_finish_hours": "≈ {duration} of listening",
+	"listening_empty": "Your listening story starts here",
+	"listening_empty_title": "No listening recorded yet",
+	"listening_empty_hint": "Listen for a few minutes to see your pace, your progress and when you'll finish the audiobook.",
+	"listening_empty_start": "Start listening",
+	"listening_goal_title": "Listening goal",
+	"listening_goal_hint": "Pick the day you want to finish the audiobook.",
+	"listening_minutes": "Minutes listened",
+	"listening_total_run": "Total for this listen",
+	"listening_speed": "{value}×",
+	"listening_audio_of_total": "{heard} of {total}",
+	"listening_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "over 1 listening day",
+				"countPlural=other": "over {count} listening days"
+			}
+		}
+	],
+	"listening_speed_label": "Speed",
+	"listening_finished_on": "Finished on {date}",
+	"listening_projection_goal": "Done ≈ {date}",
+	"listening_col_journey": "Journey",
+	"listening_finish_label": "Estimated finish",
+	"listening_insufficient": "Keep listening to get an estimate",
+	"listening_chart_sr": "{days} listening days in this period. Average: {average} a day. Best day: {best}, with {bestAmount}. Audiobook progress: {position}.",
+	"reading_chapter": "Ch. {number}",
+	"reading_chapter_span": "Ch. {from} → {to}",
+	"reading_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 day in a row",
+				"countPlural=other": "{count} days in a row"
+			}
+		}
+	],
+	"reading_best_streak": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Best streak: 1 day",
+				"countPlural=other": "Best streak: {count} days"
+			}
+		}
+	],
+	"listening_from": "Start (h:mm:ss)",
+	"listening_to": "End (h:mm:ss)",
+	"reading_chapter_left": "{duration} left in this chapter",
+	"reading_today_short": "Today",
+	"reading_whole_book": "Whole book",
+	"reading_day_start": "The day starts at",
+	"reading_day_start_midnight": "Midnight",
+	"reading_day_start_hint": "Reading or listening before this hour counts toward the previous day."
 }

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import type { DayStore } from "./day-store";
+import type { HistoryCopy } from "./history-copy";
 import { readingDuration } from "./reading-duration";
 import {
 	type ChartSlot,
@@ -25,6 +26,7 @@ export function formatAmount(
 	unit: ReadingUnit,
 	compact = false,
 ) {
+	if (unit === "audio") return readingDuration(value);
 	if (unit === "percent")
 		return `${new Intl.NumberFormat(getLocale(), { maximumFractionDigits: value < 10 ? 1 : 0 }).format(value)} %`;
 	return new Intl.NumberFormat(getLocale(), {
@@ -35,9 +37,16 @@ export function formatAmount(
 	}).format(value);
 }
 
+function amountLegend(unit: ReadingUnit) {
+	return unit === "chars"
+		? m.reading_legend_chars()
+		: m.reading_legend_percent();
+}
+
 export function ReadingHistoryChart({
 	slots,
 	unit,
+	copy,
 	metric,
 	selectedDay,
 	onSelectDay,
@@ -49,6 +58,7 @@ export function ReadingHistoryChart({
 	// A day hovered elsewhere (the diary), shown like a local hover.
 	highlight?: DayStore;
 	unit: ReadingUnit;
+	copy: HistoryCopy;
 	metric: "amount" | "time";
 	selectedDay?: string;
 	onSelectDay: (day: string) => void;
@@ -129,7 +139,7 @@ export function ReadingHistoryChart({
 	);
 	// What a sighted reader takes in at a glance, for screen readers.
 	const summary = [
-		m.reading_chart_sr({
+		copy.chartSummary({
 			days: readSlots.length,
 			average: label(Math.round(average), false),
 			best: best ? date(best.day, { dateStyle: "long" }) : "—",
@@ -290,7 +300,7 @@ export function ReadingHistoryChart({
 										: { left: `${goal.x}%` }),
 								}}
 							>
-								{m.reading_projection_goal({ date: goal.label })}
+								{copy.projectionGoal({ date: goal.label })}
 								{!goal.reached && " →"}
 							</span>
 						</>
@@ -372,7 +382,7 @@ export function ReadingHistoryChart({
 							type="button"
 							tabIndex={focusIndex === index ? 0 : -1}
 							disabled={!slot.read}
-							aria-label={`${date(slot.day, { dateStyle: "medium" })}: ${slot.read ? `${readingDuration(slot.seconds)}, ${label(slot.amount, false)}` : m.reading_no_reading()}`}
+							aria-label={`${date(slot.day, { dateStyle: "medium" })}: ${slot.read ? `${readingDuration(slot.seconds)}, ${label(slot.amount, false)}` : copy.nothing()}`}
 							aria-pressed={selectedDay === slot.day}
 							onMouseEnter={() => setPreviewDay(slot.day)}
 							onMouseLeave={() => setPreviewDay(undefined)}
@@ -417,18 +427,18 @@ export function ReadingHistoryChart({
 							</p>
 							{active.read ? (
 								<dl className="mt-1.5 space-y-1 tabular-nums">
-									<div className="flex justify-between gap-4">
-										<dt className="text-muted-foreground">
-											{unit === "chars"
-												? m.reading_legend_chars()
-												: m.reading_legend_percent()}
-										</dt>
-										<dd className="font-medium text-primary">
-											{unit === "chars"
-												? formatAmount(active.amount, unit)
-												: `+${formatAmount(active.amount, unit)}`}
-										</dd>
-									</div>
+									{unit !== "audio" && (
+										<div className="flex justify-between gap-4">
+											<dt className="text-muted-foreground">
+												{amountLegend(unit)}
+											</dt>
+											<dd className="font-medium text-primary">
+												{unit === "percent"
+													? `+${formatAmount(active.amount, unit)}`
+													: formatAmount(active.amount, unit)}
+											</dd>
+										</div>
+									)}
 									{(active.manualAmount > 0 || active.manualSeconds > 0) && (
 										<div className="flex justify-between gap-4">
 											<dt className="text-muted-foreground">
@@ -459,14 +469,12 @@ export function ReadingHistoryChart({
 									</div>
 								</dl>
 							) : (
-								<p className="mt-1 text-muted-foreground">
-									{m.reading_no_reading()}
-								</p>
+								<p className="mt-1 text-muted-foreground">{copy.nothing()}</p>
 							)}
 						</div>
 					)}
 				</div>
-				{metric === "time" || unit === "chars" ? (
+				{metric === "time" || unit !== "percent" ? (
 					<div
 						aria-hidden="true"
 						className="relative w-9 shrink-0 text-[11px] text-muted-foreground/70 tabular-nums"
@@ -487,7 +495,7 @@ export function ReadingHistoryChart({
 				aria-hidden="true"
 				className={cn(
 					"relative mt-2 ml-13 h-5 text-[11px] text-muted-foreground",
-					(metric === "time" || unit === "chars") && "mr-11",
+					(metric === "time" || unit !== "percent") && "mr-11",
 				)}
 			>
 				{ticks.map(({ slot, index }) => (
@@ -509,11 +517,7 @@ export function ReadingHistoryChart({
 			<div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-muted-foreground text-xs">
 				<span className="flex items-center gap-2">
 					<span aria-hidden="true" className="size-2.5 rounded-sm bg-primary" />
-					{metric === "time"
-						? m.reading_time()
-						: unit === "chars"
-							? m.reading_legend_chars()
-							: m.reading_legend_percent()}
+					{metric === "time" ? m.reading_time() : amountLegend(unit)}
 				</span>
 				{hasManual && (
 					<span className="flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { client, orpc } from "@/utils/orpc";
+import type { BookChapter } from "./reading-history-model";
 import {
 	type ClockSnapshot,
 	SessionClock,
@@ -24,6 +25,8 @@ interface Options {
 	bookCharCount?: number;
 	getPosition: () => number | null;
 	getLocator?: () => string | null;
+	// The table of contents may load after the session starts, so it is asked for on each save.
+	getChapters?: () => BookChapter[] | null;
 }
 export function useReadingTracker(options: Options) {
 	const latest = useRef(options);
@@ -129,6 +132,8 @@ export function useReadingTracker(options: Options) {
 		const save = () => {
 			if (!session) return;
 			session.characterCount ||= latest.current.bookCharCount || null;
+			if (!session.chapters?.length)
+				session.chapters = latest.current.getChapters?.() ?? null;
 			if (
 				savedState === clock.state &&
 				savedSegments === session.segments.length
@@ -511,12 +516,21 @@ export function useReadingTracker(options: Options) {
 			void r.sync();
 		}
 	};
-	const setPreferences = async (mode: TrackingMode, idleMinutes: number) => {
+	const setPreferences = async (
+		mode: TrackingMode,
+		idleMinutes: number,
+		dayStartHour?: number,
+	) => {
 		const data = await client.readingSessions.setPreferences({
 			mode,
 			idleMinutes,
+			dayStartHour,
 		});
 		queryClient.setQueryData(orpc.readingSessions.preferences.queryKey(), data);
+		// Days regroup when the day start changes.
+		void queryClient.invalidateQueries({
+			queryKey: orpc.readingSessions.history.key(),
+		});
 		try {
 			localStorage.setItem(
 				`nanahoshi:reading-preferences:${options.userId}`,
@@ -553,6 +567,7 @@ export function useReadingTracker(options: Options) {
 		setPreferences,
 		markJump,
 		reportPosition,
+		chapters: () => latest.current.getChapters?.() ?? null,
 		completeReading: () => runtime.current?.finishReading(),
 		retry: () => {
 			runtime.current?.save();

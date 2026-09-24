@@ -7,7 +7,9 @@ export function sessionDuration(seconds: number) {
 
 export function readingDuration(seconds: number) {
 	const minutes = Math.floor(seconds / 60);
-	return minutes >= 60
-		? `${Math.floor(minutes / 60)} h ${minutes % 60} min`
-		: `${minutes} min`;
+	if (minutes < 60) return `${minutes} min`;
+	// Whole hours read "2 h", not "2 h 0 min", so round axis ticks stay short.
+	return minutes % 60 === 0
+		? `${minutes / 60} h`
+		: `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
