@@ -32,7 +32,8 @@ export function usePlayerSync({
 	active = enabled,
 	getPlaybackState,
 }: UsePlayerSyncOptions) {
-	const lastSyncRef = useRef(Date.now());
+	// Start of playback not yet counted; null while nothing is playing.
+	const lastSyncRef = useRef<number | null>(null);
 	const syncRef = useRef<(() => Promise<void>) | undefined>(undefined);
 	const enabledRef = useRef(enabled);
 	enabledRef.current = enabled;
@@ -51,9 +52,15 @@ export function usePlayerSync({
 			const { currentTime, duration, playbackRate } =
 				getPlaybackStateRef.current();
 
-			const elapsedSinceLastSync = Math.floor(
-				(Date.now() - lastSyncRef.current) / 1000,
-			);
+			const now = Date.now();
+			const elapsedSinceLastSync =
+				lastSyncRef.current === null
+					? 0
+					: Math.floor((now - lastSyncRef.current) / 1000);
+			// A pause must not count as listening once playback resumes.
+			lastSyncRef.current = activeRef.current
+				? now - ((now - (lastSyncRef.current ?? now)) % 1000)
+				: null;
 			const progress = duration > 0 ? currentTime / duration : 0;
 			const newStatus =
 				progress >= COMPLETION_THRESHOLD ? "completed" : "listening";
@@ -71,7 +78,6 @@ export function usePlayerSync({
 				{ context: { keepalive: true } },
 			);
 
-			lastSyncRef.current = Date.now();
 			invalidateListeningProgress();
 			// The persistent mini-player never unmounts, so the completion
 			// transition is its "session end" recommendation signal.
@@ -125,7 +131,10 @@ export function usePlayerSync({
 			const stopped = previous.active && !active;
 			previousSessionRef.current = { active, bookUuid };
 
-			if (started) syncRef.current?.();
+			if (started) {
+				lastSyncRef.current = Date.now();
+				syncRef.current?.();
+			}
 			if (stopped) {
 				enqueue(async () => {
 					// Persist while the media element still holds the final paused
