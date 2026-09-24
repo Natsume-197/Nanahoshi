@@ -549,118 +549,126 @@ function HeroActions({
 
 	return (
 		<>
-			{/* Action bar below the synopsis. Mobile stacks full-width rows:
-			    [primary | like], then [shelf], then [labeled more]. From sm:
-			    a single row with primary/shelf equal and fixed so labels
-			    never resize the buttons. No truncation anywhere: labels
-			    wrap instead. */}
-			<div className="flex flex-row flex-wrap items-center gap-2 sm:flex-nowrap">
-				<Button
-					onClick={() => playAudiobook(bookUuid)}
-					onPointerEnter={() => prefetchAudiobook(bookUuid)}
-					onFocus={() => prefetchAudiobook(bookUuid)}
-					disabled={isLoadingPlayback}
-					aria-busy={isLoadingPlayback}
-					className="order-1 h-auto min-h-11 min-w-0 flex-1 gap-1.5 whitespace-normal px-3 text-center font-semibold text-sm leading-tight sm:w-[14.75rem] sm:flex-none"
-				>
-					{isLoadingPlayback ? (
-						<CircleNotch
-							aria-hidden="true"
-							className="animate-spin motion-reduce:animate-none"
-						/>
-					) : (
-						<Headphones
-							aria-hidden="true"
-							data-icon="inline-start"
-							weight="bold"
-						/>
-					)}
-					<span>
-						{isInProgress
-							? m["audiobook.continue_listening"]()
-							: m["audiobook.listen"]()}
-					</span>
-					{isInProgress && (
-						<span className="shrink-0 tabular-nums opacity-80">
-							· {listenPct}%
-						</span>
-					)}
-				</Button>
-
-				{(() => {
-					const activeOption = currentShelf
-						? getShelfOptions("audiobook").find((o) => o.value === currentShelf)
-						: undefined;
-					const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
-					return (
-						<Button
-							variant="outline"
-							className="order-3 h-auto min-h-11 w-full justify-center whitespace-normal px-3 text-center leading-tight sm:order-2 sm:w-[14.75rem] sm:flex-none"
-							onClick={() => setIsAddToListOpen(true)}
-						>
-							<ActiveIcon
+			{/* Action bar below the synopsis. Narrow stacks full-width rows:
+			    [primary | like], then [shelf], then [labeled more]. From a 32rem
+			    container: one row, primary/shelf sharing the space up to a fixed
+			    cap. Sized by the column, not the viewport — beside the cover the
+			    column is far narrower than the window. No truncation: labels wrap. */}
+			<div className="@container">
+				<div className="flex flex-row flex-wrap @lg:flex-nowrap items-center gap-2">
+					<Button
+						onClick={() => playAudiobook(bookUuid)}
+						onPointerEnter={() => prefetchAudiobook(bookUuid)}
+						onFocus={() => prefetchAudiobook(bookUuid)}
+						disabled={isLoadingPlayback}
+						aria-busy={isLoadingPlayback}
+						className="order-1 h-auto min-h-11 min-w-0 @lg:max-w-[14.75rem] flex-1 gap-1.5 whitespace-normal px-3 text-center font-semibold text-sm leading-tight"
+					>
+						{isLoadingPlayback ? (
+							<CircleNotch
+								aria-hidden="true"
+								className="animate-spin motion-reduce:animate-none"
+							/>
+						) : (
+							<Headphones
 								aria-hidden="true"
 								data-icon="inline-start"
-								className="shrink-0"
+								weight="bold"
 							/>
-							<span>
-								{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+						)}
+						<span>
+							{isInProgress
+								? m["audiobook.continue_listening"]()
+								: m["audiobook.listen"]()}
+						</span>
+						{isInProgress && (
+							<span className="shrink-0 tabular-nums opacity-80">
+								· {listenPct}%
 							</span>
-						</Button>
-					);
-				})()}
+						)}
+					</Button>
 
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant={isLiked ? "destructive" : "outline"}
-							size="icon"
-							aria-label={
-								isLiked
-									? m["aria.remove_from_likes"]()
-									: m["aria.add_to_likes"]()
-							}
-							aria-pressed={isLiked}
-							aria-busy={toggleLikeMutation.isPending}
-							onClick={() => {
-								if (!isLiked) popHeart();
-								toggleLikeMutation.mutate();
-							}}
-							disabled={
-								toggleLikeMutation.isPending || likeStatusQuery.isLoading
-							}
-							className="order-2 size-11 shrink-0 sm:order-3"
-						>
-							<Heart
-								aria-hidden="true"
-								ref={heartRef}
-								weight={isLiked ? "fill" : "regular"}
-							/>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>
-						{isLiked ? m["aria.remove_from_likes"]() : m["aria.add_to_likes"]()}
-					</TooltipContent>
-				</Tooltip>
-
-				{(canDownload || canEnrich) && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
+					{(() => {
+						const activeOption = currentShelf
+							? getShelfOptions("audiobook").find(
+									(o) => o.value === currentShelf,
+								)
+							: undefined;
+						const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+						return (
 							<Button
 								variant="outline"
-								size="icon"
-								aria-label={m["nav.more"]()}
-								className="order-4 h-auto min-h-11 w-full justify-center gap-1.5 whitespace-normal px-3 text-center leading-tight sm:size-11 sm:flex-none"
+								className="@lg:order-2 order-3 h-auto min-h-11 @lg:w-auto w-full @lg:min-w-0 @lg:max-w-[14.75rem] @lg:flex-1 justify-center whitespace-normal px-3 text-center leading-tight"
+								onClick={() => setIsAddToListOpen(true)}
 							>
-								<DotsThree aria-hidden="true" weight="bold" />
-								<span className="sm:hidden">{m["nav.more"]()}</span>
+								<ActiveIcon
+									aria-hidden="true"
+									data-icon="inline-start"
+									className="shrink-0"
+								/>
+								<span>
+									{activeOption
+										? activeOption.label()
+										: m["add_to_list.title"]()}
+								</span>
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" sideOffset={6}>
-							{moreMenuItems}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
+						);
+					})()}
+
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={isLiked ? "destructive" : "outline"}
+								size="icon"
+								aria-label={
+									isLiked
+										? m["aria.remove_from_likes"]()
+										: m["aria.add_to_likes"]()
+								}
+								aria-pressed={isLiked}
+								aria-busy={toggleLikeMutation.isPending}
+								onClick={() => {
+									if (!isLiked) popHeart();
+									toggleLikeMutation.mutate();
+								}}
+								disabled={
+									toggleLikeMutation.isPending || likeStatusQuery.isLoading
+								}
+								className="@lg:order-3 order-2 size-11 shrink-0"
+							>
+								<Heart
+									aria-hidden="true"
+									ref={heartRef}
+									weight={isLiked ? "fill" : "regular"}
+								/>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{isLiked
+								? m["aria.remove_from_likes"]()
+								: m["aria.add_to_likes"]()}
+						</TooltipContent>
+					</Tooltip>
+
+					{(canDownload || canEnrich) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									aria-label={m["nav.more"]()}
+									className="order-4 @lg:size-11 h-auto min-h-11 w-full @lg:flex-none justify-center gap-1.5 whitespace-normal px-3 text-center leading-tight"
+								>
+									<DotsThree aria-hidden="true" weight="bold" />
+									<span className="@lg:hidden">{m["nav.more"]()}</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" sideOffset={6}>
+								{moreMenuItems}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+				</div>
 			</div>
 
 			{/* Mounted per open so a re-open starts from a clean search. */}
