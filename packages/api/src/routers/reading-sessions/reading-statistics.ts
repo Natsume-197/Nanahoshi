@@ -64,6 +64,8 @@ export function summarizeReading(
 			day: string;
 			seconds: number;
 			observedSeconds: number;
+			progress: number;
+			manualProgress: number;
 			startPosition: number | null;
 			endPosition: number | null;
 			sessionIds: string[];
@@ -109,6 +111,8 @@ export function summarizeReading(
 				day: part.day,
 				seconds: 0,
 				observedSeconds: 0,
+				progress: 0,
+				manualProgress: 0,
 				startPosition: null,
 				endPosition: null,
 				sessionIds: [],
@@ -139,6 +143,17 @@ export function summarizeReading(
 			if (part.start === start && d.startPosition === null)
 				d.startPosition = s.startPosition;
 			if (part.end === end) d.endPosition = s.endPosition;
+			// Forward progress lands on the day the segment ends; jumps are navigation, not reading.
+			if (
+				part.end === end &&
+				s.kind !== "jump" &&
+				s.startPosition !== null &&
+				s.endPosition !== null
+			) {
+				const advance = Math.max(0, s.endPosition - s.startPosition);
+				d.progress += advance;
+				if (s.kind === "manual") d.manualProgress += advance;
+			}
 			if (
 				part.start === start &&
 				part.end === end &&
@@ -162,7 +177,7 @@ export function summarizeReading(
 	const compatible = sessions.filter(
 		(s) => s.contentVersion === version && s.mode !== "retrospective",
 	);
-	const samples = compatible
+	const measured = compatible
 		.map((session) => {
 			const parts = observed.filter(
 				(s) => s.sessionId === session.id && s.kind === "reading",
@@ -184,17 +199,40 @@ export function summarizeReading(
 				coverage += Math.max(0, to - Math.max(from, until));
 				until = Math.max(until, to);
 			}
-			return { seconds, rate: seconds > 0 ? coverage / seconds : 0 };
+			return {
+				id: session.id,
+				seconds,
+				rate: seconds > 0 ? coverage / seconds : 0,
+			};
 		})
-		.filter((s) => s.seconds >= 60 && s.rate > 0 && s.rate <= 0.001)
-		.slice(0, 20);
+		.filter((s) => s.seconds >= 60 && s.rate > 0 && s.rate <= 0.001);
+	const samples = measured.slice(0, 20);
+	const allRates = measured.map((s) => s.rate).sort((a, b) => a - b);
+	const typical = allRates[Math.floor(allRates.length / 2)] ?? 0;
+	// Per-session pace for the speed chart; the same outlier band as the estimate drops misread jumps.
+	const paces = measured
+		.filter((s) => s.rate >= typical / 3 && s.rate <= typical * 3)
+		.flatMap((s) => {
+			const start = sessionStartedAt.get(s.id);
+			return start === undefined
+				? []
+				: [
+						{
+							sessionId: s.id,
+							startedAt: new Date(start).toISOString(),
+							seconds: s.seconds,
+							rate: s.rate,
+						},
+					];
+		})
+		.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 	const rates = samples.map((s) => s.rate).sort((a, b) => a - b);
 	const median = rates[Math.floor(rates.length / 2)] ?? 0;
 	const valid = samples.filter(
 		(s) => s.rate >= median / 3 && s.rate <= median * 3,
 	);
-	const enough =
-		valid.length >= 3 && valid.reduce((sum, s) => sum + s.seconds, 0) >= 1800;
+	const validSeconds = valid.reduce((sum, s) => sum + s.seconds, 0);
+	const enough = valid.length >= 3 && validSeconds >= 1800;
 	const remainingSeconds =
 		enough &&
 		median > 0 &&
@@ -225,6 +263,16 @@ export function summarizeReading(
 		overlapSeconds,
 		remainingSeconds,
 		position: ordered.at(-1)?.endPosition ?? null,
+		// Book fraction per second of reading; the median session resists outliers.
+		speed: valid.length > 0 && median > 0 ? median : null,
+		paces,
+		// What the remaining-time estimate still lacks, so the UI can say exactly how much more to read.
+		estimateNeeds: enough
+			? null
+			: {
+					sessions: Math.max(0, 3 - valid.length),
+					seconds: Math.max(0, 1800 - validSeconds),
+				},
 		days: daily,
 		longestSession: longest ? { id: longest[0], seconds: longest[1] } : null,
 		bestDay:

@@ -217,3 +217,142 @@ test("instant navigation changes the day's final position without adding time", 
 	expect(result.days[0]?.endPosition).toBe(0.75);
 	expect(result.days[0]?.ranges.at(-1)?.kind).toBe("jump");
 });
+
+test("daily progress sums forward reading and ignores jumps", () => {
+	const result = summarizeReading(
+		[
+			segment({ startPosition: 0.1, endPosition: 0.15 }),
+			segment({
+				startedAt: "2026-01-01T12:10:00Z",
+				endedAt: "2026-01-01T12:10:00Z",
+				seconds: 0,
+				startPosition: 0.15,
+				endPosition: 0.6,
+				kind: "jump",
+			}),
+			segment({
+				startedAt: "2026-01-01T12:20:00Z",
+				endedAt: "2026-01-01T12:30:00Z",
+				startPosition: 0.6,
+				endPosition: 0.58,
+			}),
+		],
+		[],
+		"UTC",
+	);
+	expect(result.days[0]?.progress).toBeCloseTo(0.05);
+});
+
+test("progress across midnight is credited to the day the segment ends", () => {
+	const result = summarizeReading(
+		[
+			segment({
+				startedAt: "2026-01-01T23:50:00Z",
+				endedAt: "2026-01-02T00:10:00Z",
+				seconds: 1200,
+				startPosition: 0.2,
+				endPosition: 0.3,
+			}),
+		],
+		[],
+		"UTC",
+	);
+	expect(result.days[0]?.progress).toBe(0);
+	expect(result.days[1]?.progress).toBeCloseTo(0.1);
+});
+
+test("speed is the median session rate and null without samples", () => {
+	const segments = [0.01, 0.02, 0.03].map((advance, i) =>
+		segment({
+			sessionId: `s${i}`,
+			startedAt: `2026-01-0${i + 1}T12:00:00Z`,
+			endedAt: `2026-01-0${i + 1}T12:10:00Z`,
+			startPosition: 0.1,
+			endPosition: 0.1 + advance,
+		}),
+	);
+	const sessions = segments.map((s) => ({
+		id: s.sessionId,
+		mode: "automatic",
+		contentVersion: "v1",
+	}));
+	expect(summarizeReading(segments, sessions, "UTC").speed).toBeCloseTo(
+		0.02 / 600,
+	);
+	expect(summarizeReading([], [], "UTC").speed).toBeNull();
+});
+
+test("manual progress is tracked apart from observed progress", () => {
+	const result = summarizeReading(
+		[
+			segment({ startPosition: 0.1, endPosition: 0.15 }),
+			segment({
+				sessionId: "manual",
+				kind: "manual",
+				startedAt: "2026-01-01T18:00:00Z",
+				endedAt: "2026-01-01T18:30:00Z",
+				seconds: 1800,
+				startPosition: 0.15,
+				endPosition: 0.25,
+			}),
+		],
+		[],
+		"UTC",
+	);
+	expect(result.days[0]?.progress).toBeCloseTo(0.15);
+	expect(result.days[0]?.manualProgress).toBeCloseTo(0.1);
+});
+
+test("estimate needs report the missing sessions and time until ready", () => {
+	const segments = [0, 1].map((i) =>
+		segment({
+			sessionId: `s${i}`,
+			startedAt: `2026-01-0${i + 1}T12:00:00Z`,
+			endedAt: `2026-01-0${i + 1}T12:10:00Z`,
+		}),
+	);
+	const sessions = segments.map((s) => ({
+		id: s.sessionId,
+		mode: "automatic",
+		contentVersion: "v1",
+	}));
+	expect(summarizeReading(segments, sessions, "UTC").estimateNeeds).toEqual({
+		sessions: 1,
+		seconds: 600,
+	});
+	const third = segment({
+		sessionId: "s2",
+		startedAt: "2026-01-03T12:00:00Z",
+		endedAt: "2026-01-03T12:10:00Z",
+	});
+	expect(
+		summarizeReading(
+			[...segments, third],
+			[...sessions, { id: "s2", mode: "automatic", contentVersion: "v1" }],
+			"UTC",
+		).estimateNeeds,
+	).toBeNull();
+});
+
+test("paces list each measured session in time order without outliers", () => {
+	const advances = [0.02, 0.022, 0.018, 0.2];
+	const segments = advances.map((advance, i) =>
+		segment({
+			sessionId: `s${i}`,
+			startedAt: `2026-01-0${i + 1}T12:00:00Z`,
+			endedAt: `2026-01-0${i + 1}T12:10:00Z`,
+			startPosition: 0.1,
+			endPosition: 0.1 + advance,
+		}),
+	);
+	const sessions = segments
+		.map((s) => ({ id: s.sessionId, mode: "automatic", contentVersion: "v1" }))
+		.reverse();
+	const { paces } = summarizeReading(segments, sessions, "UTC");
+	expect(paces.map((p) => p.sessionId)).toEqual(["s0", "s1", "s2"]);
+	expect(paces[0]).toMatchObject({
+		startedAt: "2026-01-01T12:00:00.000Z",
+		seconds: 600,
+	});
+	expect(paces[0]?.rate).toBeCloseTo(0.02 / 600);
+});
