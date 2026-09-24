@@ -17,6 +17,7 @@ export const ReadingBookInput = z.object({ bookUuid: z.string().min(1) });
 export const ReadingPreferencesInput = z.object({
 	mode: z.enum(["automatic", "manual", "off"]),
 	idleMinutes: z.number().int().min(2).max(30),
+	dayStartHour: z.number().int().min(0).max(6).optional(),
 });
 export const ReadingSegmentInput = z
 	.object({
@@ -28,7 +29,7 @@ export const ReadingSegmentInput = z
 		endPosition: position,
 		startLocator: z.string().max(2000).nullable().optional(),
 		endLocator: z.string().max(2000).nullable().optional(),
-		kind: z.enum(["reading", "jump", "manual"]),
+		kind: z.enum(["reading", "listening", "jump", "manual"]),
 	})
 	.refine(
 		(v) =>
@@ -51,6 +52,16 @@ export const SyncReadingSessionInput = ReadingBookInput.extend({
 	contentVersion: z.string().min(1).max(200),
 	timeZone,
 	characterCount: z.number().int().positive().max(100_000_000).nullish(),
+	durationSeconds: z.number().positive().max(10_000_000).nullish(),
+	chapters: z
+		.array(
+			z.object({
+				title: z.string().max(300).nullable(),
+				start: z.number().min(0).max(1),
+			}),
+		)
+		.max(500)
+		.nullish(),
 	segments: z.array(ReadingSegmentInput).max(200),
 });
 export type SessionUpload = z.infer<typeof SyncReadingSessionInput>;

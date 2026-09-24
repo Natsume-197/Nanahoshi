@@ -827,6 +827,34 @@
       "when": 1790216130025,
       "tag": "0117_daffy_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790277121719,
+      "tag": "0118_omniscient_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1790280663620,
+      "tag": "0119_polite_khan",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790281445985,
+      "tag": "0120_flippant_tusk",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1790282310132,
+      "tag": "0121_foamy_killraven",
+      "breakpoints": true
     }
   ]
 }

@@ -356,3 +356,65 @@ test("paces list each measured session in time order without outliers", () => {
 	});
 	expect(paces[0]?.rate).toBeCloseTo(0.02 / 600);
 });
+test("listening sessions measure speed, even past the reading cap, and ignore seeks", () => {
+	// A 20-minute audiobook at 2×: 0.0017 of the book per second, above the text cap.
+	const sessions = ["a", "b", "c"].map((id) => ({
+		id,
+		contentVersion: "audio",
+		mode: "automatic",
+	}));
+	const segments = sessions.flatMap((s, i) => {
+		const day = `2026-01-0${i + 1}`;
+		return [
+			segment({
+				sessionId: s.id,
+				startedAt: `${day}T12:00:00Z`,
+				endedAt: `${day}T12:10:00Z`,
+				seconds: 600,
+				startPosition: 0,
+				endPosition: 1,
+				kind: "listening",
+			}),
+			segment({
+				sessionId: s.id,
+				startedAt: `${day}T12:10:00Z`,
+				endedAt: `${day}T12:10:00Z`,
+				seconds: 0,
+				startPosition: 1,
+				endPosition: 0,
+				kind: "jump",
+			}),
+		];
+	});
+	const result = summarizeReading(segments, sessions, "UTC");
+	expect(result.speed).toBeCloseTo(1 / 600);
+	expect(result.paces).toHaveLength(3);
+	expect(result.totalSeconds).toBe(1800);
+	expect(result.days.map((d) => d.progress)).toEqual([1, 1, 1]);
+});
+test("a later day start keeps a night past midnight on the evening's day", () => {
+	// 23:30–01:30 in Bogotá (UTC-5) is one reading night when days start at 04:00.
+	const night = segment({
+		startedAt: "2026-01-03T04:30:00Z",
+		endedAt: "2026-01-03T06:30:00Z",
+		seconds: 7200,
+	});
+	expect(
+		summarizeReading([night], [], "America/Bogota", 4).days.map((d) => d.day),
+	).toEqual(["2026-01-02"]);
+	expect(
+		summarizeReading([night], [], "America/Bogota").days.map((d) => d.day),
+	).toEqual(["2026-01-02", "2026-01-03"]);
+});
+test("with a day start the split falls at that hour, not midnight", () => {
+	const parts = splitDays(
+		Date.parse("2026-01-03T08:00:00Z"),
+		Date.parse("2026-01-03T10:00:00Z"),
+		"America/Bogota",
+		4,
+	);
+	expect(parts.map((p) => [p.day, new Date(p.end).toISOString()])).toEqual([
+		["2026-01-02", "2026-01-03T09:00:00.000Z"],
+		["2026-01-03", "2026-01-03T10:00:00.000Z"],
+	]);
+});

@@ -14,6 +14,7 @@ import {
 import { scannedFileRepository } from "../../modules/scanning/scannedFile.repository";
 import { audiobookRepository } from "../audiobooks/audiobook.repository";
 import { enrichmentStateRepository } from "../enrichment/enrichment.repository";
+import { readingSessionsRepository } from "../reading-sessions/reading-sessions.repository";
 import { bookRepository, type LibraryScope } from "./book.repository";
 import {
 	deleteBookSource,
@@ -35,6 +36,7 @@ export async function removeCatalogBook(
 		() => undefined,
 	);
 	const promote = await findMemberToPromote(existing.id).catch(() => null);
+	await readingSessionsRepository.preserveForRemoval({ bookId: existing.id });
 	const removed = await bookRepository.removeBook(existing.id);
 	if (!removed) return false;
 

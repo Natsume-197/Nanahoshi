@@ -6,13 +6,14 @@ import {
 	doublePrecision,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	text,
 	timestamp,
 	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
-import { user } from "./auth";
+import { organization, user } from "./auth";
 import { book } from "./general";
 
 const instant = (name: string) =>
@@ -26,6 +27,8 @@ export const readingTrackingPreference = pgTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		mode: text("mode").notNull().default("automatic"),
 		idleMinutes: integer("idle_minutes").notNull().default(5),
+		// Hour the reading day starts, so a night that runs past midnight stays one day.
+		dayStartHour: integer("day_start_hour").notNull().default(0),
 	},
 );
 export const readingRun = pgTable(
@@ -35,9 +38,15 @@ export const readingRun = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		bookId: bigint("book_id", { mode: "number" })
-			.notNull()
-			.references(() => book.id, { onDelete: "cascade" }),
+		// Null once the book is removed; the run waits for the same file to return.
+		bookId: bigint("book_id", { mode: "number" }).references(() => book.id, {
+			onDelete: "set null",
+		}),
+		// Content hash and server of a removed book, so a re-added copy adopts its history.
+		orphanHash: text("orphan_hash"),
+		orphanServerId: text("orphan_server_id").references(() => organization.id, {
+			onDelete: "cascade",
+		}),
 		startedAt: instant("started_at").notNull(),
 		endedAt: instant("ended_at"),
 		closureReason: text("closure_reason").$type<
@@ -49,6 +58,9 @@ export const readingRun = pgTable(
 	},
 	(t) => [
 		index("reading_run_owner_book_idx").on(t.userId, t.bookId),
+		index("reading_run_orphan_idx")
+			.on(t.orphanServerId, t.orphanHash)
+			.where(sql`${t.bookId} IS NULL`),
 		uniqueIndex("reading_run_current_idx")
 			.on(t.userId, t.bookId)
 			.where(sql`${t.state} = 'reading'`),
@@ -72,6 +84,11 @@ export const readingSession = pgTable(
 		timeZone: text("time_zone").notNull(),
 		// Characters in the edition as counted by the reader; converts positions into characters read.
 		characterCount: integer("character_count"),
+		// Audiobook length as played, the listening counterpart of characterCount.
+		durationSeconds: doublePrecision("duration_seconds"),
+		// The reader's table of contents as book fractions, so history can name chapters.
+		chapters:
+			jsonb("chapters").$type<{ title: string | null; start: number }[]>(),
 		revision: integer("revision").notNull().default(0),
 		discardedAt: instant("discarded_at"),
 	},

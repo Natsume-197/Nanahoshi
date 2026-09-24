@@ -37,6 +37,7 @@ files=(
 	packages/api/src/routers/collections/__tests__/collections.dynamic.integration.test.ts
 	packages/api/src/routers/server-profile/__tests__/server-profile.delete.integration.test.ts
 	packages/api/src/routers/reading-sessions/__tests__/reading-sessions.integration.test.ts
+	packages/api/src/routers/reading-sessions/__tests__/reading-history-preservation.integration.test.ts
 	packages/api/src/routers/audiobooks/metadata/__tests__/metadata.series.integration.test.ts
 )
 

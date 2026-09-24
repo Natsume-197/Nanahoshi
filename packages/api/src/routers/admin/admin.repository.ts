@@ -2,6 +2,7 @@ import { db } from "@nanahoshi/db";
 import { member, organization, user } from "@nanahoshi/db/schema/auth";
 import { book, library } from "@nanahoshi/db/schema/general";
 import { count, eq } from "drizzle-orm";
+import { readingSessionsRepository } from "../reading-sessions/reading-sessions.repository";
 
 export class AdminRepository {
 	async getSystemCounts() {
@@ -86,7 +87,10 @@ export class AdminRepository {
 	}
 
 	async deleteServer(orgId: string) {
-		await db.delete(organization).where(eq(organization.id, orgId));
+		await db.transaction(async (tx) => {
+			await readingSessionsRepository.deleteForServer(tx, orgId);
+			await tx.delete(organization).where(eq(organization.id, orgId));
+		});
 	}
 
 	async getOrgWithMembers(orgId: string) {

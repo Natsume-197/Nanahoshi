@@ -1,6 +1,7 @@
 import { db } from "@nanahoshi/db";
 import { organization } from "@nanahoshi/db/schema/auth";
 import { eq } from "drizzle-orm";
+import { readingSessionsRepository } from "../reading-sessions/reading-sessions.repository";
 import type { UpdateServerProfileInput } from "./server-profile.model";
 
 export class ServerProfileRepository {
@@ -20,7 +21,10 @@ export class ServerProfileRepository {
 
 	/** Deletes the organization row; scoped data (libraries, books, members…) follows via FK cascades. */
 	async deleteServer(serverId: string) {
-		await db.delete(organization).where(eq(organization.id, serverId));
+		await db.transaction(async (tx) => {
+			await readingSessionsRepository.deleteForServer(tx, serverId);
+			await tx.delete(organization).where(eq(organization.id, serverId));
+		});
 	}
 
 	async updateProfile(serverId: string, patch: UpdateServerProfileInput) {

@@ -1,4 +1,5 @@
 import { db } from "@nanahoshi/db";
+import { book, library } from "@nanahoshi/db/schema/general";
 import {
 	readingRun,
 	readingSegment,
@@ -14,10 +15,46 @@ import {
 	isNull,
 	lt,
 	lte,
+	notInArray,
 	or,
+	type SQL,
 	sql,
 } from "drizzle-orm";
 import { ConflictError, NotFoundError } from "../../errors";
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Which books are about to be removed; history survives all three removals. */
+export type RemovalScope =
+	| { bookId: number }
+	| { libraryId: number }
+	| { libraryPathId: number };
+
+// Hands runs matching `candidates` to `target`. A user keeps one current reading per
+// book, so an arriving "reading" run yields to the target's own or a newer arrival.
+async function moveRuns(tx: Tx, candidates: SQL, target: number) {
+	await tx.execute(sql`
+		UPDATE reading_run r
+		SET state = 'left', ended_at = COALESCE(r.ended_at, now()), closure_reason = 'leave'
+		WHERE ${candidates} AND r.state = 'reading' AND (
+			EXISTS (
+				SELECT 1 FROM reading_run c
+				WHERE c.book_id = ${target} AND c.user_id = r.user_id AND c.state = 'reading'
+			)
+			OR EXISTS (
+				SELECT 1 FROM reading_run o
+				WHERE o.id <> r.id AND o.user_id = r.user_id AND o.state = 'reading'
+					AND o.started_at > r.started_at
+					AND o.id IN (SELECT r.id FROM reading_run r WHERE ${candidates})
+			)
+		)`);
+	const moved = await tx.execute(sql`
+		UPDATE reading_run r
+		SET book_id = ${target}, orphan_hash = NULL, orphan_server_id = NULL
+		WHERE ${candidates}`);
+	return moved.rowCount ?? 0;
+}
+
 import { type SessionUpload, validateSession } from "./reading-sessions.model";
 
 export class ReadingSessionsRepository {
@@ -29,11 +66,12 @@ export class ReadingSessionsRepository {
 		return {
 			mode: (row?.mode ?? "automatic") as "automatic" | "manual" | "off",
 			idleMinutes: row?.idleMinutes ?? 5,
+			dayStartHour: row?.dayStartHour ?? 0,
 		};
 	}
 	async setPreferences(
 		userId: string,
-		value: { mode: string; idleMinutes: number },
+		value: { mode: string; idleMinutes: number; dayStartHour?: number },
 	) {
 		await db
 			.insert(readingTrackingPreference)
@@ -199,6 +237,10 @@ export class ReadingSessionsRepository {
 						...(input.characterCount
 							? { characterCount: input.characterCount }
 							: {}),
+						...(input.durationSeconds
+							? { durationSeconds: input.durationSeconds }
+							: {}),
+						...(input.chapters?.length ? { chapters: input.chapters } : {}),
 					})
 					.where(eq(readingSession.id, input.id));
 			if (segments.length) {
@@ -389,6 +431,81 @@ export class ReadingSessionsRepository {
 			}
 			return { ok: true };
 		});
+	}
+	/**
+	 * Keeps the history of books about to be removed: moved to another copy of the
+	 * same file on the server when one exists, otherwise parked by content hash
+	 * until the file returns (a move or rename is a removal plus an addition).
+	 */
+	async preserveForRemoval(scope: RemovalScope) {
+		const where =
+			"bookId" in scope
+				? eq(book.id, scope.bookId)
+				: "libraryId" in scope
+					? eq(book.libraryId, scope.libraryId)
+					: eq(book.libraryPathId, scope.libraryPathId);
+		return db.transaction(async (tx) => {
+			const gone = await tx
+				.select({
+					id: book.id,
+					hash: book.filehash,
+					serverId: library.serverId,
+				})
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.where(where);
+			if (!gone.length) return { moved: 0, parked: 0 };
+			const goneIds = gone.map((g) => g.id);
+			let moved = 0;
+			let parked = 0;
+			for (const g of gone) {
+				const [twin] = await tx
+					.select({ id: book.id })
+					.from(book)
+					.innerJoin(library, eq(library.id, book.libraryId))
+					.where(
+						and(
+							eq(book.filehash, g.hash),
+							eq(library.serverId, g.serverId),
+							notInArray(book.id, goneIds),
+						),
+					)
+					.orderBy(book.id)
+					.limit(1);
+				if (twin)
+					moved += await moveRuns(tx, sql`r.book_id = ${g.id}`, twin.id);
+				else {
+					const parkedRows = await tx
+						.update(readingRun)
+						.set({ orphanHash: g.hash, orphanServerId: g.serverId })
+						.where(eq(readingRun.bookId, g.id));
+					parked += parkedRows.rowCount ?? 0;
+				}
+			}
+			return { moved, parked };
+		});
+	}
+	/** Gives a newly added book the history its file had before it was removed. */
+	async adoptOrphans(bookId: number) {
+		return db.transaction(async (tx) => {
+			const [target] = await tx
+				.select({ hash: book.filehash, serverId: library.serverId })
+				.from(book)
+				.innerJoin(library, eq(library.id, book.libraryId))
+				.where(eq(book.id, bookId));
+			if (!target) return 0;
+			return moveRuns(
+				tx,
+				sql`r.book_id IS NULL AND r.orphan_server_id = ${target.serverId} AND r.orphan_hash = ${target.hash}`,
+				bookId,
+			);
+		});
+	}
+	/** A deleted server takes its members' reading history with it. */
+	async deleteForServer(tx: Tx, serverId: string) {
+		await tx.execute(sql`
+			DELETE FROM reading_run r USING book b, library l
+			WHERE r.book_id = b.id AND b.library_id = l.id AND l.server_id = ${serverId}`);
 	}
 }
 export const readingSessionsRepository = new ReadingSessionsRepository();

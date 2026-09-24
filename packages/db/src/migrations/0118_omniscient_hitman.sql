@@ -1,0 +1,1 @@
+ALTER TABLE "reading_session" ADD COLUMN "duration_seconds" double precision;

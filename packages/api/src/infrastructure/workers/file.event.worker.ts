@@ -27,6 +27,7 @@ import { removeCatalogBookByRelativePath } from "../../routers/books/book-deleti
 import { bookMetadataRepository } from "../../routers/books/metadata/metadata.repository";
 import { bookMetadataService } from "../../routers/books/metadata/metadata.service";
 import { libraryRepository } from "../../routers/libraries/library.repository";
+import { readingSessionsRepository } from "../../routers/reading-sessions/reading-sessions.repository";
 import { generateDeterministicUUID } from "../../utils/misc";
 import { redis } from "../queue/redis";
 
@@ -194,6 +195,15 @@ async function handleFileEvent(job: Job) {
 				await scannedFileRepository.markDone(path, libraryPathId);
 				return { path, action, skipped: "deleted_during_processing" };
 			}
+			// A moved or re-added file brings back the reading history it had.
+			await readingSessionsRepository
+				.adoptOrphans(bookInserted.id)
+				.catch((err) =>
+					log.error(
+						{ err, bookId: bookInserted.id },
+						"History adoption failed",
+					),
+				);
 
 			await bookMetadataService.enrichAndSaveMetadata({
 				bookId: bookInserted.id,
@@ -333,6 +343,15 @@ async function handleFileEvent(job: Job) {
 					skipped: "deleted_during_processing",
 				};
 			}
+			// A moved or re-added file brings back the reading history it had.
+			await readingSessionsRepository
+				.adoptOrphans(bookInserted.id)
+				.catch((err) =>
+					log.error(
+						{ err, bookId: bookInserted.id },
+						"History adoption failed",
+					),
+				);
 
 			await processAudiobook(bookInserted.id, bookInserted.uuid, audioData);
 

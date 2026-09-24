@@ -211,7 +211,15 @@ const mockClearAutomaticDuplicatePointersByLibrary = spyOn(
 const { bookMetadataRepository } = await import(
 	"../../books/metadata/metadata.repository"
 );
+const { readingSessionsRepository } = await import(
+	"../../reading-sessions/reading-sessions.repository"
+);
+const mockPreserveForRemoval = spyOn(
+	readingSessionsRepository,
+	"preserveForRemoval",
+).mockImplementation(() => Promise.resolve({ moved: 0, parked: 0 }));
 const repositorySpies = [
+	mockPreserveForRemoval,
 	mockGetIdsByLibraryId,
 	mockGetIdsByLibraryPathId,
 	mockListEbookIdsByLibraryAfter,
@@ -917,6 +925,10 @@ describe("library.service — org-scoped authorization", () => {
 			const result = await service.deleteLibrary("lib-uuid", "org-A");
 
 			expect(result).toEqual({ success: true });
+			// Reading history is parked before the cascade removes the books.
+			expect(mockPreserveForRemoval).toHaveBeenCalledWith({
+				libraryId: lib.id,
+			});
 			expect(mockFetchRelatedEntitiesByLibraryId).toHaveBeenCalled();
 			expect(mockUnregisterSchedule).toHaveBeenCalledWith(1);
 		});

@@ -1,0 +1,1 @@
+ALTER TABLE "reading_session" ADD COLUMN "chapters" jsonb;

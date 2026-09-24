@@ -20,27 +20,34 @@ export interface StatisticsSession {
 	contentVersion: string;
 	mode: string;
 }
-export function dayKey(ms: number, timeZone: string) {
+/** Local calendar day of an instant; a day may start after midnight (`startHour`). */
+export function dayKey(ms: number, timeZone: string, startHour = 0) {
 	return new Intl.DateTimeFormat("en-CA", {
 		timeZone,
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
-	}).format(ms);
+	}).format(ms - startHour * 3600_000);
 }
 /** Split at the actual local day boundary, including DST and fractional offsets. */
-export function splitDays(startMs: number, end: number, timeZone: string) {
+export function splitDays(
+	startMs: number,
+	end: number,
+	timeZone: string,
+	startHour = 0,
+) {
+	const key = (ms: number) => dayKey(ms, timeZone, startHour);
 	let start = startMs;
 	const parts: { day: string; start: number; end: number }[] = [];
 	while (start < end) {
-		const day = dayKey(start, timeZone);
+		const day = key(start);
 		let boundary = end;
-		if (dayKey(end - 1, timeZone) !== day) {
+		if (key(end - 1) !== day) {
 			let low = start + 1;
 			let high = Math.min(end, start + 27 * 3600_000);
 			while (high - low > 1) {
 				const mid = Math.floor((low + high) / 2);
-				if (dayKey(mid, timeZone) === day) low = mid;
+				if (key(mid) === day) low = mid;
 				else high = mid;
 			}
 			boundary = high;
@@ -54,6 +61,7 @@ export function summarizeReading(
 	segments: StatisticsSegment[],
 	sessions: StatisticsSession[],
 	timeZone: string,
+	dayStartHour = 0,
 ) {
 	const ordered = [...segments].sort(
 		(a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt),
@@ -104,8 +112,8 @@ export function summarizeReading(
 			);
 		const parts =
 			duration === 0
-				? [{ day: dayKey(start, timeZone), start, end }]
-				: splitDays(start, end, timeZone);
+				? [{ day: dayKey(start, timeZone, dayStartHour), start, end }]
+				: splitDays(start, end, timeZone, dayStartHour);
 		for (const part of parts) {
 			const d = days.get(part.day) ?? {
 				day: part.day,
@@ -180,7 +188,9 @@ export function summarizeReading(
 	const measured = compatible
 		.map((session) => {
 			const parts = observed.filter(
-				(s) => s.sessionId === session.id && s.kind === "reading",
+				(s) =>
+					s.sessionId === session.id &&
+					(s.kind === "reading" || s.kind === "listening"),
 			);
 			const seconds = parts.reduce((sum, s) => sum + s.seconds, 0);
 			// Union the forward ranges so rereading the same paragraph cannot inflate speed.
@@ -203,9 +213,13 @@ export function summarizeReading(
 				id: session.id,
 				seconds,
 				rate: seconds > 0 ? coverage / seconds : 0,
+				listening: parts.some((s) => s.kind === "listening"),
 			};
 		})
-		.filter((s) => s.seconds >= 60 && s.rate > 0 && s.rate <= 0.001);
+		// The cap rejects misread jumps in text; playback already records seeks separately.
+		.filter(
+			(s) => s.seconds >= 60 && s.rate > 0 && (s.listening || s.rate <= 0.001),
+		);
 	const samples = measured.slice(0, 20);
 	const allRates = measured.map((s) => s.rate).sort((a, b) => a - b);
 	const typical = allRates[Math.floor(allRates.length / 2)] ?? 0;

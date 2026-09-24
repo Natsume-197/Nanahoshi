@@ -166,11 +166,13 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		expect(await repo.preferences(userId)).toEqual({
 			mode: "automatic",
 			idleMinutes: 5,
+			dayStartHour: 0,
 		});
 		await repo.setPreferences(userId, { mode: "manual", idleMinutes: 10 });
 		expect(await repo.preferences(userId)).toEqual({
 			mode: "manual",
 			idleMinutes: 10,
+			dayStartHour: 0,
 		});
 	});
 	test("new envelopes must contain previously persisted segments", async () => {
@@ -346,5 +348,81 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		} finally {
 			await db.execute(sql`DELETE FROM "user" WHERE id=${otherUser}`);
 		}
+	});
+	test("a listening session keeps the audiobook length it was played at", async () => {
+		const session: SessionUpload = {
+			...input,
+			id: crypto.randomUUID(),
+			startedAt: "2026-02-01T12:00:00.000Z",
+			contentVersion: "audio:1:36000",
+			durationSeconds: 36_000,
+			segments: [
+				{
+					...segment,
+					id: crypto.randomUUID(),
+					startedAt: "2026-02-01T12:00:00.000Z",
+					endedAt: "2026-02-01T12:10:00.000Z",
+					kind: "listening",
+				},
+			],
+		};
+		await repo.sync(userId, bookId, session);
+		await repo.sync(userId, bookId, {
+			...session,
+			revision: 2,
+			durationSeconds: 36_100,
+			segments: [],
+		});
+		const h = await repo.history(userId, bookId);
+		const row = h.rows.find((r) => r.session.id === session.id);
+		expect(row?.session.durationSeconds).toBe(36_100);
+		expect(row?.segment?.kind).toBe("listening");
+	});
+	test("a session keeps the reader's chapter map and later revisions refresh it", async () => {
+		const chapters = [
+			{ title: "序章", start: 0 },
+			{ title: "第一章", start: 0.12 },
+		];
+		const session: SessionUpload = {
+			...input,
+			id: crypto.randomUUID(),
+			startedAt: "2026-03-01T12:00:00.000Z",
+			chapters,
+			segments: [
+				{
+					...segment,
+					id: crypto.randomUUID(),
+					startedAt: "2026-03-01T12:00:00.000Z",
+					endedAt: "2026-03-01T12:10:00.000Z",
+				},
+			],
+		};
+		await repo.sync(userId, bookId, session);
+		const read = async () =>
+			(await repo.history(userId, bookId)).rows.find(
+				(r) => r.session.id === session.id,
+			)?.session.chapters;
+		expect(await read()).toEqual(chapters);
+		// Omitting the map on a later revision keeps the stored one.
+		await repo.sync(userId, bookId, {
+			...session,
+			revision: 2,
+			chapters: null,
+			segments: [],
+		});
+		expect(await read()).toEqual(chapters);
+	});
+	test("the day start hour is stored and survives changing other preferences", async () => {
+		await repo.setPreferences(userId, {
+			mode: "automatic",
+			idleMinutes: 5,
+			dayStartHour: 4,
+		});
+		await repo.setPreferences(userId, { mode: "manual", idleMinutes: 10 });
+		expect(await repo.preferences(userId)).toEqual({
+			mode: "manual",
+			idleMinutes: 10,
+			dayStartHour: 4,
+		});
 	});
 });

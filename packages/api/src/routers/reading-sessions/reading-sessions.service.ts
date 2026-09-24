@@ -21,9 +21,9 @@ export interface ReadingAccess {
 }
 async function bookId(access: ReadingAccess, uuid: string) {
 	if (!access.serverId) throw new NotFoundError("Book not found");
-	const book = await bookRepository.getByUuidAndMediaType(
+	// Ebooks and audiobooks share runs and sessions; listening segments tell them apart.
+	const book = await bookRepository.getByUuid(
 		uuid,
-		"ebook",
 		access.serverId,
 		access.scope,
 	);
@@ -51,6 +51,7 @@ export async function history(
 		...new Map(selected.map((r) => [r.session.id, r.session])).values(),
 	].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 	const segments = selected.flatMap((r) => (r.segment ? [r.segment] : []));
+	const { dayStartHour } = await repository.preferences(access.userId);
 	const legacy = await readingProgressRepository.getByUserAndBook(
 		access.userId,
 		id,
@@ -61,10 +62,14 @@ export async function history(
 		// Newest session first, so the count matches the edition being read now.
 		characterCount:
 			sessions.find((s) => s.characterCount)?.characterCount ?? null,
+		durationSeconds:
+			sessions.find((s) => s.durationSeconds)?.durationSeconds ?? null,
+		chapters: sessions.find((s) => s.chapters?.length)?.chapters ?? null,
 		sessions,
 		segments,
 		legacySeconds: legacy?.readingTimeSeconds ?? 0,
-		...summarizeReading(segments, sessions, input.timeZone),
+		dayStartHour,
+		...summarizeReading(segments, sessions, input.timeZone, dayStartHour),
 	};
 }
 export async function mutateRun(

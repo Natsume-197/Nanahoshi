@@ -23,8 +23,13 @@ const mockDelete = mock((table: unknown) => {
 	};
 });
 
+const mockExecute = mock(() => Promise.resolve({ rowCount: 0 }));
+const tx = { delete: mockDelete, execute: mockExecute };
 mock.module("@nanahoshi/db", () => ({
-	db: { delete: mockDelete },
+	db: {
+		delete: mockDelete,
+		transaction: (run: (t: typeof tx) => Promise<unknown>) => run(tx),
+	},
 }));
 
 const { organization } = await import("@nanahoshi/db/schema/auth");
@@ -49,6 +54,7 @@ describe("ServerProfileRepository.deleteServer", () => {
 		deletedTable = null;
 		whereArg = null;
 		mockDelete.mockClear();
+		mockExecute.mockClear();
 	});
 
 	test("deletes the organization row filtered by server id", async () => {
@@ -59,5 +65,7 @@ describe("ServerProfileRepository.deleteServer", () => {
 		// Drizzle eq() produces a SQL condition; it must exist and reference our id.
 		expect(whereArg).toBeDefined();
 		expect(containsValue(whereArg, "org-1")).toBe(true);
+		// The server's reading history is removed in the same transaction.
+		expect(mockExecute).toHaveBeenCalledTimes(1);
 	});
 });

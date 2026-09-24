@@ -26,6 +26,7 @@ import {
 } from "../../modules/taskManager";
 import { bookRepository } from "../books/book.repository";
 import { bookMetadataRepository } from "../books/metadata/metadata.repository";
+import { readingSessionsRepository } from "../reading-sessions/reading-sessions.repository";
 import {
 	AUDIOBOOK_PROVIDER_IDS,
 	allowedProvidersFor,
@@ -387,6 +388,7 @@ export const removePath = async (pathId: number, serverId: string) => {
 
 	const relatedEntities = await fetchRelatedEntitiesByLibraryPathId(pathId);
 
+	await readingSessionsRepository.preserveForRemoval({ libraryPathId: pathId });
 	const deleted = await libraryRepository.removePath(pathId);
 	if (!deleted) throw new NotFoundError("Path not found or already deleted");
 	await refreshLibraryWatcher(ownedLibraryId);
@@ -494,6 +496,7 @@ export const deleteLibrary = async (libraryUuid: string, serverId: string) => {
 
 	const relatedEntities = await fetchRelatedEntitiesByLibraryId(libraryId);
 
+	await readingSessionsRepository.preserveForRemoval({ libraryId });
 	const deleted = await libraryRepository.delete(libraryId, serverId);
 	if (!deleted) throw new NotFoundError("Library not found or already deleted");
 	await refreshLibraryWatcher(libraryId);
