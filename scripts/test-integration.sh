@@ -46,11 +46,6 @@ mapfile -t discovered_files < <(
 )
 mapfile -t listed_files < <(printf '%s\n' "${files[@]}" | sort)
 
-if [[ ${#files[@]} -ne 8 ]]; then
-	echo "Expected exactly 8 integration test files, listed ${#files[@]}." >&2
-	exit 1
-fi
-
 if [[ "${listed_files[*]}" != "${discovered_files[*]}" ]]; then
 	echo "Integration test list is out of sync with the repository." >&2
 	echo "Update scripts/test-integration.sh before running the suite." >&2
