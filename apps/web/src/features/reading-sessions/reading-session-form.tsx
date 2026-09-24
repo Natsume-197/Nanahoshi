@@ -21,6 +21,7 @@ export function ReadingSessionForm({
 	segments,
 	onClose,
 	onSaved,
+	onDiscard,
 }: {
 	bookUuid: string;
 	runId: string | null;
@@ -29,6 +30,8 @@ export function ReadingSessionForm({
 	segments: ReadingHistoryData["segments"];
 	onClose: () => void;
 	onSaved: () => void;
+	// Editing an existing session also offers discarding it, so table rows keep a single action.
+	onDiscard?: () => void;
 }) {
 	const [id] = useState(() => crypto.randomUUID());
 	const [date, setDate] = useState(() =>
@@ -115,6 +118,16 @@ export function ReadingSessionForm({
 			}}
 			footer={
 				<>
+					{session && onDiscard && (
+						<Button
+							className="min-h-11 sm:mr-auto"
+							type="button"
+							variant="destructive"
+							onClick={onDiscard}
+						>
+							{m.reading_discard()}
+						</Button>
+					)}
 					<Button
 						className="min-h-11"
 						type="button"

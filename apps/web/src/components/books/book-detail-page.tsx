@@ -366,7 +366,10 @@ export function BookDetailPage() {
 								</TabsContent>
 
 								<TabsContent value="reading" className="pt-8">
-									<ReadingHistory bookUuid={book.uuid} />
+									<ReadingHistory
+										bookUuid={book.uuid}
+										amountChars={book.amountChars}
+									/>
 								</TabsContent>
 
 								{otherCopiesCount > 0 && (

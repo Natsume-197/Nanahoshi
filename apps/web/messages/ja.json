@@ -2966,7 +2966,6 @@
 	"reading_evolution": "読書の推移",
 	"reading_days": "読書日数",
 	"reading_empty": "読書の記録はここから",
-	"reading_empty_body": "読書を進めると、ここにセッションと進捗が表示されます。",
 	"reading_loading": "読書履歴を読み込み中…",
 	"reading_run": "{number}回目の読書",
 	"reading_reread": "再読する",
@@ -3006,7 +3005,6 @@
 	"reading_range_hint": "位置は読んだ量ではなく、表示していた場所を示します。",
 	"reading_total_run": "今回の読書の合計",
 	"reading_last_activity": "最後の読書",
-	"reading_today": "今日",
 	"reading_session_count": "{count} セッション",
 	"reading_view_day": "選択した日のセッションを見る",
 	"reading_diary": "読書日記",
@@ -3064,5 +3062,160 @@
 	"settings.backups.unavailable": "バックアップツールを使用できません。開発環境ではbun run infra:upを実行し、APIとワーカーからDockerにアクセスできることを確認してください。本番環境では対応するPostgreSQLクライアントを含む両サービスのイメージを再ビルドしてください。",
 	"settings.backups.delete": "削除",
 	"settings.backups.delete_confirm": "このバックアップを削除しますか？この操作は元に戻せません。",
-	"settings.backups.deleted": "バックアップを削除しました"
+	"settings.backups.deleted": "バックアップを削除しました",
+	"reading_progress_short": "進み具合",
+	"reading_characters_short": "文字数",
+	"reading_chars_of_total": "{total}文字中 {read}文字",
+	"reading_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日の読書",
+				"countPlural=other": "{count}日の読書"
+			}
+		}
+	],
+	"reading_speed": "読書速度",
+	"reading_speed_chars": "{value} 文字/時",
+	"reading_speed_percent": "{value} %/時",
+	"reading_speed_pending": "セッションがまだ足りません",
+	"reading_finished_on": "{date}に読了",
+	"reading_period_week": "7日",
+	"reading_period_month": "30日",
+	"reading_period_all": "すべて",
+	"reading_legend_chars": "1日の文字数",
+	"reading_legend_percent": "1日の進み具合",
+	"reading_legend_progress": "本の進捗",
+	"reading_average": "平均",
+	"reading_amount_chars": "{value}文字",
+	"reading_until": "{position}まで",
+	"reading_no_reading": "読書なし",
+	"reading_chart_empty": "この期間は読書していません。",
+	"reading_amount_percent": "本の{value}",
+	"reading_needs_sessions": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "残り時間の予測まであと1セッション",
+				"countPlural=other": "残り時間の予測まであと{count}セッション"
+			}
+		}
+	],
+	"reading_needs_minutes": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "残り時間の予測まであと1分",
+				"countPlural=other": "残り時間の予測まであと{count}分"
+			}
+		}
+	],
+	"reading_summary_title": "読了しました！",
+	"reading_summary_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日の読書",
+				"countPlural=other": "{count}日の読書"
+			}
+		}
+	],
+	"reading_summary_chars": "文字数",
+	"reading_summary_sessions": "セッション",
+	"reading_average_speed": "平均速度",
+	"reading_manual_part": "手動で記録",
+	"reading_projection_goal": "{date}ごろ読了",
+	"reading_legend_projection": "このペースでの予測",
+	"reading_pace_title": "読書速度",
+	"reading_pace_steady": "ペースは安定しています",
+	"reading_pace_empty": "計測されたセッションが3回以上になると表示されます。",
+	"reading_pace_legend_session": "セッション",
+	"reading_pace_legend_trend": "傾向",
+	"reading_week_this": "今週",
+	"reading_week_last": "先週",
+	"reading_col_day": "日付",
+	"reading_col_journey": "読んだ範囲",
+	"reading_badge_best_day": "ベスト",
+	"reading_badge_longest": "最長",
+	"reading_goal_set": "目標を設定",
+	"reading_goal_title": "読書目標",
+	"reading_goal_hint": "本を読み終えたい日を選んでください。",
+	"reading_goal_date": "読了目標日",
+	"reading_goal_remove": "目標を削除",
+	"reading_goal_change": "目標を変更",
+	"reading_goal_summary": "目標: {date}",
+	"reading_goal_days_left": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "残り1日",
+				"countPlural=other": "残り{count}日"
+			}
+		}
+	],
+	"reading_goal_per_day": "1日あたり約{amount}",
+	"reading_goal_today_done": "今日の分は達成",
+	"reading_goal_today_left": "今日はあと{amount}",
+	"reading_goal_on_track": "順調です",
+	"reading_goal_overdue": "目標は{date}でした",
+	"reading_goal_met": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "目標達成・1日早く",
+				"countPlural=other": "目標達成・{count}日早く"
+			}
+		}
+	],
+	"reading_goal_met_exact": "目標日ちょうどに達成",
+	"reading_goal_missed": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "目標より1日遅れて読了",
+				"countPlural=other": "目標より{count}日遅れて読了"
+			}
+		}
+	],
+	"reading_empty_title": "まだ読書記録がありません",
+	"reading_empty_hint": "数分読むと、ペース・進捗・読了予定日がここに表示されます。",
+	"reading_empty_start": "読み始める",
+	"reading_empty_manual": "手動でセッションを追加",
+	"reading_pace_unlock": "計測セッション {count}/{total}・{total}回で読書速度が表示されます",
+	"reading_pace_faster_short": "読み始めより速くなっています",
+	"reading_goal_timeline_today": "今日",
+	"reading_chart_sr": "この期間の読書日数は{days}日。1日平均{average}。最も読んだ日は{best}で{bestAmount}。本の進捗は{position}。",
+	"reading_chart_sr_finish": "読了予定日は{date}。",
+	"reading_pace_sr": "計測セッション{count}回、{min}〜{max}。",
+	"reading_today_heading": "今日",
+	"reading_today_nothing": "まだ読んでいません",
+	"reading_vs_average_ahead": "平均より{percent}%多い",
+	"reading_vs_average": "1日の平均: {average}",
+	"reading_finish_hours": "あと約{duration}",
+	"reading_goal_late_short": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日遅れ",
+				"countPlural=other": "{count}日遅れ"
+			}
+		}
+	],
+	"reading_daily_average": "1日の平均",
+	"reading_per_day": "/日",
+	"reading_per_day_chars": "文字/日",
+	"reading_pace_current": "現在のペース",
+	"reading_pace_recent": "最近のセッションに基づく",
+	"reading_finish_label": "読了予定",
+	"reading_since": "{date}から",
+	"reading_today_target": "今日の目標",
+	"reading_your_average": "平均"
 }

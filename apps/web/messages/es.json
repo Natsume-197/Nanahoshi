@@ -3021,7 +3021,6 @@
 	"reading_evolution": "Tu lectura en el tiempo",
 	"reading_days": "Días de lectura",
 	"reading_empty": "Tu historia de lectura empieza aquí",
-	"reading_empty_body": "Lee un rato y vuelve para ver tus sesiones y tu avance.",
 	"reading_loading": "Cargando historial de lectura…",
 	"reading_run": "Lectura {number}",
 	"reading_reread": "Volver a leer",
@@ -3064,7 +3063,6 @@
 	"reading_range_hint": "Las posiciones indican dónde estabas, no cuánto leíste.",
 	"reading_total_run": "Total de esta lectura",
 	"reading_last_activity": "Última actividad",
-	"reading_today": "Hoy",
 	"reading_session_count": "{count} sesiones",
 	"reading_view_day": "Ver sesiones del día seleccionado",
 	"reading_diary": "Diario de lectura",
@@ -3122,5 +3120,160 @@
 	"settings.backups.unavailable": "No hay herramientas disponibles para backups. En desarrollo, ejecuta bun run infra:up y comprueba el acceso a Docker desde la API y el worker. En producción, reconstruye las imágenes de ambos servicios con el cliente PostgreSQL compatible.",
 	"settings.backups.delete": "Borrar",
 	"settings.backups.delete_confirm": "¿Borrar este backup? Esta acción no se puede deshacer.",
-	"settings.backups.deleted": "Backup borrado"
+	"settings.backups.deleted": "Backup borrado",
+	"reading_progress_short": "Avance",
+	"reading_characters_short": "Caracteres",
+	"reading_chars_of_total": "{read} de {total} caracteres",
+	"reading_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "en 1 día de lectura",
+				"countPlural=other": "en {count} días de lectura"
+			}
+		}
+	],
+	"reading_speed": "Velocidad",
+	"reading_speed_chars": "{value} car/h",
+	"reading_speed_percent": "{value} %/h",
+	"reading_speed_pending": "Aún faltan sesiones",
+	"reading_finished_on": "Terminado el {date}",
+	"reading_period_week": "7 días",
+	"reading_period_month": "30 días",
+	"reading_period_all": "Todo",
+	"reading_legend_chars": "Caracteres por día",
+	"reading_legend_percent": "Avance por día",
+	"reading_legend_progress": "Progreso del libro",
+	"reading_average": "media",
+	"reading_amount_chars": "{value} car.",
+	"reading_until": "hasta {position}",
+	"reading_no_reading": "Sin lectura",
+	"reading_chart_empty": "No leíste en este período.",
+	"reading_amount_percent": "{value} del libro",
+	"reading_needs_sessions": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Lee 1 sesión más para estimar cuánto te queda",
+				"countPlural=other": "Lee {count} sesiones más para estimar cuánto te queda"
+			}
+		}
+	],
+	"reading_needs_minutes": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Lee 1 minuto más para estimar cuánto te queda",
+				"countPlural=other": "Lee {count} minutos más para estimar cuánto te queda"
+			}
+		}
+	],
+	"reading_summary_title": "¡Libro terminado!",
+	"reading_summary_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 día de lectura",
+				"countPlural=other": "{count} días de lectura"
+			}
+		}
+	],
+	"reading_summary_chars": "Caracteres",
+	"reading_summary_sessions": "Sesiones",
+	"reading_average_speed": "Velocidad media",
+	"reading_manual_part": "Declarado a mano",
+	"reading_projection_goal": "Fin ≈ {date}",
+	"reading_legend_projection": "Proyección a tu ritmo",
+	"reading_pace_title": "Tu velocidad",
+	"reading_pace_steady": "Tu ritmo se mantiene estable",
+	"reading_pace_empty": "Aparecerá cuando tengas al menos 3 sesiones medidas.",
+	"reading_pace_legend_session": "Sesión",
+	"reading_pace_legend_trend": "Tendencia",
+	"reading_week_this": "Esta semana",
+	"reading_week_last": "La semana pasada",
+	"reading_col_day": "Día",
+	"reading_col_journey": "Recorrido",
+	"reading_badge_best_day": "Mejor día",
+	"reading_badge_longest": "Más larga",
+	"reading_goal_set": "Poner una meta",
+	"reading_goal_title": "Meta de lectura",
+	"reading_goal_hint": "Elige el día en que quieres terminar el libro.",
+	"reading_goal_date": "Terminar antes del",
+	"reading_goal_remove": "Quitar meta",
+	"reading_goal_change": "Cambiar meta",
+	"reading_goal_summary": "Meta: {date}",
+	"reading_goal_days_left": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "queda 1 día",
+				"countPlural=other": "quedan {count} días"
+			}
+		}
+	],
+	"reading_goal_per_day": "~{amount} al día",
+	"reading_goal_today_done": "Hoy ya cumpliste",
+	"reading_goal_today_left": "Hoy te faltan {amount}",
+	"reading_goal_on_track": "Vas a tiempo",
+	"reading_goal_overdue": "La meta era el {date}",
+	"reading_goal_met": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Meta cumplida · 1 día antes",
+				"countPlural=other": "Meta cumplida · {count} días antes"
+			}
+		}
+	],
+	"reading_goal_met_exact": "Meta cumplida justo a tiempo",
+	"reading_goal_missed": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Terminado 1 día después de la meta",
+				"countPlural=other": "Terminado {count} días después de la meta"
+			}
+		}
+	],
+	"reading_empty_title": "Todavía no hay lecturas registradas",
+	"reading_empty_hint": "Lee unos minutos y aquí verás tu ritmo, tu progreso y cuándo terminarás el libro.",
+	"reading_empty_start": "Empezar a leer",
+	"reading_empty_manual": "Añadir una sesión a mano",
+	"reading_pace_unlock": "{count} de {total} sesiones medidas · tu velocidad aparecerá al llegar a {total}",
+	"reading_pace_faster_short": "Más rápido que al empezar",
+	"reading_goal_timeline_today": "Hoy",
+	"reading_chart_sr": "{days} días con lectura en este período. Media: {average} al día. Mejor día: {best}, con {bestAmount}. Progreso del libro: {position}.",
+	"reading_chart_sr_finish": "Fin estimado: {date}.",
+	"reading_pace_sr": "{count} sesiones medidas, entre {min} y {max}.",
+	"reading_today_heading": "Hoy",
+	"reading_today_nothing": "Aún no has leído",
+	"reading_vs_average_ahead": "{percent} % más que tu media",
+	"reading_vs_average": "Tu media: {average} al día",
+	"reading_finish_hours": "≈ {duration} de lectura",
+	"reading_goal_late_short": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 día tarde",
+				"countPlural=other": "{count} días tarde"
+			}
+		}
+	],
+	"reading_daily_average": "Media diaria",
+	"reading_per_day": "al día",
+	"reading_per_day_chars": "car. al día",
+	"reading_pace_current": "Ritmo actual",
+	"reading_pace_recent": "Según tus últimas sesiones",
+	"reading_finish_label": "Fin estimado",
+	"reading_since": "Desde el {date}",
+	"reading_today_target": "Meta de hoy",
+	"reading_your_average": "Tu media"
 }

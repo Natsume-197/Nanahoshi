@@ -3021,7 +3021,6 @@
 	"reading_evolution": "Your reading over time",
 	"reading_days": "Days of reading",
 	"reading_empty": "Your reading story starts here",
-	"reading_empty_body": "Read a little, then come back to see your sessions and progress.",
 	"reading_loading": "Loading reading history…",
 	"reading_run": "Reading {number}",
 	"reading_reread": "Read again",
@@ -3064,7 +3063,6 @@
 	"reading_range_hint": "Positions describe where you were, not how much you read.",
 	"reading_total_run": "Total for this reading",
 	"reading_last_activity": "Last activity",
-	"reading_today": "Today",
 	"reading_session_count": "{count} sessions",
 	"reading_view_day": "View selected day’s sessions",
 	"reading_diary": "Reading diary",
@@ -3122,5 +3120,160 @@
 	"settings.backups.unavailable": "Backup tools are unavailable. In development, run bun run infra:up and check Docker access from the API and worker. In production, rebuild both service images with compatible PostgreSQL client tools.",
 	"settings.backups.delete": "Delete",
 	"settings.backups.delete_confirm": "Delete this backup? This action cannot be undone.",
-	"settings.backups.deleted": "Backup deleted"
+	"settings.backups.deleted": "Backup deleted",
+	"reading_progress_short": "Progress",
+	"reading_characters_short": "Characters",
+	"reading_chars_of_total": "{read} of {total} characters",
+	"reading_in_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "over 1 reading day",
+				"countPlural=other": "over {count} reading days"
+			}
+		}
+	],
+	"reading_speed": "Speed",
+	"reading_speed_chars": "{value} chars/h",
+	"reading_speed_percent": "{value} %/h",
+	"reading_speed_pending": "Needs more sessions",
+	"reading_finished_on": "Finished on {date}",
+	"reading_period_week": "7 days",
+	"reading_period_month": "30 days",
+	"reading_period_all": "All",
+	"reading_legend_chars": "Characters per day",
+	"reading_legend_percent": "Progress per day",
+	"reading_legend_progress": "Book progress",
+	"reading_average": "avg",
+	"reading_amount_chars": "{value} chars",
+	"reading_until": "up to {position}",
+	"reading_no_reading": "No reading",
+	"reading_chart_empty": "You didn't read in this period.",
+	"reading_amount_percent": "{value} of the book",
+	"reading_needs_sessions": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Read 1 more session to estimate what's left",
+				"countPlural=other": "Read {count} more sessions to estimate what's left"
+			}
+		}
+	],
+	"reading_needs_minutes": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Read 1 more minute to estimate what's left",
+				"countPlural=other": "Read {count} more minutes to estimate what's left"
+			}
+		}
+	],
+	"reading_summary_title": "Book finished!",
+	"reading_summary_days": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 reading day",
+				"countPlural=other": "{count} reading days"
+			}
+		}
+	],
+	"reading_summary_chars": "Characters",
+	"reading_summary_sessions": "Sessions",
+	"reading_average_speed": "Average speed",
+	"reading_manual_part": "Logged by hand",
+	"reading_projection_goal": "Finish ≈ {date}",
+	"reading_legend_projection": "Projection at your pace",
+	"reading_pace_title": "Your speed",
+	"reading_pace_steady": "Your pace is holding steady",
+	"reading_pace_empty": "Shows up once you have at least 3 measured sessions.",
+	"reading_pace_legend_session": "Session",
+	"reading_pace_legend_trend": "Trend",
+	"reading_week_this": "This week",
+	"reading_week_last": "Last week",
+	"reading_col_day": "Day",
+	"reading_col_journey": "Journey",
+	"reading_badge_best_day": "Best day",
+	"reading_badge_longest": "Longest",
+	"reading_goal_set": "Set a goal",
+	"reading_goal_title": "Reading goal",
+	"reading_goal_hint": "Pick the day you want to finish the book.",
+	"reading_goal_date": "Finish by",
+	"reading_goal_remove": "Remove goal",
+	"reading_goal_change": "Change goal",
+	"reading_goal_summary": "Goal: {date}",
+	"reading_goal_days_left": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 day left",
+				"countPlural=other": "{count} days left"
+			}
+		}
+	],
+	"reading_goal_per_day": "~{amount} a day",
+	"reading_goal_today_done": "Today's share done",
+	"reading_goal_today_left": "{amount} left today",
+	"reading_goal_on_track": "On track",
+	"reading_goal_overdue": "The goal was {date}",
+	"reading_goal_met": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Goal met · 1 day early",
+				"countPlural=other": "Goal met · {count} days early"
+			}
+		}
+	],
+	"reading_goal_met_exact": "Goal met right on time",
+	"reading_goal_missed": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Finished 1 day after the goal",
+				"countPlural=other": "Finished {count} days after the goal"
+			}
+		}
+	],
+	"reading_empty_title": "No reading recorded yet",
+	"reading_empty_hint": "Read for a few minutes and you'll see your pace, your progress and when you'll finish the book here.",
+	"reading_empty_start": "Start reading",
+	"reading_empty_manual": "Log a session by hand",
+	"reading_pace_unlock": "{count} of {total} measured sessions · your speed shows up at {total}",
+	"reading_pace_faster_short": "Faster than when you started",
+	"reading_goal_timeline_today": "Today",
+	"reading_chart_sr": "{days} reading days in this period. Average: {average} a day. Best day: {best}, with {bestAmount}. Book progress: {position}.",
+	"reading_chart_sr_finish": "Estimated finish: {date}.",
+	"reading_pace_sr": "{count} measured sessions, from {min} to {max}.",
+	"reading_today_heading": "Today",
+	"reading_today_nothing": "Nothing read yet",
+	"reading_vs_average_ahead": "{percent}% above your average",
+	"reading_vs_average": "Your average: {average} a day",
+	"reading_finish_hours": "≈ {duration} of reading",
+	"reading_goal_late_short": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 day late",
+				"countPlural=other": "{count} days late"
+			}
+		}
+	],
+	"reading_daily_average": "Daily average",
+	"reading_per_day": "a day",
+	"reading_per_day_chars": "chars a day",
+	"reading_pace_current": "Current pace",
+	"reading_pace_recent": "Based on your latest sessions",
+	"reading_finish_label": "Estimated finish",
+	"reading_since": "Since {date}",
+	"reading_today_target": "Today's target",
+	"reading_your_average": "Your average"
 }
