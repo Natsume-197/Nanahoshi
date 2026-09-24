@@ -129,6 +129,22 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 		expect(h.runs).toHaveLength(2);
 		expect(h.rows.length).toBeGreaterThanOrEqual(2);
 	});
+	test("a reading goal is set, returned with the run and cleared", async () => {
+		const run = required((await repo.history(userId, bookId)).runs[0]);
+		await repo.setGoal(userId, bookId, run.id, "2026-10-05");
+		expect(
+			(await repo.history(userId, bookId)).runs.find((r) => r.id === run.id)
+				?.goalDate,
+		).toBe("2026-10-05");
+		await repo.setGoal(userId, bookId, run.id, null);
+		expect(
+			(await repo.history(userId, bookId)).runs.find((r) => r.id === run.id)
+				?.goalDate,
+		).toBeNull();
+		await expect(
+			repo.setGoal("someone-else", bookId, run.id, "2026-10-05"),
+		).rejects.toThrow("Reading not found");
+	});
 	test("a reading can be discarded with all of its sessions", async () => {
 		const before = await repo.history(userId, bookId);
 		const run = required(before.runs[0]);

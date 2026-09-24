@@ -128,6 +128,7 @@ export function useReadingTracker(options: Options) {
 		};
 		const save = () => {
 			if (!session) return;
+			session.characterCount ||= latest.current.bookCharCount || null;
 			if (
 				savedState === clock.state &&
 				savedSegments === session.segments.length
@@ -255,6 +256,7 @@ export function useReadingTracker(options: Options) {
 				installationId,
 				contentVersion: options.contentVersion,
 				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				characterCount: latest.current.bookCharCount || null,
 				segments: [],
 			};
 			save();

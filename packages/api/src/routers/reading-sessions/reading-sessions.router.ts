@@ -2,6 +2,7 @@ import { resolveBookScope } from "../../auth/access.repository";
 import { protectedProcedure } from "../../index";
 import {
 	CorrectReadingSessionInput,
+	ReadingGoalInput,
 	ReadingHistoryInput,
 	ReadingPreferencesInput,
 	ReadingRunIdInput,
@@ -46,6 +47,17 @@ export const readingSessionsRouter = {
 		.input(ReadingRunInput)
 		.handler(async ({ input, context }) =>
 			service.mutateRun(
+				{
+					userId: context.session.user.id,
+					...(await resolveBookScope(context.session)),
+				},
+				input,
+			),
+		),
+	setGoal: protectedProcedure
+		.input(ReadingGoalInput)
+		.handler(async ({ input, context }) =>
+			service.setGoal(
 				{
 					userId: context.session.user.id,
 					...(await resolveBookScope(context.session)),

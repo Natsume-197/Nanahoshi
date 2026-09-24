@@ -5,6 +5,7 @@ import { bookRepository } from "../books/book.repository";
 import { readingProgressRepository } from "../reading-progress/reading-progress.repository";
 import type {
 	CorrectReadingSessionInput,
+	ReadingGoalInput,
 	ReadingHistoryInput,
 	ReadingRunIdInput,
 	ReadingRunInput,
@@ -57,6 +58,9 @@ export async function history(
 	return {
 		runs,
 		runId: runId ?? null,
+		// Newest session first, so the count matches the edition being read now.
+		characterCount:
+			sessions.find((s) => s.characterCount)?.characterCount ?? null,
 		sessions,
 		segments,
 		legacySeconds: legacy?.readingTimeSeconds ?? 0,
@@ -72,6 +76,17 @@ export async function mutateRun(
 		await bookId(access, input.bookUuid),
 		input.id,
 		input.action,
+	);
+}
+export async function setGoal(
+	access: ReadingAccess,
+	input: z.infer<typeof ReadingGoalInput>,
+) {
+	return repository.setGoal(
+		access.userId,
+		await bookId(access, input.bookUuid),
+		input.id,
+		input.goalDate,
 	);
 }
 export async function discardRun(

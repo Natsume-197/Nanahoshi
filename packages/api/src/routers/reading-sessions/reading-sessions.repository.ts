@@ -196,6 +196,9 @@ export class ReadingSessionsRepository {
 						state: input.state,
 						endedAt: input.endedAt,
 						revision: input.revision,
+						...(input.characterCount
+							? { characterCount: input.characterCount }
+							: {}),
 					})
 					.where(eq(readingSession.id, input.id));
 			if (segments.length) {
@@ -305,6 +308,26 @@ export class ReadingSessionsRepository {
 			if (!run) throw new NotFoundError("Reading not found");
 			return run;
 		});
+	}
+	async setGoal(
+		userId: string,
+		bookId: number,
+		id: string,
+		goalDate: string | null,
+	) {
+		const [run] = await db
+			.update(readingRun)
+			.set({ goalDate })
+			.where(
+				and(
+					eq(readingRun.id, id),
+					eq(readingRun.userId, userId),
+					eq(readingRun.bookId, bookId),
+				),
+			)
+			.returning({ id: readingRun.id, goalDate: readingRun.goalDate });
+		if (!run) throw new NotFoundError("Reading not found");
+		return run;
 	}
 	async discardRun(userId: string, bookId: number, id: string) {
 		const [run] = await db

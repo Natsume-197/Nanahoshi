@@ -50,6 +50,7 @@ export const SyncReadingSessionInput = ReadingBookInput.extend({
 	installationId: z.uuid(),
 	contentVersion: z.string().min(1).max(200),
 	timeZone,
+	characterCount: z.number().int().positive().max(100_000_000).nullish(),
 	segments: z.array(ReadingSegmentInput).max(200),
 });
 export type SessionUpload = z.infer<typeof SyncReadingSessionInput>;
@@ -96,6 +97,9 @@ export const ReadingRunInput = ReadingBookInput.extend({
 	action: z.enum(["reread", "finish", "leave"]),
 });
 export const ReadingRunIdInput = ReadingBookInput.extend({ id: z.uuid() });
+export const ReadingGoalInput = ReadingRunIdInput.extend({
+	goalDate: z.iso.date().nullable(),
+});
 export const CorrectReadingSessionInput = ReadingSessionIdInput.extend({
 	segment: ReadingSegmentInput,
 });

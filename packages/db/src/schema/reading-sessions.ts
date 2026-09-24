@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
 	bigint,
 	check,
+	date,
 	doublePrecision,
 	index,
 	integer,
@@ -43,6 +44,8 @@ export const readingRun = pgTable(
 			"finish" | "leave" | "reread" | "historical_import"
 		>(),
 		state: text("state").notNull().default("reading"),
+		// Optional finish-by day the reader chose for this reading, as a local calendar date.
+		goalDate: date("goal_date", { mode: "string" }),
 	},
 	(t) => [
 		index("reading_run_owner_book_idx").on(t.userId, t.bookId),
@@ -67,6 +70,8 @@ export const readingSession = pgTable(
 		installationId: uuid("installation_id").notNull(),
 		contentVersion: text("content_version").notNull(),
 		timeZone: text("time_zone").notNull(),
+		// Characters in the edition as counted by the reader; converts positions into characters read.
+		characterCount: integer("character_count"),
 		revision: integer("revision").notNull().default(0),
 		discardedAt: instant("discarded_at"),
 	},
