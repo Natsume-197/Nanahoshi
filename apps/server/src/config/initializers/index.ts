@@ -5,6 +5,7 @@ import { imagesInitializer } from "./images";
 import { logHistoryInitializer } from "./log-history";
 import { mediaReconciliationInitializer } from "./media-reconciliation";
 import { ranobedbInitializer } from "./ranobedb";
+import { readListenGapsInitializer } from "./read-listen-gaps";
 import { redisInitializer } from "./redis";
 import type { RuntimeContext, RuntimeInitializer } from "./types";
 import { workersInitializer } from "./workers";
@@ -33,6 +34,7 @@ export const workerInitializers: RuntimeInitializer[] = [
 	mediaReconciliationInitializer,
 	capabilitiesInitializer,
 	ranobedbInitializer,
+	readListenGapsInitializer,
 	workersInitializer,
 ];
 

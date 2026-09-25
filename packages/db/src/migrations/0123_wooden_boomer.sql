@@ -1,0 +1,1 @@
+ALTER TABLE "read_listen_alignment" ADD COLUMN "longest_gap_ms" integer;

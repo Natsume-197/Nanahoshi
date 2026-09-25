@@ -135,6 +135,7 @@ export type ReadListenAlignmentRow = {
 	ebookCatalogHash: string;
 	audiobookCatalogHash: string;
 	cueCount: number;
+	longestGapMs: number | null;
 	importedAt: string;
 	updatedAt: string;
 };
@@ -502,6 +503,7 @@ export class ReadListenRepository {
 				ebookCatalogHash: readListenAlignment.ebookCatalogHash,
 				audiobookCatalogHash: readListenAlignment.audiobookCatalogHash,
 				cueCount: readListenAlignment.cueCount,
+				longestGapMs: readListenAlignment.longestGapMs,
 				importedAt: readListenAlignment.importedAt,
 				updatedAt: readListenAlignment.updatedAt,
 			})
@@ -680,6 +682,35 @@ export class ReadListenRepository {
 			ebookCatalogHash: ebook.catalogHash,
 			audiobookCatalogHash: firstAudio.catalogHash,
 		};
+	}
+
+	async listAlignmentsWithoutGap(): Promise<
+		{ id: string; artifactPath: string; artifactSha256: string }[]
+	> {
+		return db
+			.select({
+				id: readListenAlignment.id,
+				artifactPath: readListenAlignment.artifactPath,
+				artifactSha256: readListenAlignment.artifactSha256,
+			})
+			.from(readListenAlignment)
+			.where(isNull(readListenAlignment.longestGapMs));
+	}
+
+	async setAlignmentLongestGap(
+		id: string,
+		artifactSha256: string,
+		longestGapMs: number,
+	): Promise<void> {
+		await db
+			.update(readListenAlignment)
+			.set({ longestGapMs })
+			.where(
+				and(
+					eq(readListenAlignment.id, id),
+					eq(readListenAlignment.artifactSha256, artifactSha256),
+				),
+			);
 	}
 
 	async upsertAlignment(

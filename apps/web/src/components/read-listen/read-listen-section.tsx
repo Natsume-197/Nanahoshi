@@ -1203,20 +1203,31 @@ export function ReadListenSection({
 							(uploadAlignmentInputMutation.isPending &&
 								uploadAlignmentInputMutation.variables?.pairUuid ===
 									pairing.id);
+						const isIncompleteAlignment =
+							!isGenerationRunning &&
+							pairing.generation?.status !== "failed" &&
+							alignment.status === "ready" &&
+							alignment.artifact.incomplete;
 						const alignmentDescription = isGenerationRunning
 							? m["read_listen.generating_alignment"]()
 							: pairing.generation?.status === "failed"
 								? (pairing.generation.error ??
 									m["read_listen.generation_failed"]())
-								: alignment.status === "ready"
-									? m["read_listen.alignment_ready_description"]({
-											count: alignment.artifact.cueCount,
-											version: alignment.artifact.generatorVersion,
-											date: formatDate(alignment.artifact.generatedAt),
+								: isIncompleteAlignment && alignment.status === "ready"
+									? m["read_listen.alignment_incomplete_description"]({
+											minutes: Math.round(
+												(alignment.artifact.longestGapMs ?? 0) / 60_000,
+											),
 										})
-									: alignment.status === "stale"
-										? m["read_listen.alignment_stale_description"]()
-										: m["read_listen.alignment_not_imported_description"]();
+									: alignment.status === "ready"
+										? m["read_listen.alignment_ready_description"]({
+												count: alignment.artifact.cueCount,
+												version: alignment.artifact.generatorVersion,
+												date: formatDate(alignment.artifact.generatedAt),
+											})
+										: alignment.status === "stale"
+											? m["read_listen.alignment_stale_description"]()
+											: m["read_listen.alignment_not_imported_description"]();
 						return (
 							<li
 								key={pairing.id}
@@ -1353,7 +1364,13 @@ export function ReadListenSection({
 											</DropdownMenu>
 										)}
 									</div>
-									<p className="text-muted-foreground text-xs leading-relaxed sm:text-end">
+									<p
+										className={`text-xs leading-relaxed sm:text-end ${
+											isIncompleteAlignment
+												? "text-warning"
+												: "text-muted-foreground"
+										}`}
+									>
 										{alignmentDescription}
 									</p>
 								</div>

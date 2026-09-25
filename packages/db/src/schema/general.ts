@@ -854,6 +854,9 @@ export const readListenAlignment = pgTable(
 		ebookCatalogHash: text("ebook_catalog_hash").notNull(),
 		audiobookCatalogHash: text("audiobook_catalog_hash").notNull(),
 		cueCount: integer("cue_count").notNull(),
+		// Null until measured; alignments imported before this column get it on
+		// worker start.
+		longestGapMs: integer("longest_gap_ms"),
 		importedAt: timestamp("imported_at", {
 			withTimezone: true,
 			mode: "string",

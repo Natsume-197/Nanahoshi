@@ -2890,6 +2890,7 @@
 		"alignment_not_imported_description": "No verified Honomiya alignment file has been imported for this pairing.",
 		"alignment_ready_description": "{count} segments · Honomiya {version} · generated {date}",
 		"alignment_stale_description": "The ebook or audiobook changed after this alignment was imported.",
+		"alignment_incomplete_description": "About {minutes} min of audio have no text in this alignment. Replace it to fix the gap.",
 		"alignment_imported": "Existing alignment imported",
 		"alignment_not_found": "No Honomiya alignment file was found next to the ebook.",
 		"alignment_invalid": "The file next to the ebook is not a valid Honomiya alignment.",

@@ -87,6 +87,7 @@ const alignmentRow: ReadListenAlignmentRow = {
 	ebookCatalogHash: ebook.catalogHash,
 	audiobookCatalogHash: audiobook.catalogHash,
 	cueCount: 5791,
+	longestGapMs: 4_000,
 	importedAt: "2026-08-08T20:00:00.000Z",
 	updatedAt: "2026-08-08T20:00:00.000Z",
 };
@@ -173,6 +174,12 @@ function createHarness() {
 			}),
 		),
 		upsertAlignment: mock(() => Promise.resolve(alignmentRow)),
+		listAlignmentsWithoutGap: mock(() =>
+			Promise.resolve(
+				[] as { id: string; artifactPath: string; artifactSha256: string }[],
+			),
+		),
+		setAlignmentLongestGap: mock(() => Promise.resolve()),
 		createPair: mock(() => Promise.resolve(pairRow)),
 		deletePairAndMatchHistory: mock(() => Promise.resolve(true)),
 		deleteReviewedMatch: mock(() => Promise.resolve(true)),
@@ -219,6 +226,7 @@ function createHarness() {
 					ebookSha256: alignmentRow.ebookSha256,
 					audioSha256: alignmentRow.audioSha256,
 					cueCount: alignmentRow.cueCount,
+					longestGapMs: 4_000,
 				},
 			}),
 		),
@@ -236,6 +244,7 @@ function createHarness() {
 					ebookSha256: alignmentRow.ebookSha256,
 					audioSha256: alignmentRow.audioSha256,
 					cueCount: alignmentRow.cueCount,
+					longestGapMs: 4_000,
 				},
 			}),
 		),
@@ -265,6 +274,46 @@ function createHarness() {
 }
 
 describe("ReadListenService", () => {
+	test("measures the longest gap of alignments imported before it was recorded", async () => {
+		const { service, store, alignmentReader } = createHarness();
+		store.listAlignmentsWithoutGap.mockResolvedValue([
+			{
+				id: "missing-section",
+				artifactPath: "a.json",
+				artifactSha256: "d".repeat(64),
+			},
+			{
+				id: "unreadable",
+				artifactPath: "b.json",
+				artifactSha256: "e".repeat(64),
+			},
+		]);
+		alignmentReader.read
+			.mockResolvedValueOnce({
+				...alignmentManifest,
+				cues: [
+					{ ...alignmentManifest.cues[0], startMs: 0, endMs: 1_000 },
+					{
+						...alignmentManifest.cues[0],
+						id: "cue-2",
+						startMs: 2_149_000,
+						endMs: 2_150_000,
+					},
+				],
+			})
+			.mockRejectedValueOnce(
+				new Error("Alignment artifact identity does not match storage"),
+			);
+
+		expect(await service.measureAlignmentGaps()).toBe(1);
+		expect(store.setAlignmentLongestGap).toHaveBeenCalledTimes(1);
+		expect(store.setAlignmentLongestGap).toHaveBeenCalledWith(
+			"missing-section",
+			"d".repeat(64),
+			2_148_000,
+		);
+	});
+
 	test("lists only pairs whose two publications are in the caller scope", async () => {
 		const { service, store } = createHarness();
 		store.listAllPairRows.mockResolvedValue([pairRow]);

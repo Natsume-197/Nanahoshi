@@ -2835,6 +2835,7 @@
 		"alignment_not_imported_description": "この関連付けには、検証済みの Honomiya アラインメントファイルがまだインポートされていません。",
 		"alignment_ready_description": "{count}セグメント · Honomiya {version} · {date}生成",
 		"alignment_stale_description": "インポート後に電子書籍またはオーディオブックが変更されました。",
+		"alignment_incomplete_description": "このアラインメントには約{minutes}分間テキストのない音声があります。置き換えると修正できます。",
 		"alignment_imported": "既存のアラインメントをインポートしました",
 		"alignment_not_found": "電子書籍の隣に Honomiya アラインメントファイルが見つかりませんでした。",
 		"alignment_invalid": "電子書籍の隣にあるファイルは、有効な Honomiya アラインメントではありません。",

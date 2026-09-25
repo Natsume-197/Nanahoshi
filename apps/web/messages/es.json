@@ -2890,6 +2890,7 @@
 		"alignment_not_imported_description": "Todavía no se ha importado un archivo de alineación de Honomiya verificado para esta asociación.",
 		"alignment_ready_description": "{count} segmentos · Honomiya {version} · generada el {date}",
 		"alignment_stale_description": "El ebook o el audiolibro cambió después de importar esta alineación.",
+		"alignment_incomplete_description": "Unos {minutes} min de audio no tienen texto en esta alineación. Reemplázala para arreglar el hueco.",
 		"alignment_imported": "Alineación existente importada",
 		"alignment_not_found": "No se encontró un archivo de alineación de Honomiya junto al ebook.",
 		"alignment_invalid": "El archivo situado junto al ebook no es una alineación válida de Honomiya.",

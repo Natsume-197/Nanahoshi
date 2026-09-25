@@ -8,6 +8,7 @@ import {
 	honomiyaManifestV1Schema,
 } from "@nanahoshi/read-listen/manifest";
 import { z } from "zod";
+import { longestAlignmentGapMs } from "./alignment-gaps";
 
 const MAX_SIDECAR_BYTES = 64 * 1024 * 1024;
 
@@ -124,6 +125,7 @@ export type AlignmentImportMetadata = {
 	ebookSha256: string;
 	audioSha256: string[];
 	cueCount: number;
+	longestGapMs: number;
 };
 
 export type ExistingAlignmentImportResult =
@@ -560,6 +562,7 @@ export class ExistingAlignmentImporter {
 				ebookSha256,
 				audioSha256,
 				cueCount: manifest.cues.length,
+				longestGapMs: longestAlignmentGapMs(manifest.cues),
 			},
 		};
 	}

@@ -15,6 +15,7 @@ import {
 	readManagedAlignmentArtifact,
 	readManagedAlignmentReport,
 } from "./alignment-artifact";
+import { isAlignmentIncomplete, longestAlignmentGapMs } from "./alignment-gaps";
 import {
 	type ReadListenAlignmentFilter,
 	type ReadListenAlignmentRow,
@@ -57,6 +58,8 @@ type ReadListenStore = Pick<
 	| "listLatestGenerationRows"
 	| "getPairSources"
 	| "upsertAlignment"
+	| "listAlignmentsWithoutGap"
+	| "setAlignmentLongestGap"
 	| "createPair"
 	| "deletePairAndMatchHistory"
 	| "createMatchProposals"
@@ -107,6 +110,9 @@ export type ReadListenAlignmentView =
 				generatedAt: string;
 				cueCount: number;
 				importedAt: string;
+				/** Long enough to mean a text section is missing from it. */
+				incomplete: boolean;
+				longestGapMs: number | null;
 			};
 	  };
 export type {
@@ -132,6 +138,8 @@ function toAlignmentView(
 			generatedAt: alignment.generatedAt,
 			cueCount: alignment.cueCount,
 			importedAt: alignment.importedAt,
+			incomplete: isAlignmentIncomplete(alignment.longestGapMs),
+			longestGapMs: alignment.longestGapMs,
 		},
 	};
 }
@@ -180,6 +188,28 @@ export class ReadListenService {
 			searchBooks: searchPort.searchBooks,
 		});
 		this.reviewProjection = new ReadListenMatchReviewProjection(store);
+	}
+
+	/** Measures alignments imported before gaps were recorded; returns how many. */
+	async measureAlignmentGaps(): Promise<number> {
+		let measured = 0;
+		for (const row of await this.store.listAlignmentsWithoutGap()) {
+			try {
+				const manifest = await this.alignmentReader.read(
+					row.artifactPath,
+					row.artifactSha256,
+				);
+				await this.store.setAlignmentLongestGap(
+					row.id,
+					row.artifactSha256,
+					longestAlignmentGapMs(manifest.cues),
+				);
+				measured += 1;
+			} catch {
+				// An unreadable artifact already surfaces when the pair is opened.
+			}
+		}
+		return measured;
 	}
 
 	private async requirePublication(
