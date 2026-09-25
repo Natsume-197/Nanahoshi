@@ -12,13 +12,23 @@ concurrency:
   group: release-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name }}
+
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
-      PRERELEASE: ${{ github.event.release.prerelease }}
+  # Each architecture builds on a native runner; QEMU made arm64 ~7x slower.
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,22 +39,31 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - uses: oven-sh/setup-bun@v2
+        if: matrix.arch == 'amd64'
         with:
           bun-version: 1.4.0
-      - run: bun install --frozen-lockfile
+      - if: matrix.arch == 'amd64'
+        run: bun install --frozen-lockfile
       - uses: browser-actions/setup-chrome@v1
+        if: matrix.arch == 'amd64'
         id: chrome
         with:
           install-dependencies: true
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Build amd64 application image
-        run: >-
-          docker buildx build --platform linux/amd64 --load
-          --build-arg NANAHOSHI_RELEASE="$RELEASE_TAG"
-          --build-arg NANAHOSHI_COMMIT="$GITHUB_SHA"
-          -t nanahoshi:ci .
+        if: matrix.arch == 'amd64'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: nanahoshi:ci
+          build-args: |
+            NANAHOSHI_RELEASE=${{ env.RELEASE_TAG }}
+            NANAHOSHI_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=release-amd64
       - name: Test packaged application
+        if: matrix.arch == 'amd64'
         run: bash scripts/ci-container-smoke.sh
         env:
           INSTALLATION_E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
@@ -53,19 +72,68 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish tested image
+      # Pushed untagged; the publish job only tags it once every architecture succeeded.
+      - name: Push image by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            NANAHOSHI_RELEASE=${{ env.RELEASE_TAG }}
+            NANAHOSHI_COMMIT=${{ github.sha }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+      - name: Export digest
         shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PRERELEASE: ${{ github.event.release.prerelease }}
+    steps:
+      - name: Resolve image name
+        shell: bash
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-arch manifest
+        shell: bash
+        working-directory: ${{ runner.temp }}/digests
         run: |
           release_tags=(--tag "$IMAGE:$RELEASE_TAG")
           if [[ "$PRERELEASE" != true ]]; then
             release_tags+=(--tag "$IMAGE:latest")
           fi
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg NANAHOSHI_RELEASE="$RELEASE_TAG" \
-            --build-arg NANAHOSHI_COMMIT="$GITHUB_SHA" \
-            "${release_tags[@]}" \
-            --push .
+          sources=()
+          for digest in *; do
+            sources+=("$IMAGE@sha256:$digest")
+          done
+          [[ ${#sources[@]} -eq 2 ]]
+          docker buildx imagetools create "${release_tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "$IMAGE:$RELEASE_TAG"
       - name: Check anonymous image access
         shell: bash
         run: |
