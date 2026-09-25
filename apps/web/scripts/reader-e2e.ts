@@ -828,17 +828,201 @@ async function verifyPdf(page: Page, uuid: string) {
 	}
 }
 
-const browserProfile = mkdtempSync(join(tmpdir(), "nanahoshi-reader-e2e-"));
-const browser = await chromium.launchPersistentContext(browserProfile, {
-	headless: true,
-	executablePath: required("READER_E2E_BROWSER", executablePath),
-	// Selectors use English labels; a system browser would pick the OS locale.
-	locale: "en-US",
-	// PDFium receives range responses and keeps its own decoded-page cache. The
-	// browser disk cache is unnecessary here and can fail in ephemeral runners,
-	// making a valid PDF look blank before interaction assertions run.
-	args: ["--disk-cache-size=0", "--media-cache-size=0"],
-});
+async function scrollContinuousTo(page: Page, fraction: number) {
+	const surface = page.locator("main.reader-route-content");
+	await surface.evaluate((element, target) => {
+		element.scrollTop = (element.scrollHeight - element.clientHeight) * target;
+		element.dispatchEvent(new Event("scroll"));
+	}, fraction);
+	await scrollSurfaceWithWheel(page, surface);
+}
+
+async function verifyProgressSyncAcrossDevices(page: Page, uuid: string) {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openReader(page, uuid);
+	await resetToHorizontalContinuous(page);
+	await waitForProgress(page);
+	await scrollContinuousTo(page, 0.5);
+	const read = await eventually(
+		() => readProgress(page),
+		(progress) => progress.percent > 30 && progress.percent < 90,
+		"Scrolling did not move the reader to the middle of the book",
+	);
+
+	// Leaving the book is the moment a reader expects the position to be saved.
+	await showReaderMenu(page);
+	await page.getByRole("button", { name: "Exit reader" }).click();
+	await page.waitForURL((url) => !url.pathname.startsWith("/reader/"));
+
+	const otherDevice = await launchDevice();
+	try {
+		await otherDevice.context.addCookies(await page.context().cookies());
+		const otherPage = await otherDevice.context.newPage();
+		await otherPage.setViewportSize({ width: 1280, height: 900 });
+		// The save is asynchronous, so a first open may still see the old point.
+		await eventually(
+			async () => {
+				await openReader(otherPage, uuid);
+				return eventually(
+					() => readProgress(otherPage),
+					(progress) => progress.current > 0,
+					"Another device did not publish a position",
+					8_000,
+				);
+			},
+			(progress) => Math.abs(progress.percent - read.percent) <= 5,
+			`Another device did not resume near ${read.percent.toFixed(1)}%`,
+			45_000,
+		);
+	} finally {
+		await otherDevice.close();
+	}
+}
+
+async function verifyReopensFromCacheWithoutDownload(page: Page, uuid: string) {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	// The whole-file path stores the EPUB; paginated reads can stream ranges.
+	await openReader(page, uuid);
+	await resetToHorizontalContinuous(page);
+	await waitForProgress(page);
+	await page.waitForTimeout(1_000);
+
+	let downloads = 0;
+	await page.route("**/read/**", (route) => {
+		downloads++;
+		return route.abort("internetdisconnected");
+	});
+	try {
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await page.locator('[data-reader-renderer="text-scroll"]').waitFor({
+			state: "visible",
+			timeout: 20_000,
+		});
+		// The footer can show server progress before the book loads; only
+		// rendered text proves the cached copy opened.
+		await eventually(
+			() =>
+				page
+					.locator('[data-reader-renderer="text-scroll"]')
+					.evaluate((surface) => surface.textContent?.trim().length ?? 0),
+			(length) => length > 200,
+			"The cached book did not render its text",
+			20_000,
+		);
+		assert(
+			downloads === 0,
+			`Reopening a cached book downloaded it again (${downloads} requests).`,
+		);
+	} finally {
+		await page.unroute("**/read/**");
+	}
+}
+
+interface TocChapter {
+	title: string;
+	startCharacter: number;
+}
+
+async function readTocChapters(page: Page): Promise<TocChapter[]> {
+	await showReaderMenu(page);
+	await page.getByTitle("Open Table of Contents").click();
+	const entries = page.locator('button[title^="Go to "]');
+	await entries.first().waitFor({ state: "visible" });
+	const chapters = await entries.evaluateAll((buttons) =>
+		buttons.map((button) => ({
+			title: button.getAttribute("title") ?? "",
+			startCharacter: Number(
+				button.lastElementChild?.textContent ?? Number.NaN,
+			),
+		})),
+	);
+	await page
+		.getByRole("button", { name: "Close Table of Contents" })
+		.last()
+		.click();
+	return chapters;
+}
+
+async function goToChapter(page: Page, title: string) {
+	await showReaderMenu(page);
+	await page.getByTitle("Open Table of Contents").click();
+	await page.getByTitle(title, { exact: true }).click();
+	await hideReaderMenu(page);
+}
+
+async function verifyTableOfContentsJumps(page: Page, uuid: string) {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await openReader(page, uuid);
+	await resetToHorizontalContinuous(page);
+	const { total } = await waitForProgress(page);
+	const chapters = (await readTocChapters(page))
+		.filter(
+			(chapter) =>
+				Number.isFinite(chapter.startCharacter) &&
+				chapter.title !== "Go to undefined",
+		)
+		.sort((a, b) => a.startCharacter - b.startCharacter);
+	// A chapter well past the start, so landing there cannot be a coincidence.
+	const targetIndex = chapters.findIndex(
+		(chapter) => chapter.startCharacter > total * 0.3,
+	);
+	assert(
+		targetIndex > 0,
+		`The book has no chapter past 30%: ${JSON.stringify(chapters)}`,
+	);
+	const target = chapters[targetIndex];
+	const end = chapters[targetIndex + 1]?.startCharacter ?? total;
+
+	for (const [layout, renderer] of [
+		["Continuous", "text-scroll"],
+		["Pages", "text-paginated"],
+	] as const) {
+		if (layout === "Pages") {
+			await switchTextFlow(page, layout, renderer);
+			await closeQuickSettings(page);
+			await hideReaderMenu(page);
+		}
+		await goToChapter(page, chapters[0].title);
+		await eventually(
+			() => readProgress(page),
+			(progress) => progress.current < target.startCharacter,
+			`${layout}: jumping to the first chapter did not go back`,
+		);
+		await goToChapter(page, target.title);
+		await eventually(
+			() => readProgress(page),
+			(progress) =>
+				progress.current >= target.startCharacter - 50 &&
+				progress.current < end,
+			`${layout}: "${target.title}" did not land inside that chapter (${target.startCharacter}–${end})`,
+		);
+	}
+}
+
+// Each profile is a separate device: its own IndexedDB, cache and local state.
+async function launchDevice() {
+	const profile = mkdtempSync(join(tmpdir(), "nanahoshi-reader-e2e-"));
+	const context = await chromium.launchPersistentContext(profile, {
+		headless: true,
+		executablePath: required("READER_E2E_BROWSER", executablePath),
+		// Selectors use English labels; a system browser would pick the OS locale.
+		locale: "en-US",
+		// PDFium receives range responses and keeps its own decoded-page cache. The
+		// browser disk cache is unnecessary here and can fail in ephemeral runners,
+		// making a valid PDF look blank before interaction assertions run.
+		args: ["--disk-cache-size=0", "--media-cache-size=0"],
+	});
+	return {
+		context,
+		close: async () => {
+			await context.close();
+			rmSync(profile, { recursive: true, force: true });
+		},
+	};
+}
+
+const device = await launchDevice();
+const browser = device.context;
 
 try {
 	const page = await browser.newPage();
@@ -873,6 +1057,24 @@ try {
 			required("READER_E2E_BOOK_UUID", textBookUuid),
 		);
 	}
+	if (scenarios.has("all") || scenarios.has("progress-sync")) {
+		await verifyProgressSyncAcrossDevices(
+			page,
+			required("READER_E2E_BOOK_UUID", textBookUuid),
+		);
+	}
+	if (scenarios.has("all") || scenarios.has("cached-reopen")) {
+		await verifyReopensFromCacheWithoutDownload(
+			page,
+			required("READER_E2E_BOOK_UUID", textBookUuid),
+		);
+	}
+	if (scenarios.has("all") || scenarios.has("toc")) {
+		await verifyTableOfContentsJumps(
+			page,
+			required("READER_E2E_BOOK_UUID", textBookUuid),
+		);
+	}
 	if (scenarios.has("all") || scenarios.has("image")) {
 		await verifyImageRestore(
 			page,
@@ -890,6 +1092,5 @@ try {
 	}
 	console.log("Reader E2E checks passed.");
 } finally {
-	await browser.close();
-	rmSync(browserProfile, { recursive: true, force: true });
+	await device.close();
 }

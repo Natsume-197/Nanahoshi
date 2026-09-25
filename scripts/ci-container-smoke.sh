@@ -221,7 +221,7 @@ READER_E2E_BASE_URL="$INSTALLATION_E2E_URL" \
 	READER_E2E_BROWSER="$INSTALLATION_E2E_BROWSER" \
 	READER_E2E_STORAGE_STATE="$INSTALLATION_E2E_STATE" \
 	READER_E2E_BOOK_TITLE="Reader Fixture" \
-	READER_E2E_SCENARIOS="text,tategaki-swipe" \
+	READER_E2E_SCENARIOS="text,tategaki-swipe,progress-sync,cached-reopen,toc" \
 	bun --no-env-file run apps/web/scripts/reader-e2e.ts
 compose up -d --force-recreate --wait --wait-timeout 120 server
 INSTALLATION_E2E_PHASE=verify bun --no-env-file run scripts/installation-e2e.ts

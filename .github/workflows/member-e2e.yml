@@ -41,5 +41,5 @@ jobs:
           READER_E2E_PASSWORD: ${{ secrets.READER_E2E_PASSWORD }}
           READER_E2E_BOOK_UUID: ${{ inputs.book_uuid }}
           READER_E2E_BROWSER: /usr/bin/google-chrome
-          READER_E2E_SCENARIOS: text,tategaki-swipe
+          READER_E2E_SCENARIOS: text,tategaki-swipe,progress-sync,cached-reopen,toc
         run: bun run --cwd apps/web test:e2e:reader
