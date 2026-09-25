@@ -76,6 +76,29 @@ export function resolveReadListenTimelinePosition(
 	};
 }
 
+/** Longer than any pause between narrated sentences. */
+export const READ_LISTEN_UNSYNCED_AFTER_MS = 10_000;
+
+/**
+ * True when the playhead is narrating something the ebook text does not
+ * contain (text drawn in an illustration, an intro, a missing alignment
+ * stretch), so the nearest sentence must not be shown as the one being read.
+ */
+export function isReadListenUnsyncedStretch(
+	position: ReadListenTimelinePosition,
+	globalTimeMs: number,
+	toleranceMs = READ_LISTEN_UNSYNCED_AFTER_MS,
+): boolean {
+	if (position.activeCue) return false;
+	if (position.previousCue) {
+		return globalTimeMs - position.previousCue.globalEndMs > toleranceMs;
+	}
+	if (position.nextCue) {
+		return position.nextCue.globalStartMs - globalTimeMs > toleranceMs;
+	}
+	return false;
+}
+
 /** Finds the cue index under the playhead in O(log n), leaving gaps empty. */
 export function findReadListenCueIndex(
 	timeline: ReadListenTimelineCue[],

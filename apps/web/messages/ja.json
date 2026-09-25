@@ -2902,6 +2902,7 @@
 		"seek_from_text": "文から音声へ移動",
 		"sentence_seek_instructions": "本文です。矢印キーで文を選び、Enterキーを押すとその位置から再生します。",
 		"waiting_for_narration": "ナレーションを待っています…",
+		"unsynced_stretch": "この部分の音声には同期テキストがありません",
 		"reader_loading": "アラインメントを読み込んでいます…",
 		"reader_unavailable": "アラインメントを読み込めませんでした。本の画面に戻って、もう一度お試しください。",
 		"synchronized_text_unavailable": "同期テキストを表示できません",

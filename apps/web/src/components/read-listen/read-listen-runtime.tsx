@@ -268,6 +268,7 @@ export function ReadListenRuntime({
 		isPlaying,
 		playbackRate,
 		alignmentRevision,
+		unsynced,
 		statusText: currentText,
 	} = session;
 	if (playheadRef) playheadRef.current = globalCurrentTime;
@@ -412,8 +413,9 @@ export function ReadListenRuntime({
 				)}
 			{readerCue && !isInitialTextSeekPending && (
 				<ActiveReadListenCue
-					key={`${alignmentRevision}:${sourceFormat}:${readerCue.id}:${followText}:${readerDomRevision}`}
+					key={`${alignmentRevision}:${sourceFormat}:${readerCue.id}:${followText}:${unsynced}:${readerDomRevision}`}
 					cue={readerCue}
+					showHighlight={!unsynced}
 					sectionTargets={
 						targetsBySection.get(
 							toReaderSectionReference(readerCue.text.sectionRef, sourceFormat),

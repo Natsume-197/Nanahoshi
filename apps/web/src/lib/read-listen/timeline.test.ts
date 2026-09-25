@@ -5,6 +5,7 @@ import {
 	findAdjacentReadListenCue,
 	findReadListenCue,
 	findReadListenCueIndex,
+	isReadListenUnsyncedStretch,
 	resolveReadListenTimelinePosition,
 	toReaderSectionReference,
 } from "./timeline";
@@ -105,6 +106,41 @@ describe("Read & Listen timeline", () => {
 			previousCue: timeline[0],
 			nextCue: timeline[1],
 		});
+	});
+
+	test("treats a long stretch with no sentence as unsynced, not a pause", () => {
+		const timeline = createReadListenTimeline(
+			[
+				{ ...cues[0], startMs: 1_000, endMs: 2_000 },
+				{ ...cues[1], audioFileIndex: 0, startMs: 40_000, endMs: 41_000 },
+			],
+			[{ index: 0, duration: 60 }],
+		);
+		const at = (ms: number) =>
+			isReadListenUnsyncedStretch(
+				resolveReadListenTimelinePosition(timeline, ms),
+				ms,
+			);
+
+		expect(at(1_500)).toBe(false);
+		expect(at(6_000)).toBe(false);
+		expect(at(20_000)).toBe(true);
+		expect(at(40_500)).toBe(false);
+		expect(at(500)).toBe(false);
+	});
+
+	test("treats narration long before the first sentence as unsynced", () => {
+		const timeline = createReadListenTimeline(
+			[{ ...cues[0], startMs: 30_000, endMs: 31_000 }],
+			[{ index: 0, duration: 60 }],
+		);
+
+		expect(
+			isReadListenUnsyncedStretch(
+				resolveReadListenTimelinePosition(timeline, 5_000),
+				5_000,
+			),
+		).toBe(true);
 	});
 
 	test("maps Honomiya EPUB references to reader section ids", () => {

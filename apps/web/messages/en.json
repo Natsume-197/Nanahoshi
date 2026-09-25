@@ -2957,6 +2957,7 @@
 		"seek_from_text": "Seek audio from sentences",
 		"sentence_seek_instructions": "Book text. Use the arrow keys to choose a sentence, then press Enter to play from it.",
 		"waiting_for_narration": "Waiting for narration…",
+		"unsynced_stretch": "This part of the audio has no synchronized text",
 		"reader_loading": "Loading alignment…",
 		"reader_unavailable": "Unable to load the alignment. Return to the book and try again.",
 		"synchronized_text_unavailable": "Synchronized text unavailable",

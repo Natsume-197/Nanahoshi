@@ -2957,6 +2957,7 @@
 		"seek_from_text": "Ir al audio desde las oraciones",
 		"sentence_seek_instructions": "Texto del libro. Usa las flechas para elegir una oración y pulsa Intro para reproducir desde ella.",
 		"waiting_for_narration": "Esperando la narración…",
+		"unsynced_stretch": "Este tramo del audio no tiene texto sincronizado",
 		"reader_loading": "Cargando alineación…",
 		"reader_unavailable": "No se pudo cargar la alineación. Vuelve al libro e inténtalo de nuevo.",
 		"synchronized_text_unavailable": "Texto sincronizado no disponible",

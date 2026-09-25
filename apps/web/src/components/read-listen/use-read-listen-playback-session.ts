@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 import { useAudioPlayerState } from "@/context/audio-player-context";
 import {
 	createReadListenTimeline,
+	isReadListenUnsyncedStretch,
 	type ReadListenTimelineCue,
 	resolveReadListenTimelinePosition,
 } from "@/lib/read-listen/timeline";
@@ -20,6 +21,8 @@ export type ReadListenPlaybackSession = {
 	activeCueIndex: number;
 	previousCue: ReadListenTimelineCue | undefined;
 	nextCue: ReadListenTimelineCue | undefined;
+	/** The playhead is narrating something with no sentence in the ebook. */
+	unsynced: boolean;
 	isAudiobookLoaded: boolean;
 	isPlaying: boolean;
 	playbackRate: number;
@@ -78,6 +81,10 @@ export function useReadListenPlaybackSession({
 					previousCue: undefined,
 					nextCue: undefined,
 				};
+	const unsynced =
+		isAudiobookLoaded &&
+		timeline.length > 0 &&
+		isReadListenUnsyncedStretch(position, player.globalCurrentTime * 1000);
 	const activeCueIndex = position.activeIndex;
 	const { activeCue, previousCue, nextCue } = position;
 	const loading =
@@ -100,9 +107,11 @@ export function useReadListenPlaybackSession({
 			? m["read_listen.reader_loading"]()
 			: empty
 				? m["read_listen.synchronized_text_unavailable"]()
-				: activeCue?.text.kind === "text-quote"
-					? activeCue.text.exact
-					: m["read_listen.waiting_for_narration"]();
+				: unsynced
+					? m["read_listen.unsynced_stretch"]()
+					: activeCue?.text.kind === "text-quote"
+						? activeCue.text.exact
+						: m["read_listen.waiting_for_narration"]();
 
 	const retry = useCallback(() => {
 		const requests: Promise<unknown>[] = [sessionQuery.refetch()];
@@ -119,6 +128,7 @@ export function useReadListenPlaybackSession({
 		activeCueIndex,
 		previousCue,
 		nextCue,
+		unsynced,
 		isAudiobookLoaded,
 		isPlaying: player.isPlaying,
 		playbackRate: player.speed,

@@ -182,6 +182,7 @@ export function ActiveReadListenCue({
 	sourceFormat,
 	readerApiRef,
 	forceFollow = false,
+	showHighlight = true,
 	onFollowSettled,
 }: {
 	cue: ReadListenTimelineCue;
@@ -193,6 +194,8 @@ export function ActiveReadListenCue({
 	sourceFormat: ReaderSourceFormat;
 	readerApiRef: RefObject<BookReaderApi | null>;
 	forceFollow?: boolean;
+	/** Off while the audio narrates something this sentence is not. */
+	showHighlight?: boolean;
 	onFollowSettled?: () => void;
 }) {
 	useMountEffect(() => {
@@ -272,8 +275,9 @@ export function ActiveReadListenCue({
 				return;
 			}
 			cleanupHighlight?.();
-			cleanupHighlight =
-				installReadListenActiveHighlight(resolved) ?? undefined;
+			cleanupHighlight = showHighlight
+				? (installReadListenActiveHighlight(resolved) ?? undefined)
+				: undefined;
 			installedSection = section;
 			if (
 				followText &&
