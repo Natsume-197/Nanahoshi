@@ -68,6 +68,8 @@
 		var(--popover-foreground)
 	);
 	--primary: oklch(0.235 0.004 286);
+	/* Resolved on the root, so surfaces that re-point --primary (the reader panel) can still read the app accent. */
+	--app-primary: var(--primary);
 	--primary-foreground: oklch(0.99 0 0);
 	--floating-action: oklch(0.205 0.004 286);
 	--floating-action-foreground: oklch(0.99 0 0);

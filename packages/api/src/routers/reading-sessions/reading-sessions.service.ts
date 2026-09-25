@@ -134,6 +134,53 @@ export async function correct(
 		input.segment,
 	);
 }
+type SegmentRow = Awaited<ReturnType<typeof repository.recentSegments>>[number];
+function overviewSegment(s: SegmentRow, book: number): OverviewSegment {
+	const medium: Medium =
+		s.kind === "listening" || s.duration_seconds !== null
+			? "listening"
+			: "reading";
+	return {
+		sessionId: s.session_id,
+		book,
+		medium,
+		characterCount: s.character_count,
+		startedAt: new Date(s.started_at).toISOString(),
+		endedAt: new Date(s.ended_at).toISOString(),
+		seconds: Number(s.seconds),
+		startPosition: s.start_position,
+		endPosition: s.end_position,
+		kind: s.kind,
+	};
+}
+/** The current reading day across every book, for the reader's daily goal. */
+export async function today(
+	access: ReadingAccess,
+	input: z.infer<typeof ReadingOverviewInput>,
+) {
+	const preferences = await repository.preferences(access.userId);
+	const now = Date.now();
+	const key = dayKey(now, input.timeZone, preferences.dayStartHour);
+	// A reading day spans at most 26 hours around DST; 48 covers it and the day-start offset.
+	const rows = access.serverId
+		? await repository.recentSegments(
+				access.userId,
+				access.serverId,
+				new Date(now - 48 * 3600_000),
+			)
+		: [];
+	const { days } = summarizeOverview(
+		rows.map((s) => overviewSegment(s, Number(s.book_id ?? 0))),
+		[],
+		input.timeZone,
+		preferences.dayStartHour,
+	);
+	return {
+		goals: preferences.goals,
+		today: key,
+		day: days.find((d) => d.day === key) ?? null,
+	};
+}
 export async function overview(
 	access: ReadingAccess,
 	input: z.infer<typeof ReadingOverviewInput>,
@@ -187,25 +234,10 @@ export async function overview(
 		return index;
 	};
 	const listened = new Set<number>();
-	const segments: OverviewSegment[] = data.segments.map((s) => {
-		const book = keyOf(s.book_id, s.orphan_hash);
-		const medium: Medium =
-			s.kind === "listening" || s.duration_seconds !== null
-				? "listening"
-				: "reading";
-		if (medium === "listening") listened.add(book);
-		return {
-			sessionId: s.session_id,
-			book,
-			medium,
-			characterCount: s.character_count,
-			startedAt: new Date(s.started_at).toISOString(),
-			endedAt: new Date(s.ended_at).toISOString(),
-			seconds: Number(s.seconds),
-			startPosition: s.start_position,
-			endPosition: s.end_position,
-			kind: s.kind,
-		};
+	const segments = data.segments.map((s) => {
+		const segment = overviewSegment(s, keyOf(s.book_id, s.orphan_hash));
+		if (segment.medium === "listening") listened.add(segment.book);
+		return segment;
 	});
 	const iso = (value: string | null) =>
 		value ? new Date(value).toISOString() : null;

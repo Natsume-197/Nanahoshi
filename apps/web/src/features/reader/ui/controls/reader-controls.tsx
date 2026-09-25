@@ -15,6 +15,30 @@ export function readerMix(theme: ReaderTheme, pct: number): string {
 	return `color-mix(in oklab, ${theme.fontColor} ${pct}%, ${theme.backgroundColor})`;
 }
 
+/**
+ * App design tokens re-pointed at the reading theme, so shared components
+ * (buttons, selects, popovers) sit on the page instead of the app chrome.
+ * The accent is the app primary pulled toward the ink for contrast.
+ */
+export function readerSurface(theme: ReaderTheme): CSSProperties {
+	const mix = (pct: number) => readerMix(theme, pct);
+	const accent = `color-mix(in oklab, var(--app-primary) 72%, ${theme.fontColor})`;
+	return {
+		"--background": theme.backgroundColor,
+		"--foreground": theme.fontColor,
+		"--popover": mix(4),
+		"--popover-foreground": theme.fontColor,
+		"--muted": mix(8),
+		"--muted-foreground": mix(62),
+		"--border": mix(14),
+		"--input": mix(18),
+		"--ring": mix(45),
+		"--primary": accent,
+		"--primary-foreground": theme.backgroundColor,
+		color: theme.fontColor,
+	} as CSSProperties;
+}
+
 export function SettingsSection({
 	theme,
 	title,

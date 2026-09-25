@@ -39,6 +39,17 @@ export const readingSessionsRouter = {
 				input,
 			),
 		),
+	today: protectedProcedure
+		.input(ReadingOverviewInput)
+		.handler(async ({ input, context }) =>
+			service.today(
+				{
+					userId: context.session.user.id,
+					...(await resolveBookScope(context.session)),
+				},
+				input,
+			),
+		),
 	sync: protectedProcedure
 		.input(SyncReadingSessionInput)
 		.handler(async ({ input, context }) =>

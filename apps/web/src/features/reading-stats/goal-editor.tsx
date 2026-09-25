@@ -125,7 +125,8 @@ export function GoalEditor({
 			}),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: orpc.readingSessions.overview.key(),
+				// Goals live in the preferences too, which the reader reads.
+				queryKey: orpc.readingSessions.key(),
 			});
 			onClose();
 		},

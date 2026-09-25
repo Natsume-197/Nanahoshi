@@ -226,4 +226,32 @@ describe.skipIf(!enabled)("reading history survives book removal", () => {
 		// Only this server's finished-from-progress books are counted.
 		expect(overview.completed.map((c) => Number(c.book_id))).toEqual([kept]);
 	});
+	test("recent segments keep only what ended after the bound, on this server", async () => {
+		const book = await addBook("one", `recent-${tag}`);
+		const other = await addBook("other", `recent-other-${tag}`);
+		const now = Date.now();
+		const insert = async (bookId: number, endedAgoHours: number) => {
+			const end = new Date(now - endedAgoHours * 3600_000).toISOString();
+			const start = new Date(Date.parse(end) - 600_000).toISOString();
+			const runId = await addRun(bookId, "finished", start);
+			const session = crypto.randomUUID();
+			await db.execute(
+				sql`INSERT INTO reading_session (id,run_id,started_at,ended_at,state,mode,source,device,installation_id,content_version,time_zone) VALUES (${session},${runId},${start},${end},'finished','automatic','web','test',${crypto.randomUUID()},'v1','UTC')`,
+			);
+			await db.execute(
+				sql`INSERT INTO reading_segment (id,session_id,started_at,ended_at,seconds,start_position,end_position,kind) VALUES (${crypto.randomUUID()},${session},${start},${end},600,0,0.1,'reading')`,
+			);
+		};
+		await insert(book, 1);
+		await insert(book, 72);
+		await insert(other, 1);
+		const rows = await repo.recentSegments(
+			userId,
+			servers[0] as string,
+			new Date(now - 48 * 3600_000),
+		);
+		const mine = rows.filter((r) => Number(r.book_id) === book);
+		expect(mine).toHaveLength(1);
+		expect(rows.some((r) => Number(r.book_id) === other)).toBe(false);
+	});
 });

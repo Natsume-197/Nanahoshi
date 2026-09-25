@@ -91,6 +91,7 @@ import { ReaderImageGallery } from "@/features/reader/ui/chrome/reader-image-gal
 import { ReaderLoadingScreen } from "@/features/reader/ui/chrome/reader-loading-screen";
 import { ReaderReadingPoint } from "@/features/reader/ui/chrome/reader-reading-point";
 import { ReaderToc } from "@/features/reader/ui/chrome/reader-toc";
+import { readerSurface } from "@/features/reader/ui/controls/reader-controls";
 import { ReaderQuickSettings } from "@/features/reader/ui/settings/reader-quick-settings";
 import { readerChapters } from "@/features/reading-sessions/reading-history-model";
 import { ReadingSessionControl } from "@/features/reading-sessions/reading-session-control";
@@ -1328,7 +1329,10 @@ export function ReaderScreen({
 				)}
 			{isPdf && (
 				<div className="fixed end-4 bottom-20 z-40 rounded-xl bg-background text-foreground shadow-sm">
-					<ReadingSessionControl tracker={readingTracker} />
+					<ReadingSessionControl
+						tracker={readingTracker}
+						surface={readerSurface(theme)}
+					/>
 				</div>
 			)}
 			{!isPdf && showHeader && (
@@ -1342,7 +1346,12 @@ export function ReaderScreen({
 			{/* Text and image readers use the shared activity-rail-style header. */}
 			{!isPdf && (
 				<ReaderHeader
-					sessionControl={<ReadingSessionControl tracker={readingTracker} />}
+					sessionControl={
+						<ReadingSessionControl
+							tracker={readingTracker}
+							surface={readerSurface(theme)}
+						/>
+					}
 					open={showHeader}
 					onOpen={() => setShowHeader(true)}
 					theme={theme}

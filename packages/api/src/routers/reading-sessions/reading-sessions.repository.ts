@@ -534,9 +534,13 @@ export class ReadingSessionsRepository {
 	}
 	/** A deleted server takes its members' reading history with it. */
 	/** Every reading of the user on one server, including books since removed from it. */
-	async overview(userId: string, serverId: string, scope: LibraryScope) {
+	private overviewSegments(userId: string, serverId: string, since?: Date) {
 		const onServer = sql`(l.server_id = ${serverId} OR (r.book_id IS NULL AND r.orphan_server_id = ${serverId}))`;
-		const segments = await db.execute<{
+		// Raw Date params serialize as local clock time; ISO keeps the bound in UTC.
+		const recent = since
+			? sql`AND g.ended_at >= ${since.toISOString()}::timestamptz`
+			: sql``;
+		return db.execute<{
 			session_id: string;
 			book_id: number | null;
 			orphan_hash: string | null;
@@ -556,7 +560,15 @@ export class ReadingSessionsRepository {
 			JOIN reading_run r ON r.id = s.run_id
 			LEFT JOIN book b ON b.id = r.book_id
 			LEFT JOIN library l ON l.id = b.library_id
-			WHERE r.user_id = ${userId} AND s.discarded_at IS NULL AND ${onServer}`);
+			WHERE r.user_id = ${userId} AND s.discarded_at IS NULL AND ${onServer} ${recent}`);
+	}
+	/** Segments that ended after `since`, enough to total the current reading day. */
+	async recentSegments(userId: string, serverId: string, since: Date) {
+		return (await this.overviewSegments(userId, serverId, since)).rows;
+	}
+	async overview(userId: string, serverId: string, scope: LibraryScope) {
+		const onServer = sql`(l.server_id = ${serverId} OR (r.book_id IS NULL AND r.orphan_server_id = ${serverId}))`;
+		const segments = await this.overviewSegments(userId, serverId);
 		const runs = await db.execute<{
 			book_id: number | null;
 			orphan_hash: string | null;

@@ -13,3 +13,15 @@ export function readingDuration(seconds: number) {
 		? `${minutes / 60} h`
 		: `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
+
+/** Live clock split so the seconds can be drawn quieter: "0" + ":51", "1:02" + ":05". */
+export function clockParts(seconds: number) {
+	const total = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(total / 3600);
+	const minutes = Math.floor((total % 3600) / 60);
+	const pad = (value: number) => String(value).padStart(2, "0");
+	return {
+		main: hours > 0 ? `${hours}:${pad(minutes)}` : String(minutes),
+		seconds: `:${pad(total % 60)}`,
+	};
+}
