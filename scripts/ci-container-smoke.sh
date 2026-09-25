@@ -95,6 +95,7 @@ export PUID="$(id -u)"
 export PGID="$(id -g)"
 books_state_dir="$(mktemp -d)"
 cp scripts/fixtures/installation.epub "$books_state_dir/installation.epub"
+cp scripts/fixtures/reader.epub "$books_state_dir/reader.epub"
 export CI_BOOKS_PATH="$books_state_dir"
 
 for secret in \
@@ -216,6 +217,12 @@ export INSTALLATION_E2E_URL="http://127.0.0.1:${api_port}"
 export INSTALLATION_E2E_STATE="$browser_state_dir/state.json"
 export INSTALLATION_E2E_DISPOSABLE=yes
 bun --no-env-file run scripts/installation-e2e.ts
+READER_E2E_BASE_URL="$INSTALLATION_E2E_URL" \
+	READER_E2E_BROWSER="$INSTALLATION_E2E_BROWSER" \
+	READER_E2E_STORAGE_STATE="$INSTALLATION_E2E_STATE" \
+	READER_E2E_BOOK_TITLE="Reader Fixture" \
+	READER_E2E_SCENARIOS="text,tategaki-swipe" \
+	bun --no-env-file run apps/web/scripts/reader-e2e.ts
 compose up -d --force-recreate --wait --wait-timeout 120 server
 INSTALLATION_E2E_PHASE=verify bun --no-env-file run scripts/installation-e2e.ts
 

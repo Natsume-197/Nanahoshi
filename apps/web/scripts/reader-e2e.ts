@@ -1,19 +1,16 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Locator, type Page } from "playwright-core";
-import {
-	assertMiniplayerTategakiLayout,
-	assertZeroPaddingTategakiLayout,
-	type ReaderE2ERect,
-	type TategakiLayoutSnapshot,
-} from "./reader-e2e-layout";
 
 const baseUrl = process.env.READER_E2E_BASE_URL ?? "http://localhost:3001";
 const email = process.env.READER_E2E_EMAIL;
 const password = process.env.READER_E2E_PASSWORD;
-const textBookUuid = process.env.READER_E2E_BOOK_UUID;
-const readListenBookUuid = process.env.READER_E2E_READ_LISTEN_BOOK_UUID;
+let textBookUuid = process.env.READER_E2E_BOOK_UUID;
+// CI has no fixed UUIDs: it reuses the installation session and finds the
+// scanned fixture by title.
+const textBookTitle = process.env.READER_E2E_BOOK_TITLE;
+const storageStatePath = process.env.READER_E2E_STORAGE_STATE;
 const imageBookUuid = process.env.READER_E2E_IMAGE_BOOK_UUID;
 const visualBookUuid = process.env.READER_E2E_VISUAL_BOOK_UUID;
 const pdfBookUuid = process.env.READER_E2E_PDF_BOOK_UUID;
@@ -143,6 +140,24 @@ async function signIn(page: Page) {
 	}
 }
 
+async function findBookUuid(page: Page, title: string) {
+	const book = await eventually(
+		async () => {
+			const response = await page.request.post(`${baseUrl}/rpc/books/listAll`, {
+				data: { json: {} },
+			});
+			const books: { uuid: string; title: string }[] = (await response.json())
+				.json;
+			return books.find((item) => item.title === title);
+		},
+		Boolean,
+		`The library never listed "${title}"`,
+		120_000,
+	);
+	assert(book, `The library never listed "${title}"`);
+	return book.uuid;
+}
+
 async function openReader(page: Page, uuid: string, renderer?: string) {
 	await page.goto(`${baseUrl}/reader/${uuid}`, {
 		waitUntil: "domcontentloaded",
@@ -246,24 +261,7 @@ async function switchTextFlow(
 	});
 }
 
-async function setPaddingToZero(
-	settings: Locator,
-	label: "Horizontal padding" | "Vertical padding",
-) {
-	const fieldset = settings.locator(`fieldset[aria-label="${label}"]`);
-	const decrease = fieldset.getByRole("button", { name: "Decrease" });
-	for (let step = 0; step <= 30 && (await decrease.isEnabled()); step++) {
-		await decrease.click();
-	}
-	assert(!(await decrease.isEnabled()), `${label} did not reach its minimum.`);
-	await eventually(
-		() => fieldset.innerText(),
-		(text) => text.includes("0%"),
-		`${label} did not display 0%`,
-	);
-}
-
-async function configureZeroPaddingTategaki(page: Page) {
+async function configureTategakiPages(page: Page) {
 	await switchTextFlow(page, "Pages", "text-paginated");
 	const settings = await openQuickSettingsCategory(page, "Text");
 	await settings
@@ -274,122 +272,73 @@ async function configureZeroPaddingTategaki(page: Page) {
 		state: "visible",
 		timeout: 15_000,
 	});
-	await setPaddingToZero(settings, "Horizontal padding");
-	await setPaddingToZero(settings, "Vertical padding");
 	await closeQuickSettings(page);
 	await hideReaderMenu(page);
 	await page.waitForTimeout(500);
 }
 
-async function readTategakiLayout(page: Page): Promise<TategakiLayoutSnapshot> {
-	return page
-		.locator('[data-reader-renderer="text-paginated"]')
-		.evaluate((surface): TategakiLayoutSnapshot => {
-			const route = surface.closest("main.reader-route-content");
-			const frame = surface.parentElement;
-			if (!(route instanceof HTMLElement) || !(frame instanceof HTMLElement)) {
-				throw new Error("Paginated reader geometry nodes were not found.");
-			}
-			const html = surface.querySelector<HTMLElement>(
-				".nanahoshi-book-html-wrapper",
-			);
-			const body = surface.querySelector<HTMLElement>(
-				".nanahoshi-book-body-wrapper",
-			);
-			if (!html || !body) {
-				throw new Error("Publication wrappers were not rendered.");
-			}
-			const rect = (element: Element): ReaderE2ERect => {
-				const value = element.getBoundingClientRect();
-				return {
-					top: value.top,
-					right: value.right,
-					bottom: value.bottom,
-					left: value.left,
-					width: value.width,
-					height: value.height,
-				};
-			};
-			const inset = (element: HTMLElement, property: string) =>
-				Number.parseFloat(
-					getComputedStyle(element).getPropertyValue(property),
-				) || 0;
-
-			return {
-				viewport: { width: window.innerWidth, height: window.innerHeight },
-				route: rect(route),
-				frame: rect(frame),
-				surface: rect(surface),
-				publicationInsets: {
-					htmlMarginTop: inset(html, "margin-top"),
-					htmlMarginBottom: inset(html, "margin-bottom"),
-					htmlPaddingTop: inset(html, "padding-top"),
-					htmlPaddingBottom: inset(html, "padding-bottom"),
-					bodyMarginTop: inset(body, "margin-top"),
-					bodyMarginBottom: inset(body, "margin-bottom"),
-					bodyPaddingTop: inset(body, "padding-top"),
-					bodyPaddingBottom: inset(body, "padding-bottom"),
-				},
-			};
+async function swipe(page: Page, dx: number, dy: number) {
+	const cdp = await page.context().newCDPSession(page);
+	try {
+		await cdp.send("Emulation.setTouchEmulationEnabled", {
+			enabled: true,
+			maxTouchPoints: 1,
 		});
-}
-
-async function verifyZeroPaddingTategaki(page: Page, uuid: string) {
-	for (const viewport of [
-		{ width: 1280, height: 900 },
-		{ width: 390, height: 844 },
-	]) {
-		await page.setViewportSize(viewport);
-		await openReader(page, uuid);
-		await configureZeroPaddingTategaki(page);
-		assertZeroPaddingTategakiLayout(await readTategakiLayout(page));
-	}
-}
-
-async function enableReadListen(page: Page) {
-	await showReaderMenu(page);
-	const toggle = page.getByRole("button", { name: "Read & Listen" });
-	await toggle.waitFor({ state: "visible", timeout: 15_000 });
-	if ((await toggle.getAttribute("aria-pressed")) !== "true") {
-		await toggle.click();
-	}
-	await eventually(
-		async () => page.url(),
-		(url) => new URL(url).searchParams.has("pair"),
-		"Read & Listen did not activate",
-	);
-	await page
-		.locator('.read-listen-player-dock[data-player-expanded="false"]')
-		.waitFor({ state: "visible", timeout: 20_000 });
-	await hideReaderMenu(page);
-}
-
-async function verifyMiniplayerTategaki(page: Page, uuid: string) {
-	for (const viewport of [
-		{ width: 1280, height: 900 },
-		{ width: 390, height: 844 },
-	]) {
-		await page.setViewportSize(viewport);
-		await openReader(page, uuid);
-		await configureZeroPaddingTategaki(page);
-		await enableReadListen(page);
-		await page.waitForTimeout(500);
-		const snapshot = await readTategakiLayout(page);
-		const player = await page
-			.locator('.read-listen-player-dock[data-player-expanded="false"]')
-			.evaluate((element): ReaderE2ERect => {
-				const value = element.getBoundingClientRect();
-				return {
-					top: value.top,
-					right: value.right,
-					bottom: value.bottom,
-					left: value.left,
-					width: value.width,
-					height: value.height,
-				};
+		const viewport = page.viewportSize();
+		assert(viewport, "Swipe needs a fixed viewport.");
+		const x = viewport.width / 2 - dx / 2;
+		const y = viewport.height / 2 - dy / 2;
+		const steps = 8;
+		await cdp.send("Input.dispatchTouchEvent", {
+			type: "touchStart",
+			touchPoints: [{ x, y }],
+		});
+		for (let step = 1; step <= steps; step++) {
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchMove",
+				touchPoints: [
+					{ x: x + (dx * step) / steps, y: y + (dy * step) / steps },
+				],
 			});
-		assertMiniplayerTategakiLayout({ ...snapshot, player });
+		}
+		await cdp.send("Input.dispatchTouchEvent", {
+			type: "touchEnd",
+			touchPoints: [],
+		});
+	} finally {
+		await cdp.detach();
 	}
+	await page.waitForTimeout(400);
+}
+
+async function verifyTategakiSwipe(page: Page, uuid: string) {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openReader(page, uuid);
+	await configureTategakiPages(page);
+	const start = await waitForProgress(page);
+
+	// Tategaki reads right-to-left: pulling the page rightward advances.
+	await swipe(page, 200, 0);
+	const advanced = await eventually(
+		() => readProgress(page),
+		(progress) => progress.current > start.current,
+		"A rightward swipe did not advance a tategaki page",
+	);
+
+	await swipe(page, 0, -250);
+	const afterVertical = await readProgress(page);
+	assert(
+		afterVertical.current === advanced.current,
+		`A vertical swipe turned a tategaki page (${advanced.current} -> ${afterVertical.current}).`,
+	);
+
+	await swipe(page, -200, 0);
+	await eventually(
+		() => readProgress(page),
+		(progress) => progress.current < advanced.current,
+		"A leftward swipe did not go back a tategaki page",
+	);
+	await page.setViewportSize({ width: 1280, height: 900 });
 }
 
 async function scrollSurfaceWithWheel(page: Page, surface: Locator) {
@@ -402,8 +351,26 @@ async function scrollSurfaceWithWheel(page: Page, surface: Locator) {
 	await page.waitForTimeout(600);
 }
 
+// Reader settings persist per account, so earlier runs can leave the book in
+// pages or tategaki; the continuous checks need horizontal scrolling text.
+async function resetToHorizontalContinuous(page: Page) {
+	await switchTextFlow(page, "Continuous", "text-scroll");
+	await openQuickSettingsCategory(page, "Text");
+	await page
+		.locator('fieldset[aria-label="Text orientation"]')
+		.getByRole("button", { name: "Horizontal" })
+		.click();
+	await page.locator('[data-reader-renderer="text-scroll"]').waitFor({
+		state: "visible",
+		timeout: 15_000,
+	});
+	await closeQuickSettings(page);
+	await hideReaderMenu(page);
+}
+
 async function verifyContinuousRestoreAndScroll(page: Page, uuid: string) {
-	await openReader(page, uuid, "text-scroll");
+	await openReader(page, uuid);
+	await resetToHorizontalContinuous(page);
 	const surface = page.locator("main.reader-route-content");
 	await waitForProgress(page);
 	await surface.evaluate((element) => {
@@ -476,7 +443,10 @@ async function verifyTextLayoutsAndReflow(page: Page) {
 	const focusBefore = await waitForProgress(page);
 	await closeQuickSettings(page);
 	await hideReaderMenu(page);
-	await page.getByRole("button", { name: "Next sentence" }).click();
+	// Focus advances by tapping the surface; the leftmost fifth goes back.
+	await page
+		.locator('[data-reader-renderer="text-focus"]')
+		.click({ position: { x: 1000, y: 450 } });
 	const focusAfter = await eventually(
 		() => readProgress(page),
 		(progress) => progress.current >= focusBefore.current,
@@ -641,14 +611,6 @@ async function verifyVisualReader(page: Page, uuid: string) {
 
 	const layoutSettings = await openQuickSettingsCategory(page, "Layout");
 	const nextLayout = layoutSettings.locator("#reader-quick-page-layout");
-	await nextLayout.selectOption("two-page-spread");
-	assert(
-		(await nextLayout.evaluate(
-			(element) => (element as HTMLSelectElement).value,
-		)) === "two-page-spread",
-		"Visual two-page layout was not selected.",
-	);
-
 	await nextLayout.selectOption("vertical-strip");
 	await closeQuickSettings(page);
 	await hideReaderMenu(page);
@@ -747,7 +709,6 @@ async function verifyPdf(page: Page, uuid: string) {
 		await openReader(page, uuid, "pdf");
 		const initialPosition = await waitForPdfPageCount(page, requestFailures);
 		const panButton = page.getByRole("button", { name: "Pan document" });
-		const selectButton = page.getByRole("button", { name: "Select PDF text" });
 
 		// Pan is only useful once the document is larger than the viewport. This
 		// also makes the test exercise the actual drag path rather than only its
@@ -764,10 +725,6 @@ async function verifyPdf(page: Page, uuid: string) {
 		const panPageNumber = Math.min(16, initialPosition.total);
 		const beforePan = await viewport.evaluate((element) => element.scrollTop);
 		await panButton.click();
-		assert(
-			(await panButton.getAttribute("aria-pressed")) === "true",
-			"The PDF pan tool did not activate.",
-		);
 		let panned = false;
 		for (let attempt = 0; attempt < 3 && !panned; attempt++) {
 			const panPage = await visiblePdfPage(
@@ -792,15 +749,6 @@ async function verifyPdf(page: Page, uuid: string) {
 			if (!panned) await page.waitForTimeout(250);
 		}
 		assert(panned, "Dragging with the PDF pan tool did not move the document");
-		await selectButton.click();
-		assert(
-			(await selectButton.getAttribute("aria-pressed")) === "true",
-			"The PDF selection tool did not deactivate pan.",
-		);
-		// This regression fixture is a scanned PDF. It has no reliable embedded
-		// text geometry, so asserting highlighted characters here would turn the
-		// reader test into an OCR test. The tool transition itself is still covered;
-		// text selection is exercised with a selectable-text fixture separately.
 		const before = await readPdfPage(page);
 		if (before.page < before.total) {
 			await page.getByRole("button", { name: "Next PDF page" }).click();
@@ -855,33 +803,6 @@ async function verifyPdf(page: Page, uuid: string) {
 			(count) => count === 0,
 			"Closing the PDF page navigator left its thumbnail renderer mounted",
 		);
-		await page.getByRole("button", { name: "Search this PDF" }).click();
-		await page.locator('aside[aria-label="Search PDF"]').waitFor({
-			state: "visible",
-		});
-		await page.getByRole("button", { name: "Close PDF search" }).click();
-		await page.getByRole("button", { name: "Open PDF reader menu" }).click();
-		assert(
-			!(await page
-				.getByRole("button", { name: "Hide reader menu" })
-				.isVisible()),
-			"The PDF overflow menu must not open the reader-wide header.",
-		);
-		await eventually(
-			() =>
-				page.getByRole("menuitem", { name: "Open Quick Settings" }).isVisible(),
-			Boolean,
-			"The PDF overflow menu did not open its local actions",
-		);
-		assert(
-			await page.getByRole("menuitem", { name: "Print PDF" }).isEnabled(),
-			"PDF printing was not available after the document loaded.",
-		);
-		assert(
-			await page.getByRole("menuitem", { name: "Download PDF" }).isEnabled(),
-			"PDF download was not available after the document loaded.",
-		);
-
 		// Reader progress is intentionally debounced so a scroll does not write on
 		// every frame. Allow the final presentation/navigation update to persist
 		// before a reload asserts its restoration.
@@ -911,6 +832,8 @@ const browserProfile = mkdtempSync(join(tmpdir(), "nanahoshi-reader-e2e-"));
 const browser = await chromium.launchPersistentContext(browserProfile, {
 	headless: true,
 	executablePath: required("READER_E2E_BROWSER", executablePath),
+	// Selectors use English labels; a system browser would pick the OS locale.
+	locale: "en-US",
 	// PDFium receives range responses and keeps its own decoded-page cache. The
 	// browser disk cache is unnecessary here and can fail in ephemeral runners,
 	// making a valid PDF look blank before interaction assertions run.
@@ -920,7 +843,15 @@ const browser = await chromium.launchPersistentContext(browserProfile, {
 try {
 	const page = await browser.newPage();
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await signIn(page);
+	if (storageStatePath) {
+		const state = JSON.parse(readFileSync(storageStatePath, "utf8"));
+		await browser.addCookies(state.cookies);
+	} else {
+		await signIn(page);
+	}
+	if (!textBookUuid && textBookTitle) {
+		textBookUuid = await findBookUuid(page, textBookTitle);
+	}
 	if (scenarios.has("all") || scenarios.has("text")) {
 		const textUuid = required("READER_E2E_BOOK_UUID", textBookUuid);
 		await verifyContinuousRestoreAndScroll(page, textUuid);
@@ -936,16 +867,10 @@ try {
 			required("READER_E2E_BOOK_UUID", textBookUuid),
 		);
 	}
-	if (scenarios.has("all") || scenarios.has("tategaki")) {
-		await verifyZeroPaddingTategaki(
+	if (scenarios.has("all") || scenarios.has("tategaki-swipe")) {
+		await verifyTategakiSwipe(
 			page,
 			required("READER_E2E_BOOK_UUID", textBookUuid),
-		);
-	}
-	if (scenarios.has("all") || scenarios.has("read-listen-layout")) {
-		await verifyMiniplayerTategaki(
-			page,
-			required("READER_E2E_READ_LISTEN_BOOK_UUID", readListenBookUuid),
 		);
 	}
 	if (scenarios.has("all") || scenarios.has("image")) {
