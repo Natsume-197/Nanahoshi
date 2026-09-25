@@ -30,11 +30,7 @@ FROM build-deps AS server-build
 COPY apps/server/ apps/server/
 COPY packages/ packages/
 WORKDIR /app/apps/server
-RUN bun run build \
-	&& ORT_BIN="$(find /app -type d -path '*/onnxruntime-node/bin' | head -1)" \
-	&& test -n "$ORT_BIN" \
-	&& mkdir -p bin \
-	&& cp -r "$ORT_BIN/." bin/
+RUN bun run build
 
 # ── Frontend build (SSR + static assets) ───────────────────────────────
 FROM build-deps AS web-build
@@ -56,8 +52,25 @@ RUN VITE_POSTHOG_PROJECT_TOKEN="$PUBLIC_POSTHOG_KEY" \
 
 # ── Production dependencies ─────────────────────────────────────────
 FROM manifests AS production-deps
-RUN --mount=type=cache,target=/root/.bun/install/cache \
-	bun install --production --frozen-lockfile
+ARG TARGETARCH
+# The runtime is glibc Debian and transformers inlines onnxruntime-web, so only
+# this platform's onnxruntime-node binary is kept.
+RUN --mount=type=cache,target=/root/.bun/install/cache <<'EOF'
+set -eu
+bun install --production --frozen-lockfile
+case "$TARGETARCH" in
+	amd64) ORT_ARCH=x64 ;;
+	arm64) ORT_ARCH=arm64 ;;
+	*) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;;
+esac
+cd /app/node_modules/.bun
+rm -rf ./*musl* onnxruntime-web@*
+for napi in onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v*; do
+	find "$napi" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +
+	find "$napi/linux" -mindepth 1 -maxdepth 1 ! -name "$ORT_ARCH" -exec rm -rf {} +
+	test -f "$napi/linux/$ORT_ARCH/onnxruntime_binding.node"
+done
+EOF
 
 # ── Honomiya CLI ─────────────────────────────────────────────────────
 FROM base AS honomiya
@@ -153,8 +166,9 @@ COPY --from=server-build /app/packages/db/src/migrations ./dist/migrations
 COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=production-deps /app/apps/server/node_modules ./node_modules
 RUN ln -s /app/node_modules/.bun/node_modules/@embedpdf /app/node_modules/@embedpdf
+# Loads the native onnxruntime binding the way the bundled worker resolves it.
+RUN cd dist && bun -e 'await import("@huggingface/transformers")'
 COPY --from=calibre /opt/calibre /opt/calibre
-COPY --from=server-build /app/apps/server/bin ./bin
 COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
 ENV PATH="/opt/calibre:${PATH}" QT_QPA_PLATFORM=offscreen
 COPY --from=web-build /app/apps/web/dist /app/apps/web/dist

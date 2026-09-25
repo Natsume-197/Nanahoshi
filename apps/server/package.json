@@ -15,6 +15,7 @@
 	"dependencies": {
 		"@bull-board/api": "^9.10.1",
 		"@bull-board/hono": "^9.10.1",
+		"@huggingface/transformers": "^4.3.0",
 		"@nanahoshi/api": "workspace:*",
 		"@nanahoshi/auth": "workspace:*",
 		"@nanahoshi/db": "workspace:*",
