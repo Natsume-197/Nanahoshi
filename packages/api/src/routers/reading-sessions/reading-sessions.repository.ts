@@ -561,18 +561,40 @@ export class ReadingSessionsRepository {
 			book_id: number | null;
 			orphan_hash: string | null;
 			closure_reason: string | null;
+			started_at: string;
 			ended_at: string | null;
 			media_type: string | null;
 		}>(sql`
-			SELECT r.book_id, r.orphan_hash, r.closure_reason, r.ended_at, l.media_type
+			SELECT r.book_id, r.orphan_hash, r.closure_reason, r.started_at, r.ended_at, l.media_type
 			FROM reading_run r
 			LEFT JOIN book b ON b.id = r.book_id
 			LEFT JOIN library l ON l.id = b.library_id
 			WHERE r.user_id = ${userId} AND ${onServer}`);
+		// Books marked finished from the reader or a shelf never close a reading run.
+		const completed = await db.execute<{
+			book_id: number;
+			medium: "reading" | "listening";
+			started_at: string | null;
+			completed_at: string;
+		}>(sql`
+			SELECT p.book_id, 'reading' AS medium, p.started_at, p.completed_at
+			FROM reading_progress p
+			JOIN book b ON b.id = p.book_id
+			JOIN library l ON l.id = b.library_id
+			WHERE p.user_id = ${userId} AND p.status = 'completed'
+				AND p.completed_at IS NOT NULL AND l.server_id = ${serverId}
+			UNION ALL
+			SELECT p.book_id, 'listening', p.started_at, p.completed_at
+			FROM listening_progress p
+			JOIN book b ON b.id = p.book_id
+			JOIN library l ON l.id = b.library_id
+			WHERE p.user_id = ${userId} AND p.status = 'completed'
+				AND p.completed_at IS NOT NULL AND l.server_id = ${serverId}`);
 		const ids = [
-			...new Set(
-				runs.rows.flatMap((r) => (r.book_id ? [Number(r.book_id)] : [])),
-			),
+			...new Set([
+				...runs.rows.flatMap((r) => (r.book_id ? [Number(r.book_id)] : [])),
+				...completed.rows.map((r) => Number(r.book_id)),
+			]),
 		];
 		const visible = accessiblePredicateSql(scope) ?? sql`true`;
 		const books = ids.length
@@ -598,7 +620,12 @@ export class ReadingSessionsRepository {
 						sql`, `,
 					)})`)
 			: { rows: [] };
-		return { segments: segments.rows, runs: runs.rows, books: books.rows };
+		return {
+			segments: segments.rows,
+			runs: runs.rows,
+			completed: completed.rows,
+			books: books.rows,
+		};
 	}
 	async deleteForServer(tx: Tx, serverId: string) {
 		await tx.execute(sql`

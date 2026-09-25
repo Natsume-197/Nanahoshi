@@ -5,6 +5,7 @@ import { bookRepository } from "../books/book.repository";
 import { readingProgressRepository } from "../reading-progress/reading-progress.repository";
 import {
 	type Medium,
+	type OverviewFinish,
 	type OverviewSegment,
 	summarizeOverview,
 } from "./reading-overview";
@@ -206,17 +207,34 @@ export async function overview(
 			kind: s.kind,
 		};
 	});
-	const runs = data.runs.map((r) => {
+	const iso = (value: string | null) =>
+		value ? new Date(value).toISOString() : null;
+	const finishes: OverviewFinish[] = [];
+	const closed = new Set<number>();
+	for (const r of data.runs) {
+		if (r.closure_reason !== "finish" || !r.ended_at) continue;
 		const book = keyOf(r.book_id, r.orphan_hash);
-		return {
+		closed.add(book);
+		finishes.push({
 			book,
 			medium: (r.media_type ? r.media_type === "audiobook" : listened.has(book))
-				? ("listening" as const)
-				: ("reading" as const),
-			closureReason: r.closure_reason,
-			endedAt: r.ended_at ? new Date(r.ended_at).toISOString() : null,
-		};
-	});
+				? "listening"
+				: "reading",
+			startedAt: iso(r.started_at),
+			finishedAt: new Date(r.ended_at).toISOString(),
+		});
+	}
+	// Progress keeps only the latest finish, so a book with closed runs keeps its runs (rereads included).
+	for (const p of data.completed) {
+		const book = keyOf(p.book_id, null);
+		if (closed.has(book)) continue;
+		finishes.push({
+			book,
+			medium: p.medium,
+			startedAt: iso(p.started_at),
+			finishedAt: new Date(p.completed_at).toISOString(),
+		});
+	}
 	return {
 		goals: preferences.goals,
 		dayStartHour: preferences.dayStartHour,
@@ -224,7 +242,7 @@ export async function overview(
 		books,
 		...summarizeOverview(
 			segments,
-			runs,
+			finishes,
 			input.timeZone,
 			preferences.dayStartHour,
 		),

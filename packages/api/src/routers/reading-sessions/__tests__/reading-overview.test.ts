@@ -106,7 +106,7 @@ test("two devices on different books overlap once per medium", () => {
 	expect(days[0]?.readingSessions).toBe(2);
 });
 
-test("manual sessions count time but not the hour habit or the pace", () => {
+test("manual sessions count time but not the clock habit, the pace or records", () => {
 	const result = summarizeOverview(
 		[
 			segment({
@@ -119,41 +119,69 @@ test("manual sessions count time but not the hour habit or the pace", () => {
 		"UTC",
 	);
 	expect(result.days[0]?.readingSeconds).toBe(1800);
-	expect(result.hours.reading.reduce((a, b) => a + b, 0)).toBe(0);
-	expect(result.speed).toBeNull();
+	expect(result.weekHours.reading.reduce((a, b) => a + b, 0)).toBe(0);
+	expect(result.days[0]?.speedSeconds).toBe(0);
+	expect(result.longestSession.reading).toBeNull();
 });
 
-test("hours land in the local clock and pace is characters per hour", () => {
+test("the week clock is local, Monday first, and pace inputs land per day", () => {
+	// 2026-01-01T12:00Z is Thursday 21:00 in Tokyo.
 	const result = summarizeOverview(
 		[segment({ endedAt: "2026-01-01T12:20:00Z", seconds: 1200 })],
 		[],
 		"Asia/Tokyo",
 	);
-	expect(result.hours.reading[21]).toBe(1200);
-	expect(result.speed).toBe(6000);
+	expect(result.weekHours.reading[3 * 24 + 21]).toBe(1200);
+	expect(result.days[0]).toMatchObject({
+		speedSeconds: 1200,
+		speedCharacters: 2000,
+	});
 });
 
-test("finished readings count on the day they closed, by medium", () => {
-	const { days } = summarizeOverview(
+test("the longest session sums its segments per medium", () => {
+	const { longestSession } = summarizeOverview(
+		[
+			segment(),
+			segment({
+				startedAt: "2026-01-01T12:10:00Z",
+				endedAt: "2026-01-01T12:30:00Z",
+				seconds: 1200,
+			}),
+			segment({
+				sessionId: "s2",
+				book: 3,
+				startedAt: "2026-01-02T12:00:00Z",
+				endedAt: "2026-01-02T12:25:00Z",
+				seconds: 1500,
+			}),
+			listening(),
+		],
+		[],
+		"UTC",
+	);
+	expect(longestSession.reading).toEqual({
+		seconds: 1800,
+		book: 0,
+		startedAt: "2026-01-01T12:00:00.000Z",
+	});
+	expect(longestSession.listening?.seconds).toBe(600);
+});
+
+test("finishes count on their local day and keep when the reading began", () => {
+	const { days, finished } = summarizeOverview(
 		[],
 		[
 			{
 				book: 0,
 				medium: "reading",
-				closureReason: "finish",
-				endedAt: "2026-01-03T10:00:00Z",
+				startedAt: "2025-12-20T10:00:00Z",
+				finishedAt: "2026-01-03T10:00:00Z",
 			},
 			{
 				book: 1,
 				medium: "listening",
-				closureReason: "finish",
-				endedAt: "2026-01-03T11:00:00Z",
-			},
-			{
-				book: 2,
-				medium: "reading",
-				closureReason: "leave",
-				endedAt: "2026-01-03T11:00:00Z",
+				startedAt: null,
+				finishedAt: "2026-01-03T11:00:00Z",
 			},
 		],
 		"UTC",
@@ -165,4 +193,10 @@ test("finished readings count on the day they closed, by medium", () => {
 			finishedListening: 1,
 		}),
 	]);
+	expect(finished[0]).toEqual({
+		book: 0,
+		medium: "reading",
+		day: "2026-01-03",
+		startedDay: "2025-12-20",
+	});
 });

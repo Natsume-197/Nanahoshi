@@ -132,7 +132,7 @@ export function useListeningTracker(options: Options) {
 						: await upload();
 					if (sentAny)
 						void queryClient.invalidateQueries({
-							queryKey: orpc.readingSessions.history.key(),
+							queryKey: orpc.readingSessions.key(),
 						});
 				} catch {
 					/* The outbox keeps the session; the next tick retries. */

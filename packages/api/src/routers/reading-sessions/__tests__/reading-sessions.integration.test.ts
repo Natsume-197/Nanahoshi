@@ -8,6 +8,12 @@ function required<T>(value: T | undefined): T {
 	return value;
 }
 
+const noGoals = {
+	readingUnit: "characters",
+	reading: null,
+	listeningMinutes: null,
+};
+
 describe.skipIf(!enabled)("reading sessions persistence", () => {
 	let db: typeof import("@nanahoshi/db").db;
 	let sql: typeof import("drizzle-orm").sql;
@@ -167,12 +173,14 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			mode: "automatic",
 			idleMinutes: 5,
 			dayStartHour: 0,
+			goals: noGoals,
 		});
 		await repo.setPreferences(userId, { mode: "manual", idleMinutes: 10 });
 		expect(await repo.preferences(userId)).toEqual({
 			mode: "manual",
 			idleMinutes: 10,
 			dayStartHour: 0,
+			goals: noGoals,
 		});
 	});
 	test("new envelopes must contain previously persisted segments", async () => {
@@ -423,6 +431,19 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			mode: "manual",
 			idleMinutes: 10,
 			dayStartHour: 4,
+			goals: noGoals,
 		});
+	});
+	test("daily goals are stored, cleared and kept apart from other preferences", async () => {
+		const goals = {
+			readingUnit: "minutes" as const,
+			reading: 30,
+			listeningMinutes: 45,
+		};
+		expect((await repo.setGoals(userId, goals)).goals).toEqual(goals);
+		await repo.setPreferences(userId, { mode: "manual", idleMinutes: 7 });
+		expect((await repo.preferences(userId)).goals).toEqual(goals);
+		await repo.setGoals(userId, noGoals);
+		expect((await repo.preferences(userId)).goals).toEqual(noGoals);
 	});
 });

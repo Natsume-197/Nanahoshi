@@ -70,12 +70,6 @@ const railGroups: RailGroup[] = [
 				icon: House,
 				section: "home",
 			},
-			{
-				href: "/dashboard/stats",
-				label: m["nav.stats"],
-				icon: ChartBar,
-				section: "stats",
-			},
 		],
 	},
 	{
@@ -94,6 +88,12 @@ const railGroups: RailGroup[] = [
 				activeWeight: "bold",
 				section: "read-listen",
 				needsCatalog: true,
+			},
+			{
+				href: "/dashboard/stats",
+				label: m["nav.stats"],
+				icon: ChartBar,
+				section: "stats",
 			},
 		],
 	},

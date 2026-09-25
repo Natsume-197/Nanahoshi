@@ -3,18 +3,25 @@ import {
 	averageChange,
 	bookShares,
 	dayQualifies,
+	fastestFinish,
 	goalRatios,
 	goalStreaks,
 	heatmap,
 	hoursFor,
 	mondayOf,
+	mostCharactersDay,
+	paceOf,
+	paceSeries,
 	peakPart,
+	peakWeekday,
 	periodCount,
 	periodRange,
 	periodSeries,
 	periodSummary,
 	type StatsDay,
 	type StatsGoals,
+	typicalDay,
+	weekGrid,
 } from "./stats-model";
 
 function day(date: string, overrides: Partial<StatsDay> = {}): StatsDay {
@@ -28,6 +35,8 @@ function day(date: string, overrides: Partial<StatsDay> = {}): StatsDay {
 		listeningSessions: 0,
 		finishedReading: 0,
 		finishedListening: 0,
+		speedSeconds: 0,
+		speedCharacters: 0,
 		...overrides,
 	};
 }
@@ -155,6 +164,7 @@ test("a period in progress averages only the days lived so far", () => {
 		characters: 900,
 		finished: 1,
 		activeDays: 2,
+		elapsedDays: 4,
 		dailyAverage: 450,
 	});
 	expect(periodSummary(days, range, "2026-09-24", "listening").characters).toBe(
@@ -218,13 +228,92 @@ test("book shares merge Read & Listen and filter by view and range", () => {
 	expect(bookShares(rows, range, "reading").map((b) => b.book)).toEqual([0]);
 });
 
-test("hours combine by view and name the busiest part of the day", () => {
-	const reading = Array(24).fill(0);
-	const listening = Array(24).fill(0);
-	reading[22] = 100;
-	listening[8] = 150;
-	expect(hoursFor({ reading, listening }, "all")[8]).toBe(150);
-	expect(peakPart(hoursFor({ reading, listening }, "reading"))).toBe("evening");
-	expect(peakPart(hoursFor({ reading, listening }, "all"))).toBe("morning");
+test("hours and weekdays combine by view from the week clock", () => {
+	const reading = Array(7 * 24).fill(0);
+	const listening = Array(7 * 24).fill(0);
+	reading[22] = 100; // Monday 22:00
+	reading[6 * 24 + 22] = 50; // Sunday 22:00
+	listening[2 * 24 + 8] = 400; // Wednesday 08:00
+	const weekHours = { reading, listening };
+	expect(hoursFor(weekHours, "reading")[22]).toBe(150);
+	expect(hoursFor(weekHours, "all")[8]).toBe(400);
+	expect(weekGrid(weekHours, "reading")[6]?.[22]).toBe(50);
+	expect(peakPart(hoursFor(weekHours, "reading"))).toBe("evening");
+	expect(peakPart(hoursFor(weekHours, "all"))).toBe("morning");
+	expect(peakWeekday(weekHours, "reading")).toBe(0);
+	expect(peakWeekday(weekHours, "listening")).toBe(2);
 	expect(peakPart(Array(24).fill(0))).toBeNull();
+});
+
+test("pace needs ten observed minutes and pages by week while history is short", () => {
+	expect(paceOf([{ speedSeconds: 300, speedCharacters: 900 }])).toBeNull();
+	expect(paceOf([{ speedSeconds: 1800, speedCharacters: 3000 }])).toBe(6000);
+	const days = [
+		day("2026-09-01", { speedSeconds: 3600, speedCharacters: 5000 }),
+		day("2026-09-22", { speedSeconds: 3600, speedCharacters: 7000 }),
+	];
+	const weekly = paceSeries(days, "2026-09-24");
+	expect(weekly.unit).toBe("week");
+	expect(weekly.points.map((p) => [p.from, p.pace])).toEqual([
+		["2026-08-31", 5000],
+		["2026-09-07", null],
+		["2026-09-14", null],
+		["2026-09-21", 7000],
+	]);
+	const monthly = paceSeries(
+		[day("2026-01-10", { speedSeconds: 3600, speedCharacters: 4000 }), ...days],
+		"2026-09-24",
+	);
+	expect(monthly.unit).toBe("month");
+	expect(monthly.points.map((p) => p.from).slice(0, 2)).toEqual([
+		"2026-01-01",
+		"2026-02-01",
+	]);
+	expect(monthly.points.at(-1)?.pace).toBe(6000);
+	expect(paceSeries([], "2026-09-24").points).toEqual([]);
+});
+
+test("a typical day averages active days of the previous four weeks", () => {
+	const days = [
+		day("2026-08-01", { totalSeconds: 9999 }),
+		day("2026-09-20", { totalSeconds: 600 }),
+		day("2026-09-22", { totalSeconds: 1800 }),
+		day("2026-09-24", { totalSeconds: 60 }),
+	];
+	expect(typicalDay(days, "2026-09-24", (d) => d.totalSeconds)).toBe(1200);
+	expect(typicalDay([], "2026-09-24", (d) => d.totalSeconds)).toBeNull();
+});
+
+test("records pick the quickest finish and the day with most characters", () => {
+	const finished = [
+		{
+			book: 0,
+			medium: "reading" as const,
+			day: "2026-09-10",
+			startedDay: "2026-09-01",
+		},
+		{
+			book: 1,
+			medium: "listening" as const,
+			day: "2026-09-10",
+			startedDay: "2026-09-09",
+		},
+		{
+			book: 2,
+			medium: "reading" as const,
+			day: "2026-09-12",
+			startedDay: null,
+		},
+	];
+	expect(fastestFinish(finished, "all")).toMatchObject({ book: 1, days: 2 });
+	expect(fastestFinish(finished, "reading")).toMatchObject({
+		book: 0,
+		days: 10,
+	});
+	expect(
+		mostCharactersDay([
+			day("2026-09-01", { characters: 5 }),
+			day("2026-09-02", { characters: 9 }),
+		])?.day,
+	).toBe("2026-09-02");
 });

@@ -623,6 +623,39 @@ html[data-rail-resizing] * {
 	--panel-in-offset: -0.5rem;
 }
 
+/* Goal arcs fill from empty on arrival; backwards fill so later changes still transition. */
+@keyframes stats-arc-in {
+	from {
+		stroke-dasharray: 0 1;
+	}
+}
+
+@utility stats-arc-in {
+	animation: stats-arc-in 900ms var(--ease-out-quart) 120ms backwards;
+}
+
+/* One soft glow when the day's goal closes. */
+@keyframes stats-goal-glow {
+	0%,
+	100% {
+		filter: drop-shadow(0 0 0 transparent);
+	}
+	45% {
+		filter: drop-shadow(0 0 10px currentColor);
+	}
+}
+
+@utility stats-goal-glow {
+	animation: stats-goal-glow 1400ms var(--ease-out-quart) 700ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.stats-arc-in,
+	.stats-goal-glow {
+		animation: none;
+	}
+}
+
 /* A row picked up for reordering: it rises off the list, then holds. */
 @keyframes drag-lift {
 	from {

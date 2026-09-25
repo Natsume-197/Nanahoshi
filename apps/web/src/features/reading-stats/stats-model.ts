@@ -16,6 +16,8 @@ export interface StatsDay {
 	listeningSessions: number;
 	finishedReading: number;
 	finishedListening: number;
+	speedSeconds: number;
+	speedCharacters: number;
 }
 export interface StatsGoals {
 	readingUnit: "characters" | "minutes";
@@ -190,6 +192,7 @@ export interface SeriesPoint extends Bucket {
 	reading: number;
 	listening: number;
 	total: number;
+	characters: number;
 	future: boolean;
 }
 
@@ -203,6 +206,7 @@ export function periodSeries(
 		let reading = 0;
 		let listening = 0;
 		let total = 0;
+		let characters = 0;
 		for (
 			let day = bucket.from;
 			day <= bucket.to && day <= today;
@@ -213,12 +217,14 @@ export function periodSeries(
 			reading += d.readingSeconds;
 			listening += d.listeningSeconds;
 			total += d.totalSeconds;
+			characters += d.characters;
 		}
 		return {
 			...bucket,
 			reading,
 			listening,
 			total,
+			characters,
 			future: bucket.from > today,
 		};
 	});
@@ -258,6 +264,7 @@ export function periodSummary(
 		characters,
 		finished,
 		activeDays,
+		elapsedDays: elapsed,
 		dailyAverage: elapsed > 0 ? seconds / elapsed : 0,
 	};
 }
@@ -353,16 +360,37 @@ export function bookShares(
 		.sort((a, b) => b.seconds - a.seconds || a.book - b.book);
 }
 
-export function hoursFor(
-	hours: { reading: number[]; listening: number[] },
-	view: StatsView,
-) {
-	return Array.from(
-		{ length: 24 },
-		(_, h) =>
-			(view === "listening" ? 0 : (hours.reading[h] ?? 0)) +
-			(view === "reading" ? 0 : (hours.listening[h] ?? 0)),
+export interface WeekHours {
+	reading: number[];
+	listening: number[];
+}
+
+/** Seconds per weekday (Monday first) and hour for a view. */
+export function weekGrid(weekHours: WeekHours, view: StatsView) {
+	return Array.from({ length: 7 }, (_, d) =>
+		Array.from({ length: 24 }, (_, h) => {
+			const i = d * 24 + h;
+			return (
+				(view === "listening" ? 0 : (weekHours.reading[i] ?? 0)) +
+				(view === "reading" ? 0 : (weekHours.listening[i] ?? 0))
+			);
+		}),
 	);
+}
+
+export function hoursFor(weekHours: WeekHours, view: StatsView) {
+	const grid = weekGrid(weekHours, view);
+	return Array.from({ length: 24 }, (_, h) =>
+		grid.reduce((sum, row) => sum + (row[h] ?? 0), 0),
+	);
+}
+
+export function peakWeekday(weekHours: WeekHours, view: StatsView) {
+	const totals = weekGrid(weekHours, view).map((row) =>
+		row.reduce((a, b) => a + b, 0),
+	);
+	const most = Math.max(...totals);
+	return most > 0 ? totals.indexOf(most) : null;
 }
 
 /** Named part of the day holding the most time, for the habit headline. */
@@ -382,5 +410,100 @@ export function peakPart(values: number[]) {
 			best = part.key;
 		}
 	}
+	return best;
+}
+
+/** Characters per hour of observed reading; null until ten minutes back it. */
+export function paceOf(
+	days: Pick<StatsDay, "speedSeconds" | "speedCharacters">[],
+) {
+	let seconds = 0;
+	let characters = 0;
+	for (const day of days) {
+		seconds += day.speedSeconds;
+		characters += day.speedCharacters;
+	}
+	return seconds >= 600 && characters > 0
+		? Math.round((characters / seconds) * 3600)
+		: null;
+}
+
+export interface PacePoint {
+	key: string;
+	from: string;
+	pace: number | null;
+	seconds: number;
+}
+
+/** Pace per month, or per week while history is under three months, oldest first. */
+export function paceSeries(days: StatsDay[], today: string) {
+	const first = days.find((d) => d.speedSeconds > 0)?.day;
+	if (!first) return { unit: "month" as const, points: [] as PacePoint[] };
+	const unit =
+		daysBetween(first, today) < 90 ? ("week" as const) : ("month" as const);
+	const keyOf = (day: string) =>
+		unit === "week" ? mondayOf(day) : `${day.slice(0, 7)}-01`;
+	const buckets = new Map<string, StatsDay[]>();
+	for (let key = keyOf(first); key <= today; ) {
+		buckets.set(key, []);
+		key =
+			unit === "week"
+				? addDays(key, 7)
+				: (() => {
+						const [y, m] = key.split("-").map(Number) as [number, number];
+						return monthStart(y, m);
+					})();
+	}
+	for (const day of days) buckets.get(keyOf(day.day))?.push(day);
+	const points = [...buckets].map(([from, bucket]) => ({
+		key: from,
+		from,
+		pace: paceOf(bucket),
+		seconds: bucket.reduce((sum, d) => sum + d.speedSeconds, 0),
+	}));
+	return { unit, points: points.slice(-12) };
+}
+
+/**
+ * Today against a typical day: the mean of active days in the four weeks before
+ * today. Gives the ring a scale when no goal is set.
+ */
+export function typicalDay(
+	days: StatsDay[],
+	today: string,
+	measure: (day: StatsDay) => number,
+) {
+	const from = addDays(today, -28);
+	const values = days
+		.filter((d) => d.day >= from && d.day < today)
+		.map(measure)
+		.filter((v) => v > 0);
+	return values.length
+		? values.reduce((a, b) => a + b, 0) / values.length
+		: null;
+}
+
+export interface FinishedBook {
+	book: number;
+	medium: "reading" | "listening";
+	day: string;
+	startedDay: string | null;
+}
+
+/** Fewest days from starting to finishing a book, counting both ends. */
+export function fastestFinish(finished: FinishedBook[], view: StatsView) {
+	let best: (FinishedBook & { days: number }) | null = null;
+	for (const f of finished) {
+		if (!f.startedDay || (view !== "all" && f.medium !== view)) continue;
+		const days = daysBetween(f.startedDay, f.day) + 1;
+		if (days >= 1 && (!best || days < best.days)) best = { ...f, days };
+	}
+	return best;
+}
+
+export function mostCharactersDay(days: StatsDay[]) {
+	let best: StatsDay | null = null;
+	for (const day of days)
+		if (day.characters > (best?.characters ?? 0)) best = day;
 	return best;
 }

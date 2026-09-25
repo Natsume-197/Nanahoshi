@@ -212,7 +212,7 @@ export function useReadingTracker(options: Options) {
 					}
 					if (sentAny)
 						void queryClient.invalidateQueries({
-							queryKey: orpc.readingSessions.history.key(),
+							queryKey: orpc.readingSessions.key(),
 						});
 				} catch {
 					if (!disposed) {
@@ -454,7 +454,7 @@ export function useReadingTracker(options: Options) {
 					publish();
 				}
 				void queryClient.invalidateQueries({
-					queryKey: orpc.readingSessions.history.key(),
+					queryKey: orpc.readingSessions.key(),
 				});
 			},
 			finishReading: async () => {
@@ -529,7 +529,7 @@ export function useReadingTracker(options: Options) {
 		queryClient.setQueryData(orpc.readingSessions.preferences.queryKey(), data);
 		// Days regroup when the day start changes.
 		void queryClient.invalidateQueries({
-			queryKey: orpc.readingSessions.history.key(),
+			queryKey: orpc.readingSessions.key(),
 		});
 		try {
 			localStorage.setItem(

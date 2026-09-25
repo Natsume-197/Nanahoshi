@@ -3410,7 +3410,43 @@
 	"stats_hours_label": "時間帯別の時間",
 	"stats_all_time": "累計",
 	"stats_sessions": "セッション",
-	"stats_speed": "平均速度",
 	"stats_speed_value": "{value}字/時",
-	"stats_since": "{date}から"
+	"stats_since": "{date}から",
+	"stats_day_close": "閉じる",
+	"stats_day_empty": "この日の活動はありません。",
+	"stats_finished_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1冊読了",
+				"countPlural=other": "{count}冊読了"
+			}
+		}
+	],
+	"stats_heatmap_label": "この1年の日ごとの記録",
+	"stats_legend_goal": "目標",
+	"stats_legend_goal_met": "目標達成",
+	"stats_metric_label": "単位",
+	"stats_metric_time": "時間",
+	"stats_metric_characters": "文字数",
+	"stats_pace_title": "読書速度",
+	"stats_pace_subtitle": "1時間あたりの文字数",
+	"stats_pace_recent": "直近30日",
+	"stats_pace_since": "{period}から",
+	"stats_pace_unmeasured": "計測なし",
+	"stats_pace_week_of": "{date}の週",
+	"stats_pace_hint": "文字数がわかる本の計測済みの読書のみが対象です。手動で追加したセッションは速度に影響しません。",
+	"stats_records_title": "記録",
+	"stats_record_longest_reading": "最長の読書",
+	"stats_record_longest_listening": "最長のリスニング",
+	"stats_record_best_day": "最も長かった日",
+	"stats_record_most_characters": "最も多く読んだ日",
+	"stats_record_fastest": "最速の読了",
+	"stats_trend_chart_label": "{range}の日ごとの記録",
+	"stats_typical_day": "普段の1日：{amount}",
+	"stats_typical_share": "普段の1日の{share}",
+	"stats_week_clock_label": "曜日と時間帯別の時間",
+	"stats_week_clock_title": "1週間",
+	"stats_week_clock_peak": "最も多い曜日：{weekday}"
 }

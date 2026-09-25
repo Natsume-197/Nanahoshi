@@ -14,11 +14,12 @@ export interface OverviewSegment {
 	endPosition: number | null;
 	kind: string;
 }
-export interface OverviewRun {
+/** One finished reading or listening; a reread finished again is another entry. */
+export interface OverviewFinish {
 	book: number;
 	medium: Medium;
-	closureReason: string | null;
-	endedAt: string | null;
+	startedAt: string | null;
+	finishedAt: string;
 }
 export interface OverviewDay {
 	day: string;
@@ -31,6 +32,9 @@ export interface OverviewDay {
 	listeningSessions: number;
 	finishedReading: number;
 	finishedListening: number;
+	// Observed reading of editions with a known length: the basis of the pace.
+	speedSeconds: number;
+	speedCharacters: number;
 }
 export interface OverviewBookDay {
 	day: string;
@@ -65,24 +69,33 @@ function accept(segments: OverviewSegment[]) {
 	return pieces;
 }
 
-const hourFormats = new Map<string, Intl.DateTimeFormat>();
-function localHour(ms: number, timeZone: string) {
-	let format = hourFormats.get(timeZone);
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const clockFormats = new Map<string, Intl.DateTimeFormat>();
+/** Local weekday (Monday = 0) and hour of an instant. */
+function localClock(ms: number, timeZone: string) {
+	let format = clockFormats.get(timeZone);
 	if (!format) {
 		format = new Intl.DateTimeFormat("en-US", {
 			timeZone,
+			weekday: "short",
 			hour: "numeric",
 			hourCycle: "h23",
 		});
-		hourFormats.set(timeZone, format);
+		clockFormats.set(timeZone, format);
 	}
-	return Number(format.format(ms)) % 24;
+	let weekday = 0;
+	let hour = 0;
+	for (const part of format.formatToParts(ms)) {
+		if (part.type === "weekday") weekday = WEEKDAYS.indexOf(part.value);
+		if (part.type === "hour") hour = Number(part.value) % 24;
+	}
+	return { weekday, hour };
 }
 const QUARTER = 15 * 60_000;
 
 export function summarizeOverview(
 	segments: OverviewSegment[],
-	runs: OverviewRun[],
+	finishes: OverviewFinish[],
 	timeZone: string,
 	dayStartHour = 0,
 ) {
@@ -103,6 +116,8 @@ export function summarizeOverview(
 				listeningSessions: 0,
 				finishedReading: 0,
 				finishedListening: 0,
+				speedSeconds: 0,
+				speedCharacters: 0,
 				sessions: new Set(),
 			};
 			days.set(day, d);
@@ -110,12 +125,23 @@ export function summarizeOverview(
 		return d;
 	};
 	const bookDays = new Map<string, OverviewBookDay>();
-	const hours = {
-		reading: Array<number>(24).fill(0),
-		listening: Array<number>(24).fill(0),
+	// Weekday × hour of the local clock, Monday first: index weekday * 24 + hour.
+	const weekHours = {
+		reading: Array<number>(7 * 24).fill(0),
+		listening: Array<number>(7 * 24).fill(0),
 	};
-	let speedSeconds = 0;
-	let speedCharacters = 0;
+	const longest = {
+		reading: null as null | {
+			seconds: number;
+			book: number;
+			startedAt: string;
+		},
+		listening: null as null | {
+			seconds: number;
+			book: number;
+			startedAt: string;
+		},
+	};
 	const each = (
 		pieces: Piece[],
 		visit: (day: string, piece: Piece, seconds: number) => void,
@@ -158,18 +184,41 @@ export function summarizeOverview(
 			row.seconds += seconds;
 			bookDays.set(key, row);
 		});
+		const sessions = new Map<
+			string,
+			{ seconds: number; book: number; startedAt: number }
+		>();
 		for (const { segment, start, end, density } of pieces) {
+			// Declared sessions carry no clock time or pace, only their duration.
 			if (segment.kind === "manual") continue;
 			for (let at = start; at < end; ) {
 				const next = Math.min(end, (Math.floor(at / QUARTER) + 1) * QUARTER);
-				const hour = localHour(at, timeZone);
-				hours[medium][hour] =
-					(hours[medium][hour] ?? 0) + ((next - at) / 1000) * density;
+				const { weekday, hour } = localClock(at, timeZone);
+				const index = weekday * 24 + hour;
+				weekHours[medium][index] =
+					(weekHours[medium][index] ?? 0) + ((next - at) / 1000) * density;
 				at = next;
 			}
+			const seconds = ((end - start) / 1000) * density;
+			const session = sessions.get(segment.sessionId) ?? {
+				seconds: 0,
+				book: segment.book,
+				startedAt: start,
+			};
+			session.seconds += seconds;
+			sessions.set(segment.sessionId, session);
 			if (medium === "reading" && segment.characterCount)
-				speedSeconds += ((end - start) / 1000) * density;
+				for (const part of splitDays(start, end, timeZone, dayStartHour))
+					dayOf(part.day).speedSeconds +=
+						((part.end - part.start) / 1000) * density;
 		}
+		for (const session of sessions.values())
+			if (session.seconds > (longest[medium]?.seconds ?? 0))
+				longest[medium] = {
+					seconds: session.seconds,
+					book: session.book,
+					startedAt: new Date(session.startedAt).toISOString(),
+				};
 	}
 	// Characters follow forward progress on the day it ends, like a book's own history.
 	for (const segment of ordered) {
@@ -197,12 +246,21 @@ export function summarizeOverview(
 		};
 		row.characters += characters;
 		bookDays.set(key, row);
-		if (segment.kind !== "manual") speedCharacters += characters;
+		if (segment.kind !== "manual") dayOf(day).speedCharacters += characters;
 	}
-	for (const run of runs) {
-		if (run.closureReason !== "finish" || !run.endedAt) continue;
-		const d = dayOf(dayKey(Date.parse(run.endedAt), timeZone, dayStartHour));
-		if (run.medium === "reading") d.finishedReading++;
+	const finished = finishes
+		.map((f) => ({
+			book: f.book,
+			medium: f.medium,
+			day: dayKey(Date.parse(f.finishedAt), timeZone, dayStartHour),
+			startedDay: f.startedAt
+				? dayKey(Date.parse(f.startedAt), timeZone, dayStartHour)
+				: null,
+		}))
+		.sort((a, b) => a.day.localeCompare(b.day));
+	for (const f of finished) {
+		const d = dayOf(f.day);
+		if (f.medium === "reading") d.finishedReading++;
 		else d.finishedListening++;
 	}
 	return {
@@ -210,16 +268,14 @@ export function summarizeOverview(
 			.map(({ sessions: _, ...d }) => ({
 				...d,
 				characters: Math.round(d.characters),
+				speedCharacters: Math.round(d.speedCharacters),
 			}))
 			.sort((a, b) => a.day.localeCompare(b.day)),
 		bookDays: [...bookDays.values()]
 			.map((r) => ({ ...r, characters: Math.round(r.characters) }))
 			.sort((a, b) => a.day.localeCompare(b.day) || a.book - b.book),
-		hours,
-		// Observed reading only, so declared sessions and jumps never skew the pace.
-		speed:
-			speedSeconds >= 600 && speedCharacters > 0
-				? Math.round((speedCharacters / speedSeconds) * 3600)
-				: null,
+		weekHours,
+		finished,
+		longestSession: longest,
 	};
 }

@@ -3468,7 +3468,43 @@
 	"stats_hours_label": "Tiempo por hora del día",
 	"stats_all_time": "Desde siempre",
 	"stats_sessions": "Sesiones",
-	"stats_speed": "Velocidad media",
 	"stats_speed_value": "{value} car./h",
-	"stats_since": "desde el {date}"
+	"stats_since": "desde el {date}",
+	"stats_day_close": "Cerrar el día",
+	"stats_day_empty": "Sin actividad este día.",
+	"stats_finished_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 terminado",
+				"countPlural=other": "{count} terminados"
+			}
+		}
+	],
+	"stats_heatmap_label": "Días del último año",
+	"stats_legend_goal": "Meta",
+	"stats_legend_goal_met": "Meta cumplida",
+	"stats_metric_label": "Medir en",
+	"stats_metric_time": "Tiempo",
+	"stats_metric_characters": "Caracteres",
+	"stats_pace_title": "Tu velocidad",
+	"stats_pace_subtitle": "Caracteres por hora de lectura",
+	"stats_pace_recent": "Últimos 30 días",
+	"stats_pace_since": "desde {period}",
+	"stats_pace_unmeasured": "sin medir",
+	"stats_pace_week_of": "la semana del {date}",
+	"stats_pace_hint": "Solo cuenta la lectura medida de libros con recuento de caracteres; las sesiones añadidas a mano no afectan la velocidad.",
+	"stats_records_title": "Récords",
+	"stats_record_longest_reading": "Lectura más larga",
+	"stats_record_longest_listening": "Escucha más larga",
+	"stats_record_best_day": "Día con más tiempo",
+	"stats_record_most_characters": "Día con más caracteres",
+	"stats_record_fastest": "Libro más rápido",
+	"stats_trend_chart_label": "Días de {range}",
+	"stats_typical_day": "Tu día típico: {amount}",
+	"stats_typical_share": "{share} de tu día típico",
+	"stats_week_clock_label": "Tiempo por día de la semana y hora",
+	"stats_week_clock_title": "Tu semana",
+	"stats_week_clock_peak": "Tu día más fuerte: {weekday}"
 }

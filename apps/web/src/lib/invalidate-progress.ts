@@ -9,10 +9,19 @@ import { orpc, queryClient } from "@/utils/orpc";
  */
 export function invalidateListeningProgress() {
 	void invalidateEverywhere(queryClient, [orpc.listeningProgress.key()]);
+	invalidateStatistics();
 }
 
 export function invalidateReadingProgress() {
 	void invalidateEverywhere(queryClient, [orpc.readingProgress.key()]);
+	invalidateStatistics();
+}
+
+// Finishing a book shows up in the stats; only an open page refetches, the rest on return.
+function invalidateStatistics() {
+	void queryClient.invalidateQueries({
+		queryKey: orpc.readingSessions.overview.key(),
+	});
 }
 
 /**

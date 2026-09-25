@@ -20,10 +20,12 @@ const GAP = 5;
 export function GoalGauge({
 	arcs,
 	label,
+	done,
 	children,
 }: {
 	arcs: { tone: Tone; ratio: number | null }[];
 	label: string;
+	done?: boolean;
 	children: ReactNode;
 }) {
 	const outer = (WIDTH - STROKE) / 2;
@@ -41,7 +43,13 @@ export function GoalGauge({
 					const path = `M ${WIDTH / 2 - radius} ${WIDTH / 2} A ${radius} ${radius} 0 0 1 ${WIDTH / 2 + radius} ${WIDTH / 2}`;
 					const filled = Math.max(0, Math.min(1, arc.ratio ?? 0));
 					return (
-						<g key={arc.tone} className={TONE_CLASS[arc.tone]}>
+						<g
+							key={arc.tone}
+							className={cn(
+								TONE_CLASS[arc.tone],
+								done && (arc.ratio ?? 0) >= 1 && "stats-goal-glow",
+							)}
+						>
 							<path
 								d={path}
 								fill="none"
@@ -59,7 +67,7 @@ export function GoalGauge({
 									strokeLinecap="round"
 									pathLength={1}
 									strokeDasharray={`${filled} 1`}
-									className="transition-[stroke-dasharray] duration-700 ease-out motion-reduce:transition-none"
+									className="stats-arc-in transition-[stroke-dasharray] duration-700 ease-out-quart motion-reduce:transition-none"
 								/>
 							)}
 						</g>

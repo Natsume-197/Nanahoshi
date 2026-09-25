@@ -218,7 +218,7 @@ function BookReadingHistory({
 	);
 	const refresh = () =>
 		queryClient.invalidateQueries({
-			queryKey: orpc.readingSessions.history.key(),
+			queryKey: orpc.readingSessions.key(),
 		});
 	const mutation = useMutation({
 		mutationFn: async (action: {

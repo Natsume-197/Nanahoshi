@@ -79,6 +79,7 @@ describe.skipIf(!enabled)("reading history survives book removal", () => {
 	});
 	afterAll(async () => {
 		if (!db) return;
+		await db.execute(sql`DELETE FROM reading_progress WHERE user_id=${userId}`);
 		for (const id of servers)
 			await db.execute(sql`DELETE FROM organization WHERE id=${id}`);
 		await db.execute(sql`DELETE FROM "user" WHERE id=${userId}`);
@@ -202,6 +203,9 @@ describe.skipIf(!enabled)("reading history survives book removal", () => {
 			[elsewhere, "2026-02-04T10:00:00.000Z"],
 		] as const)
 			await segment(await addRun(book, "finished", at), at);
+		await db.execute(
+			sql`INSERT INTO reading_progress (user_id,book_id,status,completed_at) VALUES (${userId},${kept},'completed','2026-02-05T10:00:00Z'),(${userId},${elsewhere},'completed','2026-02-06T10:00:00Z')`,
+		);
 		await repo.preserveForRemoval({ bookId: removed });
 		await removeBook(removed);
 		const overview = await repo.overview(userId, servers[0] as string, [
@@ -219,5 +223,7 @@ describe.skipIf(!enabled)("reading history survives book removal", () => {
 		);
 		expect(accessible.get(kept)).toBe(true);
 		expect(accessible.get(locked)).toBe(false);
+		// Only this server's finished-from-progress books are counted.
+		expect(overview.completed.map((c) => Number(c.book_id))).toEqual([kept]);
 	});
 });

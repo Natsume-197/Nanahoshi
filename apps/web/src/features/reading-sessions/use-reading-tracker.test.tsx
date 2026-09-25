@@ -21,6 +21,7 @@ mock.module("@/utils/orpc", () => ({
 				queryOptions: () => ({ queryKey: preferenceKey }),
 				queryKey: () => preferenceKey,
 			},
+			key: () => ["reading-sessions"],
 			history: { key: () => ["reading-history"] },
 		},
 	},

@@ -3468,7 +3468,43 @@
 	"stats_hours_label": "Time by hour of day",
 	"stats_all_time": "All time",
 	"stats_sessions": "Sessions",
-	"stats_speed": "Average speed",
 	"stats_speed_value": "{value} chars/h",
-	"stats_since": "since {date}"
+	"stats_since": "since {date}",
+	"stats_day_close": "Close day",
+	"stats_day_empty": "No activity this day.",
+	"stats_finished_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 finished",
+				"countPlural=other": "{count} finished"
+			}
+		}
+	],
+	"stats_heatmap_label": "Days of the last year",
+	"stats_legend_goal": "Goal",
+	"stats_legend_goal_met": "Goal met",
+	"stats_metric_label": "Measure in",
+	"stats_metric_time": "Time",
+	"stats_metric_characters": "Characters",
+	"stats_pace_title": "Your speed",
+	"stats_pace_subtitle": "Characters per hour of reading",
+	"stats_pace_recent": "Last 30 days",
+	"stats_pace_since": "since {period}",
+	"stats_pace_unmeasured": "not measured",
+	"stats_pace_week_of": "the week of {date}",
+	"stats_pace_hint": "Only measured reading of books with a character count counts; sessions added by hand don't affect your speed.",
+	"stats_records_title": "Records",
+	"stats_record_longest_reading": "Longest reading",
+	"stats_record_longest_listening": "Longest listening",
+	"stats_record_best_day": "Day with most time",
+	"stats_record_most_characters": "Day with most characters",
+	"stats_record_fastest": "Fastest book",
+	"stats_trend_chart_label": "Days of {range}",
+	"stats_typical_day": "Your typical day: {amount}",
+	"stats_typical_share": "{share} of your typical day",
+	"stats_week_clock_label": "Time by weekday and hour",
+	"stats_week_clock_title": "Your week",
+	"stats_week_clock_peak": "Your strongest day: {weekday}"
 }
