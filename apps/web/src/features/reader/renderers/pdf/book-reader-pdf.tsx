@@ -192,7 +192,7 @@ function PdfDocumentViewport({
 	onDocumentReady,
 	apiRef,
 }: PdfDocumentViewportProps) {
-	const { currentPage, goToPage, positionReady, restorePosition } =
+	const { currentPage, readingPage, goToPage, positionReady, restorePosition } =
 		usePdfNavigation(documentId, pageCount, initialPosition?.exploredCharCount);
 	const { provides: scrollCapability } = useScrollCapability();
 	const { provides: zoom } = useZoom(documentId);
@@ -210,6 +210,7 @@ function PdfDocumentViewport({
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [navigatorOpen, setNavigatorOpen] = useState(false);
 	const currentPageRef = useRef(1);
+	const readingPageRef = useRef(1);
 	const currentLayoutRef = useRef<PdfLayoutMode>("page");
 	const scrollDirectionRef = useRef<PdfScrollDirection>("vertical");
 	const goToPageRef = useRef(goToPage);
@@ -230,6 +231,7 @@ function PdfDocumentViewport({
 		[pageCount],
 	);
 	currentPageRef.current = currentPage;
+	readingPageRef.current = readingPage;
 	currentLayoutRef.current = layout;
 	scrollDirectionRef.current = scrollDirection;
 	goToPageRef.current = goToPage;
@@ -283,7 +285,7 @@ function PdfDocumentViewport({
 				},
 				getPosition: () =>
 					positionForPdfPage(
-						currentPageRef.current,
+						readingPageRef.current,
 						pageCount,
 						documentSections,
 					),

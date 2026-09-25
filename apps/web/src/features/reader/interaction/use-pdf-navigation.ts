@@ -1,5 +1,5 @@
 import { useScroll, useScrollCapability } from "@embedpdf/plugin-scroll/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	clampPdfPage,
 	pdfNavigationBehavior,
@@ -10,8 +10,14 @@ export function usePdfNavigation(
 	pageCount: number,
 	restorePage?: number,
 ) {
-	const { state, provides: scroll } = useScroll(documentId);
+	const { state } = useScroll(documentId);
 	const { provides: scrollCapability } = useScrollCapability();
+	// useScroll's `provides` is a new scope every render; an unstable scope
+	// re-attached the viewport ref on each commit and looped parent updates.
+	const scroll = useMemo(
+		() => scrollCapability?.forDocument(documentId) ?? null,
+		[scrollCapability, documentId],
+	);
 	const currentPage = clampPdfPage(state.currentPage, pageCount);
 	const currentPageRef = useRef(currentPage);
 	const restoredRef = useRef(false);
@@ -42,29 +48,48 @@ export function usePdfNavigation(
 				restoredRef.current
 			)
 				return;
-			const restore = () => {
-				if (restoredRef.current || scroll.getTotalPages() <= 0) return;
-				restoredRef.current = true;
-				goToPage(restorePage, "instant");
-				requestAnimationFrame(() => setPositionReady(true));
+			const targetPage = clampPdfPage(restorePage, pageCount);
+			let stopWaiting: (() => void) | undefined;
+			const ready = () => {
+				stopWaiting?.();
+				setPositionReady(true);
 			};
+			// Only restore on layout-ready (replayed to late subscribers): the engine
+			// resets the scroll offset when layout becomes ready, undoing any earlier jump.
 			const unsubscribe = scrollCapability.onLayoutReady((event) => {
-				if (event.documentId === documentId) restore();
-			});
-			const frame = requestAnimationFrame(() => {
-				try {
-					if (scroll.getLayout().virtualItems.length > 0) restore();
-				} catch {
-					// The layout-ready event will perform the restore.
-				}
+				if (event.documentId !== documentId || restoredRef.current) return;
+				if (scroll.getTotalPages() <= 0) return;
+				restoredRef.current = true;
+				// Page progress stays gated until the viewport reports the target,
+				// otherwise the pre-jump page 1 is saved over the resume point.
+				const unsubscribePage = scrollCapability.onPageChange((change) => {
+					if (
+						change.documentId === documentId &&
+						change.pageNumber === targetPage
+					)
+						ready();
+				});
+				const fallback = window.setTimeout(ready, 1000);
+				stopWaiting = () => {
+					unsubscribePage();
+					window.clearTimeout(fallback);
+				};
+				goToPage(targetPage, "instant");
 			});
 			return () => {
-				cancelAnimationFrame(frame);
+				stopWaiting?.();
 				unsubscribe();
 			};
 		},
-		[documentId, goToPage, restorePage, scroll, scrollCapability],
+		[documentId, goToPage, pageCount, restorePage, scroll, scrollCapability],
 	);
 
-	return { currentPage, goToPage, positionReady, restorePosition };
+	// Until the restore lands the viewport still shows page 1; report the target
+	// so a sync in that window cannot save page 1 over the resume point.
+	const readingPage =
+		positionReady || restorePage === undefined
+			? currentPage
+			: clampPdfPage(restorePage, pageCount);
+
+	return { currentPage, readingPage, goToPage, positionReady, restorePosition };
 }
