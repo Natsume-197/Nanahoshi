@@ -2,6 +2,10 @@ import { CaretLeft, CaretRight, X } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import type { SectionWithProgress } from "@/features/reader/renderers/continuous/book-reader-continuous";
+import {
+	type TocChapter,
+	tocChapters,
+} from "@/features/reader/ui/chrome/toc-chapters";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 
@@ -27,14 +31,15 @@ function getWeightedAverage(values: number[], weights: number[]) {
 
 function getChapterData(
 	sectionData: SectionWithProgress[],
-): [SectionWithProgress[], number, string] {
-	const mainChapters = sectionData.filter((section) => !section.parentChapter);
+): [TocChapter[], number, string] {
+	const mainChapters = tocChapters(sectionData);
 
 	let currentSection = sectionData.find((section) => section.progress < 100);
 	if (!currentSection) {
 		currentSection = sectionData[sectionData.length - 1];
 	}
 
+	// -1 while reading front matter that the list does not show.
 	const referenceId = currentSection.parentChapter || currentSection.reference;
 	const currentChapterIndex = mainChapters.findIndex(
 		(section) => section.reference === referenceId,
@@ -89,9 +94,9 @@ export function ReaderToc({
 
 	const prevChapterAvailable = verticalMode
 		? currentChapterIndex < chapters.length - 1
-		: !!currentChapterIndex;
+		: currentChapterIndex > 0;
 	const nextChapterAvailable = verticalMode
-		? !!currentChapterIndex
+		? currentChapterIndex > 0
 		: currentChapterIndex < chapters.length - 1;
 
 	const changeChapter = (canNavigate: boolean, indexMod: number) => {
@@ -147,7 +152,7 @@ export function ReaderToc({
 				>
 					<div className="mb-1.5 flex items-baseline justify-between gap-3">
 						<span className="truncate font-medium text-sm">
-							{currentChapter?.label ?? ""}
+							{currentChapter?.title ?? ""}
 						</span>
 						<span className="shrink-0 text-sm tabular-nums opacity-60">
 							{currentChapterProgress}%
@@ -178,7 +183,7 @@ export function ReaderToc({
 							<button
 								key={chapter.reference}
 								type="button"
-								title={`Go to ${chapter.label}`}
+								title={`Go to ${chapter.title}`}
 								className={`flex w-full cursor-pointer items-center justify-between gap-4 rounded-md px-2 py-2.5 text-left text-sm transition-colors duration-150 hover:bg-[var(--rh-hover)] ${
 									isCompletedOther ? "opacity-40 hover:opacity-80" : ""
 								} ${isCurrent ? "font-medium" : ""}`}
@@ -188,7 +193,7 @@ export function ReaderToc({
 									onClose();
 								}}
 							>
-								<span className="min-w-0 truncate">{chapter.label}</span>
+								<span className="min-w-0 truncate">{chapter.title}</span>
 								<span className="shrink-0 text-xs tabular-nums opacity-50">
 									{chapter.startCharacter}
 								</span>

@@ -956,11 +956,7 @@ async function verifyTableOfContentsJumps(page: Page, uuid: string) {
 	await resetToHorizontalContinuous(page);
 	const { total } = await waitForProgress(page);
 	const chapters = (await readTocChapters(page))
-		.filter(
-			(chapter) =>
-				Number.isFinite(chapter.startCharacter) &&
-				chapter.title !== "Go to undefined",
-		)
+		.filter((chapter) => Number.isFinite(chapter.startCharacter))
 		.sort((a, b) => a.startCharacter - b.startCharacter);
 	// A chapter well past the start, so landing there cannot be a coincidence.
 	const targetIndex = chapters.findIndex(
