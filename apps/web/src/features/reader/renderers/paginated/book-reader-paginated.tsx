@@ -10,6 +10,7 @@ import {
 import type { BaseReaderProps } from "@/features/reader/reader-contract";
 import { PageManagerPaginated } from "@/features/reader/renderers/paginated/page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "@/features/reader/renderers/paginated/section-stats-calculator";
+import { swipePageFlipDirection } from "@/features/reader/renderers/paginated/swipe-page-flip";
 import { resolveReaderTextAnchorOffset } from "@/features/reader/renderers/paginated/text-anchor";
 import { handleReaderContentClick } from "@/features/reader/renderers/shared/reader-content-click";
 import { applyReaderDocumentChrome } from "@/features/reader/renderers/shared/reader-document-chrome";
@@ -34,7 +35,6 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useWindowEvent } from "@/hooks/use-window-event";
 
 const PAGE_GAP = 40;
-const TOUCH_PAGE_FLIP_THRESHOLD = 40;
 
 interface BookReaderPaginatedProps extends BaseReaderProps {
 	avoidPageBreak: boolean;
@@ -743,26 +743,15 @@ export function BookReaderPaginated({
 			s.touchStartY = Number.NaN;
 			if (!touch) return;
 
-			const dx = touch.clientX - startX;
-			const dy = touch.clientY - startY;
-			const absX = Math.abs(dx);
-			const absY = Math.abs(dy);
-			const dominantDistance = verticalMode ? absY : absX;
-			const crossDistance = verticalMode ? absX : absY;
-
-			if (
-				dominantDistance < TOUCH_PAGE_FLIP_THRESHOLD ||
-				dominantDistance <= crossDistance
-			) {
-				return;
-			}
+			const direction = swipePageFlipDirection(
+				touch.clientX - startX,
+				touch.clientY - startY,
+				verticalMode,
+			);
+			if (!direction) return;
 
 			ev.preventDefault();
-			if (verticalMode) {
-				s.pageManager?.flipPage(dy < 0 ? 1 : -1);
-			} else {
-				s.pageManager?.flipPage(dx < 0 ? 1 : -1);
-			}
+			s.pageManager?.flipPage(direction);
 		};
 		scrollEl.addEventListener("touchstart", handleTouchStart, {
 			passive: true,
@@ -913,9 +902,9 @@ export function BookReaderPaginated({
 		}),
 		maxWidth: width ? `${width}px` : undefined,
 		maxHeight: verticalMode && height ? pageHeight : undefined,
-		// Reserve only the page-turn axis on the book surface. Keeping this off
-		// the document root leaves touch scrolling in reader overlays untouched.
-		touchAction: verticalMode ? "pan-x pinch-zoom" : "pan-y pinch-zoom",
+		// Page turns are horizontal swipes in both writing modes; the browser
+		// must not claim that axis or it cancels the touch before touchend.
+		touchAction: "pan-y pinch-zoom",
 		...({
 			"--book-content-child-width": `${width}px`,
 			"--book-content-child-height": pageHeight,

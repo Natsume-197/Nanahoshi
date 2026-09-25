@@ -73,4 +73,20 @@ describe("reader document chrome", () => {
 			document.documentElement.classList.contains("reader-scrollbar-concealed"),
 		).toBe(false);
 	});
+
+	test("stops browser swipe navigation while paginated", () => {
+		const cleanup = applyReaderDocumentChrome({
+			mode: "paginated",
+			verticalMode: true,
+			backgroundColor: "black",
+		});
+
+		expect(
+			document.documentElement.style.getPropertyValue("overscroll-behavior"),
+		).toBe("none");
+		cleanup();
+		expect(
+			document.documentElement.style.getPropertyValue("overscroll-behavior"),
+		).toBe("");
+	});
 });

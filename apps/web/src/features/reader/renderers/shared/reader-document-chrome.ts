@@ -67,6 +67,9 @@ export function applyReaderDocumentChrome(
 		setProp(o.verticalMode ? "overflow-y" : "overflow-x", "hidden");
 	} else {
 		document.body.classList.add("overflow-hidden");
+		// Horizontal swipes turn pages; keep the browser's own swipe-to-go-back
+		// and pull-to-refresh from claiming them. OS edge gestures still win.
+		if (o.mode === "paginated") setProp("overscroll-behavior", "none");
 	}
 
 	return () => {
