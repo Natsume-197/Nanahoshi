@@ -3,17 +3,23 @@ import { BadRequestError, NotFoundError } from "../../errors";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { readingProgressRepository } from "../reading-progress/reading-progress.repository";
+import {
+	type Medium,
+	type OverviewSegment,
+	summarizeOverview,
+} from "./reading-overview";
 import type {
 	CorrectReadingSessionInput,
 	ReadingGoalInput,
 	ReadingHistoryInput,
+	ReadingOverviewInput,
 	ReadingRunIdInput,
 	ReadingRunInput,
 	ReadingSessionIdInput,
 	SessionUpload,
 } from "./reading-sessions.model";
 import { readingSessionsRepository as repository } from "./reading-sessions.repository";
-import { summarizeReading } from "./reading-statistics";
+import { dayKey, summarizeReading } from "./reading-statistics";
 export interface ReadingAccess {
 	userId: string;
 	serverId?: string;
@@ -126,4 +132,101 @@ export async function correct(
 		input.id,
 		input.segment,
 	);
+}
+export async function overview(
+	access: ReadingAccess,
+	input: z.infer<typeof ReadingOverviewInput>,
+) {
+	const preferences = await repository.preferences(access.userId);
+	if (!access.serverId)
+		return {
+			goals: preferences.goals,
+			dayStartHour: preferences.dayStartHour,
+			today: dayKey(Date.now(), input.timeZone, preferences.dayStartHour),
+			books: [],
+			...summarizeOverview([], [], input.timeZone),
+		};
+	const data = await repository.overview(
+		access.userId,
+		access.serverId,
+		access.scope,
+	);
+	const meta = new Map(data.books.map((b) => [Number(b.id), b]));
+	// Removed books have no row left; each missing file is still one book in the totals.
+	const keys = new Map<string, number>();
+	const books: {
+		uuid: string | null;
+		title: string | null;
+		cover: string | null;
+		mainColor: string | null;
+		mediaType: "ebook" | "audiobook" | null;
+	}[] = [];
+	const keyOf = (bookId: number | null, orphanHash: string | null) => {
+		const id = bookId === null ? null : Number(bookId);
+		const key = id !== null ? `b${id}` : `o${orphanHash}`;
+		let index = keys.get(key);
+		if (index === undefined) {
+			const book = id !== null ? meta.get(id) : undefined;
+			const shown = book?.accessible ? book : undefined;
+			index = books.length;
+			books.push({
+				uuid: shown?.uuid ?? null,
+				title: shown?.title ?? null,
+				cover: shown?.cover ?? null,
+				mainColor: shown?.main_color ?? null,
+				mediaType:
+					book?.media_type === "audiobook"
+						? "audiobook"
+						: book
+							? "ebook"
+							: null,
+			});
+			keys.set(key, index);
+		}
+		return index;
+	};
+	const listened = new Set<number>();
+	const segments: OverviewSegment[] = data.segments.map((s) => {
+		const book = keyOf(s.book_id, s.orphan_hash);
+		const medium: Medium =
+			s.kind === "listening" || s.duration_seconds !== null
+				? "listening"
+				: "reading";
+		if (medium === "listening") listened.add(book);
+		return {
+			sessionId: s.session_id,
+			book,
+			medium,
+			characterCount: s.character_count,
+			startedAt: new Date(s.started_at).toISOString(),
+			endedAt: new Date(s.ended_at).toISOString(),
+			seconds: Number(s.seconds),
+			startPosition: s.start_position,
+			endPosition: s.end_position,
+			kind: s.kind,
+		};
+	});
+	const runs = data.runs.map((r) => {
+		const book = keyOf(r.book_id, r.orphan_hash);
+		return {
+			book,
+			medium: (r.media_type ? r.media_type === "audiobook" : listened.has(book))
+				? ("listening" as const)
+				: ("reading" as const),
+			closureReason: r.closure_reason,
+			endedAt: r.ended_at ? new Date(r.ended_at).toISOString() : null,
+		};
+	});
+	return {
+		goals: preferences.goals,
+		dayStartHour: preferences.dayStartHour,
+		today: dayKey(Date.now(), input.timeZone, preferences.dayStartHour),
+		books,
+		...summarizeOverview(
+			segments,
+			runs,
+			input.timeZone,
+			preferences.dayStartHour,
+		),
+	};
 }

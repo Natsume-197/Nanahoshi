@@ -22,12 +22,21 @@ export interface StatisticsSession {
 }
 /** Local calendar day of an instant; a day may start after midnight (`startHour`). */
 export function dayKey(ms: number, timeZone: string, startHour = 0) {
-	return new Intl.DateTimeFormat("en-CA", {
-		timeZone,
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).format(ms - startHour * 3600_000);
+	return dayFormat(timeZone).format(ms - startHour * 3600_000);
+}
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+function dayFormat(timeZone: string) {
+	let format = dayFormats.get(timeZone);
+	if (!format) {
+		format = new Intl.DateTimeFormat("en-CA", {
+			timeZone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+		});
+		dayFormats.set(timeZone, format);
+	}
+	return format;
 }
 /** Split at the actual local day boundary, including DST and fractional offsets. */
 export function splitDays(

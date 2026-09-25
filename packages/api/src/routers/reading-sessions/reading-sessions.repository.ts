@@ -21,6 +21,10 @@ import {
 	sql,
 } from "drizzle-orm";
 import { ConflictError, NotFoundError } from "../../errors";
+import {
+	accessiblePredicateSql,
+	type LibraryScope,
+} from "../_shared/library-scope";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -67,7 +71,34 @@ export class ReadingSessionsRepository {
 			mode: (row?.mode ?? "automatic") as "automatic" | "manual" | "off",
 			idleMinutes: row?.idleMinutes ?? 5,
 			dayStartHour: row?.dayStartHour ?? 0,
+			goals: {
+				readingUnit: row?.dailyReadingGoalUnit ?? "characters",
+				reading: row?.dailyReadingGoal ?? null,
+				listeningMinutes: row?.dailyListeningGoalMinutes ?? null,
+			},
 		};
+	}
+	async setGoals(
+		userId: string,
+		goals: {
+			readingUnit: "characters" | "minutes";
+			reading: number | null;
+			listeningMinutes: number | null;
+		},
+	) {
+		const value = {
+			dailyReadingGoalUnit: goals.readingUnit,
+			dailyReadingGoal: goals.reading,
+			dailyListeningGoalMinutes: goals.listeningMinutes,
+		};
+		await db
+			.insert(readingTrackingPreference)
+			.values({ userId, ...value })
+			.onConflictDoUpdate({
+				target: readingTrackingPreference.userId,
+				set: value,
+			});
+		return this.preferences(userId);
 	}
 	async setPreferences(
 		userId: string,
@@ -502,6 +533,73 @@ export class ReadingSessionsRepository {
 		});
 	}
 	/** A deleted server takes its members' reading history with it. */
+	/** Every reading of the user on one server, including books since removed from it. */
+	async overview(userId: string, serverId: string, scope: LibraryScope) {
+		const onServer = sql`(l.server_id = ${serverId} OR (r.book_id IS NULL AND r.orphan_server_id = ${serverId}))`;
+		const segments = await db.execute<{
+			session_id: string;
+			book_id: number | null;
+			orphan_hash: string | null;
+			character_count: number | null;
+			duration_seconds: number | null;
+			started_at: string;
+			ended_at: string;
+			seconds: number;
+			start_position: number | null;
+			end_position: number | null;
+			kind: string;
+		}>(sql`
+			SELECT s.id AS session_id, r.book_id, r.orphan_hash, s.character_count, s.duration_seconds,
+				g.started_at, g.ended_at, g.seconds, g.start_position, g.end_position, g.kind
+			FROM reading_segment g
+			JOIN reading_session s ON s.id = g.session_id
+			JOIN reading_run r ON r.id = s.run_id
+			LEFT JOIN book b ON b.id = r.book_id
+			LEFT JOIN library l ON l.id = b.library_id
+			WHERE r.user_id = ${userId} AND s.discarded_at IS NULL AND ${onServer}`);
+		const runs = await db.execute<{
+			book_id: number | null;
+			orphan_hash: string | null;
+			closure_reason: string | null;
+			ended_at: string | null;
+			media_type: string | null;
+		}>(sql`
+			SELECT r.book_id, r.orphan_hash, r.closure_reason, r.ended_at, l.media_type
+			FROM reading_run r
+			LEFT JOIN book b ON b.id = r.book_id
+			LEFT JOIN library l ON l.id = b.library_id
+			WHERE r.user_id = ${userId} AND ${onServer}`);
+		const ids = [
+			...new Set(
+				runs.rows.flatMap((r) => (r.book_id ? [Number(r.book_id)] : [])),
+			),
+		];
+		const visible = accessiblePredicateSql(scope) ?? sql`true`;
+		const books = ids.length
+			? await db.execute<{
+					id: number;
+					uuid: string;
+					media_type: string;
+					accessible: boolean;
+					title: string | null;
+					cover: string | null;
+					main_color: string | null;
+				}>(sql`
+					SELECT b.id, b.uuid, l.media_type, (${visible}) AS accessible,
+						COALESCE(bm.title, am.title) AS title,
+						COALESCE(bm.cover, am.cover) AS cover,
+						COALESCE(bm.main_color, am.main_color) AS main_color
+					FROM book b
+					JOIN library l ON l.id = b.library_id
+					LEFT JOIN book_metadata bm ON bm.book_id = b.id
+					LEFT JOIN audiobook_metadata am ON am.book_id = b.id
+					WHERE b.id IN (${sql.join(
+						ids.map((id) => sql`${id}`),
+						sql`, `,
+					)})`)
+			: { rows: [] };
+		return { segments: segments.rows, runs: runs.rows, books: books.rows };
+	}
 	async deleteForServer(tx: Tx, serverId: string) {
 		await tx.execute(sql`
 			DELETE FROM reading_run r USING book b, library l

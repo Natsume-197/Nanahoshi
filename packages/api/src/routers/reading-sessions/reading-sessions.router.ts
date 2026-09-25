@@ -3,7 +3,9 @@ import { protectedProcedure } from "../../index";
 import {
 	CorrectReadingSessionInput,
 	ReadingGoalInput,
+	ReadingGoalsInput,
 	ReadingHistoryInput,
+	ReadingOverviewInput,
 	ReadingPreferencesInput,
 	ReadingRunIdInput,
 	ReadingRunInput,
@@ -20,6 +22,22 @@ export const readingSessionsRouter = {
 		.input(ReadingPreferencesInput)
 		.handler(({ input, context }) =>
 			readingSessionsRepository.setPreferences(context.session.user.id, input),
+		),
+	setGoals: protectedProcedure
+		.input(ReadingGoalsInput)
+		.handler(({ input, context }) =>
+			readingSessionsRepository.setGoals(context.session.user.id, input),
+		),
+	overview: protectedProcedure
+		.input(ReadingOverviewInput)
+		.handler(async ({ input, context }) =>
+			service.overview(
+				{
+					userId: context.session.user.id,
+					...(await resolveBookScope(context.session)),
+				},
+				input,
+			),
 		),
 	sync: protectedProcedure
 		.input(SyncReadingSessionInput)

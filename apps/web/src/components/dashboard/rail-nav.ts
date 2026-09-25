@@ -3,6 +3,7 @@ export type RailSection =
 	| "my-library"
 	| "catalog"
 	| "read-listen"
+	| "stats"
 	| "series"
 	| "genres"
 	| "authors"
@@ -19,6 +20,7 @@ export function resolveRailSection(pathname: string): RailSection {
 	// The Collections group (shelves + your collections) owns these pages.
 	if (path.startsWith("/dashboard/collections")) return "my-library";
 	if (path.startsWith("/dashboard/read-listen")) return "read-listen";
+	if (path.startsWith("/dashboard/stats")) return "stats";
 	if (path.startsWith("/dashboard/audiobooks")) return "catalog";
 	if (path.startsWith("/dashboard/books")) return "catalog";
 	if (path.startsWith("/dashboard/series")) return "series";

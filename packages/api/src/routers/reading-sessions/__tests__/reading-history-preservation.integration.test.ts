@@ -181,4 +181,43 @@ describe.skipIf(!enabled)("reading history survives book removal", () => {
 		);
 		expect(await run(runId)).toBeUndefined();
 	});
+	test("the overview counts removed books on the server and hides locked metadata", async () => {
+		const segment = async (runId: string, at: string) => {
+			const session = crypto.randomUUID();
+			await db.execute(
+				sql`INSERT INTO reading_session (id,run_id,started_at,ended_at,state,mode,source,device,installation_id,content_version,time_zone,character_count) VALUES (${session},${runId},${at},${at},'finished','automatic','web','test',${crypto.randomUUID()},'v1','UTC',1000)`,
+			);
+			await db.execute(
+				sql`INSERT INTO reading_segment (id,session_id,started_at,ended_at,seconds,start_position,end_position,kind) VALUES (${crypto.randomUUID()},${session},${at},${new Date(Date.parse(at) + 600_000).toISOString()},600,0,0.5,'reading')`,
+			);
+		};
+		const kept = await addBook("one", `overview-kept-${tag}`);
+		const locked = await addBook("two", `overview-locked-${tag}`);
+		const removed = await addBook("one", `overview-removed-${tag}`);
+		const elsewhere = await addBook("other", `overview-other-${tag}`);
+		for (const [book, at] of [
+			[kept, "2026-02-01T10:00:00.000Z"],
+			[locked, "2026-02-02T10:00:00.000Z"],
+			[removed, "2026-02-03T10:00:00.000Z"],
+			[elsewhere, "2026-02-04T10:00:00.000Z"],
+		] as const)
+			await segment(await addRun(book, "finished", at), at);
+		await repo.preserveForRemoval({ bookId: removed });
+		await removeBook(removed);
+		const overview = await repo.overview(userId, servers[0] as string, [
+			libraries.one as number,
+		]);
+		const days = overview.segments.map((s) =>
+			new Date(s.started_at).toISOString().slice(0, 10),
+		);
+		expect(days).toContain("2026-02-01");
+		expect(days).toContain("2026-02-02");
+		expect(days).toContain("2026-02-03");
+		expect(days).not.toContain("2026-02-04");
+		const accessible = new Map(
+			overview.books.map((b) => [Number(b.id), b.accessible]),
+		);
+		expect(accessible.get(kept)).toBe(true);
+		expect(accessible.get(locked)).toBe(false);
+	});
 });

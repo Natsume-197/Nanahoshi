@@ -844,6 +844,7 @@
 		"books": "本",
 		"audiobooks": "オーディオブック",
 		"read_listen": "読む・聴く",
+		"stats": "統計",
 		"collections": "コレクション",
 		"series": "シリーズ",
 		"authors": "著者",
@@ -3294,5 +3295,122 @@
 	"reading_whole_book": "本全体",
 	"reading_day_start": "1日の区切り",
 	"reading_day_start_midnight": "午前0時",
-	"reading_day_start_hint": "この時刻より前の読書やリスニングは前日に記録されます。"
+	"reading_day_start_hint": "この時刻より前の読書やリスニングは前日に記録されます。",
+	"stats_title": "統計",
+	"stats_view_label": "表示する内容",
+	"stats_view_all": "すべて",
+	"stats_view_reading": "読書",
+	"stats_view_listening": "リスニング",
+	"stats_loading": "統計を読み込み中…",
+	"stats_error": "統計を読み込めませんでした。",
+	"stats_retry": "再試行",
+	"stats_empty_title": "統計はここから始まります",
+	"stats_empty_hint": "数分読むか聴くと、連続記録やペース、時間の使い方がここに表示されます。",
+	"stats_empty_action": "カタログへ",
+	"stats_today": "今日",
+	"stats_goal_done": "目標達成",
+	"stats_goal_title": "1日の目標",
+	"stats_goal_hint": "どれかの目標を達成した日が連続記録に加算されます。",
+	"stats_save": "保存",
+	"stats_goal_reading": "読書",
+	"stats_goal_listening": "リスニング",
+	"stats_goal_unit": "読書の単位",
+	"stats_unit_characters": "文字",
+	"stats_unit_minutes": "分",
+	"stats_goal_none": "目標なし",
+	"stats_goal_set": "1日の目標を設定",
+	"stats_goal_edit_all": "1日の目標",
+	"stats_goal_link": "目標：{goal}",
+	"stats_goal_characters_value": "{value}文字",
+	"stats_goal_minutes_value": "{value}分",
+	"stats_characters_value": "{value}文字",
+	"stats_characters_short": "{value}字",
+	"stats_sessions_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1セッション",
+				"countPlural=other": "{count}セッション"
+			}
+		}
+	],
+	"stats_days_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1日",
+				"countPlural=other": "{count}日"
+			}
+		}
+	],
+	"stats_streak_current": "現在の連続記録",
+	"stats_streak_best": "最長連続記録",
+	"stats_streak_goal_hint": "目標を達成",
+	"stats_streak_activity_hint": "活動あり",
+	"stats_goal_met_days": "目標達成日",
+	"stats_active_days": "活動日数",
+	"stats_best_day": "最高の日",
+	"stats_activity_title": "アクティビティ",
+	"stats_activity_subtitle": "この1年を1日ずつ",
+	"stats_heatmap_active": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "今年の活動日数：1日",
+				"countPlural=other": "今年の活動日数：{count}日"
+			}
+		}
+	],
+	"stats_heatmap_less": "少",
+	"stats_heatmap_more": "多",
+	"stats_heatmap_none": "活動なし",
+	"stats_trend_title": "推移",
+	"stats_period_label": "期間",
+	"stats_period_week": "週",
+	"stats_period_month": "月",
+	"stats_period_year": "年",
+	"stats_average_daily": "1日の平均",
+	"stats_average_monthly": "1か月の平均",
+	"stats_compare_week": "前週比",
+	"stats_compare_month": "前月比",
+	"stats_compare_year": "前年比",
+	"stats_previous_period": "前の期間",
+	"stats_next_period": "次の期間",
+	"stats_legend_average": "平均",
+	"stats_total_time": "合計時間",
+	"stats_characters": "文字数",
+	"stats_finished": "読了",
+	"stats_books_title": "本",
+	"stats_books_empty": "この期間は読書もリスニングもありません。",
+	"stats_book_unavailable": "利用できない本",
+	"stats_read_and_listen": "読んで聴く",
+	"stats_books_more": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "さらに1件表示",
+				"countPlural=other": "さらに{count}件表示"
+			}
+		}
+	],
+	"stats_books_less": "表示を減らす",
+	"stats_habits_title": "習慣",
+	"stats_habit_reading": "{part}に読むことが多いです",
+	"stats_habit_listening": "{part}に聴くことが多いです",
+	"stats_habit_all": "{part}に読んだり聴いたりすることが多いです",
+	"stats_habit_none": "セッションを記録すると時間帯が表示されます",
+	"stats_part_morning": "朝",
+	"stats_part_afternoon": "午後",
+	"stats_part_evening": "夜",
+	"stats_part_night": "深夜",
+	"stats_hours_label": "時間帯別の時間",
+	"stats_all_time": "累計",
+	"stats_sessions": "セッション",
+	"stats_speed": "平均速度",
+	"stats_speed_value": "{value}字/時",
+	"stats_since": "{date}から"
 }

@@ -3,6 +3,7 @@ import {
 	BookOpenText,
 	Books,
 	Buildings,
+	ChartBar,
 	Folder,
 	Headphones,
 	House,
@@ -73,6 +74,12 @@ const catalogEntries = [
 		href: "/dashboard/read-listen",
 		label: m["nav.read_listen"],
 		icon: ReadListenIcon,
+	},
+	{
+		section: "stats",
+		href: "/dashboard/stats",
+		label: m["nav.stats"],
+		icon: ChartBar,
 	},
 ] as const;
 

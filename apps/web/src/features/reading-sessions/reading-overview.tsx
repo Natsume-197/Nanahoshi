@@ -77,6 +77,8 @@ export function FigureGrid({
 		<dl
 			className={cn(
 				"grid grid-cols-2 gap-px overflow-hidden rounded-3xl bg-border/50",
+				// An odd last tile spans the row, so the grid never shows an empty cell.
+				"[&>:last-child:nth-child(odd)]:col-span-2",
 				figures.length > 4 ? "@3xl:grid-cols-3" : "@3xl:grid-cols-4",
 				className,
 			)}
@@ -93,7 +95,7 @@ export function FigureGrid({
 						{figure.value}
 					</dd>
 					{figure.detail && (
-						<dd className="truncate text-muted-foreground text-xs">
+						<dd className="line-clamp-2 text-muted-foreground text-xs">
 							{figure.detail}
 						</dd>
 					)}

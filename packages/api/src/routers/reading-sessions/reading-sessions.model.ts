@@ -114,3 +114,9 @@ export const ReadingGoalInput = ReadingRunIdInput.extend({
 export const CorrectReadingSessionInput = ReadingSessionIdInput.extend({
 	segment: ReadingSegmentInput,
 });
+export const ReadingOverviewInput = z.object({ timeZone });
+export const ReadingGoalsInput = z.object({
+	readingUnit: z.enum(["characters", "minutes"]),
+	reading: z.number().int().min(1).max(10_000_000).nullable(),
+	listeningMinutes: z.number().int().min(1).max(1440).nullable(),
+});

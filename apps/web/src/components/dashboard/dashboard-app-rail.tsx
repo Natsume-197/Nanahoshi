@@ -4,6 +4,7 @@ import {
 	BookOpenText,
 	Books,
 	Buildings,
+	ChartBar,
 	Headphones,
 	House,
 	Microphone,
@@ -38,6 +39,7 @@ interface RailItem {
 		| "/dashboard"
 		| "/dashboard/books"
 		| "/dashboard/read-listen"
+		| "/dashboard/stats"
 		| "/dashboard/series"
 		| "/dashboard/genres"
 		| "/dashboard/authors"
@@ -67,6 +69,12 @@ const railGroups: RailGroup[] = [
 				label: m["nav.home"],
 				icon: House,
 				section: "home",
+			},
+			{
+				href: "/dashboard/stats",
+				label: m["nav.stats"],
+				icon: ChartBar,
+				section: "stats",
 			},
 		],
 	},

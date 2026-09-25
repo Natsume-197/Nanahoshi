@@ -844,6 +844,7 @@
 		"books": "Books",
 		"audiobooks": "Audiobooks",
 		"read_listen": "Read & Listen",
+		"stats": "Statistics",
 		"collections": "Collections",
 		"series": "Series",
 		"authors": "Authors",
@@ -3352,5 +3353,122 @@
 	"reading_whole_book": "Whole book",
 	"reading_day_start": "The day starts at",
 	"reading_day_start_midnight": "Midnight",
-	"reading_day_start_hint": "Reading or listening before this hour counts toward the previous day."
+	"reading_day_start_hint": "Reading or listening before this hour counts toward the previous day.",
+	"stats_title": "Statistics",
+	"stats_view_label": "What to show",
+	"stats_view_all": "All",
+	"stats_view_reading": "Reading",
+	"stats_view_listening": "Listening",
+	"stats_loading": "Loading statistics…",
+	"stats_error": "Your statistics couldn't be loaded.",
+	"stats_retry": "Try again",
+	"stats_empty_title": "Your statistics start here",
+	"stats_empty_hint": "Read or listen for a few minutes and you'll see your streak, your pace and where your time goes.",
+	"stats_empty_action": "Go to the catalog",
+	"stats_today": "Today",
+	"stats_goal_done": "Goal met",
+	"stats_goal_title": "Daily goals",
+	"stats_goal_hint": "Every day you meet a goal adds to your streak.",
+	"stats_save": "Save",
+	"stats_goal_reading": "Reading",
+	"stats_goal_listening": "Listening",
+	"stats_goal_unit": "Measure reading in",
+	"stats_unit_characters": "characters",
+	"stats_unit_minutes": "minutes",
+	"stats_goal_none": "no goal",
+	"stats_goal_set": "Set a daily goal",
+	"stats_goal_edit_all": "Daily goals",
+	"stats_goal_link": "Goal: {goal}",
+	"stats_goal_characters_value": "{value} characters",
+	"stats_goal_minutes_value": "{value} min",
+	"stats_characters_value": "{value} characters",
+	"stats_characters_short": "{value} chars",
+	"stats_sessions_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 session",
+				"countPlural=other": "{count} sessions"
+			}
+		}
+	],
+	"stats_days_value": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 day",
+				"countPlural=other": "{count} days"
+			}
+		}
+	],
+	"stats_streak_current": "Current streak",
+	"stats_streak_best": "Best streak",
+	"stats_streak_goal_hint": "Meeting your goal",
+	"stats_streak_activity_hint": "With activity",
+	"stats_goal_met_days": "Goal days",
+	"stats_active_days": "Active days",
+	"stats_best_day": "Best day",
+	"stats_activity_title": "Activity",
+	"stats_activity_subtitle": "Your last year, day by day",
+	"stats_heatmap_active": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "1 active day this year",
+				"countPlural=other": "{count} active days this year"
+			}
+		}
+	],
+	"stats_heatmap_less": "Less",
+	"stats_heatmap_more": "More",
+	"stats_heatmap_none": "no activity",
+	"stats_trend_title": "Trend",
+	"stats_period_label": "Period",
+	"stats_period_week": "Week",
+	"stats_period_month": "Month",
+	"stats_period_year": "Year",
+	"stats_average_daily": "Daily average",
+	"stats_average_monthly": "Monthly average",
+	"stats_compare_week": "vs. previous week",
+	"stats_compare_month": "vs. previous month",
+	"stats_compare_year": "vs. previous year",
+	"stats_previous_period": "Previous period",
+	"stats_next_period": "Next period",
+	"stats_legend_average": "Average",
+	"stats_total_time": "Total time",
+	"stats_characters": "Characters",
+	"stats_finished": "Finished",
+	"stats_books_title": "Books",
+	"stats_books_empty": "You didn't read or listen to anything in this period.",
+	"stats_book_unavailable": "Book unavailable",
+	"stats_read_and_listen": "Read & listen",
+	"stats_books_more": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Show 1 more",
+				"countPlural=other": "Show {count} more"
+			}
+		}
+	],
+	"stats_books_less": "Show less",
+	"stats_habits_title": "Habits",
+	"stats_habit_reading": "You usually read {part}",
+	"stats_habit_listening": "You usually listen {part}",
+	"stats_habit_all": "You usually read or listen {part}",
+	"stats_habit_none": "Your hours will appear once you record sessions",
+	"stats_part_morning": "in the morning",
+	"stats_part_afternoon": "in the afternoon",
+	"stats_part_evening": "in the evening",
+	"stats_part_night": "late at night",
+	"stats_hours_label": "Time by hour of day",
+	"stats_all_time": "All time",
+	"stats_sessions": "Sessions",
+	"stats_speed": "Average speed",
+	"stats_speed_value": "{value} chars/h",
+	"stats_since": "since {date}"
 }

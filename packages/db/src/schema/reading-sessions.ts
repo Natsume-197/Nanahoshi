@@ -29,6 +29,13 @@ export const readingTrackingPreference = pgTable(
 		idleMinutes: integer("idle_minutes").notNull().default(5),
 		// Hour the reading day starts, so a night that runs past midnight stays one day.
 		dayStartHour: integer("day_start_hour").notNull().default(0),
+		// Daily goals; null means no goal for that medium.
+		dailyReadingGoalUnit: text("daily_reading_goal_unit")
+			.$type<"characters" | "minutes">()
+			.notNull()
+			.default("characters"),
+		dailyReadingGoal: integer("daily_reading_goal"),
+		dailyListeningGoalMinutes: integer("daily_listening_goal_minutes"),
 	},
 );
 export const readingRun = pgTable(
