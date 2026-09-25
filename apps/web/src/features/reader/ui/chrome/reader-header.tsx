@@ -1,4 +1,5 @@
 import {
+	ArrowLeft,
 	ArrowsOut,
 	DotsThreeVertical,
 	Flag,
@@ -6,7 +7,6 @@ import {
 	List,
 	MagnifyingGlass,
 	SlidersHorizontal,
-	X,
 } from "@phosphor-icons/react";
 import {
 	type CSSProperties,
@@ -98,7 +98,7 @@ export function ReaderHeader({
 	onReadListenClick,
 	onExitClick,
 }: ReaderHeaderProps) {
-	// Secondary actions collapse into this menu below `sm`.
+	// Rarely used actions live in this menu at every width.
 	const [moreOpen, setMoreOpen] = useState(false);
 	const moreMenuId = useId();
 	// The bar stays mounted while hidden; don't reopen with a stale menu.
@@ -123,19 +123,19 @@ export function ReaderHeader({
 		onClick: () => void;
 	}[] = [
 		{
-			title: "Complete Book",
+			title: m.reader_complete_book(),
 			icon: <Flag aria-hidden="true" className="size-5" />,
 			onClick: onCompleteBook,
 		},
 		{
-			title: "Toggle Fullscreen",
+			title: m.reader_fullscreen(),
 			icon: <ArrowsOut aria-hidden="true" className="size-5" />,
 			onClick: onFullscreenClick,
 		},
 		...(hasImages
 			? [
 					{
-						title: "Open Image Gallery",
+						title: m.reader_image_gallery(),
 						icon: <Images aria-hidden="true" className="size-5" />,
 						onClick: onImageGalleryClick,
 					},
@@ -174,6 +174,9 @@ export function ReaderHeader({
 					}
 				>
 					<div className="flex min-w-0 items-center">
+						<IconButton title={m.reader_exit()} onClick={onExitClick}>
+							<ArrowLeft aria-hidden="true" className="size-5" />
+						</IconButton>
 						{hasChapterData && (
 							<IconButton title="Open Table of Contents" onClick={onTocClick}>
 								<List aria-hidden="true" className="size-5" />
@@ -216,19 +219,17 @@ export function ReaderHeader({
 								/>
 							</IconButton>
 						)}
-						{secondaryActions.map((action) => (
+						{sessionControl}
+						<IconButton
+							title="Open Quick Settings"
+							onClick={onQuickSettingsClick}
+						>
+							<SlidersHorizontal aria-hidden="true" className="size-5" />
+						</IconButton>
+						<div className="relative">
 							<IconButton
-								key={action.title}
-								title={action.title}
-								onClick={action.onClick}
-								className="hidden sm:flex"
-							>
-								{action.icon}
-							</IconButton>
-						))}
-						<div className="relative sm:hidden">
-							<IconButton
-								title="More Actions"
+								title={m.reader_more_actions()}
+								pressed={moreOpen}
 								expanded={moreOpen}
 								controls={moreMenuId}
 								onClick={() => setMoreOpen((prev) => !prev)}
@@ -238,7 +239,7 @@ export function ReaderHeader({
 							{moreOpen && (
 								<div
 									id={moreMenuId}
-									className="fade-in slide-in-from-top-1 absolute end-0 z-20 mt-1 flex w-52 animate-in flex-col rounded-md border py-1 shadow-lg duration-150 motion-reduce:animate-none"
+									className="fade-in slide-in-from-top-1 absolute end-0 z-20 mt-1 flex w-60 animate-in flex-col rounded-xl border p-1 shadow-lg duration-150 motion-reduce:animate-none"
 									style={{
 										color: theme.fontColor,
 										backgroundColor: theme.backgroundColor,
@@ -249,7 +250,7 @@ export function ReaderHeader({
 										<button
 											key={action.title}
 											type="button"
-											className="flex h-11 cursor-pointer items-center gap-3 px-3 text-sm opacity-80 transition-colors duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100"
+											className="flex h-11 cursor-pointer items-center gap-3 whitespace-nowrap rounded-lg px-3 text-start text-sm opacity-80 transition-colors duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100"
 											onClick={closeMoreAnd(action.onClick)}
 										>
 											{action.icon}
@@ -259,16 +260,6 @@ export function ReaderHeader({
 								</div>
 							)}
 						</div>
-						{sessionControl}
-						<IconButton
-							title="Open Quick Settings"
-							onClick={onQuickSettingsClick}
-						>
-							<SlidersHorizontal aria-hidden="true" className="size-5" />
-						</IconButton>
-						<IconButton title="Exit Reader" onClick={onExitClick}>
-							<X aria-hidden="true" className="size-5" />
-						</IconButton>
 					</div>
 				</div>
 			</div>

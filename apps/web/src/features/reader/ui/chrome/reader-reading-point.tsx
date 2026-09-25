@@ -144,7 +144,7 @@ export function ReaderReadingPoint({
 	);
 
 	const buttonClass =
-		"flex size-10 shrink-0 items-center justify-center rounded-md opacity-70 hover:bg-black/10 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-30";
+		"flex size-10 shrink-0 items-center justify-center rounded-md opacity-70 transition-[background-color,opacity,scale] duration-150 hover:bg-[var(--rh-hover,rgb(0_0_0/0.1))] hover:opacity-100 active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-30";
 	return (
 		<>
 			{createPortal(
@@ -171,7 +171,7 @@ export function ReaderReadingPoint({
 							aria-keyshortcuts="b"
 							onClick={() => onSave()}
 						>
-							<BookmarkSimple aria-hidden size={18} />
+							<BookmarkSimple aria-hidden size={20} />
 							<span className="sr-only">{m.reader_point_save()}</span>
 						</button>
 						<button
@@ -183,7 +183,7 @@ export function ReaderReadingPoint({
 							aria-keyshortcuts="r"
 							onClick={onGo}
 						>
-							<ArrowUUpLeft aria-hidden size={18} />
+							<ArrowUUpLeft aria-hidden size={20} />
 							<span className="sr-only">{m.reader_point_go()}</span>
 						</button>
 						{selection && (
@@ -199,7 +199,7 @@ export function ReaderReadingPoint({
 									setSelection(undefined);
 								}}
 							>
-								<BookmarkSimple aria-hidden weight="fill" size={18} />
+								<BookmarkSimple aria-hidden weight="fill" size={20} />
 								<span className="sr-only">{m.reader_point_selection()}</span>
 							</button>
 						)}
