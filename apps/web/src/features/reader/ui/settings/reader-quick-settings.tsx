@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 /**
@@ -12,9 +13,14 @@ import {
 	CaretUp,
 	Check,
 	Copy,
+	GearSix,
+	type Icon,
+	Layout,
+	Palette,
 	Pen,
 	PencilSimple,
 	Plus,
+	TextAa,
 	Trash,
 	X,
 } from "@phosphor-icons/react";
@@ -131,6 +137,7 @@ const DESKTOP_DIALOG_KEYBOARD_STEP = 8;
 const DESKTOP_DIALOG_HEADER_HEIGHT = 44;
 const DESKTOP_DIALOG_MIN_WIDTH = 320;
 const DESKTOP_DIALOG_MIN_HEIGHT = 320;
+const DESKTOP_DIALOG_WIDTH = "min(30rem, calc(100vw - 2rem))";
 
 type DialogOffset = FloatingWindowOffset;
 
@@ -266,6 +273,8 @@ function OpenReaderQuickSettings({
 		viewport: getReaderViewport,
 	});
 	const [desktopDialogCollapsed, setDesktopDialogCollapsed] = useState(false);
+	// The window follows its content until the member resizes it by hand.
+	const [desktopDialogAutoSize, setDesktopDialogAutoSize] = useState(true);
 	const {
 		sizeRef: desktopDialogSizeRef,
 		expandedSizeRef: desktopDialogExpandedSizeRef,
@@ -316,6 +325,23 @@ function OpenReaderQuickSettings({
 			return;
 		}
 
+		if (desktopDialogAutoSize) {
+			// Back to content size; keep the header where it was.
+			desktopDialogSizeRef.current = null;
+			// React will not rewrite unchanged style props, so undo the collapse by hand.
+			surface.style.width = DESKTOP_DIALOG_WIDTH;
+			surface.style.height = "auto";
+			// Render the content now so its final height can be measured, not a transition frame.
+			surface.style.transition = "none";
+			flushSync(() => setDesktopDialogCollapsed(false));
+			const height = surface.getBoundingClientRect().height;
+			surface.style.transition = "";
+			applyDesktopDialogOffset({
+				x: currentOffset.x,
+				y: currentOffset.y + (height - currentSize.height) / 2,
+			});
+			return;
+		}
 		const expandedSize = desktopDialogExpandedSizeRef.current ?? currentSize;
 		const nextSize = {
 			width: Math.min(
@@ -380,21 +406,33 @@ function OpenReaderQuickSettings({
 
 	const activeCategory = selectedCategory;
 	const settingsCategories = [
-		{ id: "visual" as const, label: m["reader_settings.category_visual"]() },
+		{
+			id: "visual" as const,
+			label: m["reader_settings.category_visual"](),
+			icon: Palette as Icon,
+		},
 		...(!isVisual && !isPdf
-			? [{ id: "text" as const, label: m["reader_settings.category_text"]() }]
+			? [
+					{
+						id: "text" as const,
+						label: m["reader_settings.category_text"](),
+						icon: TextAa as Icon,
+					},
+				]
 			: []),
 		...(!isPdf
 			? [
 					{
 						id: "layout" as const,
 						label: m["reader_settings.category_layout"](),
+						icon: Layout as Icon,
 					},
 				]
 			: []),
 		{
 			id: "behaviour" as const,
 			label: m["reader_settings.category_behaviour"](),
+			icon: GearSix as Icon,
 		},
 	];
 	const settingsCategoryTitle =
@@ -1541,6 +1579,7 @@ function OpenReaderQuickSettings({
 					{m["reader_settings.settings_heading"]()}
 				</h2>
 				{settingsCategories.map((category) => {
+					const CategoryIcon = category.icon;
 					return (
 						<button
 							key={category.id}
@@ -1549,6 +1588,10 @@ function OpenReaderQuickSettings({
 							style={{ backgroundColor: mix(5) }}
 							onClick={() => setSelectedCategory(category.id)}
 						>
+							<CategoryIcon
+								aria-hidden="true"
+								className="size-5 shrink-0 opacity-75"
+							/>
 							<span className="min-w-0 flex-1 font-medium text-sm">
 								{category.label}
 							</span>
@@ -1629,8 +1672,10 @@ function OpenReaderQuickSettings({
 			aria-labelledby="reader-quick-settings-window-title"
 			aria-describedby="reader-quick-settings-window-description"
 			data-collapsed={desktopDialogCollapsed || undefined}
+			data-auto-size={desktopDialogAutoSize || undefined}
 			data-reader-overlay
-			className="reader-quick-settings-dialog writing-horizontal-tb fixed top-1/2 left-1/2 z-[60] flex flex-col overflow-hidden rounded-2xl border shadow-2xl"
+			// Where supported, the auto height eases between pages instead of jumping.
+			className="reader-quick-settings-dialog writing-horizontal-tb fixed top-1/2 left-1/2 z-[60] flex flex-col overflow-hidden rounded-2xl border shadow-2xl [interpolate-size:allow-keywords] data-[auto-size]:transition-[height] data-[auto-size]:duration-200 data-[auto-size]:ease-out motion-reduce:transition-none"
 			style={{
 				...readerThemeStyle,
 				color: theme.fontColor,
@@ -1638,10 +1683,10 @@ function OpenReaderQuickSettings({
 				borderColor: mix(20),
 				width: desktopDialogSizeRef.current
 					? `${desktopDialogSizeRef.current.width}px`
-					: "min(36rem, calc(100vw - 2rem))",
+					: DESKTOP_DIALOG_WIDTH,
 				height: desktopDialogSizeRef.current
 					? `${desktopDialogSizeRef.current.height}px`
-					: "min(42rem, calc(100dvh - 2rem))",
+					: "auto",
 				maxWidth: "calc(100vw - 2rem)",
 				maxHeight: desktopDialogCollapsed
 					? `${DESKTOP_DIALOG_HEADER_HEIGHT}px`
@@ -1727,6 +1772,14 @@ function OpenReaderQuickSettings({
 			</div>
 			<button
 				{...desktopDialogResizeHandleProps}
+				onPointerDown={(event) => {
+					setDesktopDialogAutoSize(false);
+					desktopDialogResizeHandleProps.onPointerDown(event);
+				}}
+				onKeyDown={(event) => {
+					if (event.key.startsWith("Arrow")) setDesktopDialogAutoSize(false);
+					desktopDialogResizeHandleProps.onKeyDown(event);
+				}}
 				hidden={desktopDialogCollapsed}
 				type="button"
 				aria-label={m["reader_settings.resize_window"]()}

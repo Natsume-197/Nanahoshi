@@ -187,7 +187,7 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		expect((dialog as HTMLElement).style.transform).toContain("-50% + 0px");
 	});
 
-	test("collapses to its title bar and restores its previous height", () => {
+	test("opens at its content height and returns to it after collapsing", () => {
 		const panel = renderPanel(() => {});
 		const dialog = panel.getByRole("dialog", { name: "Reader settings" });
 		const surface = dialog as HTMLElement;
@@ -217,8 +217,43 @@ describe("ReaderQuickSettings desktop dialog", () => {
 		);
 
 		expect(surface.dataset.collapsed).toBeUndefined();
-		expect(surface.style.height).toBe("672px");
+		expect(surface.style.height).toBe("auto");
+		expect(surface.dataset.autoSize).toBe("true");
 		expect(panel.getByRole("button", { name: "Add" })).toBeTruthy();
+	});
+
+	test("keeps a hand-resized height through collapse and expand", () => {
+		const panel = renderPanel(() => {});
+		const surface = panel.getByRole("dialog", {
+			name: "Reader settings",
+		}) as HTMLElement;
+		expect(surface.style.height).toBe("auto");
+		surface.getBoundingClientRect = () => {
+			const width = Number.parseFloat(surface.style.width) || 480;
+			const height = Number.parseFloat(surface.style.height) || 400;
+			return {
+				left: 224,
+				right: 224 + width,
+				top: 48,
+				bottom: 48 + height,
+				width,
+				height,
+			} as DOMRect;
+		};
+		fireEvent.keyDown(
+			panel.getByRole("button", { name: /Resize settings window/ }),
+			{ key: "ArrowDown" },
+		);
+		expect(surface.dataset.autoSize).toBeUndefined();
+		expect(surface.style.height).toBe("408px");
+
+		fireEvent.click(
+			panel.getByRole("button", { name: "Collapse settings window" }),
+		);
+		fireEvent.click(
+			panel.getByRole("button", { name: "Expand settings window" }),
+		);
+		expect(surface.style.height).toBe("408px");
 	});
 
 	test("resizes directly from the bottom-right handle", () => {
