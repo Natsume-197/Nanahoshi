@@ -15,7 +15,12 @@ import {
 	Star,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
+import {
+	Link,
+	useLoaderData,
+	useRouter,
+	useSearch,
+} from "@tanstack/react-router";
 import { lazy, type ReactNode, Suspense, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AddToListModal } from "@/components/books/add-to-list-modal";
@@ -24,16 +29,29 @@ import { BookCard } from "@/components/books/book-card";
 import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditBookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { BookMatchDialog } from "@/components/metadata/match-metadata-dialog";
-import { ReadListenSection } from "@/components/read-listen/read-listen-section";
 import { DetailDiscoverySections } from "@/components/shared/detail-discovery-sections";
 import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	DETAIL_TAB_BAR_CLASSNAME,
+	DETAIL_TAB_LIST_CLASSNAME,
+	DETAIL_TAB_TRIGGER_CLASSNAME,
 	DetailBackButton,
+	DetailHero,
 	type GenreChipItem,
 	GenreChips,
 	getHeroStyle,
+	HERO_ICON_BUTTON,
+	HERO_LINK_CLASSNAME,
+	HERO_PRIMARY_BUTTON,
+	HERO_SECONDARY_BUTTON,
+	HeroActionRow,
+	HeroMeta,
+	HeroTitle,
+	pairedPublicationMetaItem,
+	ReadListenButton,
+	ReadListenManageMenuItem,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import {
@@ -79,26 +97,16 @@ import {
 } from "@/utils/covers";
 import { downloadFromUrl } from "@/utils/download";
 import {
+	capitalizeFirst,
 	formatDate,
 	formatFileSize,
+	formatMediaType,
 	formatNames,
 	getErrorMessage,
 } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
 
 type BookData = Awaited<ReturnType<typeof getBook>>["book"];
-
-// Below sm the triggers share the row in equal parts and wrap their label
-// rather than overflowing it, so the bar never becomes a scroller that a
-// two- or three-tab set doesn't warrant. From sm they take their natural width.
-//
-// The trigger fills the bar and its underline sits at `bottom-0`, inside the
-// box. The default indicator hangs 5px below the trigger, and since the list is
-// an overflow container (overflow-x auto forces overflow-y to auto), anything
-// outside the box becomes scrollable overflow — the bar would scroll under the
-// wheel and take the underline in and out of view with it.
-const BOOK_TAB_TRIGGER_CLASSNAME =
-	"h-full min-w-0 flex-1 basis-0 whitespace-normal px-2 text-center font-semibold leading-tight data-active:text-primary group-data-horizontal/tabs:after:bottom-0 sm:flex-none sm:basis-auto sm:whitespace-nowrap sm:px-3 dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
 
 // Lazy: the kindle dialog pulls zod (~330KB chunk) via its form schema, which
 // must not ship with every book detail. Mounted on first open; the dropdown
@@ -139,20 +147,17 @@ export function BookDetailPage() {
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
-	const bannerUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.banner)
-		: null;
-	const bannerSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.banner.widths)
-		: undefined;
 	const authorText = formatNames(book.authors);
+	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
+	const firstGenreName = toGenreChipItems(book.genres)[0]?.name;
+	const firstGenre = firstGenreName ? capitalizeFirst(firstGenreName) : null;
 	const authorLinks = book.authors?.length ? (
 		<AuthorLinkList
 			authors={book.authors}
 			withRole
 			showProvider
-			linkClassName="underline decoration-foreground/25 underline-offset-4 transition-colors hover:decoration-foreground/60 hover:text-[var(--book-hero-text)]"
-			separatorClassName="text-[var(--book-hero-muted)]"
+			linkClassName={HERO_LINK_CLASSNAME}
+			separatorClassName="text-foreground/50"
 		/>
 	) : null;
 	// The cover remains the artwork; controls follow the user's application theme.
@@ -160,16 +165,12 @@ export function BookDetailPage() {
 	const otherCopiesCount = book.otherCopies?.length ?? 0;
 	const copiesCount = otherCopiesCount + 1;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
-	// The read-listen tab only shows when there is something to display or manage.
-	const { can } = useAbilities();
+	const { tab: openTab } = useSearch({ strict: false });
 	const pairingsQuery = useQuery(
 		orpc.readListen.getPairings.queryOptions({
 			input: { publicationUuid: book.uuid },
 		}),
 	);
-	const showReadListenTab =
-		can("book", "editMetadata") ||
-		(pairingsQuery.data?.pairings.length ?? 0) > 0;
 
 	return (
 		<div
@@ -177,227 +178,180 @@ export function BookDetailPage() {
 			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
 			<DetailBackButton fallbackTo="/dashboard/books" />
-			{/* Portada tipo MangaDex: la misma cover desenfocada como banner superior. */}
-			{bannerUrl && (
-				<div
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-x-0 top-0 h-[160px] overflow-hidden sm:h-[200px]"
-				>
-					<img
-						src={bannerUrl}
-						srcSet={bannerSrcSet}
-						sizes={coverPresets.banner.sizes}
-						alt=""
-						className="h-full w-full scale-105 object-cover opacity-25 blur-xl saturate-75"
-						loading="eager"
-						decoding="async"
-					/>
-					<div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-[92%] to-background" />
-				</div>
-			)}
-			<section aria-labelledby="book-detail-title" className="relative">
-				{/* Below md the back button floats where the top bar used to be, so the
-				    cover starts under it rather than behind it. */}
-				<div className={cn(PAGE_GUTTER, "pt-16 pb-12 md:pt-10 lg:pb-16")}>
-					<div className="mx-auto max-w-[1400px]">
-						{/* The cover spans the title and synopsis; details occupy a full-width third row. */}
-						<Tabs
-							defaultValue="overview"
-							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_1fr_auto] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
-						>
-							<header className="order-2 min-w-0 lg:order-none lg:col-start-2 lg:row-start-1">
-								<h1
-									id="book-detail-title"
-									className="text-balance break-words font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl"
-								>
-									{title}
-								</h1>
-
-								{authorText && (
-									<p className="mt-4 text-[var(--book-hero-muted)] text-base leading-relaxed sm:text-lg">
-										{authorLinks}
-									</p>
-								)}
-
-								<HeroRating book={book} />
-							</header>
-
-							{/* `contents` below lg so the cover is a grid item in its own
-						    right: it leads the page and the title block follows it. */}
-							{/* On short desktop viewports, reserve room for the three action
-						    rows, their spacing, the page chrome, and the player dock. The
-						    2/3 factor converts the remaining cover height back to width. */}
-							<aside className="contents lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc((100dvh-18.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))*2/3)))] lg:justify-self-center">
-								{/* mb-2 buys the cover more separation than the grid's row gap,
-							    so it reads as its own zone rather than another stacked row. */}
-								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">
-									<CoverImage
-										coverUrl={coverUrl}
-										coverSrcSet={coverSrcSet}
-										title={title}
-										aspectRatio="2/3"
-										tint={book.mainColor}
-										fallback={
-											<div className="relative aspect-[2/3] w-full bg-muted">
-												<BookOpen
-													aria-hidden="true"
-													className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
-													weight="thin"
-												/>
-												<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-													<p className="line-clamp-3 font-semibold text-sm text-white">
-														{title}
-													</p>
-													{authorText && (
-														<p className="line-clamp-2 text-white/75 text-xs">
-															{authorText}
-														</p>
-													)}
-												</div>
-											</div>
-										}
-										onCoverClick={() => setIsCoverPreviewOpen(true)}
-										progressBar={
-											<DetailCoverProgress
-												bookUuid={book.uuid}
-												accentColor={accentColor}
-											/>
-										}
-									/>
-								</div>
-							</aside>
-
-							<div className="order-3 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
-								<SynopsisSection
-									description={book.description}
-									title={m["book.meta_description"]()}
-									// The grid's row gap already separates this from the header
-									// above; the section's own top margin would double it.
-									className="mt-0"
-									descriptionClassName="text-foreground"
+			<DetailHero
+				tint={book.mainColor}
+				backdropUrl={coverUrl}
+				labelledBy="book-detail-title"
+				coverShape="book"
+				cover={
+					<CoverImage
+						coverUrl={coverUrl}
+						coverSrcSet={coverSrcSet}
+						title={title}
+						aspectRatio="2/3"
+						tint={book.mainColor}
+						fallback={
+							<div className="relative aspect-[2/3] w-full bg-muted">
+								<BookOpen
+									aria-hidden="true"
+									className="absolute top-1/3 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-white/20"
+									weight="thin"
 								/>
-								<div className="mt-6 w-full">
-									<HeroActions
-										book={book}
-										bookUuid={book.uuid}
-										bookTitle={title}
-										bookCover={book.cover ?? null}
-									/>
-								</div>
-							</div>
-
-							<div className="order-5 min-w-0 lg:order-none lg:col-span-2 lg:row-start-3">
-								<div
-									className={cn(
-										PAGE_GUTTER_BLEED,
-										PAGE_GUTTER,
-										// Pins to the very top: below md these routes drop the top bar,
-										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 bg-background/85 py-1 backdrop-blur-xl lg:mx-0 lg:px-0",
+								<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
+									<p className="line-clamp-3 font-semibold text-sm text-white">
+										{title}
+									</p>
+									{authorText && (
+										<p className="line-clamp-2 text-white/75 text-xs">
+											{authorText}
+										</p>
 									)}
-								>
-									<TabsList
-										variant="line"
-										aria-label={m["book.tabs_label"]()}
-										className="scrollbar-none h-14 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:overflow-x-auto"
-									>
-										<TabsTrigger
-											value="overview"
-											className={BOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m["book.tab_overview"]()}
-										</TabsTrigger>
-										{showReadListenTab && (
-											<TabsTrigger
-												value="read-listen"
-												className={BOOK_TAB_TRIGGER_CLASSNAME}
-											>
-												{m["read_listen.title"]()}
-											</TabsTrigger>
-										)}
-										<TabsTrigger
-											value="file"
-											className={BOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m["book.tab_file_metadata"]()}
-										</TabsTrigger>
-										{otherCopiesCount > 0 && (
-											<TabsTrigger
-												value="copies"
-												className={BOOK_TAB_TRIGGER_CLASSNAME}
-											>
-												{m["book.tab_copies_short"]({ count: copiesCount })}
-											</TabsTrigger>
-										)}
-										<TabsTrigger
-											value="reading"
-											className={BOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m.reading_title()}
-										</TabsTrigger>
-									</TabsList>
 								</div>
-
-								<TabsContent
-									value="overview"
-									className="pt-8 data-[state=active]:animate-none"
-								>
-									<BookDetailsSection book={book} />
-								</TabsContent>
-
-								{showReadListenTab && (
-									<TabsContent
-										value="read-listen"
-										className="pt-8 data-[state=active]:animate-none"
-									>
-										<ReadListenSection
-											publicationUuid={book.uuid}
-											publicationTitle={title}
-											mediaType="ebook"
-										/>
-									</TabsContent>
-								)}
-
-								<TabsContent
-									value="file"
-									className="pt-8 data-[state=active]:animate-none"
-								>
-									<FileAndMetadataSection book={book} />
-								</TabsContent>
-
-								<TabsContent value="reading" className="pt-8">
-									<ReadingHistory
-										bookUuid={book.uuid}
-										amountChars={book.amountChars}
-									/>
-								</TabsContent>
-
-								{otherCopiesCount > 0 && (
-									<TabsContent
-										value="copies"
-										className="pt-8 data-[state=active]:animate-none"
-									>
-										<OtherCopiesSection book={book} />
-									</TabsContent>
-								)}
 							</div>
-						</Tabs>
-
-						{book.series?.uuid && book.series.name && (
-							<SeriesBooksSection
-								seriesUuid={book.series.uuid}
-								seriesName={book.series.name}
-								currentBookUuid={book.uuid}
+						}
+						onCoverClick={() => setIsCoverPreviewOpen(true)}
+						progressBar={
+							<DetailCoverProgress
+								bookUuid={book.uuid}
+								accentColor="oklch(1 0 0)"
 							/>
+						}
+					/>
+				}
+				header={
+					<>
+						<HeroTitle id="book-detail-title">{title}</HeroTitle>
+						{authorLinks && (
+							<p className="font-medium text-base text-foreground leading-relaxed sm:text-lg">
+								{authorLinks}
+							</p>
 						)}
-						<DetailDiscoverySections
-							bookUuid={book.uuid}
-							authors={book.authors}
-							seriesUuid={book.series?.uuid}
+						<HeroMeta
+							items={[
+								book.rating != null && <HeroRating key="rating" book={book} />,
+								firstGenre,
+								publishedYear,
+								formatMediaType(book.mediaType),
+								book.pageCount
+									? m["book.pages_count"]({ count: book.pageCount })
+									: null,
+								pairedPublicationMetaItem(
+									pairingsQuery.data?.pairings,
+									"ebook",
+								),
+							]}
 						/>
-					</div>
+					</>
+				}
+				actions={
+					<HeroActions
+						book={book}
+						bookUuid={book.uuid}
+						bookTitle={title}
+						bookCover={book.cover ?? null}
+					/>
+				}
+			/>
+			<div className={cn(PAGE_GUTTER, "pt-8 pb-12 sm:pt-10 lg:pb-16")}>
+				<div className="mx-auto max-w-[1400px]">
+					<SynopsisSection
+						description={book.description}
+						title={m["book.meta_description"]()}
+						className="mt-0 mb-8"
+						descriptionClassName="max-w-[110ch] text-foreground"
+					/>
+					<Tabs
+						defaultValue={openTab === "reading" ? "reading" : "overview"}
+						className="min-w-0"
+					>
+						<div
+							className={cn(
+								PAGE_GUTTER_BLEED,
+								PAGE_GUTTER,
+								// Pins to the very top: below md these routes drop the top bar,
+								// so there's no chrome above to sit under.
+								DETAIL_TAB_BAR_CLASSNAME,
+							)}
+						>
+							<TabsList
+								variant="line"
+								aria-label={m["book.tabs_label"]()}
+								className={DETAIL_TAB_LIST_CLASSNAME}
+							>
+								<TabsTrigger
+									value="overview"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m["book.tab_overview"]()}
+								</TabsTrigger>
+								<TabsTrigger
+									value="file"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m["book.tab_file_metadata"]()}
+								</TabsTrigger>
+								{otherCopiesCount > 0 && (
+									<TabsTrigger
+										value="copies"
+										className={DETAIL_TAB_TRIGGER_CLASSNAME}
+									>
+										{m["book.tab_copies_short"]({ count: copiesCount })}
+									</TabsTrigger>
+								)}
+								<TabsTrigger
+									value="reading"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m.reading_title()}
+								</TabsTrigger>
+							</TabsList>
+						</div>
+
+						<TabsContent
+							value="overview"
+							className="pt-8 data-[state=active]:animate-none"
+						>
+							<BookDetailsSection book={book} />
+						</TabsContent>
+
+						<TabsContent
+							value="file"
+							className="pt-8 data-[state=active]:animate-none"
+						>
+							<FileAndMetadataSection book={book} />
+						</TabsContent>
+
+						<TabsContent value="reading" className="pt-8">
+							<ReadingHistory
+								bookUuid={book.uuid}
+								amountChars={book.amountChars}
+							/>
+						</TabsContent>
+
+						{otherCopiesCount > 0 && (
+							<TabsContent
+								value="copies"
+								className="pt-8 data-[state=active]:animate-none"
+							>
+								<OtherCopiesSection book={book} />
+							</TabsContent>
+						)}
+					</Tabs>
+
+					{book.series?.uuid && book.series.name && (
+						<SeriesBooksSection
+							seriesUuid={book.series.uuid}
+							seriesName={book.series.name}
+							currentBookUuid={book.uuid}
+						/>
+					)}
+					<DetailDiscoverySections
+						bookUuid={book.uuid}
+						authors={book.authors}
+						seriesUuid={book.series?.uuid}
+					/>
 				</div>
-			</section>
+			</div>
 
 			{coverPreviewUrl && (
 				<CoverPreviewDialog
@@ -416,6 +370,7 @@ export function BookDetailPage() {
 }
 
 function HeroRating({ book }: { book: BookData }) {
+	if (book.rating == null) return null;
 	const formattedRatingCount =
 		book.ratingCount != null
 			? new Intl.NumberFormat(getLocale(), { notation: "compact" }).format(
@@ -423,36 +378,26 @@ function HeroRating({ book }: { book: BookData }) {
 				)
 			: null;
 
-	if (book.rating == null) return null;
-
 	return (
-		<div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
-			<div className="flex items-center gap-2">
-				<StarRating rating={book.rating} />
-				<span aria-hidden="true" className="font-semibold text-sm tabular-nums">
-					{book.rating.toFixed(1)}
+		<span
+			className="inline-flex items-center gap-1"
+			title={m["book.rating_source_amazon"]()}
+		>
+			<Star aria-hidden="true" weight="fill" className="size-3.5" />
+			<span className="font-semibold text-foreground">
+				{book.rating.toFixed(1)}
+			</span>
+			{book.ratingCount != null && formattedRatingCount && (
+				<span>
+					(
+					{m["book.rating_count"]({
+						count: book.ratingCount,
+						formattedCount: formattedRatingCount,
+					})}
+					)
 				</span>
-				{book.ratingCount != null && formattedRatingCount && (
-					<>
-						<span aria-hidden="true" className="text-muted-foreground/60">
-							·
-						</span>
-						<span className="text-muted-foreground text-xs tabular-nums">
-							{m["book.rating_count"]({
-								count: book.ratingCount,
-								formattedCount: formattedRatingCount,
-							})}
-						</span>
-					</>
-				)}
-				<span aria-hidden="true" className="text-muted-foreground/60">
-					·
-				</span>
-				<span className="text-muted-foreground text-xs">
-					{m["book.rating_source_amazon"]()}
-				</span>
-			</div>
-		</div>
+			)}
+		</span>
 	);
 }
 
@@ -588,9 +533,6 @@ function HeroActions({
 
 	const isMetadataBusy = enrichMutation.isPending || restoreMutation.isPending;
 
-	// One list, two triggers: the floating ⋯ below md and the labelled button in
-	// the column from md. Only one trigger is ever visible, and the content only
-	// mounts on open, so the pair costs nothing.
 	const moreMenuItems = (
 		<>
 			{canDownload && (
@@ -621,6 +563,10 @@ function HeroActions({
 			{canEnrich && (
 				<>
 					{canDownload && <DropdownMenuSeparator />}
+					<ReadListenManageMenuItem
+						publicationUuid={bookUuid}
+						title={bookTitle}
+					/>
 					<DropdownMenuItem
 						className="min-h-10"
 						onClick={() => setIsEditOpen(true)}
@@ -673,112 +619,102 @@ function HeroActions({
 
 	return (
 		<>
-			{/* Action bar below the synopsis. Narrow stacks full-width rows:
-			    [primary | like], then [shelf], then [labeled more]. From a 32rem
-			    container: one row, primary/shelf sharing the space up to a fixed
-			    cap. Sized by the column, not the viewport — beside the cover the
-			    column is far narrower than the window. No truncation: labels wrap. */}
-			<div className="@container">
-				<div className="flex flex-row flex-wrap @lg:flex-nowrap items-center gap-2">
-					<Button
-						asChild
-						className="order-1 h-auto min-h-11 min-w-0 @lg:max-w-[14.75rem] flex-1 gap-1.5 whitespace-normal px-3 text-center font-semibold text-sm leading-tight"
-					>
-						<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
-							<BookOpen
+			<HeroActionRow
+				primary={
+					<>
+						<Button asChild {...HERO_PRIMARY_BUTTON}>
+							<Link to="/reader/$uuid" params={{ uuid: bookUuid }}>
+								<BookOpen aria-hidden="true" weight="bold" />
+								<span>
+									{isInProgress
+										? m["book.continue_reading"]()
+										: m["book.read"]()}
+								</span>
+								{isInProgress && (
+									<span className="shrink-0 tabular-nums opacity-70">
+										· {readPct}%
+									</span>
+								)}
+							</Link>
+						</Button>
+						<ReadListenButton publicationUuid={bookUuid} mediaType="ebook" />
+					</>
+				}
+				secondary={(() => {
+					const activeOption = currentShelf
+						? getShelfOptions("ebook").find((o) => o.value === currentShelf)
+						: undefined;
+					const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+					return (
+						<Button
+							{...HERO_SECONDARY_BUTTON}
+							onClick={() => setIsAddToListOpen(true)}
+						>
+							<ActiveIcon
 								aria-hidden="true"
-								data-icon="inline-start"
-								weight="bold"
+								weight={activeOption ? "fill" : "regular"}
 							/>
 							<span>
-								{isInProgress ? m["book.continue_reading"]() : m["book.read"]()}
+								{activeOption ? activeOption.label() : m["add_to_list.title"]()}
 							</span>
-							{isInProgress && (
-								<span className="shrink-0 tabular-nums opacity-80">
-									· {readPct}%
-								</span>
-							)}
-						</Link>
-					</Button>
+						</Button>
+					);
+				})()}
+				icons={
+					<>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									aria-label={
+										isLiked
+											? m["aria.remove_from_likes"]()
+											: m["aria.add_to_likes"]()
+									}
+									aria-pressed={isLiked}
+									aria-busy={toggleLikeMutation.isPending}
+									onClick={() => {
+										if (!isLiked) popHeart();
+										toggleLikeMutation.mutate();
+									}}
+									disabled={
+										toggleLikeMutation.isPending || likeStatusQuery.isLoading
+									}
+									{...HERO_ICON_BUTTON}
+								>
+									<Heart
+										aria-hidden="true"
+										ref={heartRef}
+										weight={isLiked ? "fill" : "regular"}
+										className="size-5"
+									/>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								{isLiked
+									? m["aria.remove_from_likes"]()
+									: m["aria.add_to_likes"]()}
+							</TooltipContent>
+						</Tooltip>
 
-					{(() => {
-						const activeOption = currentShelf
-							? getShelfOptions("ebook").find((o) => o.value === currentShelf)
-							: undefined;
-						const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
-						return (
-							<Button
-								variant="outline"
-								className="@lg:order-2 order-3 h-auto min-h-11 @lg:w-auto w-full @lg:min-w-0 @lg:max-w-[14.75rem] @lg:flex-1 justify-center whitespace-normal px-3 text-center leading-tight"
-								onClick={() => setIsAddToListOpen(true)}
-							>
-								<ActiveIcon
-									aria-hidden="true"
-									data-icon="inline-start"
-									className="shrink-0"
-								/>
-								<span>
-									{activeOption
-										? activeOption.label()
-										: m["add_to_list.title"]()}
-								</span>
-							</Button>
-						);
-					})()}
-
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant={isLiked ? "destructive" : "outline"}
-								size="icon"
-								aria-label={
-									isLiked
-										? m["aria.remove_from_likes"]()
-										: m["aria.add_to_likes"]()
-								}
-								aria-pressed={isLiked}
-								aria-busy={toggleLikeMutation.isPending}
-								onClick={() => {
-									if (!isLiked) popHeart();
-									toggleLikeMutation.mutate();
-								}}
-								disabled={
-									toggleLikeMutation.isPending || likeStatusQuery.isLoading
-								}
-								className="@lg:order-3 order-2 size-11 shrink-0"
-							>
-								<Heart
-									aria-hidden="true"
-									ref={heartRef}
-									weight={isLiked ? "fill" : "regular"}
-								/>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{isLiked
-								? m["aria.remove_from_likes"]()
-								: m["aria.add_to_likes"]()}
-						</TooltipContent>
-					</Tooltip>
-
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon"
-								aria-label={m["nav.more"]()}
-								className="order-4 @lg:size-11 h-auto min-h-11 w-full @lg:flex-none justify-center gap-1.5 whitespace-normal px-3 text-center leading-tight"
-							>
-								<DotsThree aria-hidden="true" weight="bold" />
-								<span className="@lg:hidden">{m["nav.more"]()}</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" sideOffset={6}>
-							{moreMenuItems}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			</div>
+						{(canDownload || canEnrich) && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button aria-label={m["nav.more"]()} {...HERO_ICON_BUTTON}>
+										<DotsThree
+											aria-hidden="true"
+											weight="bold"
+											className="size-5"
+										/>
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" sideOffset={6}>
+									{moreMenuItems}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
+					</>
+				}
+			/>
 
 			<AddToListModal
 				bookUuid={bookUuid}
@@ -951,42 +887,6 @@ function GroupEditionsDialog({
 	);
 }
 
-// Five-star bar with fractional fill: an amber layer clipped to the rating
-// percentage sits over a muted outline layer of the same stars.
-function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
-	const pct = Math.max(0, Math.min(100, (rating / max) * 100));
-	const starKeys = ["one", "two", "three", "four", "five"].slice(0, max);
-	const stars = (className: string, weight: "regular" | "fill" = "regular") =>
-		starKeys.map((key) => (
-			<Star
-				key={key}
-				weight={weight}
-				className={cn("size-4 shrink-0", className)}
-			/>
-		));
-
-	return (
-		<span
-			role="img"
-			className="relative inline-flex"
-			aria-label={m["aria.rating_stars"]({
-				rating: rating.toFixed(1),
-				max,
-			})}
-		>
-			<span className="flex gap-0.5">
-				{stars("text-[var(--book-hero-muted)]/40")}
-			</span>
-			<span
-				className="absolute top-0 left-0 flex gap-0.5 overflow-hidden"
-				style={{ width: `${pct}%` }}
-			>
-				{stars("text-warning", "fill")}
-			</span>
-		</span>
-	);
-}
-
 function BookDetailPanel({
 	title,
 	rows,
@@ -1035,7 +935,7 @@ function BookDetailsSection({ book }: { book: BookData }) {
 		: null;
 	const publishedYear = book.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const detailRows = [
-		{ label: m["book.format"](), value: book.mediaType?.toUpperCase() ?? null },
+		{ label: m["book.format"](), value: formatMediaType(book.mediaType) },
 		{
 			label: m["book.pages"](),
 			value: book.pageCount ? String(book.pageCount) : null,

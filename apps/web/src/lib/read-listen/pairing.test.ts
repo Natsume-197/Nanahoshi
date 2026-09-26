@@ -3,6 +3,7 @@ import {
 	findReadyReadListenPairing,
 	findReadyReadListenPairings,
 	resolveReadListenPairingChoice,
+	resolveReadListenPairState,
 } from "./pairing";
 
 describe("findReadyReadListenPairing", () => {
@@ -51,5 +52,36 @@ describe("findReadyReadListenPairing", () => {
 			second,
 		);
 		expect(resolveReadListenPairingChoice([first], null)).toBe(first);
+	});
+});
+
+describe("resolveReadListenPairState", () => {
+	const pair = (alignment: string, generation?: string) => ({
+		alignment: { status: alignment },
+		generation: generation ? { status: generation } : null,
+	});
+
+	test("a running or queued generation wins over everything", () => {
+		expect(resolveReadListenPairState(pair("ready", "running"))).toBe(
+			"generating",
+		);
+		expect(resolveReadListenPairState(pair("not_imported", "queued"))).toBe(
+			"generating",
+		);
+	});
+
+	test("a usable alignment outranks a failed regeneration", () => {
+		expect(resolveReadListenPairState(pair("ready", "failed"))).toBe("ready");
+	});
+
+	test("a failure only shows when nothing usable exists", () => {
+		expect(resolveReadListenPairState(pair("stale", "failed"))).toBe("failed");
+	});
+
+	test("an outdated or missing alignment counts as none", () => {
+		expect(resolveReadListenPairState(pair("stale"))).toBe("no_alignment");
+		expect(resolveReadListenPairState(pair("not_imported", "completed"))).toBe(
+			"no_alignment",
+		);
 	});
 });

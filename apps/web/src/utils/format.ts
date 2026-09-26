@@ -150,3 +150,24 @@ export function getErrorMessage(error: unknown, fallback?: string) {
 	if (typeof error === "string") return error;
 	return fallback ?? m["error.unexpected"]();
 }
+
+const MEDIA_TYPE_LABELS: Record<string, string> = {
+	"application/epub+zip": "EPUB",
+	"application/vnd.amazon.ebook": "AZW3",
+	"application/x-mobipocket-ebook": "MOBI",
+	"application/x-cbz": "CBZ",
+	"application/vnd.comicbook+zip": "CBZ",
+	"application/pdf": "PDF",
+};
+
+/** "application/epub+zip" → "EPUB"; unknown types fall back to their subtype. */
+export function formatMediaType(mediaType: string | null | undefined) {
+	if (!mediaType) return null;
+	const known = MEDIA_TYPE_LABELS[mediaType.toLowerCase()];
+	if (known) return known;
+	const subtype = mediaType.split("/").pop() ?? mediaType;
+	return subtype
+		.replace(/^(x-|vnd\.)/, "")
+		.split(/[+.]/)[0]
+		.toUpperCase();
+}

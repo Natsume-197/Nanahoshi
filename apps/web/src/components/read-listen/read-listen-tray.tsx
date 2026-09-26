@@ -1,6 +1,8 @@
 import {
 	ArrowsClockwise,
+	ChartBar,
 	CheckCircle,
+	FileArrowUp,
 	FunnelSimple,
 	Hourglass,
 	LinkBreak,
@@ -14,7 +16,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StatusDot, type StatusTone } from "@/components/enrichment/lifecycle";
 import { BUCKET_LABELS, NavRow } from "@/components/enrichment/match-sidebar";
@@ -47,6 +49,10 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatRelativeTime, getErrorMessage } from "@/utils/format";
 import { client, orpc } from "@/utils/orpc";
+import {
+	AlignmentDiagnosticsDialog,
+	PairAlignmentDialog,
+} from "./read-listen-alignment-dialogs";
 import {
 	type ReadListenCandidate as Candidate,
 	EbookPickerDialog,
@@ -166,9 +172,13 @@ function PairingsTrayNav({
 export function ReadListenReviewTab({
 	view,
 	onViewChange,
+	initialQuery,
+	openPairId,
 }: {
 	view: PairView;
 	onViewChange: (view: PairView) => void;
+	initialQuery?: string;
+	openPairId?: string;
 }) {
 	const { data: stateCounts } = useQuery({
 		...orpc.readListen.pairQueueCounts.queryOptions(),
@@ -219,9 +229,15 @@ export function ReadListenReviewTab({
 					scopeButton={scopeButton}
 				/>
 			) : view === "unmatched" ? (
-				<UnmatchedPanel scopeButton={scopeButton} />
+				<UnmatchedPanel scopeButton={scopeButton} initialQuery={initialQuery} />
 			) : (
-				<PairQueuePanel key={view} state={view} scopeButton={scopeButton} />
+				<PairQueuePanel
+					key={view}
+					state={view}
+					scopeButton={scopeButton}
+					initialQuery={initialQuery}
+					openPairId={openPairId}
+				/>
 			)}
 		</div>
 	);
@@ -318,13 +334,17 @@ function TrayListSkeleton() {
 function PairQueuePanel({
 	state,
 	scopeButton,
+	initialQuery,
+	openPairId,
 }: {
 	state: PairState;
 	scopeButton: ReactNode;
+	initialQuery?: string;
+	openPairId?: string;
 }) {
 	const queryClient = useQueryClient();
 	const wideTable = useMediaQuery("(min-width: 1024px)");
-	const [query, setQuery] = useState("");
+	const [query, setQuery] = useState(initialQuery ?? "");
 	const debouncedQuery = useDebounce(query.trim(), 300);
 	const [page, setPage] = useState(1);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -382,6 +402,15 @@ function PairQueuePanel({
 
 	// Titles already link to both publications, so the only verb is generating.
 	const [openPair, setOpenPair] = useState<Pairing | null>(null);
+	// Opens the linked pair once, the first time it appears in the list.
+	const pendingOpenRef = useRef(openPairId);
+	if (pendingOpenRef.current && !openPair) {
+		const linked = items.find((item) => item.id === pendingOpenRef.current);
+		if (linked) {
+			pendingOpenRef.current = undefined;
+			setOpenPair(linked);
+		}
+	}
 	// The open pair follows the live list so a finished generation updates it.
 	const openPairLive = openPair
 		? (items.find((pairing) => pairing.id === openPair.id) ?? openPair)
@@ -624,6 +653,11 @@ function PairDetailDialog({
 }) {
 	const queryClient = useQueryClient();
 	const [confirming, setConfirming] = useState(false);
+	// The pair modal steps aside while a follow-up dialog is open.
+	const [followUp, setFollowUp] = useState<"alignment" | "diagnostics" | null>(
+		null,
+	);
+	const hasAlignment = pairing.alignment.status !== "not_imported";
 	const removeMutation = useMutation({
 		mutationFn: () => client.readListen.remove({ pairUuid: pairing.id }),
 		onSuccess: async () => {
@@ -638,9 +672,9 @@ function PairDetailDialog({
 	return (
 		<>
 			<Modal
-				open={!confirming}
+				open={!confirming && !followUp}
 				onOpenChange={(open) => {
-					if (!open && !confirming) onClose();
+					if (!open && !confirming && !followUp) onClose();
 				}}
 				title={PAIR_VIEW_LABELS[state]()}
 				className="sm:max-w-lg"
@@ -656,6 +690,28 @@ function PairDetailDialog({
 					<PairStateNote pairing={pairing} state={state} />
 					<div className="flex flex-wrap items-center gap-1.5 border-border/60 border-t pt-4">
 						{actions}
+						{state !== "generating" && (
+							<Button
+								variant="outline"
+								onClick={() => setFollowUp("alignment")}
+							>
+								<FileArrowUp data-icon="inline-start" />
+								{pairing.alignment.status === "ready"
+									? m["read_listen.replace_alignment"]()
+									: pairing.alignment.status === "stale"
+										? m["read_listen.add_updated_alignment"]()
+										: m["read_listen.add_alignment"]()}
+							</Button>
+						)}
+						{hasAlignment && (
+							<Button
+								variant="ghost"
+								onClick={() => setFollowUp("diagnostics")}
+							>
+								<ChartBar data-icon="inline-start" />
+								{m["read_listen.view_diagnostics"]()}
+							</Button>
+						)}
 						<Button
 							variant="ghost"
 							className="ms-auto text-destructive"
@@ -693,6 +749,20 @@ function PairDetailDialog({
 					</>
 				}
 			/>
+			{followUp === "alignment" && (
+				<PairAlignmentDialog
+					pairUuid={pairing.id}
+					onClose={() => setFollowUp(null)}
+				/>
+			)}
+			{followUp === "diagnostics" && (
+				<AlignmentDiagnosticsDialog
+					pairUuid={pairing.id}
+					onOpenChange={(open) => {
+						if (!open) setFollowUp(null);
+					}}
+				/>
+			)}
 		</>
 	);
 }
@@ -702,10 +772,16 @@ function PairDetailDialog({
 const UNMATCHED_GRID =
 	"grid min-w-[640px] grid-cols-[minmax(14rem,1.4fr)_minmax(10rem,1fr)_auto]";
 
-function UnmatchedPanel({ scopeButton }: { scopeButton: ReactNode }) {
+function UnmatchedPanel({
+	scopeButton,
+	initialQuery,
+}: {
+	scopeButton: ReactNode;
+	initialQuery?: string;
+}) {
 	const queryClient = useQueryClient();
 	const wideTable = useMediaQuery("(min-width: 1024px)");
-	const [query, setQuery] = useState("");
+	const [query, setQuery] = useState(initialQuery ?? "");
 	const debouncedQuery = useDebounce(query.trim(), 300);
 	const [page, setPage] = useState(1);
 	const [pairing, setPairing] = useState<Publication | null>(null);

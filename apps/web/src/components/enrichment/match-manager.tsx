@@ -457,6 +457,9 @@ export function MatchManager() {
 			search: (prev) => ({
 				...prev,
 				pairs: next === "pending" ? undefined : next,
+				// A detail page's link targets one pair; browsing on drops it.
+				pq: undefined,
+				pair: undefined,
 			}),
 			replace: true,
 		});
@@ -577,7 +580,12 @@ export function MatchManager() {
 			</header>
 
 			{pairingsView ? (
-				<ReadListenReviewTab view={pairView} onViewChange={setPairView} />
+				<ReadListenReviewTab
+					view={pairView}
+					onViewChange={setPairView}
+					initialQuery={urlSearch.pq}
+					openPairId={urlSearch.pair}
+				/>
 			) : (
 				<>
 					{(isPaused || failureBanners.length > 0 || cooldowns.length > 0) && (

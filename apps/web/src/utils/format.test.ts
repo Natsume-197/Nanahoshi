@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "bun:test";
-import { capitalizeFirst, formatTimeUntil } from "./format";
+import { capitalizeFirst, formatMediaType, formatTimeUntil } from "./format";
 
 describe("capitalizeFirst", () => {
 	it("capitalizes a lowercase facet name", () => {
@@ -38,5 +38,19 @@ describe("formatTimeUntil", () => {
 		expect(formatTimeUntil(new Date(now + 24 * 3_600_000), now)).not.toMatch(
 			/1440|24/,
 		);
+	});
+});
+
+describe("formatMediaType", () => {
+	test("names the formats a library actually holds", () => {
+		expect(formatMediaType("application/epub+zip")).toBe("EPUB");
+		expect(formatMediaType("application/vnd.amazon.ebook")).toBe("AZW3");
+		expect(formatMediaType("application/pdf")).toBe("PDF");
+		expect(formatMediaType("application/x-cbz")).toBe("CBZ");
+	});
+
+	test("falls back to a readable subtype, never the raw mime", () => {
+		expect(formatMediaType("application/x-fb2+xml")).toBe("FB2");
+		expect(formatMediaType(null)).toBeNull();
 	});
 });

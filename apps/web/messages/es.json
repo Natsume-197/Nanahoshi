@@ -2943,6 +2943,7 @@
 		"generation_failed": "La última generación con Honomiya falló. Puedes intentarlo de nuevo.",
 		"generation_start_failed": "No se pudo iniciar la generación. Comprueba los ajustes de Honomiya y Modal e inténtalo de nuevo.",
 		"open_reader": "Leer y escuchar",
+		"manage": "Gestionar Leer y escuchar",
 		"enable_reader": "Iniciar Leer y escuchar",
 		"disable_reader": "Detener Leer y escuchar",
 		"controls_label": "Controles para leer y escuchar",

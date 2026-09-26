@@ -2888,6 +2888,7 @@
 		"generation_failed": "前回のHonomiya生成に失敗しました。もう一度お試しいただけます。",
 		"generation_start_failed": "生成を開始できませんでした。Honomiya と Modal の設定を確認して、もう一度お試しください。",
 		"open_reader": "読みながら聴く",
+		"manage": "読みながら聴くを管理",
 		"enable_reader": "読みながら聴くを開始",
 		"disable_reader": "読みながら聴くを終了",
 		"controls_label": "読みながら聴くための操作",

@@ -17,6 +17,9 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/dashboard/books/$uuid")({
 	component: BookLayout,
+	// `tab=reading` opens straight on the reading history, e.g. from a goal on home.
+	validateSearch: (search: Record<string, unknown>): { tab?: "reading" } =>
+		search.tab === "reading" ? { tab: "reading" } : {},
 	notFoundComponent: BookUnavailablePage,
 	beforeLoad: ({ context }) => {
 		if (!context.session) {

@@ -4,6 +4,8 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
+const CLAMP_CLASS = { 4: "line-clamp-4", 6: "line-clamp-6" } as const;
+
 const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
 
 function renderMarkdownLinks(value: string): ReactNode[] {
@@ -46,12 +48,15 @@ export function SynopsisSection({
 	title,
 	className,
 	descriptionClassName,
+	lines = 6,
 }: {
 	description?: string | null;
 	title?: string;
 	className?: string;
 	descriptionClassName?: string;
+	lines?: keyof typeof CLAMP_CLASS;
 }) {
+	const clampClass = CLAMP_CLASS[lines];
 	const [expanded, setExpanded] = useState(false);
 	// Whether the clamp actually cuts anything off. A character count can't know:
 	// six lines hold wildly different amounts of Japanese vs Spanish, and it
@@ -69,7 +74,7 @@ export function SynopsisSection({
 		const measure = () => {
 			// Guard on the live clamp: re-measuring an expanded paragraph would
 			// always read "fits" and drop the button mid-read.
-			if (!el.classList.contains("line-clamp-6")) return;
+			if (!el.classList.contains(clampClass)) return;
 			setIsOverflowing(el.scrollHeight - el.clientHeight > 1);
 		};
 		measure();
@@ -107,7 +112,7 @@ export function SynopsisSection({
 				className={cn(
 					"max-w-[70ch] whitespace-pre-line break-words text-[var(--book-hero-muted)] text-base leading-7",
 					descriptionClassName,
-					collapsed && "line-clamp-6",
+					collapsed && clampClass,
 				)}
 			>
 				{renderMarkdownLinks(description)}

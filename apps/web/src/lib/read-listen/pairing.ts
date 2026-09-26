@@ -28,3 +28,25 @@ export function resolveReadListenPairingChoice<TPairing extends { id: string }>(
 		(pairings.length === 1 ? pairings[0] : undefined)
 	);
 }
+
+export type ReadListenPairState =
+	| "generating"
+	| "failed"
+	| "no_alignment"
+	| "ready";
+
+/**
+ * The metadata tray's bucket for a pair, so a detail page can link straight to
+ * it. Mirrors the server's resolvePairState: a usable alignment outranks a
+ * failed regeneration, and an outdated one counts as none.
+ */
+export function resolveReadListenPairState(pairing: {
+	alignment: { status: string };
+	generation?: { status: string } | null;
+}): ReadListenPairState {
+	const generation = pairing.generation?.status;
+	if (generation === "queued" || generation === "running") return "generating";
+	if (pairing.alignment.status === "ready") return "ready";
+	if (generation === "failed") return "failed";
+	return "no_alignment";
+}

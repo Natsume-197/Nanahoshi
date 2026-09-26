@@ -10,7 +10,12 @@ import {
 	Sparkle,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useLoaderData, useRouter } from "@tanstack/react-router";
+import {
+	Link,
+	useLoaderData,
+	useRouter,
+	useSearch,
+} from "@tanstack/react-router";
 import { Fragment, useId, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -23,15 +28,28 @@ import { BookCard } from "@/components/books/book-card";
 import { getShelfOptions } from "@/components/books/shelf-options";
 import { EditAudiobookMetadataDialog } from "@/components/metadata/edit-metadata-dialog";
 import { AudiobookMatchDialog } from "@/components/metadata/match-metadata-dialog";
-import { ReadListenSection } from "@/components/read-listen/read-listen-section";
 import { DetailDiscoverySections } from "@/components/shared/detail-discovery-sections";
 import {
 	CoverImage,
 	CoverPreviewDialog,
 	CoverProgressBar,
+	DETAIL_TAB_BAR_CLASSNAME,
+	DETAIL_TAB_LIST_CLASSNAME,
+	DETAIL_TAB_TRIGGER_CLASSNAME,
 	DetailBackButton,
+	DetailHero,
 	GenreChips,
 	getHeroStyle,
+	HERO_ICON_BUTTON,
+	HERO_LINK_CLASSNAME,
+	HERO_PRIMARY_BUTTON,
+	HERO_SECONDARY_BUTTON,
+	HeroActionRow,
+	HeroMeta,
+	HeroTitle,
+	pairedPublicationMetaItem,
+	ReadListenButton,
+	ReadListenManageMenuItem,
 } from "@/components/shared/detail-page";
 import { ScrollSection } from "@/components/shared/scroll-section";
 import {
@@ -71,9 +89,9 @@ import {
 } from "@/utils/covers";
 import { downloadFromUrl } from "@/utils/download";
 import {
+	capitalizeFirst,
 	formatDate,
 	formatFileSize,
-	formatNames,
 	formatReadingTime,
 	formatTime,
 	getErrorMessage,
@@ -82,18 +100,6 @@ import { client, orpc } from "@/utils/orpc";
 import { ChaptersSection } from "./chapters-section";
 
 type AudiobookData = NonNullable<Awaited<ReturnType<typeof getAudiobook>>>;
-
-// Below sm the triggers share the row in equal parts and wrap their label
-// rather than overflowing it, so the bar never becomes a scroller that a
-// two- or three-tab set doesn't warrant. From sm they take their natural width.
-//
-// The trigger fills the bar and its underline sits at `bottom-0`, inside the
-// box. The default indicator hangs 5px below the trigger, and since the list is
-// an overflow container (overflow-x auto forces overflow-y to auto), anything
-// outside the box becomes scrollable overflow — the bar would scroll under the
-// wheel and take the underline in and out of view with it.
-const AUDIOBOOK_TAB_TRIGGER_CLASSNAME =
-	"h-full min-w-0 flex-1 basis-0 whitespace-normal px-2 text-center font-semibold leading-tight data-active:text-primary group-data-horizontal/tabs:after:bottom-0 sm:flex-none sm:basis-auto sm:whitespace-nowrap sm:px-3 dark:data-active:text-primary after:h-[3px] after:rounded-full after:bg-primary";
 
 function formatDuration(seconds: number | null): string | null {
 	if (!seconds) return null;
@@ -124,42 +130,32 @@ export function AudiobookDetailPage() {
 	const coverPreviewSrcSet = coverFilename
 		? getCoverSrcSet(coverFilename, [400, 600, 800, 1200, 2048])
 		: undefined;
-	const bannerUrl = coverFilename
-		? getCoverPresetUrl(coverFilename, coverPresets.banner)
-		: null;
-	const bannerSrcSet = coverFilename
-		? getCoverSrcSet(coverFilename, coverPresets.banner.widths)
-		: undefined;
-	const authorText = formatNames(audiobook.authors);
+	const publishedYear = audiobook.publishedDate?.match(/\d{4}/)?.[0] ?? null;
 	const authorLinks = audiobook.authors?.length ? (
 		<AuthorLinkList
 			authors={audiobook.authors}
 			withRole
 			showProvider
-			linkClassName="underline decoration-foreground/25 underline-offset-4 transition-colors hover:decoration-foreground/60 hover:text-[var(--book-hero-text)]"
-			separatorClassName="text-[var(--book-hero-muted)]"
+			linkClassName={HERO_LINK_CLASSNAME}
+			separatorClassName="text-foreground/50"
 		/>
 	) : null;
 	const narratorLinks = audiobook.narrators?.length ? (
 		<NarratorLinkList
 			narrators={audiobook.narrators}
-			linkClassName="underline decoration-foreground/25 underline-offset-4 transition-colors hover:decoration-foreground/60 hover:text-[var(--book-hero-text)]"
-			separatorClassName="text-[var(--book-hero-muted)]"
+			linkClassName={HERO_LINK_CLASSNAME}
+			separatorClassName="text-foreground/50"
 		/>
 	) : null;
 	const accentColor = "var(--primary)";
 	const chapterCount = audiobook.chapters?.length ?? 0;
 	const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
-	// The read-listen tab only shows when there is something to display or manage.
-	const { can } = useAbilities();
+	const { tab: openTab } = useSearch({ strict: false });
 	const pairingsQuery = useQuery(
 		orpc.readListen.getPairings.queryOptions({
 			input: { publicationUuid: audiobook.uuid },
 		}),
 	);
-	const showReadListenTab =
-		can("book", "editMetadata") ||
-		(pairingsQuery.data?.pairings.length ?? 0) > 0;
 
 	return (
 		<div
@@ -167,220 +163,174 @@ export function AudiobookDetailPage() {
 			style={getHeroStyle(accentColor, "var(--primary-foreground)")}
 		>
 			<DetailBackButton fallbackTo="/dashboard/audiobooks" />
-			{/* Portada tipo MangaDex: la misma cover desenfocada como banner superior. */}
-			{bannerUrl && (
-				<div
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-x-0 top-0 h-[160px] overflow-hidden sm:h-[200px]"
-				>
-					<img
-						src={bannerUrl}
-						srcSet={bannerSrcSet}
-						sizes={coverPresets.banner.sizes}
-						alt=""
-						className="h-full w-full scale-105 object-cover opacity-25 blur-xl saturate-75"
-						loading="eager"
-						decoding="async"
-					/>
-					<div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-[92%] to-background" />
-				</div>
-			)}
-			<section aria-labelledby="audiobook-detail-title" className="relative">
-				{/* Below md the back button floats where the top bar used to be, so the
-				    cover starts under it rather than behind it. */}
-				<div className={cn(PAGE_GUTTER, "pt-16 pb-12 md:pt-10 lg:pb-16")}>
-					<div className="mx-auto max-w-[1400px]">
-						{/* The cover spans the title and synopsis; details occupy a full-width third row. */}
-						<Tabs
-							defaultValue="overview"
-							className="grid min-w-0 items-start gap-x-14 gap-y-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[auto_1fr_auto] lg:gap-y-6 xl:grid-cols-[20rem_minmax(0,1fr)] xl:gap-x-16"
-						>
-							<header className="order-2 min-w-0 lg:order-none lg:col-start-2 lg:row-start-1">
-								<h1
-									id="audiobook-detail-title"
-									className="text-balance break-words font-bold text-2xl text-[var(--book-hero-text)] leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl"
-								>
-									{title}
-								</h1>
-
-								{authorText && (
-									<p className="mt-4 text-[var(--book-hero-muted)] text-base leading-relaxed sm:text-lg">
-										{authorLinks}
-									</p>
-								)}
-
-								{narratorLinks && (
-									<p className="mt-2 text-[var(--book-hero-muted)] text-sm leading-relaxed sm:text-base">
-										{m["audiobook.narrated_by"]()} {narratorLinks}
-									</p>
-								)}
-							</header>
-
-							{/* `contents` below lg so the cover is a grid item in its own
-						    right: it leads the page and the title block follows it. */}
-							{/* Square artwork can use the remaining height directly. Reserve
-						    enough room for every action row, progress copy, page chrome,
-						    and the fixed player dock when it is present. */}
-							<aside className="contents lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:block lg:w-[min(100%,max(8rem,calc(100dvh-20.75rem-var(--safe-area-top)-var(--desktop-player-offset,0px))))] lg:justify-self-center">
-								{/* mb-2 buys the cover more separation than the grid's row gap,
-								    so it reads as its own zone rather than another stacked row. */}
-								<div className="relative order-1 mx-auto mb-2 w-full max-w-[13rem] sm:max-w-[15rem] lg:order-none lg:mb-0 lg:max-w-none">
-									<CoverImage
-										coverUrl={coverUrl}
-										coverSrcSet={coverSrcSet}
-										title={title}
-										aspectRatio="square"
-										tint={audiobook.mainColor}
-										fallback={
-											<div className="relative aspect-square w-full bg-muted">
-												<Headphones
-													aria-hidden="true"
-													className="absolute top-1/2 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/30"
-													weight="thin"
-												/>
-											</div>
-										}
-										onCoverClick={() => setIsCoverPreviewOpen(true)}
-										progressBar={
-											<DetailCoverProgress
-												bookUuid={audiobook.uuid}
-												accentColor={accentColor}
-											/>
-										}
-									/>
-								</div>
-							</aside>
-
-							<div className="order-3 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
-								<SynopsisSection
-									description={audiobook.description}
-									title={m["book.meta_description"]()}
-									// The grid's row gap already separates this from the header
-									// above; the section's own top margin would double it.
-									className="mt-0"
-									descriptionClassName="text-foreground"
+			<DetailHero
+				tint={audiobook.mainColor}
+				backdropUrl={coverUrl}
+				labelledBy="audiobook-detail-title"
+				coverShape="square"
+				cover={
+					<CoverImage
+						coverUrl={coverUrl}
+						coverSrcSet={coverSrcSet}
+						title={title}
+						aspectRatio="square"
+						tint={audiobook.mainColor}
+						fallback={
+							<div className="relative aspect-square w-full bg-muted">
+								<Headphones
+									aria-hidden="true"
+									className="absolute top-1/2 left-1/2 size-12 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/30"
+									weight="thin"
 								/>
-								<div className="mt-6 w-full">
-									<HeroActions
-										audiobook={audiobook}
-										bookUuid={audiobook.uuid}
-										title={title}
-										authorName={audiobook.authors?.[0]?.name}
-										asin={audiobook.asin}
-									/>
-								</div>
 							</div>
-
-							<div className="order-5 min-w-0 lg:order-none lg:col-span-2 lg:row-start-3">
-								<div
-									className={cn(
-										PAGE_GUTTER_BLEED,
-										PAGE_GUTTER,
-										// Pins to the very top: below md these routes drop the top bar,
-										// so there's no chrome above to sit under.
-										"sticky top-0 z-20 bg-background/85 py-1 backdrop-blur-xl lg:mx-0 lg:px-0",
-									)}
-								>
-									<TabsList
-										variant="line"
-										aria-label={m["audiobook.tabs_label"]()}
-										className="scrollbar-none h-14 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:overflow-x-auto"
-									>
-										<TabsTrigger
-											value="overview"
-											className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m["audiobook.tab_overview"]()}
-										</TabsTrigger>
-										{showReadListenTab && (
-											<TabsTrigger
-												value="read-listen"
-												className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
-											>
-												{m["read_listen.title"]()}
-											</TabsTrigger>
-										)}
-										<TabsTrigger
-											value="technical"
-											className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m["audiobook.tab_technical"]()}
-										</TabsTrigger>
-										{chapterCount > 0 && (
-											<TabsTrigger
-												value="chapters"
-												className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
-											>
-												{m["audiobook.tab_chapters"]()}
-											</TabsTrigger>
-										)}
-										<TabsTrigger
-											value="listening"
-											className={AUDIOBOOK_TAB_TRIGGER_CLASSNAME}
-										>
-											{m.listening_title()}
-										</TabsTrigger>
-									</TabsList>
-								</div>
-
-								<TabsContent
-									value="overview"
-									className="pt-8 data-[state=active]:animate-none"
-								>
-									<AudiobookDetailsSection audiobook={audiobook} />
-								</TabsContent>
-								{showReadListenTab && (
-									<TabsContent
-										value="read-listen"
-										className="pt-8 data-[state=active]:animate-none"
-									>
-										<ReadListenSection
-											publicationUuid={audiobook.uuid}
-											publicationTitle={title}
-											mediaType="audiobook"
-										/>
-									</TabsContent>
-								)}
-								<TabsContent
-									value="technical"
-									className="pt-8 data-[state=active]:animate-none"
-								>
-									<TechnicalSection audiobook={audiobook} />
-								</TabsContent>
-								{chapterCount > 0 && (
-									<TabsContent
-										value="chapters"
-										className="pt-8 data-[state=active]:animate-none"
-									>
-										<ChaptersSection audiobook={audiobook} />
-									</TabsContent>
-								)}
-								<TabsContent value="listening" className="pt-8">
-									<ReadingHistory
-										bookUuid={audiobook.uuid}
-										durationSeconds={audiobook.duration}
-										chapters={audiobook.chapters ?? undefined}
-										medium="listening"
-									/>
-								</TabsContent>
-							</div>
-						</Tabs>
-
-						{audiobook.series?.uuid && audiobook.series.name && (
-							<SeriesAudiobooksSection
-								seriesUuid={audiobook.series.uuid}
-								seriesName={audiobook.series.name}
-								currentAudiobookUuid={audiobook.uuid}
+						}
+						onCoverClick={() => setIsCoverPreviewOpen(true)}
+						progressBar={
+							<DetailCoverProgress
+								bookUuid={audiobook.uuid}
+								accentColor="oklch(1 0 0)"
 							/>
+						}
+					/>
+				}
+				header={
+					<>
+						<HeroTitle id="audiobook-detail-title">{title}</HeroTitle>
+						{authorLinks && (
+							<p className="font-medium text-base text-foreground leading-relaxed sm:text-lg">
+								{authorLinks}
+							</p>
 						)}
-						<DetailDiscoverySections
-							bookUuid={audiobook.uuid}
-							authors={audiobook.authors}
-							seriesUuid={audiobook.series?.uuid}
+						{narratorLinks && (
+							<p className="text-foreground/80 text-sm leading-relaxed sm:text-base">
+								{m["audiobook.narrated_by"]()} {narratorLinks}
+							</p>
+						)}
+						<HeroMeta
+							items={[
+								audiobook.genres?.[0]?.name
+									? capitalizeFirst(audiobook.genres[0].name)
+									: null,
+								publishedYear,
+								formatDuration(audiobook.duration),
+								audiobook.languageCode?.toUpperCase(),
+								pairedPublicationMetaItem(
+									pairingsQuery.data?.pairings,
+									"audiobook",
+								),
+							]}
 						/>
-					</div>
+					</>
+				}
+				actions={
+					<HeroActions
+						audiobook={audiobook}
+						bookUuid={audiobook.uuid}
+						title={title}
+						authorName={audiobook.authors?.[0]?.name}
+						asin={audiobook.asin}
+					/>
+				}
+			/>
+			<div className={cn(PAGE_GUTTER, "pt-8 pb-12 sm:pt-10 lg:pb-16")}>
+				<div className="mx-auto max-w-[1400px]">
+					<SynopsisSection
+						description={audiobook.description}
+						title={m["book.meta_description"]()}
+						className="mt-0 mb-8"
+						descriptionClassName="max-w-[110ch] text-foreground"
+					/>
+					<Tabs
+						defaultValue={openTab === "reading" ? "listening" : "overview"}
+						className="min-w-0"
+					>
+						<div
+							className={cn(
+								PAGE_GUTTER_BLEED,
+								PAGE_GUTTER,
+								// Pins to the very top: below md these routes drop the top bar,
+								// so there's no chrome above to sit under.
+								DETAIL_TAB_BAR_CLASSNAME,
+							)}
+						>
+							<TabsList
+								variant="line"
+								aria-label={m["audiobook.tabs_label"]()}
+								className={DETAIL_TAB_LIST_CLASSNAME}
+							>
+								<TabsTrigger
+									value="overview"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m["audiobook.tab_overview"]()}
+								</TabsTrigger>
+								<TabsTrigger
+									value="technical"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m["audiobook.tab_technical"]()}
+								</TabsTrigger>
+								{chapterCount > 0 && (
+									<TabsTrigger
+										value="chapters"
+										className={DETAIL_TAB_TRIGGER_CLASSNAME}
+									>
+										{m["audiobook.tab_chapters"]()}
+									</TabsTrigger>
+								)}
+								<TabsTrigger
+									value="listening"
+									className={DETAIL_TAB_TRIGGER_CLASSNAME}
+								>
+									{m.listening_title()}
+								</TabsTrigger>
+							</TabsList>
+						</div>
+
+						<TabsContent
+							value="overview"
+							className="pt-8 data-[state=active]:animate-none"
+						>
+							<AudiobookDetailsSection audiobook={audiobook} />
+						</TabsContent>
+						<TabsContent
+							value="technical"
+							className="pt-8 data-[state=active]:animate-none"
+						>
+							<TechnicalSection audiobook={audiobook} />
+						</TabsContent>
+						{chapterCount > 0 && (
+							<TabsContent
+								value="chapters"
+								className="pt-8 data-[state=active]:animate-none"
+							>
+								<ChaptersSection audiobook={audiobook} />
+							</TabsContent>
+						)}
+						<TabsContent value="listening" className="pt-8">
+							<ReadingHistory
+								bookUuid={audiobook.uuid}
+								durationSeconds={audiobook.duration}
+								chapters={audiobook.chapters ?? undefined}
+								medium="listening"
+							/>
+						</TabsContent>
+					</Tabs>
+
+					{audiobook.series?.uuid && audiobook.series.name && (
+						<SeriesAudiobooksSection
+							seriesUuid={audiobook.series.uuid}
+							seriesName={audiobook.series.name}
+							currentAudiobookUuid={audiobook.uuid}
+						/>
+					)}
+					<DetailDiscoverySections
+						bookUuid={audiobook.uuid}
+						authors={audiobook.authors}
+						seriesUuid={audiobook.series?.uuid}
+					/>
 				</div>
-			</section>
+			</div>
 
 			{coverPreviewUrl && (
 				<CoverPreviewDialog
@@ -509,9 +459,6 @@ function HeroActions({
 			: null;
 	const isInProgress = listenPct != null && listenPct > 0 && listenPct < 100;
 
-	// One list, two triggers: the floating ⋯ below md and the labelled button in
-	// the column from md. Only one trigger is ever visible, and the content only
-	// mounts on open, so the pair costs nothing.
 	const moreMenuItems = (
 		<>
 			{canDownload && (
@@ -531,6 +478,7 @@ function HeroActions({
 			{canEnrich && (
 				<>
 					{canDownload && <DropdownMenuSeparator />}
+					<ReadListenManageMenuItem publicationUuid={bookUuid} title={title} />
 					<DropdownMenuItem
 						className="min-h-10"
 						onClick={() => setIsEditOpen(true)}
@@ -564,127 +512,117 @@ function HeroActions({
 
 	return (
 		<>
-			{/* Action bar below the synopsis. Narrow stacks full-width rows:
-			    [primary | like], then [shelf], then [labeled more]. From a 32rem
-			    container: one row, primary/shelf sharing the space up to a fixed
-			    cap. Sized by the column, not the viewport — beside the cover the
-			    column is far narrower than the window. No truncation: labels wrap. */}
-			<div className="@container">
-				<div className="flex flex-row flex-wrap @lg:flex-nowrap items-center gap-2">
-					<Button
-						onClick={() => playAudiobook(bookUuid)}
-						onPointerEnter={() => prefetchAudiobook(bookUuid)}
-						onFocus={() => prefetchAudiobook(bookUuid)}
-						disabled={isLoadingPlayback}
-						aria-busy={isLoadingPlayback}
-						className="order-1 h-auto min-h-11 min-w-0 @lg:max-w-[14.75rem] flex-1 gap-1.5 whitespace-normal px-3 text-center font-semibold text-sm leading-tight"
-					>
-						{isLoadingPlayback ? (
-							<CircleNotch
-								aria-hidden="true"
-								className="animate-spin motion-reduce:animate-none"
-							/>
-						) : (
-							<Headphones
-								aria-hidden="true"
-								data-icon="inline-start"
-								weight="bold"
-							/>
-						)}
-						<span>
-							{isInProgress
-								? m["audiobook.continue_listening"]()
-								: m["audiobook.listen"]()}
-						</span>
-						{isInProgress && (
-							<span className="shrink-0 tabular-nums opacity-80">
-								· {listenPct}%
+			<HeroActionRow
+				primary={
+					<>
+						<Button
+							onClick={() => playAudiobook(bookUuid)}
+							onPointerEnter={() => prefetchAudiobook(bookUuid)}
+							onFocus={() => prefetchAudiobook(bookUuid)}
+							disabled={isLoadingPlayback}
+							aria-busy={isLoadingPlayback}
+							{...HERO_PRIMARY_BUTTON}
+						>
+							{isLoadingPlayback ? (
+								<CircleNotch
+									aria-hidden="true"
+									className="animate-spin motion-reduce:animate-none"
+								/>
+							) : (
+								<Headphones aria-hidden="true" weight="bold" />
+							)}
+							<span>
+								{isInProgress
+									? m["audiobook.continue_listening"]()
+									: m["audiobook.listen"]()}
 							</span>
-						)}
-					</Button>
-
-					{(() => {
-						const activeOption = currentShelf
-							? getShelfOptions("audiobook").find(
-									(o) => o.value === currentShelf,
-								)
-							: undefined;
-						const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
-						return (
-							<Button
-								variant="outline"
-								className="@lg:order-2 order-3 h-auto min-h-11 @lg:w-auto w-full @lg:min-w-0 @lg:max-w-[14.75rem] @lg:flex-1 justify-center whitespace-normal px-3 text-center leading-tight"
-								onClick={() => setIsAddToListOpen(true)}
-							>
-								<ActiveIcon
-									aria-hidden="true"
-									data-icon="inline-start"
-									className="shrink-0"
-								/>
-								<span>
-									{activeOption
-										? activeOption.label()
-										: m["add_to_list.title"]()}
+							{isInProgress && (
+								<span className="shrink-0 tabular-nums opacity-70">
+									· {listenPct}%
 								</span>
-							</Button>
-						);
-					})()}
-
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant={isLiked ? "destructive" : "outline"}
-								size="icon"
-								aria-label={
-									isLiked
-										? m["aria.remove_from_likes"]()
-										: m["aria.add_to_likes"]()
-								}
-								aria-pressed={isLiked}
-								aria-busy={toggleLikeMutation.isPending}
-								onClick={() => {
-									if (!isLiked) popHeart();
-									toggleLikeMutation.mutate();
-								}}
-								disabled={
-									toggleLikeMutation.isPending || likeStatusQuery.isLoading
-								}
-								className="@lg:order-3 order-2 size-11 shrink-0"
-							>
-								<Heart
-									aria-hidden="true"
-									ref={heartRef}
-									weight={isLiked ? "fill" : "regular"}
-								/>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{isLiked
-								? m["aria.remove_from_likes"]()
-								: m["aria.add_to_likes"]()}
-						</TooltipContent>
-					</Tooltip>
-
-					{(canDownload || canEnrich) && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
+							)}
+						</Button>
+						<ReadListenButton
+							publicationUuid={bookUuid}
+							mediaType="audiobook"
+						/>
+					</>
+				}
+				secondary={(() => {
+					const activeOption = currentShelf
+						? getShelfOptions("audiobook").find((o) => o.value === currentShelf)
+						: undefined;
+					const ActiveIcon = activeOption?.icon ?? BookmarkSimple;
+					return (
+						<Button
+							{...HERO_SECONDARY_BUTTON}
+							onClick={() => setIsAddToListOpen(true)}
+						>
+							<ActiveIcon
+								aria-hidden="true"
+								weight={activeOption ? "fill" : "regular"}
+							/>
+							<span>
+								{activeOption ? activeOption.label() : m["add_to_list.title"]()}
+							</span>
+						</Button>
+					);
+				})()}
+				icons={
+					<>
+						<Tooltip>
+							<TooltipTrigger asChild>
 								<Button
-									variant="outline"
-									size="icon"
-									aria-label={m["nav.more"]()}
-									className="order-4 @lg:size-11 h-auto min-h-11 w-full @lg:flex-none justify-center gap-1.5 whitespace-normal px-3 text-center leading-tight"
+									aria-label={
+										isLiked
+											? m["aria.remove_from_likes"]()
+											: m["aria.add_to_likes"]()
+									}
+									aria-pressed={isLiked}
+									aria-busy={toggleLikeMutation.isPending}
+									onClick={() => {
+										if (!isLiked) popHeart();
+										toggleLikeMutation.mutate();
+									}}
+									disabled={
+										toggleLikeMutation.isPending || likeStatusQuery.isLoading
+									}
+									{...HERO_ICON_BUTTON}
 								>
-									<DotsThree aria-hidden="true" weight="bold" />
-									<span className="@lg:hidden">{m["nav.more"]()}</span>
+									<Heart
+										aria-hidden="true"
+										ref={heartRef}
+										weight={isLiked ? "fill" : "regular"}
+										className="size-5"
+									/>
 								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" sideOffset={6}>
-								{moreMenuItems}
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
-				</div>
-			</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								{isLiked
+									? m["aria.remove_from_likes"]()
+									: m["aria.add_to_likes"]()}
+							</TooltipContent>
+						</Tooltip>
+
+						{(canDownload || canEnrich) && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button aria-label={m["nav.more"]()} {...HERO_ICON_BUTTON}>
+										<DotsThree
+											aria-hidden="true"
+											weight="bold"
+											className="size-5"
+										/>
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" sideOffset={6}>
+									{moreMenuItems}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
+					</>
+				}
+			/>
 
 			{/* Mounted per open so a re-open starts from a clean search. */}
 			{canEnrich && isMatchOpen && (

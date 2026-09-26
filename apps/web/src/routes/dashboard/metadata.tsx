@@ -69,6 +69,10 @@ export const Route = createFileRoute("/dashboard/metadata")({
 		// Read & Listen pairing review lives in this tray as its own section.
 		view: search.view === "pairings" ? ("pairings" as const) : undefined,
 		pairs: oneOf(PAIR_VIEW_VALUES, search.pairs),
+		// A detail page's "manage" link lands on its pair: prefilled search, and
+		// the pair's own dialog opened once it shows up in the list.
+		pq: optionalString(search.pq),
+		pair: optionalString(search.pair),
 	}),
 	beforeLoad: ({ context }) => {
 		const session = context.session;

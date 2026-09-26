@@ -30,7 +30,7 @@ export function CoverImage({
 		return (
 			<div
 				className={cn(
-					"relative overflow-hidden rounded-md shadow-xl",
+					"relative overflow-hidden rounded-md shadow-[0_28px_56px_-16px_var(--cover-shadow,rgb(0_0_0/0.45)),0_8px_16px_-8px_var(--cover-shadow,rgb(0_0_0/0.3))]",
 					COVER_EDGE,
 				)}
 			>
@@ -48,7 +48,7 @@ export function CoverImage({
 		>
 			<div
 				className={cn(
-					"relative overflow-hidden rounded-md bg-muted shadow-xl",
+					"relative overflow-hidden rounded-md bg-muted shadow-[0_28px_56px_-16px_var(--cover-shadow,rgb(0_0_0/0.45)),0_8px_16px_-8px_var(--cover-shadow,rgb(0_0_0/0.3))]",
 					aspectClass,
 					COVER_EDGE,
 				)}
