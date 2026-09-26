@@ -32,6 +32,9 @@ export interface PdfPageImageStoreOptions {
 const DEFAULT_FULL_BUDGET_BYTES = 192 * 1024 * 1024;
 const DEFAULT_PREVIEW_BUDGET_BYTES = 48 * 1024 * 1024;
 
+// Off-screen neighbours; visible pages and thumbnails rank below this.
+const PREFETCH_PRIORITY = 2;
+
 const imageBytes = (image: PdfPageImage) => image.width * image.height * 4;
 
 /**
@@ -50,12 +53,14 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 	private readonly thumbnails = new Map<number, number>();
 	private readonly images = new Map<number, PageImages<Image>>();
 	private readonly inFlight = new Set<string>();
+	private readonly prefetching = new Set<string>();
 	private readonly listeners = new Map<number, Set<() => void>>();
 	// Insertion order doubles as least-recently-used order.
 	private readonly fullLru = new Set<number>();
 	private readonly previewLru = new Set<number>();
 	private generation = 0;
 	private held = false;
+	private pumpQueued = false;
 
 	constructor(private readonly options: PdfPageImageStoreOptions) {}
 
@@ -68,7 +73,10 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			if (index >= 0) this.lanes.splice(index, 1);
 			// A destroyed worker never settles its job; let another lane take it.
 			const key = this.busyLanes.get(lane);
-			if (key) this.inFlight.delete(key);
+			if (key) {
+				this.inFlight.delete(key);
+				this.prefetching.delete(key);
+			}
 			this.busyLanes.delete(lane);
 			this.pump();
 		};
@@ -88,12 +96,12 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 		const request = { scale };
 		this.requests.set(pageIndex, request);
 		this.touch(pageIndex);
-		this.pump();
+		this.schedulePump();
 		return () => {
 			if (this.requests.get(pageIndex) !== request) return;
 			this.requests.delete(pageIndex);
 			this.evict();
-			this.pump();
+			this.schedulePump();
 		};
 	}
 
@@ -101,7 +109,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 	requestThumbnail(pageIndex: number): () => void {
 		this.thumbnails.set(pageIndex, (this.thumbnails.get(pageIndex) ?? 0) + 1);
 		this.touch(pageIndex);
-		this.pump();
+		this.schedulePump();
 		let released = false;
 		return () => {
 			if (released) return;
@@ -110,7 +118,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			if (count > 0) this.thumbnails.set(pageIndex, count);
 			else this.thumbnails.delete(pageIndex);
 			this.evict();
-			this.pump();
+			this.schedulePump();
 		};
 	}
 
@@ -118,7 +126,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 		if (this.visible.has(pageIndex) === visible) return;
 		if (visible) this.visible.add(pageIndex);
 		else this.visible.delete(pageIndex);
-		this.pump();
+		this.schedulePump();
 	}
 
 	/** The sharpest image available for a page, even if it is not at the requested scale. */
@@ -188,7 +196,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 				pageIndex,
 				kind: "full",
 				scale: request.scale,
-				priority: visible ? 1 : 2 + distance,
+				priority: visible ? 1 : PREFETCH_PRIORITY + distance,
 			});
 		}
 		for (const pageIndex of this.thumbnails.keys()) {
@@ -212,12 +220,31 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 		return best;
 	}
 
+	// Mounting pages register one by one within a commit; deciding after the
+	// whole batch keeps an early neighbour from taking the lane the visible page needs.
+	private schedulePump() {
+		if (this.pumpQueued) return;
+		this.pumpQueued = true;
+		queueMicrotask(() => {
+			this.pumpQueued = false;
+			this.pump();
+		});
+	}
+
 	private pump() {
 		if (this.held) return;
 		for (const lane of this.lanes) {
 			if (this.busyLanes.has(lane)) continue;
 			const job = this.nextJob();
 			if (!job) return;
+			// Renders can't be cancelled, so prefetch never takes the last free
+			// lane: a zoom or jump always finds one ready for the page on screen.
+			if (
+				job.priority >= PREFETCH_PRIORITY &&
+				this.lanes.length > 1 &&
+				this.prefetching.size >= this.lanes.length - 1
+			)
+				return;
 			this.run(lane, job);
 		}
 	}
@@ -227,6 +254,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 		const generation = this.generation;
 		this.busyLanes.set(lane, key);
 		this.inFlight.add(key);
+		if (job.priority >= PREFETCH_PRIORITY) this.prefetching.add(key);
 		lane
 			.render(job.pageIndex, job.scale)
 			.then(
@@ -237,6 +265,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 				() => {},
 			)
 			.finally(() => {
+				this.prefetching.delete(key);
 				if (this.busyLanes.get(lane) !== key) return;
 				this.busyLanes.delete(lane);
 				this.inFlight.delete(key);
@@ -253,9 +282,13 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			}
 			entry.preview = image;
 		} else {
-			const requested = this.requests.get(job.pageIndex)?.scale;
-			// Keep whichever full render matches the current zoom.
-			if (entry.full && entry.full.scale === requested) {
+			const requested = this.requests.get(job.pageIndex)?.scale ?? job.scale;
+			// Renders from a zoom burst finish out of order; keep the closest to now.
+			if (
+				entry.full &&
+				Math.abs(entry.full.scale - requested) <=
+					Math.abs(job.scale - requested)
+			) {
 				image.close();
 				return;
 			}

@@ -79,6 +79,11 @@ import {
 	positionForPdfPage,
 	stepPdfPage,
 } from "./pdf-view-state";
+import {
+	createSettledZoom,
+	createZoomScrollSync,
+	dampWheelZoom,
+} from "./pdf-zoom-stability";
 import "./pdf-reader.css";
 
 const PDF_PROGRESS_REPORT_DELAY_MS = 100;
@@ -238,7 +243,16 @@ function PdfDocumentViewport({
 					),
 			}),
 	);
-	const { provides: zoom } = useZoom(documentId);
+	const { state: zoomState, provides: zoom } = useZoom(documentId);
+	const [settledZoom] = useState(() =>
+		createSettledZoom(zoomState.currentZoomLevel),
+	);
+	const [zoomScrollSync] = useState(createZoomScrollSync);
+	const renderZoom = useSyncExternalStore(
+		settledZoom.subscribe,
+		settledZoom.get,
+		settledZoom.get,
+	);
 	const { currentPage, readingPage, goToPage, positionReady, restorePosition } =
 		usePdfNavigation(documentId, pageCount, initialPosition?.exploredCharCount);
 	const { provides: scrollCapability } = useScrollCapability();
@@ -501,6 +515,7 @@ function PdfDocumentViewport({
 						documentId={documentId}
 						pageIndex={pageIndex}
 						store={pageImages}
+						zoom={renderZoom}
 						tone={toneLayers}
 					/>
 					<SearchLayer
@@ -528,6 +543,7 @@ function PdfDocumentViewport({
 			documentId,
 			pageCount,
 			pageImages,
+			renderZoom,
 			searchMatch,
 			theme.backgroundColor,
 			toneLayers,
@@ -562,6 +578,14 @@ function PdfDocumentViewport({
 						className="nanahoshi-pdf-viewport outline-none"
 						tabIndex={-1}
 					>
+						{zoom && (
+							<PdfZoomStability
+								zoom={zoom}
+								zoomLevel={zoomState.currentZoomLevel}
+								settledZoom={settledZoom}
+								scrollSync={zoomScrollSync}
+							/>
+						)}
 						<ZoomGestureWrapper
 							documentId={documentId}
 							className="min-h-full min-w-full"
@@ -699,6 +723,44 @@ function PdfRenderLanes({
 		};
 	});
 	return null;
+}
+
+/** Keeps zoom anchored and cheap: damped wheel, same-commit scroll, settled render scale. */
+function PdfZoomStability({
+	zoom,
+	zoomLevel,
+	settledZoom,
+	scrollSync,
+}: {
+	zoom: ZoomScope;
+	zoomLevel: number;
+	settledZoom: ReturnType<typeof createSettledZoom>;
+	scrollSync: ReturnType<typeof createZoomScrollSync>;
+}) {
+	const markerRef = useRef<HTMLSpanElement | null>(null);
+	const viewportOf = (element: HTMLElement | null) =>
+		element?.closest<HTMLElement>(".nanahoshi-pdf-viewport") ?? null;
+	useMountEffect(() => {
+		const viewport = viewportOf(markerRef.current);
+		const stops = [
+			settledZoom.connect(zoom),
+			scrollSync.connect(zoom),
+			viewport ? dampWheelZoom(viewport) : () => {},
+		];
+		return () => {
+			for (const stop of stops) stop();
+		};
+	});
+	// A new ref per zoom level runs in the commit that resized the pages.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: zoomLevel re-attaches the ref on purpose
+	const attach = useCallback(
+		(marker: HTMLSpanElement | null) => {
+			markerRef.current = marker;
+			scrollSync.apply(viewportOf(marker));
+		},
+		[scrollSync, zoomLevel],
+	);
+	return <span ref={attach} hidden />;
 }
 
 // A numeric default zoom never releases EmbedPDF's viewport gate, so the book

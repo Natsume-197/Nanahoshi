@@ -13,17 +13,19 @@ export function PdfPageRaster({
 	documentId,
 	pageIndex,
 	store,
+	zoom,
 	tone,
 }: {
 	documentId: string;
 	pageIndex: number;
 	store: PdfBitmapStore;
+	/** Settled zoom: follows the viewer, but not through every step of a burst. */
+	zoom: number;
 	/** Recolours the page to the reader theme; omitted shows it as printed. */
 	tone?: PdfPageToneLayers;
 }) {
 	const documentState = useDocumentState(documentId);
 	const page = documentState?.document?.pages[pageIndex];
-	const zoom = documentState?.scale ?? 1;
 	const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio;
 	const scale = page ? pdfPageRenderScale(page.size, zoom, dpr) : 0;
 	const needsTiles = zoom * Math.max(1, dpr) > scale * 1.01;
@@ -53,10 +55,9 @@ export function PdfPageRaster({
 				store.setVisible(pageIndex, entry?.isIntersecting ?? false),
 			);
 			observer.observe(element);
-			return () => {
-				observer.disconnect();
-				store.setVisible(pageIndex, false);
-			};
+			// Zooming remounts pages; clearing here would leave the store blind to
+			// what is on screen for a frame. The observer reports real exits.
+			return () => observer.disconnect();
 		},
 		[store, pageIndex],
 	);

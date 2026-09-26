@@ -50,6 +50,9 @@ class ManualLane implements PdfRenderLane<FakeImage> {
 	}
 }
 
+// The store decides once per batch of mounts (a microtask).
+const settle = () => Promise.resolve();
+
 function createStore(budgets: { full?: number; preview?: number } = {}) {
 	return new PdfPageImageStore<FakeImage>({
 		previewScale: () => PREVIEW,
@@ -123,16 +126,38 @@ describe("PdfPageImageStore", () => {
 		expect(lane.started).toEqual(["266@2"]);
 	});
 
+	// After a zoom every mounted page re-registers one by one; the first
+	// neighbours to register used to take every lane ahead of the visible page.
+	test("after a zoom the page on screen renders first, whatever the mount order", async () => {
+		const store = createStore();
+		const lanes = [new ManualLane(), new ManualLane(), new ManualLane()];
+		store.setVisible(321, true);
+		for (const lane of lanes) store.addLane(lane);
+		for (const page of [317, 318, 319, 320, 321, 322, 323])
+			store.request(page, 3);
+		await settle();
+
+		const started = lanes.flatMap((lane) => lane.started);
+		expect(started).toContain("321@3");
+		expect(started).toContain("321@preview");
+		// Only one lane is left over, and the nearest neighbour takes it.
+		expect(started.filter((job) => !job.startsWith("321@"))).toEqual([
+			expect.stringMatching(/^(320|322)@3$/),
+		]);
+	});
+
 	test("pages the reader scrolls back to come from cache without rendering", async () => {
 		const store = createStore();
 		const lane = new ManualLane();
 		store.addLane(lane);
 		const release = store.request(5, 2);
+		await settle();
 		await lane.jobs[0]?.finish();
 		release();
 
 		store.request(5, 2);
 		store.setVisible(5, true);
+		await settle();
 
 		expect(lane.jobs).toHaveLength(1);
 		expect(store.best(5)?.scale).toBe(2);
@@ -143,15 +168,39 @@ describe("PdfPageImageStore", () => {
 		const lane = new ManualLane();
 		store.addLane(lane);
 		const release = store.request(0, 1);
+		await settle();
 		await lane.jobs[0]?.finish();
 		const old = store.best(0);
 		release();
 		store.request(0, 3);
+		await settle();
 
 		expect(store.best(0)).toBe(old);
 		await lane.jobs[1]?.finish();
 		expect(store.best(0)?.scale).toBe(3);
 		expect(old?.closed).toBe(true);
+	});
+
+	test("a late render from an earlier zoom step never replaces a closer one", async () => {
+		const store = createStore();
+		const lanes = [new ManualLane(), new ManualLane(), new ManualLane()];
+		for (const lane of lanes) store.addLane(lane);
+		store.setVisible(0, true);
+		const jobAt = (scale: number) =>
+			lanes.flatMap((lane) => lane.jobs).find((job) => job.scale === scale);
+		let leave = store.request(0, 1.7);
+		await settle();
+		leave();
+		leave = store.request(0, 1.9);
+		await settle();
+		leave();
+		store.request(0, 2.1);
+		await settle();
+
+		await jobAt(1.9)?.finish();
+		await jobAt(1.7)?.finish();
+
+		expect(store.best(0)?.scale).toBe(1.9);
 	});
 
 	test("over budget, off-screen pages are evicted oldest first and mounted pages never", async () => {
@@ -160,6 +209,7 @@ describe("PdfPageImageStore", () => {
 		const lane = new ManualLane();
 		store.addLane(lane);
 		const releases = [0, 1, 2].map((page) => store.request(page, 2));
+		await settle();
 		await lane.jobs[0]?.finish();
 		await lane.jobs[1]?.finish();
 		await lane.jobs[2]?.finish();
@@ -194,9 +244,11 @@ describe("PdfPageImageStore", () => {
 		const lane = new ManualLane();
 		store.addLane(lane);
 		store.request(7, 2);
+		await settle();
 		await lane.jobs[0]?.finish();
 
 		store.requestThumbnail(7);
+		await settle();
 
 		expect(lane.jobs).toHaveLength(1);
 		expect(store.best(7)?.scale).toBe(2);
@@ -208,8 +260,10 @@ describe("PdfPageImageStore", () => {
 		const lane = new ManualLane();
 		store.addLane(lane);
 		store.requestThumbnail(1);
+		await settle();
 		await lane.jobs[0]?.finish();
 		const release = store.requestThumbnail(2);
+		await settle();
 		await lane.jobs[1]?.finish();
 		release();
 
@@ -217,11 +271,12 @@ describe("PdfPageImageStore", () => {
 		expect(store.best(2)).toBeUndefined();
 	});
 
-	test("a retired lane hands its unfinished page to another lane", () => {
+	test("a retired lane hands its unfinished page to another lane", async () => {
 		const store = createStore();
 		const dying = new ManualLane();
 		const retire = store.addLane(dying);
 		store.request(4, 2);
+		await settle();
 		expect(dying.started).toEqual(["4@2"]);
 
 		retire();
