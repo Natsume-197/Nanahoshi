@@ -75,3 +75,36 @@ export function stepPdfPage(
 				: (visible[0] ?? pageIndex) - 2;
 	return Math.min(Math.max(target, 0), Math.max(0, pageCount - 1));
 }
+
+const CHROME_HIDE_AFTER_PX = 48;
+// Restores and page jumps move this far in one event; reading never does.
+const CHROME_JUMP_PX = 1200;
+
+export interface PdfChromeScroll {
+	last?: number;
+	/** Distance travelled in the current direction; the sign is the direction. */
+	travel: number;
+}
+
+/** Next header visibility after a scroll event, or undefined to leave it as is. */
+export function pdfChromeAfterScroll(
+	scroll: PdfChromeScroll,
+	offset: number,
+	pinned: boolean,
+): { scroll: PdfChromeScroll; open?: boolean } {
+	const delta = scroll.last === undefined ? 0 : offset - scroll.last;
+	if (Math.abs(delta) > CHROME_JUMP_PX) {
+		return { scroll: { last: offset, travel: 0 } };
+	}
+	if (pinned || offset <= 0) {
+		return { scroll: { last: offset, travel: 0 }, open: true };
+	}
+	const travel =
+		Math.sign(delta) === Math.sign(scroll.travel)
+			? scroll.travel + delta
+			: delta;
+	const next = { last: offset, travel };
+	if (travel > CHROME_HIDE_AFTER_PX) return { scroll: next, open: false };
+	if (travel < -CHROME_HIDE_AFTER_PX / 2) return { scroll: next, open: true };
+	return { scroll: next };
+}

@@ -9,7 +9,9 @@ import {
 	PagePointerProvider,
 } from "@embedpdf/plugin-interaction-manager/react";
 import { usePanPlugin } from "@embedpdf/plugin-pan/react";
+import type { RotateScope } from "@embedpdf/plugin-rotate";
 import { Rotate, useRotate } from "@embedpdf/plugin-rotate/react";
+import type { ScrollCapability } from "@embedpdf/plugin-scroll";
 import {
 	Scroller,
 	ScrollStrategy,
@@ -19,6 +21,7 @@ import { SearchLayer } from "@embedpdf/plugin-search/react";
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { SpreadMode, useSpread } from "@embedpdf/plugin-spread/react";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
+import type { ZoomScope } from "@embedpdf/plugin-zoom";
 import { useZoom, ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import {
 	type CSSProperties,
@@ -51,6 +54,7 @@ import { m } from "@/paraglide/messages";
 import { PdfPageImageStore } from "./pdf-page-images";
 import { PdfPageNavigator } from "./pdf-page-navigator";
 import { type PdfBitmapStore, PdfPageRaster } from "./pdf-page-raster";
+import { isDarkCssColor, pdfPageToneLayers } from "./pdf-page-tone";
 import { createPdfReaderConfig } from "./pdf-reader-config";
 import { fitZoomMode, PdfReaderMenu } from "./pdf-reader-menu";
 import {
@@ -62,8 +66,16 @@ import {
 } from "./pdf-render-lanes";
 import { PdfSearchPanel } from "./pdf-search-panel";
 import {
+	loadPdfViewPreference,
+	type PdfPageTone,
+	type PdfViewPreference,
+	savePdfViewPreference,
+} from "./pdf-view-preferences";
+import {
+	type PdfChromeScroll,
 	type PdfLayoutMode,
 	type PdfScrollDirection,
+	pdfChromeAfterScroll,
 	positionForPdfPage,
 	stepPdfPage,
 } from "./pdf-view-state";
@@ -75,6 +87,7 @@ const PDF_PROGRESS_REPORT_DELAY_MS = 100;
 const PDF_SELECTION_COLOR = "rgba(59, 130, 246, 0.42)";
 
 interface BookReaderPdfProps {
+	bookUuid: string;
 	source: PdfReaderSource;
 	bookTitle: string;
 	sessionControl?: ReactNode;
@@ -93,14 +106,16 @@ interface BookReaderPdfProps {
 
 export function BookReaderPdf(props: BookReaderPdfProps) {
 	const { source, theme } = props;
+	const [initialView] = useState(() => loadPdfViewPreference(props.bookUuid));
 	const readerConfig = useMemo(
 		() =>
 			createPdfReaderConfig({
 				wasmUrl: pdfiumWasmUrl,
 				baseUrl: typeof document === "undefined" ? undefined : document.baseURI,
 				source: { name: source.name, data: source.data },
+				view: initialView,
 			}),
-		[source.name, source.data],
+		[source.name, source.data, initialView],
 	);
 	const { engine, isLoading, error } = usePdfiumEngine(readerConfig.engine);
 	const surfaceStyle = {
@@ -172,6 +187,7 @@ export function BookReaderPdf(props: BookReaderPdfProps) {
 										document={documentState.document}
 										engine={engine}
 										wasmUrl={readerConfig.engine.wasmUrl}
+										initialView={initialView}
 									/>
 								);
 							}}
@@ -188,6 +204,7 @@ interface PdfDocumentViewportProps extends BookReaderPdfProps {
 	document: PdfDocumentObject;
 	engine: PdfEngine;
 	wasmUrl: string;
+	initialView: PdfViewPreference;
 }
 
 function PdfDocumentViewport({
@@ -195,6 +212,8 @@ function PdfDocumentViewport({
 	document: pdfDocument,
 	engine,
 	wasmUrl,
+	initialView,
+	bookUuid,
 	theme,
 	source,
 	bookTitle,
@@ -219,10 +238,10 @@ function PdfDocumentViewport({
 					),
 			}),
 	);
+	const { provides: zoom } = useZoom(documentId);
 	const { currentPage, readingPage, goToPage, positionReady, restorePosition } =
 		usePdfNavigation(documentId, pageCount, initialPosition?.exploredCharCount);
 	const { provides: scrollCapability } = useScrollCapability();
-	const { provides: zoom } = useZoom(documentId);
 	const { provides: rotate } = useRotate(documentId);
 	const { provides: spread } = useSpread(documentId);
 	const { plugin: panPlugin } = usePanPlugin();
@@ -231,15 +250,28 @@ function PdfDocumentViewport({
 	// switching the tool does not turn viewport updates into React rerenders.
 	const pan = useMemo(() => panPlugin?.provides() ?? null, [panPlugin]);
 
-	const [layout, setLayout] = useState<PdfLayoutMode>("page");
-	const [scrollDirection, setScrollDirection] =
-		useState<PdfScrollDirection>("vertical");
+	const [layout, setLayout] = useState<PdfLayoutMode>(initialView.layout);
+	const [scrollDirection, setScrollDirection] = useState<PdfScrollDirection>(
+		initialView.scrollDirection,
+	);
+	const [pageTone, setPageTone] = useState<PdfPageTone>(initialView.pageTone);
+	const [chromeOpen, setChromeOpen] = useState(true);
+	const viewRef = useRef(initialView);
+	const rememberView = useCallback(
+		(patch: Partial<PdfViewPreference>) => {
+			viewRef.current = { ...viewRef.current, ...patch };
+			savePdfViewPreference(bookUuid, viewRef.current);
+		},
+		[bookUuid],
+	);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [navigatorOpen, setNavigatorOpen] = useState(false);
 	const currentPageRef = useRef(1);
 	const readingPageRef = useRef(1);
-	const currentLayoutRef = useRef<PdfLayoutMode>("page");
-	const scrollDirectionRef = useRef<PdfScrollDirection>("vertical");
+	const currentLayoutRef = useRef<PdfLayoutMode>(initialView.layout);
+	const scrollDirectionRef = useRef<PdfScrollDirection>(
+		initialView.scrollDirection,
+	);
 	const goToPageRef = useRef(goToPage);
 	const turnPageRef = useRef<(direction: -1 | 1) => void>(() => {});
 	const zoomRef = useRef(zoom);
@@ -403,6 +435,10 @@ function PdfDocumentViewport({
 			layoutChangeRequested = true;
 			setLayout(nextLayout);
 			setScrollDirection(nextScrollDirection);
+			rememberView({
+				layout: nextLayout,
+				scrollDirection: nextScrollDirection,
+			});
 			pan?.disablePan();
 			spread?.setSpreadMode(
 				nextLayout === "spread-even"
@@ -422,7 +458,26 @@ function PdfDocumentViewport({
 			// engine implementation that does not emit one for an unchanged setting.
 			if (!restored) fallbackTimer = window.setTimeout(restorePage, 500);
 		},
-		[documentId, pan, scrollCapability, scrollDirection, spread, zoom],
+		[
+			documentId,
+			pan,
+			rememberView,
+			scrollCapability,
+			scrollDirection,
+			spread,
+			zoom,
+		],
+	);
+	const toneLayers = useMemo(
+		() =>
+			pageTone === "theme"
+				? pdfPageToneLayers({
+						dark: isDarkCssColor(theme.backgroundColor),
+						foreground: theme.fontColor,
+						background: theme.backgroundColor,
+					})
+				: undefined,
+		[pageTone, theme.backgroundColor, theme.fontColor],
 	);
 	const searchMatch = readerMix(theme, 24);
 	const activeSearchMatch = readerMix(theme, 48);
@@ -431,7 +486,8 @@ function PdfDocumentViewport({
 			<Rotate
 				documentId={documentId}
 				pageIndex={pageIndex}
-				className="nanahoshi-pdf-page overflow-hidden bg-white"
+				className={`nanahoshi-pdf-page overflow-hidden ${toneLayers ? "" : "bg-white"}`}
+				style={toneLayers && { backgroundColor: theme.backgroundColor }}
 			>
 				<PagePointerProvider
 					documentId={documentId}
@@ -445,6 +501,7 @@ function PdfDocumentViewport({
 						documentId={documentId}
 						pageIndex={pageIndex}
 						store={pageImages}
+						tone={toneLayers}
 					/>
 					<SearchLayer
 						documentId={documentId}
@@ -466,7 +523,15 @@ function PdfDocumentViewport({
 				</PagePointerProvider>
 			</Rotate>
 		),
-		[activeSearchMatch, documentId, pageCount, pageImages, searchMatch],
+		[
+			activeSearchMatch,
+			documentId,
+			pageCount,
+			pageImages,
+			searchMatch,
+			theme.backgroundColor,
+			toneLayers,
+		],
 	);
 
 	return (
@@ -512,8 +577,8 @@ function PdfDocumentViewport({
 			</div>
 
 			<ReaderHeader
-				open
-				onOpen={() => {}}
+				open={chromeOpen}
+				onOpen={() => setChromeOpen(true)}
 				theme={theme}
 				bookTitle={bookTitle}
 				sessionControl={sessionControl}
@@ -538,6 +603,11 @@ function PdfDocumentViewport({
 						layout={layout}
 						scrollDirection={scrollDirection}
 						isPanning={isPanning}
+						pageTone={pageTone}
+						onPageToneChange={(tone) => {
+							setPageTone(tone);
+							rememberView({ pageTone: tone });
+						}}
 						close={close}
 						onLayoutChange={(nextLayout) =>
 							handlePresentationChange({ nextLayout })
@@ -551,7 +621,28 @@ function PdfDocumentViewport({
 					/>
 				)}
 			/>
+			{positionReady && zoom && typeof initialView.zoom === "number" && (
+				<PdfRememberedZoom
+					zoom={zoom}
+					level={initialView.zoom}
+					page={currentPage}
+					goToPage={goToPage}
+				/>
+			)}
+			{positionReady && zoom && rotate && (
+				<PdfViewMemory zoom={zoom} rotate={rotate} remember={rememberView} />
+			)}
+			{scrollCapability && (
+				<PdfChromeAutoHide
+					scroll={scrollCapability}
+					documentId={documentId}
+					horizontal={scrollDirection === "horizontal"}
+					pinned={navigatorOpen || searchOpen}
+					onChange={setChromeOpen}
+				/>
+			)}
 			<PdfPageNavigator
+				store={pageImages}
 				documentId={documentId}
 				open={navigatorOpen}
 				theme={theme}
@@ -606,6 +697,110 @@ function PdfRenderLanes({
 			removeMainLane();
 			store.clear();
 		};
+	});
+	return null;
+}
+
+// A numeric default zoom never releases EmbedPDF's viewport gate, so the book
+// opens fitted and the remembered scale is requested once the restore landed.
+function PdfRememberedZoom({
+	zoom,
+	level,
+	page,
+	goToPage,
+}: {
+	zoom: ZoomScope;
+	level: number;
+	page: number;
+	goToPage: (page: number, behavior?: ScrollBehavior) => void;
+}) {
+	useMountEffect(() => {
+		// The zoom anchors on cached scroll metrics that still predate the resume
+		// jump, so it lands near page 1; re-centre the reading page after it.
+		let frame = 0;
+		const stop = zoom.onZoomChange(() => {
+			stop();
+			frame = requestAnimationFrame(() => goToPage(page, "instant"));
+		});
+		zoom.requestZoom(level);
+		return () => {
+			stop();
+			cancelAnimationFrame(frame);
+		};
+	});
+	return null;
+}
+
+/** Remembers zoom and rotation however they change: keys, pinch, menu. */
+function PdfViewMemory({
+	zoom,
+	rotate,
+	remember,
+}: {
+	zoom: ZoomScope;
+	rotate: RotateScope;
+	remember: (patch: Partial<PdfViewPreference>) => void;
+}) {
+	useMountEffect(() => {
+		const stopZoom = zoom.onStateChange((state) =>
+			remember({ zoom: state.zoomLevel }),
+		);
+		const stopRotate = rotate.onRotateChange((rotation) =>
+			remember({ rotation }),
+		);
+		return () => {
+			stopZoom();
+			stopRotate();
+		};
+	});
+	return null;
+}
+
+// Programmatic scrolls (restore, remembered zoom, page jumps) never hide the bar.
+const USER_SCROLL_WINDOW_MS = 800;
+
+/** Hides the header while reading forward and brings it back on any scroll back. */
+function PdfChromeAutoHide({
+	scroll,
+	documentId,
+	horizontal,
+	pinned,
+	onChange,
+}: {
+	scroll: ScrollCapability;
+	documentId: string;
+	horizontal: boolean;
+	pinned: boolean;
+	onChange: (open: boolean) => void;
+}) {
+	const optionsRef = useRef({ horizontal, pinned });
+	optionsRef.current = { horizontal, pinned };
+	const lastInputRef = useRef(Number.NEGATIVE_INFINITY);
+	const markInput = () => {
+		lastInputRef.current = performance.now();
+	};
+	useWindowEvent("wheel", markInput);
+	useWindowEvent("touchmove", markInput);
+	useWindowEvent("keydown", markInput);
+	useWindowEvent("pointerdown", markInput);
+	useMountEffect(() => {
+		let state: PdfChromeScroll = { travel: 0 };
+		return scroll.onScroll((event) => {
+			if (event.documentId !== documentId) return;
+			const { horizontal, pinned } = optionsRef.current;
+			const next = pdfChromeAfterScroll(
+				state,
+				horizontal
+					? event.metrics.scrollOffset.x
+					: event.metrics.scrollOffset.y,
+				pinned,
+			);
+			state = next.scroll;
+			const byUser =
+				performance.now() - lastInputRef.current < USER_SCROLL_WINDOW_MS;
+			if (next.open === true || (next.open === false && byUser))
+				onChange(next.open);
+		});
 	});
 	return null;
 }

@@ -47,6 +47,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 	private readonly busyLanes = new Map<PdfRenderLane<Image>, string>();
 	private readonly requests = new Map<number, { scale: number }>();
 	private readonly visible = new Set<number>();
+	private readonly thumbnails = new Map<number, number>();
 	private readonly images = new Map<number, PageImages<Image>>();
 	private readonly inFlight = new Set<string>();
 	private readonly listeners = new Map<number, Set<() => void>>();
@@ -92,6 +93,24 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			if (this.requests.get(pageIndex) !== request) return;
 			this.requests.delete(pageIndex);
 			this.evict();
+			this.pump();
+		};
+	}
+
+	/** A navigator thumbnail only needs the low-resolution pass. */
+	requestThumbnail(pageIndex: number): () => void {
+		this.thumbnails.set(pageIndex, (this.thumbnails.get(pageIndex) ?? 0) + 1);
+		this.touch(pageIndex);
+		this.pump();
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			const count = (this.thumbnails.get(pageIndex) ?? 1) - 1;
+			if (count > 0) this.thumbnails.set(pageIndex, count);
+			else this.thumbnails.delete(pageIndex);
+			this.evict();
+			this.pump();
 		};
 	}
 
@@ -172,6 +191,24 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 				priority: visible ? 1 : 2 + distance,
 			});
 		}
+		for (const pageIndex of this.thumbnails.keys()) {
+			if (this.images.has(pageIndex)) continue;
+			const request = this.requests.get(pageIndex);
+			if (
+				request &&
+				this.inFlight.has(
+					jobKey({ pageIndex, kind: "full", scale: request.scale }),
+				)
+			)
+				continue;
+			// After what is on screen, before prefetching the reader's neighbours.
+			consider({
+				pageIndex,
+				kind: "preview",
+				scale: this.options.previewScale(pageIndex),
+				priority: 1.5,
+			});
+		}
 		return best;
 	}
 
@@ -228,7 +265,11 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 		this.images.set(job.pageIndex, entry);
 		this.touch(job.pageIndex);
 		this.evict();
-		for (const listener of this.listeners.get(job.pageIndex) ?? []) listener();
+		this.notify(job.pageIndex);
+	}
+
+	private notify(pageIndex: number) {
+		for (const listener of this.listeners.get(pageIndex) ?? []) listener();
 	}
 
 	private touch(pageIndex: number) {
@@ -264,10 +305,12 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			entry.full.image.close();
 			entry.full = undefined;
 			this.dropIfEmpty(pageIndex, entry);
+			this.notify(pageIndex);
 		}
 		for (const pageIndex of [...this.previewLru]) {
 			if (previewBytes <= previewBudget) break;
-			if (this.requests.has(pageIndex)) continue;
+			if (this.requests.has(pageIndex) || this.thumbnails.has(pageIndex))
+				continue;
 			const entry = this.images.get(pageIndex);
 			this.previewLru.delete(pageIndex);
 			if (!entry?.preview) continue;
@@ -275,6 +318,7 @@ export class PdfPageImageStore<Image extends PdfPageImage = PdfPageImage> {
 			entry.preview.close();
 			entry.preview = undefined;
 			this.dropIfEmpty(pageIndex, entry);
+			this.notify(pageIndex);
 		}
 	}
 

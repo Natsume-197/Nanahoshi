@@ -1,9 +1,10 @@
-import { ThumbImg, ThumbnailsPane } from "@embedpdf/plugin-thumbnail/react";
+import { ThumbnailsPane } from "@embedpdf/plugin-thumbnail/react";
 import { CaretLeft, File, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
 import { m } from "@/paraglide/messages";
+import { type PdfBitmapStore, PdfPageThumbnail } from "./pdf-page-raster";
 
 interface PdfPageNavigatorProps {
 	documentId: string;
@@ -13,12 +14,12 @@ interface PdfPageNavigatorProps {
 	pageCount: number;
 	onClose: () => void;
 	onPageChange: (page: number) => void;
+	store: PdfBitmapStore;
 }
 
 /**
- * EmbedPDF virtualizes the thumbnail image queue independently of the reader
- * viewport, so a long book keeps a recognisable page rail without a second
- * full-document render.
+ * EmbedPDF virtualizes the rail; images come from the reader's page store,
+ * so thumbnails reuse its previews and render on the same parallel lanes.
  */
 export function PdfPageNavigator({
 	documentId,
@@ -28,6 +29,7 @@ export function PdfPageNavigator({
 	pageCount,
 	onClose,
 	onPageChange,
+	store,
 }: PdfPageNavigatorProps) {
 	if (!open) return null;
 
@@ -120,10 +122,11 @@ export function PdfPageNavigator({
 										borderColor: mix(selected ? 28 : 14),
 									}}
 								>
-									<ThumbImg
-										documentId={documentId}
-										meta={meta}
-										className="block size-full object-contain"
+									<PdfPageThumbnail
+										store={store}
+										pageIndex={meta.pageIndex}
+										width={meta.width}
+										height={meta.height}
 									/>
 								</div>
 								<span className="mt-1 flex items-center gap-1 text-xs tabular-nums">

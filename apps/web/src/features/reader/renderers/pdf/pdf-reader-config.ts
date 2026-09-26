@@ -24,17 +24,25 @@ import { TilingPluginPackage } from "@embedpdf/plugin-tiling/react";
 import { ViewportPluginPackage } from "@embedpdf/plugin-viewport/react";
 import { ZoomMode, ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
 import type { PdfReaderSource } from "@/features/reader/document/pdf-source";
+import {
+	DEFAULT_PDF_VIEW,
+	type PdfViewPreference,
+	type PdfZoomPreference,
+} from "./pdf-view-preferences";
 
 interface PdfReaderConfigOptions {
 	wasmUrl: string;
 	baseUrl?: string;
 	source: Pick<PdfReaderSource, "name" | "data">;
+	/** The book's remembered view, applied before the first layout. */
+	view?: PdfViewPreference;
 }
 
 export function createPdfReaderConfig({
 	wasmUrl,
 	baseUrl,
 	source,
+	view = DEFAULT_PDF_VIEW,
 }: PdfReaderConfigOptions) {
 	return {
 		engine: {
@@ -57,7 +65,10 @@ export function createPdfReaderConfig({
 			}),
 			createPluginRegistration(ViewportPluginPackage, { viewportGap: 16 }),
 			createPluginRegistration(ScrollPluginPackage, {
-				defaultStrategy: ScrollStrategy.Vertical,
+				defaultStrategy:
+					view.scrollDirection === "horizontal"
+						? ScrollStrategy.Horizontal
+						: ScrollStrategy.Vertical,
 				defaultPageGap: 16,
 				defaultBufferSize: 4,
 			}),
@@ -66,14 +77,25 @@ export function createPdfReaderConfig({
 			// hand dragging, cursor state, and the hand/pointer transition.
 			createPluginRegistration(PanPluginPackage, { defaultMode: "never" }),
 			createPluginRegistration(ZoomPluginPackage, {
-				defaultZoomLevel: ZoomMode.FitPage,
+				// Numeric defaults never release EmbedPDF's zoom gate; see PdfRememberedZoom.
+				defaultZoomLevel:
+					typeof view.zoom === "number"
+						? ZoomMode.FitPage
+						: zoomLevelFor(view.zoom),
 				minZoom: 0.25,
 				maxZoom: 4,
 			}),
 			createPluginRegistration(SpreadPluginPackage, {
-				defaultSpreadMode: SpreadMode.None,
+				defaultSpreadMode:
+					view.layout === "spread-even"
+						? SpreadMode.Even
+						: view.layout === "spread-odd"
+							? SpreadMode.Odd
+							: SpreadMode.None,
 			}),
-			createPluginRegistration(RotatePluginPackage),
+			createPluginRegistration(RotatePluginPackage, {
+				defaultRotation: view.rotation,
+			}),
 			createPluginRegistration(RenderPluginPackage, {
 				defaultImageType: "image/jpeg",
 			}),
@@ -106,4 +128,13 @@ export function createPdfReaderConfig({
 			}),
 		],
 	};
+}
+
+export function zoomLevelFor(zoom: PdfZoomPreference) {
+	if (typeof zoom === "number") return zoom;
+	return zoom === "fit-width"
+		? ZoomMode.FitWidth
+		: zoom === "automatic"
+			? ZoomMode.Automatic
+			: ZoomMode.FitPage;
 }

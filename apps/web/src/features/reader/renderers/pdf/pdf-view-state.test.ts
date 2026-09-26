@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createPdfSections } from "@/features/reader/document/pdf-source";
 import {
+	pdfChromeAfterScroll,
 	pdfNavigationBehavior,
 	pdfPagesForLayout,
 	positionForPdfPage,
@@ -49,5 +50,36 @@ describe("PDF view state", () => {
 		expect(stepPdfPage(0, 6, "spread-even", 1)).toBe(1);
 		expect(stepPdfPage(1, 6, "spread-even", 1)).toBe(3);
 		expect(stepPdfPage(3, 6, "spread-odd", -1)).toBe(1);
+	});
+});
+
+describe("pdfChromeAfterScroll", () => {
+	const scrollThrough = (offsets: number[], pinned = false) => {
+		let state = { travel: 0 } as Parameters<typeof pdfChromeAfterScroll>[0];
+		let open: boolean | undefined;
+		for (const offset of offsets) {
+			const next = pdfChromeAfterScroll(state, offset, pinned);
+			state = next.scroll;
+			if (next.open !== undefined) open = next.open;
+		}
+		return open;
+	};
+
+	test("reading forward hides the header once past a short distance", () => {
+		expect(scrollThrough([1000, 1020])).toBeUndefined();
+		expect(scrollThrough([1000, 1030, 1060])).toBe(false);
+	});
+
+	test("scrolling back brings it back", () => {
+		expect(scrollThrough([1000, 1100, 1060])).toBe(true);
+	});
+
+	test("a jump to another page leaves it as it was", () => {
+		expect(scrollThrough([0, 40_000])).toBe(true);
+		expect(scrollThrough([100, 40_000])).toBeUndefined();
+	});
+
+	test("an open navigator or search keeps it visible", () => {
+		expect(scrollThrough([1000, 1100, 1200], true)).toBe(true);
 	});
 });

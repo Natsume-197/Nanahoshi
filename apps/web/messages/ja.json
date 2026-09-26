@@ -3479,5 +3479,6 @@
 	"reader_pdf_print": "印刷",
 	"reader_pdf_download": "PDFをダウンロード",
 	"reader_pdf_go_to_page": "ページへ移動",
-	"reader_pdf_page": "{page}ページ"
+	"reader_pdf_page": "{page}ページ",
+	"reader_pdf_page_tone": "ページの色をテーマに合わせる"
 }

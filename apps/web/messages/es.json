@@ -3537,5 +3537,6 @@
 	"reader_pdf_print": "Imprimir",
 	"reader_pdf_download": "Descargar PDF",
 	"reader_pdf_go_to_page": "Ir a la página",
-	"reader_pdf_page": "Página {page}"
+	"reader_pdf_page": "Página {page}",
+	"reader_pdf_page_tone": "Adaptar la página al tema"
 }

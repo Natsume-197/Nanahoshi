@@ -173,6 +173,50 @@ describe("PdfPageImageStore", () => {
 		expect(store.best(2)?.scale).toBe(2);
 	});
 
+	test("navigator thumbnails render after the page on screen but before prefetch", async () => {
+		const store = createStore();
+		const lane = new ManualLane();
+		store.request(50, 2);
+		store.setVisible(50, true);
+		store.request(51, 2);
+		store.requestThumbnail(10);
+		store.addLane(lane);
+
+		await lane.jobs[0]?.finish();
+		await lane.jobs[1]?.finish();
+		await lane.jobs[2]?.finish();
+
+		expect(lane.started).toEqual(["50@preview", "50@2", "10@preview", "51@2"]);
+	});
+
+	test("a thumbnail of a page already rendered appears without new work", async () => {
+		const store = createStore();
+		const lane = new ManualLane();
+		store.addLane(lane);
+		store.request(7, 2);
+		await lane.jobs[0]?.finish();
+
+		store.requestThumbnail(7);
+
+		expect(lane.jobs).toHaveLength(1);
+		expect(store.best(7)?.scale).toBe(2);
+	});
+
+	test("thumbnails in the open navigator survive cache pressure", async () => {
+		// Previews cost 40 000 bytes; the budget fits one.
+		const store = createStore({ preview: 40_000 });
+		const lane = new ManualLane();
+		store.addLane(lane);
+		store.requestThumbnail(1);
+		await lane.jobs[0]?.finish();
+		const release = store.requestThumbnail(2);
+		await lane.jobs[1]?.finish();
+		release();
+
+		expect(store.best(1)).toBeDefined();
+		expect(store.best(2)).toBeUndefined();
+	});
+
 	test("a retired lane hands its unfinished page to another lane", () => {
 		const store = createStore();
 		const dying = new ManualLane();

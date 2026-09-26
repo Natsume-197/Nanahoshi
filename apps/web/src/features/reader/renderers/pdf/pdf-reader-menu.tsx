@@ -8,6 +8,7 @@ import {
 	ArrowsLeftRight,
 	Book,
 	BookOpen,
+	CircleHalf,
 	DownloadSimple,
 	File,
 	Hand,
@@ -18,6 +19,7 @@ import {
 import type { ReactNode } from "react";
 import { ReaderMenuItem } from "@/features/reader/ui/chrome/reader-header";
 import { m } from "@/paraglide/messages";
+import type { PdfPageTone } from "./pdf-view-preferences";
 import type { PdfLayoutMode, PdfScrollDirection } from "./pdf-view-state";
 
 const MIN_ZOOM_PERCENT = 25;
@@ -38,6 +40,8 @@ export function PdfReaderMenu({
 	layout,
 	scrollDirection,
 	isPanning,
+	pageTone,
+	onPageToneChange,
 	close,
 	onLayoutChange,
 	onScrollDirectionChange,
@@ -47,6 +51,8 @@ export function PdfReaderMenu({
 	layout: PdfLayoutMode;
 	scrollDirection: PdfScrollDirection;
 	isPanning: boolean;
+	pageTone: PdfPageTone;
+	onPageToneChange: (tone: PdfPageTone) => void;
 	close: () => void;
 	onLayoutChange: (layout: PdfLayoutMode) => void;
 	onScrollDirectionChange: (direction: PdfScrollDirection) => void;
@@ -131,6 +137,15 @@ export function PdfReaderMenu({
 				{m.reader_pdf_scroll_horizontal()}
 			</ReaderMenuItem>
 			<MenuDivider />
+			<ReaderMenuItem
+				icon={<CircleHalf aria-hidden="true" className="size-5" />}
+				selected={pageTone === "theme"}
+				onClick={closeAnd(() =>
+					onPageToneChange(pageTone === "theme" ? "original" : "theme"),
+				)}
+			>
+				{m.reader_pdf_page_tone()}
+			</ReaderMenuItem>
 			<ReaderMenuItem
 				icon={
 					<Hand

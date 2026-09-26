@@ -98,6 +98,7 @@ export function ReaderEngine({
 		return (
 			<Suspense fallback={<ReaderLoadingOverlay theme={theme} />}>
 				<BookReaderPdf
+					bookUuid={bookUuid}
 					source={pdfSource}
 					bookTitle={pdfHeader?.bookTitle ?? pdfSource.name}
 					sessionControl={pdfHeader?.sessionControl}

@@ -8,6 +8,7 @@ export const READER_STORAGE_KEYS = {
 	themesMeta: "nanahoshi-reader-custom-themes-meta",
 	visualSettings: "nanahoshi-visual-reader-settings",
 	presentationPreferences: "nanahoshi-reader-mode-preferences",
+	pdfViews: "nanahoshi-reader-pdf-views",
 } as const;
 
 const OWNER_KEY = "nanahoshi-reader-storage-owner";
