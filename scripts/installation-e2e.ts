@@ -131,7 +131,8 @@ try {
 				.setInputFiles(path.join(import.meta.dir, "fixtures/upload.epub"));
 			const uploadResponse = page.waitForResponse(
 				(response) =>
-					response.url().endsWith("/upload") &&
+					// Each file goes to its own `.../upload?<query>` request.
+					new URL(response.url()).pathname.endsWith("/upload") &&
 					response.request().method() === "POST",
 			);
 			await page
