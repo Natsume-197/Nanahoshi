@@ -744,7 +744,7 @@ function PdfZoomStability({
 		const viewport = viewportOf(markerRef.current);
 		const stops = [
 			settledZoom.connect(zoom),
-			scrollSync.connect(zoom),
+			viewport ? scrollSync.connect(zoom, viewport) : () => {},
 			viewport ? dampWheelZoom(viewport) : () => {},
 		];
 		return () => {

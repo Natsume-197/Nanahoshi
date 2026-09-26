@@ -13,6 +13,7 @@ globalThis.WheelEvent ??= window.WheelEvent;
 
 type Listener = (event: {
 	newZoom: number;
+	center: { vx: number; vy: number };
 	desiredScrollLeft: number;
 	desiredScrollTop: number;
 }) => void;
@@ -26,7 +27,12 @@ function fakeZoom() {
 		},
 		emit: (newZoom: number, top = 0) => {
 			for (const listener of listeners)
-				listener({ newZoom, desiredScrollLeft: 0, desiredScrollTop: top });
+				listener({
+					newZoom,
+					desiredScrollLeft: 0,
+					desiredScrollTop: top,
+					center: { vx: 500, vy: 400 },
+				});
 		},
 	};
 }
@@ -90,16 +96,79 @@ describe("createSettledZoom", () => {
 	});
 });
 
-test("createZoomScrollSync applies the zoom's scroll target once, in the resize commit", () => {
-	const zoom = fakeZoom();
-	const sync = createZoomScrollSync();
-	sync.connect(zoom);
-	const viewport = document.createElement("div");
-	zoom.emit(2, 480);
+const rect = (left: number, top: number, width: number, height: number) =>
+	({
+		left,
+		top,
+		width,
+		height,
+		right: left + width,
+		bottom: top + height,
+		x: left,
+		y: top,
+	}) as DOMRect;
 
-	sync.apply(viewport);
-	expect(viewport.scrollTop).toBe(480);
-	viewport.scrollTop = 10;
-	sync.apply(viewport);
-	expect(viewport.scrollTop).toBe(10);
+/** A viewport with one page whose box the test moves around, like a zoom would. */
+function fakeViewport() {
+	const viewport = document.createElement("div");
+	const page = document.createElement("div");
+	page.dataset.readerPdfPage = "321";
+	viewport.append(page);
+	const box = { top: 0, left: 0, width: 500, height: 800, layoutWidth: 500 };
+	viewport.getBoundingClientRect = () => rect(0, 0, 1000, 800);
+	// jsdom has no layout; the page box follows scrollTop like a real one.
+	page.getBoundingClientRect = () =>
+		rect(
+			box.left - viewport.scrollLeft,
+			box.top - viewport.scrollTop,
+			box.width,
+			box.height,
+		);
+	Object.defineProperty(page, "offsetWidth", { get: () => box.layoutWidth });
+	return { viewport, box };
+}
+
+describe("createZoomScrollSync", () => {
+	test("the page point under the focus stays put once the pages grow", () => {
+		const frames: (() => void)[] = [];
+		const zoom = fakeZoom();
+		const sync = createZoomScrollSync((callback) => frames.push(callback));
+		const { viewport, box } = fakeViewport();
+		box.top = 100; // the focus (y 400) sits 3/8 down the page
+		sync.connect(zoom, viewport);
+
+		zoom.emit(2, 0);
+		sync.apply(null); // React detaches the old ref first
+		sync.apply(viewport);
+		// Page doubles in the next commit; header padding and gaps don't scale.
+		Object.assign(box, {
+			top: 250,
+			width: 1000,
+			height: 1600,
+			layoutWidth: 1000,
+		});
+		frames.shift()?.();
+
+		const page = viewport.querySelector("div")?.getBoundingClientRect();
+		expect((page?.top ?? 0) + (3 / 8) * (page?.height ?? 0)).toBeCloseTo(400);
+	});
+
+	test("the wheel preview's near-final size doesn't count as the resize", () => {
+		const frames: (() => void)[] = [];
+		const zoom = fakeZoom();
+		const sync = createZoomScrollSync((callback) => frames.push(callback));
+		const { viewport, box } = fakeViewport();
+		// EmbedPDF's CSS preview already shows the page at its final size.
+		Object.assign(box, { width: 1000, height: 1600 });
+		sync.connect(zoom, viewport);
+		zoom.emit(2, 0);
+		sync.apply(viewport);
+
+		frames.shift()?.();
+		expect(viewport.scrollTop).toBe(0);
+		// The real resize lands a frame later; only now is the anchor restored.
+		Object.assign(box, { top: 300, layoutWidth: 1000 });
+		frames.shift()?.();
+		expect(viewport.scrollTop).toBe(300);
+	});
 });
