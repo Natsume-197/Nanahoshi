@@ -19,13 +19,10 @@ import { SearchLayer } from "@embedpdf/plugin-search/react";
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { SpreadMode, useSpread } from "@embedpdf/plugin-spread/react";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
-import {
-	useZoom,
-	ZoomGestureWrapper,
-	ZoomMode,
-} from "@embedpdf/plugin-zoom/react";
+import { useZoom, ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import {
 	type CSSProperties,
+	type ReactNode,
 	useCallback,
 	useMemo,
 	useRef,
@@ -45,15 +42,17 @@ import type {
 import { usePdfNavigation } from "@/features/reader/interaction/use-pdf-navigation";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import type { BookReaderApi } from "@/features/reader/reader-contract";
+import { ReaderHeader } from "@/features/reader/ui/chrome/reader-header";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
-import { PdfNavigationToolbar } from "./pdf-navigation-toolbar";
+import { m } from "@/paraglide/messages";
 import { PdfPageImageStore } from "./pdf-page-images";
 import { PdfPageNavigator } from "./pdf-page-navigator";
 import { type PdfBitmapStore, PdfPageRaster } from "./pdf-page-raster";
 import { createPdfReaderConfig } from "./pdf-reader-config";
+import { fitZoomMode, PdfReaderMenu } from "./pdf-reader-menu";
 import {
 	type BitmapPageImage,
 	createEngineLane,
@@ -77,6 +76,8 @@ const PDF_SELECTION_COLOR = "rgba(59, 130, 246, 0.42)";
 
 interface BookReaderPdfProps {
 	source: PdfReaderSource;
+	bookTitle: string;
+	sessionControl?: ReactNode;
 	theme: ReaderTheme;
 	sections: Section[];
 	initialPosition: ReaderPosition | undefined;
@@ -196,6 +197,8 @@ function PdfDocumentViewport({
 	wasmUrl,
 	theme,
 	source,
+	bookTitle,
+	sessionControl,
 	initialPosition,
 	onPositionChange,
 	onSectionProgressChange,
@@ -317,10 +320,7 @@ function PdfDocumentViewport({
 					goToPageRef.current(position.exploredCharCount),
 				relayout: () =>
 					zoomRef.current?.requestZoom(
-						currentLayoutRef.current === "page" &&
-							scrollDirectionRef.current === "vertical"
-							? ZoomMode.FitWidth
-							: ZoomMode.FitPage,
+						fitZoomMode(currentLayoutRef.current, scrollDirectionRef.current),
 					),
 				openSearch: () => setSearchOpen(true),
 			};
@@ -359,11 +359,7 @@ function PdfDocumentViewport({
 			zoom?.zoomOut();
 		} else if (event.key === "0") {
 			event.preventDefault();
-			zoom?.requestZoom(
-				currentLayoutRef.current === "page" && scrollDirection === "vertical"
-					? ZoomMode.FitWidth
-					: ZoomMode.FitPage,
-			);
+			zoom?.requestZoom(fitZoomMode(currentLayoutRef.current, scrollDirection));
 		} else if (event.shiftKey && event.code === "KeyR") {
 			event.preventDefault();
 			rotate?.rotateForward();
@@ -421,11 +417,7 @@ function PdfDocumentViewport({
 					: ScrollStrategy.Vertical,
 				documentId,
 			);
-			zoom?.requestZoom(
-				nextLayout === "page" && nextScrollDirection === "vertical"
-					? ZoomMode.FitWidth
-					: ZoomMode.FitPage,
-			);
+			zoom?.requestZoom(fitZoomMode(nextLayout, nextScrollDirection));
 			// Layout events are the normal path. The timeout only protects against an
 			// engine implementation that does not emit one for an unchanged setting.
 			if (!restored) fallbackTimer = window.setTimeout(restorePage, 500);
@@ -519,35 +511,45 @@ function PdfDocumentViewport({
 				</GlobalPointerProvider>
 			</div>
 
-			<PdfNavigationToolbar
-				documentId={documentId}
+			<ReaderHeader
+				open
+				onOpen={() => {}}
 				theme={theme}
-				layout={layout}
-				scrollDirection={scrollDirection}
-				pageNumber={currentPage}
-				pageCount={pageCount}
-				documentTitle={source.name.replace(/\.pdf$/i, "")}
-				sidebarOpen={navigatorOpen}
-				onSidebarToggle={() => setNavigatorOpen((open) => !open)}
-				onPageChange={(page) => goToPage(page)}
-				onPreviousPage={() => turnPage(-1)}
-				onNextPage={() => turnPage(1)}
-				onOpenSearch={() => setSearchOpen(true)}
+				bookTitle={bookTitle}
+				sessionControl={sessionControl}
+				hasChapterData
+				tocTitle={m.reader_pdf_pages()}
+				searchAvailable
+				searchTitle={m.reader_pdf_search()}
+				hasImages={false}
+				onTocClick={() => setNavigatorOpen((open) => !open)}
+				onSearchClick={() => setSearchOpen(true)}
 				onCompleteBook={onCompleteBook}
-				onFullscreen={onFullscreen}
-				onOpenSettings={onOpenSettings}
-				onExit={onExit}
-				onLayoutChange={(nextLayout) =>
-					handlePresentationChange({ nextLayout })
-				}
-				onScrollDirectionChange={(nextScrollDirection) =>
-					handlePresentationChange({ nextScrollDirection })
-				}
-				isPanning={isPanning}
-				onInteractionToolChange={(tool) => {
-					if (tool === "pan") pan?.enablePan();
-					else pan?.disablePan();
-				}}
+				onFullscreenClick={onFullscreen}
+				onImageGalleryClick={() => {}}
+				onQuickSettingsClick={onOpenSettings}
+				readListenAvailable={false}
+				readListenActive={false}
+				onReadListenClick={() => {}}
+				onExitClick={onExit}
+				moreMenu={(close) => (
+					<PdfReaderMenu
+						documentId={documentId}
+						layout={layout}
+						scrollDirection={scrollDirection}
+						isPanning={isPanning}
+						close={close}
+						onLayoutChange={(nextLayout) =>
+							handlePresentationChange({ nextLayout })
+						}
+						onScrollDirectionChange={(nextScrollDirection) =>
+							handlePresentationChange({ nextScrollDirection })
+						}
+						onPanningChange={(panning) =>
+							panning ? pan?.enablePan() : pan?.disablePan()
+						}
+					/>
+				)}
 			/>
 			<PdfPageNavigator
 				documentId={documentId}

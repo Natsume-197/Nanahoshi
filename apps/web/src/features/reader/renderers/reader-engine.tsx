@@ -1,4 +1,4 @@
-import { lazy, type RefObject, Suspense } from "react";
+import { lazy, type ReactNode, type RefObject, Suspense } from "react";
 import type { LazyHtmlBook } from "@/features/reader/document/lazy-html-book";
 import type { PdfReaderSource } from "@/features/reader/document/pdf-source";
 import type {
@@ -48,6 +48,8 @@ interface ReaderEngineProps {
 	scrollContainerRef: RefObject<HTMLElement | null>;
 	controllerRef: (controller: BookReaderApi | null) => void;
 	pdfSource?: PdfReaderSource;
+	/** PDFs draw the shared header themselves, inside the viewer's context. */
+	pdfHeader?: { bookTitle: string; sessionControl: ReactNode };
 	lazyBook?: LazyHtmlBook;
 	onPdfDocumentReady?: (pageCount: number) => void;
 }
@@ -79,6 +81,7 @@ export function ReaderEngine({
 	scrollContainerRef,
 	controllerRef,
 	pdfSource,
+	pdfHeader,
 	lazyBook,
 	onPdfDocumentReady,
 }: ReaderEngineProps) {
@@ -96,6 +99,8 @@ export function ReaderEngine({
 			<Suspense fallback={<ReaderLoadingOverlay theme={theme} />}>
 				<BookReaderPdf
 					source={pdfSource}
+					bookTitle={pdfHeader?.bookTitle ?? pdfSource.name}
+					sessionControl={pdfHeader?.sessionControl}
 					theme={theme}
 					sections={book.sections}
 					initialPosition={initialPosition}

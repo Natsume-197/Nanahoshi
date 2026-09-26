@@ -3464,5 +3464,22 @@
 	"reader_more_actions": "その他の操作",
 	"reader_complete_book": "読了にする",
 	"reader_fullscreen": "全画面表示",
-	"reader_image_gallery": "画像ギャラリー"
+	"reader_image_gallery": "画像ギャラリー",
+	"reader_pdf_pages": "ページ",
+	"reader_pdf_search": "このPDFを検索",
+	"reader_pdf_zoom_in": "拡大",
+	"reader_pdf_zoom_out": "縮小",
+	"reader_pdf_zoom_fit": "画面に合わせる",
+	"reader_pdf_zoom_level": "ズーム {percent}%、画面に合わせる",
+	"reader_pdf_layout_single": "単一ページ",
+	"reader_pdf_layout_spread_odd": "見開き",
+	"reader_pdf_layout_spread_even": "見開き（表紙を単独）",
+	"reader_pdf_scroll_vertical": "縦スクロール",
+	"reader_pdf_scroll_horizontal": "横スクロール",
+	"reader_pdf_hand_tool": "手のひらツール",
+	"reader_pdf_rotate": "ページを回転",
+	"reader_pdf_print": "印刷",
+	"reader_pdf_download": "PDFをダウンロード",
+	"reader_pdf_go_to_page": "ページへ移動",
+	"reader_pdf_page": "{page}ページ"
 }

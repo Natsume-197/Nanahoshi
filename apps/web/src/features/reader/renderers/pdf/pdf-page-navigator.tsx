@@ -3,6 +3,7 @@ import { CaretLeft, File, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
 import { readerMix } from "@/features/reader/ui/controls/reader-controls";
+import { m } from "@/paraglide/messages";
 
 interface PdfPageNavigatorProps {
 	documentId: string;
@@ -53,10 +54,36 @@ export function PdfPageNavigator({
 					style={{ borderColor: mix(12) }}
 				>
 					<File aria-hidden="true" className="size-4 opacity-65" />
-					<div className="min-w-0 flex-1">
-						<h2 className="font-medium text-sm">Pages</h2>
-						<p className="text-xs opacity-60">{pageCount} pages</p>
-					</div>
+					<h2 className="min-w-0 flex-1 font-medium text-sm">
+						{m.reader_pdf_pages()}
+					</h2>
+					<form
+						className="flex items-center gap-1 text-xs tabular-nums"
+						onSubmit={(event) => {
+							event.preventDefault();
+							const page = Number.parseInt(
+								String(new FormData(event.currentTarget).get("page")),
+								10,
+							);
+							if (Number.isFinite(page))
+								onPageChange(Math.min(Math.max(page, 1), pageCount));
+						}}
+					>
+						<input
+							key={pageNumber}
+							name="page"
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={pageCount}
+							defaultValue={pageNumber}
+							aria-label={m.reader_pdf_go_to_page()}
+							title={m.reader_pdf_go_to_page()}
+							className="h-8 w-14 rounded-md border bg-transparent px-1 text-center text-sm outline-none focus-visible:ring-2"
+							style={{ borderColor: mix(16) }}
+						/>
+						<span className="opacity-60">/ {pageCount}</span>
+					</form>
 					<Button
 						variant="ghost"
 						size="icon"
@@ -100,7 +127,7 @@ export function PdfPageNavigator({
 									/>
 								</div>
 								<span className="mt-1 flex items-center gap-1 text-xs tabular-nums">
-									Page {page}
+									{m.reader_pdf_page({ page })}
 									{selected && (
 										<CaretLeft
 											aria-hidden="true"

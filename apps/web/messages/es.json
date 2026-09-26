@@ -3522,5 +3522,22 @@
 	"reader_more_actions": "Más acciones",
 	"reader_complete_book": "Marcar como leído",
 	"reader_fullscreen": "Pantalla completa",
-	"reader_image_gallery": "Galería de imágenes"
+	"reader_image_gallery": "Galería de imágenes",
+	"reader_pdf_pages": "Páginas",
+	"reader_pdf_search": "Buscar en este PDF",
+	"reader_pdf_zoom_in": "Acercar",
+	"reader_pdf_zoom_out": "Alejar",
+	"reader_pdf_zoom_fit": "Ajustar a la pantalla",
+	"reader_pdf_zoom_level": "Zoom {percent}%, ajustar a la pantalla",
+	"reader_pdf_layout_single": "Una página",
+	"reader_pdf_layout_spread_odd": "Dos páginas",
+	"reader_pdf_layout_spread_even": "Dos páginas, portada sola",
+	"reader_pdf_scroll_vertical": "Desplazamiento vertical",
+	"reader_pdf_scroll_horizontal": "Desplazamiento horizontal",
+	"reader_pdf_hand_tool": "Herramienta mano",
+	"reader_pdf_rotate": "Girar páginas",
+	"reader_pdf_print": "Imprimir",
+	"reader_pdf_download": "Descargar PDF",
+	"reader_pdf_go_to_page": "Ir a la página",
+	"reader_pdf_page": "Página {page}"
 }

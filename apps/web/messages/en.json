@@ -3522,5 +3522,22 @@
 	"reader_more_actions": "More actions",
 	"reader_complete_book": "Mark as finished",
 	"reader_fullscreen": "Full screen",
-	"reader_image_gallery": "Image gallery"
+	"reader_image_gallery": "Image gallery",
+	"reader_pdf_pages": "Pages",
+	"reader_pdf_search": "Search this PDF",
+	"reader_pdf_zoom_in": "Zoom in",
+	"reader_pdf_zoom_out": "Zoom out",
+	"reader_pdf_zoom_fit": "Fit to screen",
+	"reader_pdf_zoom_level": "Zoom {percent}%, fit to screen",
+	"reader_pdf_layout_single": "Single page",
+	"reader_pdf_layout_spread_odd": "Two pages",
+	"reader_pdf_layout_spread_even": "Two pages, cover alone",
+	"reader_pdf_scroll_vertical": "Scroll vertically",
+	"reader_pdf_scroll_horizontal": "Scroll horizontally",
+	"reader_pdf_hand_tool": "Hand tool",
+	"reader_pdf_rotate": "Rotate pages",
+	"reader_pdf_print": "Print",
+	"reader_pdf_download": "Download PDF",
+	"reader_pdf_go_to_page": "Go to page",
+	"reader_pdf_page": "Page {page}"
 }

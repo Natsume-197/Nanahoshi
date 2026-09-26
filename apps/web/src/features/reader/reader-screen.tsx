@@ -1285,6 +1285,15 @@ export function ReaderScreen({
 						}
 					}}
 					pdfSource={loadState.pdfSource}
+					pdfHeader={{
+						bookTitle,
+						sessionControl: (
+							<ReadingSessionControl
+								tracker={readingTracker}
+								surface={readerSurface(theme)}
+							/>
+						),
+					}}
 					lazyBook={loadState.lazyBook}
 					onPdfDocumentReady={handlePdfDocumentReady}
 				/>
@@ -1327,14 +1336,6 @@ export function ReaderScreen({
 						/>
 					</>
 				)}
-			{isPdf && (
-				<div className="fixed end-4 bottom-20 z-40 rounded-xl bg-background text-foreground shadow-sm">
-					<ReadingSessionControl
-						tracker={readingTracker}
-						surface={readerSurface(theme)}
-					/>
-				</div>
-			)}
 			{!isPdf && showHeader && (
 				<button
 					type="button"
@@ -1383,26 +1384,24 @@ export function ReaderScreen({
 				/>
 			)}
 
-			{!isPdf && (
-				<ReaderFooter
-					passThrough={isVisual}
-					theme={theme}
-					exploredCharCount={exploredCharCount}
-					bookCharCount={data.characters}
-					showCharacterCounter={settings.showCharacterCounter}
-					showPercentage={settings.showPercentage}
-					reservePlayerSpace={reservePlayerSpace}
-					visualProgress={
-						isVisual
-							? {
-									currentPage: currentVisualPage,
-									pageCount: data.sections.length,
-									style: visualSettings.progressStyle,
-								}
-							: undefined
-					}
-				/>
-			)}
+			<ReaderFooter
+				passThrough={isVisual || isPdf}
+				theme={theme}
+				exploredCharCount={exploredCharCount}
+				bookCharCount={data.characters}
+				showCharacterCounter={settings.showCharacterCounter}
+				showPercentage={settings.showPercentage}
+				reservePlayerSpace={reservePlayerSpace}
+				visualProgress={
+					isVisual || isPdf
+						? {
+								currentPage: currentVisualPage,
+								pageCount: data.sections.length,
+								style: visualSettings.progressStyle,
+							}
+						: undefined
+				}
+			/>
 
 			{tocOpen && (
 				<ReaderToc

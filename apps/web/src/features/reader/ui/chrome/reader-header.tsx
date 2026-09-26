@@ -1,6 +1,7 @@
 import {
 	ArrowLeft,
 	ArrowsOut,
+	Check,
 	DotsThreeVertical,
 	Flag,
 	Images,
@@ -17,6 +18,7 @@ import {
 } from "react";
 import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import type { ReaderTheme } from "@/features/reader/presentation/settings";
+import { useWindowEvent } from "@/hooks/use-window-event";
 import { m } from "@/paraglide/messages";
 
 interface ReaderHeaderProps {
@@ -26,6 +28,11 @@ interface ReaderHeaderProps {
 	theme: ReaderTheme;
 	bookTitle: string;
 	hasChapterData: boolean;
+	/** PDFs open a page navigator where books open their chapters. */
+	tocTitle?: string;
+	searchTitle?: string;
+	/** Renderer-specific rows above the shared actions; `close` dismisses the menu. */
+	moreMenu?: (close: () => void) => ReactNode;
 	hasImages: boolean;
 	searchAvailable: boolean;
 	onTocClick: () => void;
@@ -78,6 +85,37 @@ function IconButton({
 	);
 }
 
+/** A row of the header's ⋮ menu; renderers reuse it for their own actions. */
+export function ReaderMenuItem({
+	icon,
+	selected,
+	disabled,
+	onClick,
+	children,
+}: {
+	icon: ReactNode;
+	selected?: boolean;
+	disabled?: boolean;
+	onClick: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<button
+			type="button"
+			aria-pressed={selected}
+			disabled={disabled}
+			className={`flex h-11 cursor-pointer items-center gap-3 whitespace-nowrap rounded-lg px-3 text-start text-sm transition-colors duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100 disabled:pointer-events-none disabled:opacity-40 ${selected ? "bg-[var(--rh-hover)] opacity-100" : "opacity-80"}`}
+			onClick={onClick}
+		>
+			<span className="flex size-5 shrink-0 items-center justify-center">
+				{icon}
+			</span>
+			<span className="min-w-0 flex-1">{children}</span>
+			{selected && <Check aria-hidden="true" className="size-4" />}
+		</button>
+	);
+}
+
 export function ReaderHeader({
 	sessionControl,
 	open,
@@ -85,6 +123,9 @@ export function ReaderHeader({
 	theme,
 	bookTitle,
 	hasChapterData,
+	tocTitle = "Open Table of Contents",
+	searchTitle = "Search",
+	moreMenu,
 	hasImages,
 	searchAvailable,
 	onTocClick,
@@ -111,6 +152,10 @@ export function ReaderHeader({
 	// Neutrals mixed in oklab (oklch turns them brown).
 	const mix = (pct: number) =>
 		`color-mix(in oklab, ${theme.fontColor} ${pct}%, ${theme.backgroundColor})`;
+
+	useWindowEvent("keydown", (event) => {
+		if (moreOpen && event.key === "Escape") setMoreOpen(false);
+	});
 
 	const closeMoreAnd = (action: () => void) => () => {
 		setMoreOpen(false);
@@ -145,6 +190,16 @@ export function ReaderHeader({
 
 	return (
 		<>
+			{/* Outside the translated bar: a transform would shrink `fixed inset-0` to the bar. */}
+			{moreOpen && (
+				<button
+					type="button"
+					aria-label="Close menu"
+					tabIndex={-1}
+					className="fixed inset-0 z-10 cursor-default"
+					onClick={() => setMoreOpen(false)}
+				/>
+			)}
 			{!open && (
 				<button
 					type="button"
@@ -178,7 +233,7 @@ export function ReaderHeader({
 							<ArrowLeft aria-hidden="true" className="size-5" />
 						</IconButton>
 						{hasChapterData && (
-							<IconButton title="Open Table of Contents" onClick={onTocClick}>
+							<IconButton title={tocTitle} onClick={onTocClick}>
 								<List aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
@@ -187,7 +242,7 @@ export function ReaderHeader({
 							className="flex shrink-0 items-center [&_button]:size-[40px]"
 						/>
 						{searchAvailable && (
-							<IconButton title="Search this PDF" onClick={onSearchClick}>
+							<IconButton title={searchTitle} onClick={onSearchClick}>
 								<MagnifyingGlass aria-hidden="true" className="size-5" />
 							</IconButton>
 						)}
@@ -239,23 +294,30 @@ export function ReaderHeader({
 							{moreOpen && (
 								<div
 									id={moreMenuId}
-									className="fade-in slide-in-from-top-1 absolute end-0 z-20 mt-1 flex w-60 animate-in flex-col rounded-xl border p-1 shadow-lg duration-150 motion-reduce:animate-none"
+									className="fade-in slide-in-from-top-1 absolute end-0 z-20 mt-1 flex max-h-[calc(100dvh-4rem-var(--safe-area-top))] w-60 animate-in flex-col overflow-y-auto overscroll-contain rounded-xl border p-1 shadow-lg duration-150 motion-reduce:animate-none"
 									style={{
 										color: theme.fontColor,
 										backgroundColor: theme.backgroundColor,
 										borderColor: mix(15),
 									}}
 								>
+									{moreMenu && (
+										<>
+											{moreMenu(() => setMoreOpen(false))}
+											<hr
+												className="my-1 border-t"
+												style={{ borderColor: mix(12) }}
+											/>
+										</>
+									)}
 									{secondaryActions.map((action) => (
-										<button
+										<ReaderMenuItem
 											key={action.title}
-											type="button"
-											className="flex h-11 cursor-pointer items-center gap-3 whitespace-nowrap rounded-lg px-3 text-start text-sm opacity-80 transition-colors duration-150 hover:bg-[var(--rh-hover)] hover:opacity-100"
+											icon={action.icon}
 											onClick={closeMoreAnd(action.onClick)}
 										>
-											{action.icon}
 											{action.title}
-										</button>
+										</ReaderMenuItem>
 									))}
 								</div>
 							)}
