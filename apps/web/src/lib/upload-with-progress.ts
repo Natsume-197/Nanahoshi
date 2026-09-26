@@ -14,7 +14,7 @@ export interface UploadResponse {
 }
 
 /**
- * POSTs a FormData with byte-level progress and cancellation — `fetch` reports
+ * POSTs a body with byte-level progress and cancellation — `fetch` reports
  * neither, and a multi-hundred-megabyte upload with no feedback reads as frozen.
  */
 export function uploadWithProgress({
@@ -24,7 +24,7 @@ export function uploadWithProgress({
 	onTransferComplete,
 }: {
 	url: string;
-	body: FormData;
+	body: Blob;
 	/** Fraction of the request body acknowledged, 0..1. */
 	onProgress?: (fraction: number) => void;
 	/** Bytes are all up; the server is still working on them. */
@@ -34,6 +34,7 @@ export function uploadWithProgress({
 	const promise = new Promise<UploadResponse>((resolve, reject) => {
 		xhr.open("POST", url, true);
 		xhr.withCredentials = true;
+		xhr.setRequestHeader("Content-Type", "application/octet-stream");
 		xhr.responseType = "text";
 
 		xhr.upload.addEventListener("progress", (event) => {

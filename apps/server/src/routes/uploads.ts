@@ -5,7 +5,6 @@ import { hasGlobal } from "@nanahoshi/api/auth/access.service";
 import { logger } from "@nanahoshi/api/lib/logger";
 import {
 	isSupportedExtension,
-	isUploadBatchTooLarge,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import {
@@ -14,9 +13,10 @@ import {
 } from "@nanahoshi/api/modules/uploads/upload.service";
 import { bookRepository } from "@nanahoshi/api/routers/books/book.repository";
 import { libraryRepository } from "@nanahoshi/api/routers/libraries/library.repository";
-import { hashContentBytes } from "@nanahoshi/api/utils/misc";
+import { calculateContentHash } from "@nanahoshi/api/utils/misc";
 import { auth } from "@nanahoshi/auth";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
+import { receiveUploadToFile, UploadTooLargeError } from "./upload-receive";
 
 const log = logger.child({ component: "upload-routes" });
 
@@ -26,6 +26,21 @@ function safeBasename(rawName: string): string | null {
 	if (!base || base === "." || base === "..") return null;
 	if (base.includes("/") || base.includes("\\")) return null;
 	return base;
+}
+
+function skipped(
+	c: Context,
+	filename: string,
+	reason: string,
+	status: 400 | 413 = 400,
+) {
+	return c.json(
+		{
+			message: `No files were uploaded: ${reason}`,
+			skipped: [{ filename, reason }],
+		},
+		status,
+	);
 }
 
 export function mountUploads(app: Hono) {
@@ -60,15 +75,9 @@ export function mountUploads(app: Hono) {
 			);
 		}
 
-		let formData: FormData;
-		try {
-			formData = await c.req.formData();
-		} catch (err) {
-			log.warn({ err }, "Rejected malformed multipart upload");
-			return c.json({ message: "Invalid upload request" }, 400);
-		}
-
-		const libraryPathId = Number(formData.get("libraryPathId"));
+		// One file per request, sent as the raw body: it streams straight to disk
+		// so a multi-gigabyte book never has to fit in memory.
+		const libraryPathId = Number(c.req.query("libraryPathId"));
 		const targetPath = (library.paths ?? []).find(
 			(p) => p.id === libraryPathId,
 		);
@@ -77,96 +86,90 @@ export function mountUploads(app: Hono) {
 		}
 		const root = path.resolve(targetPath.path);
 
-		const files = formData
-			.getAll("file")
-			.filter((f): f is File => typeof f !== "string");
-		if (files.length === 0) {
+		const rawName = c.req.query("filename") ?? "";
+		const safeName = safeBasename(rawName);
+		if (!safeName) return skipped(c, rawName, "invalid_name");
+		if (!isSupportedExtension(safeName, "ebook")) {
+			return skipped(c, safeName, "unsupported_type");
+		}
+		const declaredSize = Number(c.req.header("content-length"));
+		if (Number.isFinite(declaredSize) && declaredSize > MAX_UPLOAD_BYTES) {
+			return skipped(c, safeName, "too_large", 413);
+		}
+		const body = c.req.raw.body;
+		if (!body) {
 			return c.json({ message: "No files provided" }, 400);
 		}
-		if (isUploadBatchTooLarge(files)) {
-			return c.json({ message: "Upload exceeds the 500 MB total limit" }, 413);
+
+		const dest = path.join(root, safeName);
+		// Defense in depth: the destination must stay under the root even though
+		// safeBasename already strips path separators.
+		if (!dest.startsWith(root + path.sep)) {
+			return skipped(c, safeName, "invalid_path");
+		}
+		// Never overwrite an existing file.
+		if (await Bun.file(dest).exists()) {
+			return skipped(c, safeName, "already_exists");
 		}
 
-		const written: UploadedFile[] = [];
-		const skipped: { filename: string; reason: string }[] = [];
-		// Content hashes seen in this batch, so two identical files uploaded at once
-		// don't both get written (the second would be a no-op duplicate).
-		const seenHashes = new Set<string>();
+		// Dotfile with an unsupported extension, so scans ignore it mid-transfer;
+		// same directory, so the final rename is atomic.
+		const tmp = path.join(root, `.${crypto.randomUUID()}.nanahoshi-upload`);
+		let size: number;
+		try {
+			size = await receiveUploadToFile(body, tmp, MAX_UPLOAD_BYTES);
+		} catch (err) {
+			if (err instanceof UploadTooLargeError) {
+				return skipped(c, safeName, "too_large", 413);
+			}
+			const code = (err as NodeJS.ErrnoException)?.code;
+			log.warn({ err, dest, code }, "Upload stream did not complete");
+			return skipped(
+				c,
+				safeName,
+				code ? `write_failed (${code})` : "write_failed",
+			);
+		}
 
-		for (const file of files) {
-			const safeName = safeBasename(file.name);
-			if (!safeName) {
-				skipped.push({ filename: file.name, reason: "invalid_name" });
-				continue;
+		let written: UploadedFile;
+		try {
+			// The worker would silently drop a book already in the library (any
+			// path, any filename) via ON CONFLICT, leaving an orphan file and a
+			// misleading "success".
+			const fileHash = await calculateContentHash(tmp, size);
+			if (!fileHash) throw new Error("Could not hash uploaded file");
+			if (await bookRepository.existsByLibraryAndHash(libraryId, fileHash)) {
+				await fs.promises.rm(tmp, { force: true });
+				return skipped(c, safeName, "duplicate");
 			}
-			if (!isSupportedExtension(safeName, "ebook")) {
-				skipped.push({ filename: safeName, reason: "unsupported_type" });
-				continue;
-			}
-			if (file.size > MAX_UPLOAD_BYTES) {
-				skipped.push({ filename: safeName, reason: "too_large" });
-				continue;
-			}
-
-			// Hash from memory to dedupe by content before touching disk: the same
-			// book already in the library (any path, any filename) would otherwise be
-			// written and then silently dropped by the worker's ON CONFLICT, leaving
-			// an orphan file and a misleading "success".
-			const bytes = new Uint8Array(await file.arrayBuffer());
-			const fileHash = await hashContentBytes(bytes);
-			if (
-				seenHashes.has(fileHash) ||
-				(await bookRepository.existsByLibraryAndHash(libraryId, fileHash))
-			) {
-				skipped.push({ filename: safeName, reason: "duplicate" });
-				continue;
-			}
-
-			const dest = path.join(root, safeName);
-			// Defense in depth: the destination must stay under the root even though
-			// safeBasename already strips path separators.
-			if (!dest.startsWith(root + path.sep)) {
-				skipped.push({ filename: safeName, reason: "invalid_path" });
-				continue;
-			}
-			// Never overwrite an existing file.
 			if (await Bun.file(dest).exists()) {
-				skipped.push({ filename: safeName, reason: "already_exists" });
-				continue;
+				await fs.promises.rm(tmp, { force: true });
+				return skipped(c, safeName, "already_exists");
 			}
-
-			try {
-				await Bun.write(dest, bytes);
-				seenHashes.add(fileHash);
-				written.push({
-					absolutePath: dest,
-					filename: safeName,
-					relativePath: safeName,
-					size: file.size,
-					mtimeMs: Date.now(),
-					fileHash,
-				});
-			} catch (err) {
-				const code = (err as NodeJS.ErrnoException)?.code;
-				log.error({ err, dest, code }, "Failed to write uploaded file");
-				skipped.push({
-					filename: safeName,
-					reason: code ? `write_failed (${code})` : "write_failed",
-				});
-			}
-		}
-
-		if (written.length === 0) {
-			const message = skipped.every((s) => s.reason === "duplicate")
-				? "These books are already in the library"
-				: `No files were uploaded: ${skipped[0]?.reason ?? "unknown error"}`;
-			return c.json({ message, skipped }, 400);
+			await fs.promises.rename(tmp, dest);
+			written = {
+				absolutePath: dest,
+				filename: safeName,
+				relativePath: safeName,
+				size,
+				mtimeMs: Date.now(),
+				fileHash,
+			};
+		} catch (err) {
+			await fs.promises.rm(tmp, { force: true });
+			const code = (err as NodeJS.ErrnoException)?.code;
+			log.error({ err, dest, code }, "Failed to store uploaded file");
+			return skipped(
+				c,
+				safeName,
+				code ? `write_failed (${code})` : "write_failed",
+			);
 		}
 
 		let taskId: string;
 		try {
 			({ taskId } = await enqueueUploadedFiles({
-				files: written,
+				files: [written],
 				libraryId,
 				libraryPathId,
 				serverId,
@@ -174,14 +177,10 @@ export function mountUploads(app: Hono) {
 				userId: session.user.id,
 			}));
 		} catch (err) {
-			await Promise.all(
-				written.map((file) =>
-					fs.promises.unlink(file.absolutePath).catch(() => undefined),
-				),
-			);
+			await fs.promises.unlink(dest).catch(() => undefined);
 			log.error(
 				{ err, libraryId },
-				"Failed to enqueue uploaded files; rolled back writes",
+				"Failed to enqueue uploaded file; rolled back write",
 			);
 			return c.json(
 				{ message: "Upload processing is temporarily unavailable" },
@@ -189,10 +188,6 @@ export function mountUploads(app: Hono) {
 			);
 		}
 
-		return c.json({
-			uploaded: written.map((f) => f.filename),
-			skipped,
-			taskId,
-		});
+		return c.json({ uploaded: [safeName], skipped: [], taskId });
 	});
 }

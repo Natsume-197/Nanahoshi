@@ -7,8 +7,7 @@ import {
 	ebookSourceFormatForFilename,
 	FB2_MEDIA_TYPE,
 	isSupportedExtension,
-	isUploadBatchTooLarge,
-	MAX_UPLOAD_BATCH_BYTES,
+	MAX_UPLOAD_BYTES,
 	MAX_UPLOAD_REQUEST_BYTES,
 	MOBI_MEDIA_TYPE,
 } from "../supportedExtensions";
@@ -44,14 +43,8 @@ describe("ebook scan formats", () => {
 		expect(isSupportedExtension("book.ZIP", "ebook")).toBe(false);
 	});
 
-	test("keeps file, batch and multipart request limits coherent", () => {
-		expect(isUploadBatchTooLarge([{ size: MAX_UPLOAD_BATCH_BYTES }])).toBe(
-			false,
-		);
-		expect(
-			isUploadBatchTooLarge([{ size: MAX_UPLOAD_BATCH_BYTES }, { size: 1 }]),
-		).toBe(true);
-		expect(MAX_UPLOAD_REQUEST_BYTES).toBeGreaterThan(MAX_UPLOAD_BATCH_BYTES);
+	test("keeps Bun's transport cap above the per-file upload limit", () => {
+		expect(MAX_UPLOAD_REQUEST_BYTES).toBeGreaterThan(MAX_UPLOAD_BYTES);
 	});
 
 	test("assigns media types and source formats", () => {

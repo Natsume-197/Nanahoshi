@@ -1,6 +1,5 @@
 import {
 	isSupportedExtension,
-	MAX_UPLOAD_BATCH_BYTES,
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 
@@ -29,12 +28,11 @@ export interface UploadItem {
 
 export interface SelectionLimits {
 	maxFileBytes?: number;
-	maxBatchBytes?: number;
 }
 
 /** Server skip reasons that a retry can plausibly fix. */
 function isRetryableReason(reason: string): boolean {
-	return reason.startsWith("write_failed");
+	return reason.startsWith("write_failed") || reason === "request_failed";
 }
 
 export function uploadItemKey(file: { name: string; size: number }): string {
@@ -68,11 +66,8 @@ export function addFilesToSelection(
 	limits: SelectionLimits = {},
 ): UploadItem[] {
 	const maxFileBytes = limits.maxFileBytes ?? MAX_UPLOAD_BYTES;
-	const maxBatchBytes = limits.maxBatchBytes ?? MAX_UPLOAD_BATCH_BYTES;
 	const seen = new Set(items.map((item) => item.id));
 	const next = [...items];
-	// Only bytes still queued for a request count against the batch limit.
-	let queuedBytes = totalBytes(sendableItems(items));
 
 	for (const file of incoming) {
 		const id = uploadItemKey(file);
@@ -87,11 +82,6 @@ export function addFilesToSelection(
 			next.push({ id, file, status: "rejected", reason: "too_large" });
 			continue;
 		}
-		if (queuedBytes + file.size > maxBatchBytes) {
-			next.push({ id, file, status: "rejected", reason: "batch_too_large" });
-			continue;
-		}
-		queuedBytes += file.size;
 		next.push({ id, file, status: "pending" });
 	}
 	return next;
@@ -106,8 +96,7 @@ export function removeItem(
 
 /**
  * Per-file transfer state derived from the bytes acknowledged so far. Files go
- * up in one multipart request, in list order, so a cumulative offset is enough —
- * the boundary/header overhead between them is bytes against megabytes.
+ * up one after another in list order, so a cumulative offset is enough.
  */
 export function transferStatuses(
 	sent: readonly UploadItem[],

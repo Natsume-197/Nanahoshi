@@ -1358,12 +1358,11 @@
 				}
 			}
 		],
-		"upload_batch_too_large": "La selección supera los 500 MB. Elige menos archivos.",
 		"upload_action": "Subir",
 		"upload_action_count": "Subir ({count})",
 		"upload_browse": "Haz clic para buscar",
 		"upload_drop": "o arrastra los archivos aquí",
-		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2 o CBZ/CBR/CB7: hasta 500 MB por archivo y por subida",
+		"upload_formats": "EPUB/KEPUB, MOBI/AZW/AZW3, FB2 o CBZ/CBR/CB7: hasta 2 GB por archivo",
 		"upload_remove_file": "Quitar {name}",
 		"upload_no_folder_title": "Necesitas una carpeta habilitada",
 		"upload_no_folder_desc": "Añade o activa una carpeta desde General antes de subir libros.",
@@ -1411,7 +1410,6 @@
 		"upload_summary_result": "{uploaded} subidos · {problems} sin añadir",
 		"upload_reason_unsupported_type": "Formato no admitido",
 		"upload_reason_too_large": "Supera {limit}",
-		"upload_reason_batch_too_large": "Supera el límite de 500 MB por subida: envíalo aparte",
 		"upload_reason_duplicate": "Ya está en esta biblioteca",
 		"upload_reason_already_exists": "Ya hay un archivo con este nombre en la carpeta",
 		"upload_reason_invalid_name": "Nombre de archivo no válido",

@@ -41,7 +41,6 @@ import {
 } from "./library-ui-state";
 import {
 	addFilesToSelection,
-	applyUploadFailure,
 	applyUploadResult,
 	overallPercent,
 	removeItem,
@@ -51,8 +50,8 @@ import {
 	totalBytes,
 	transferStatuses,
 	type UploadItem,
-	type UploadResult,
 } from "./upload-flow-state";
+import { outcomeFromResponse, uploadOneByOne } from "./upload-queue";
 
 const ACCEPT_ATTR = EBOOK_EXTENSIONS.map((ext) => `.${ext}`).join(",");
 
@@ -71,8 +70,6 @@ function reasonLabel(reason: string | undefined): string | null {
 			return m["library.upload_reason_too_large"]({
 				limit: formatBytes(MAX_UPLOAD_BYTES),
 			});
-		case "batch_too_large":
-			return m["library.upload_reason_batch_too_large"]();
 		case "duplicate":
 			return m["library.upload_reason_duplicate"]();
 		case "already_exists":
@@ -176,8 +173,7 @@ export function UploadBooksModal({
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const abortRef = useRef<(() => void) | null>(null);
-	/** Ids of the batch in flight, so a rejection can still resolve its rows. */
-	const sentIdsRef = useRef<string[]>([]);
+	const cancelledRef = useRef(false);
 	// dragenter/dragleave also fire for every child crossed; only a depth counter
 	// keeps the drop state from flickering under the cursor.
 	const dragDepth = useRef(0);
@@ -185,7 +181,7 @@ export function UploadBooksModal({
 	const [transfer, setTransfer] = useState<{
 		ids: string[];
 		bytes: number;
-		fraction: number;
+		loaded: number;
 		phase: "uploading" | "processing";
 	} | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -219,77 +215,79 @@ export function UploadBooksModal({
 			if (batch.length === 0)
 				throw new Error(m["library.upload_choose_file"]());
 
-			const formData = new FormData();
-			formData.set("libraryPathId", String(targetPathId));
-			for (const item of batch) formData.append("file", item.file);
-
+			cancelledRef.current = false;
 			const ids = batch.map((item) => item.id);
-			sentIdsRef.current = ids;
 			const bytes = totalBytes(batch);
-			setTransfer({ ids, bytes, fraction: 0, phase: "uploading" });
+			setTransfer({ ids, bytes, loaded: 0, phase: "uploading" });
 
-			const { promise, abort } = uploadWithProgress({
-				url: `${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload`,
-				body: formData,
-				onProgress: (fraction) =>
-					setTransfer((prev) => (prev ? { ...prev, fraction } : prev)),
-				onTransferComplete: () =>
-					setTransfer((prev) =>
-						prev ? { ...prev, fraction: 1, phase: "processing" } : prev,
-					),
-			});
-			abortRef.current = abort;
-
-			const response = await promise;
-			const body = response.body as {
-				message?: string;
-				uploaded?: string[];
-				skipped?: { filename: string; reason: string }[];
-			} | null;
-			if (!response.ok) {
-				const error = new Error(
-					response.status === 413
-						? m["library.upload_batch_too_large"]()
-						: (body?.message ?? m["library.upload_failed"]()),
-				);
-				// A 400 still carries per-file reasons (all duplicates, for example).
-				throw Object.assign(error, {
-					partial: body?.skipped
-						? ({ uploaded: [], skipped: body.skipped } satisfies UploadResult)
-						: undefined,
-				});
-			}
-			return {
-				uploaded: body?.uploaded ?? [],
-				skipped: body?.skipped ?? [],
-			} satisfies UploadResult;
+			return uploadOneByOne(
+				batch,
+				async (item, bytesBefore) => {
+					const query = new URLSearchParams({
+						libraryPathId: String(targetPathId),
+						filename: item.file.name,
+					});
+					const { promise, abort } = uploadWithProgress({
+						url: `${env.VITE_SERVER_URL}/api/libraries/${library.uuid}/upload?${query}`,
+						body: item.file,
+						onProgress: (fraction) =>
+							setTransfer((prev) =>
+								prev
+									? {
+											...prev,
+											loaded: bytesBefore + fraction * item.file.size,
+											phase: "uploading",
+										}
+									: prev,
+							),
+						onTransferComplete: () =>
+							setTransfer((prev) =>
+								prev ? { ...prev, phase: "processing" } : prev,
+							),
+					});
+					abortRef.current = abort;
+					try {
+						return outcomeFromResponse(item.file.name, await promise);
+					} catch (error) {
+						if (error instanceof UploadRequestError && error.kind === "aborted")
+							return { kind: "aborted" };
+						return { kind: "failed" };
+					}
+				},
+				() => cancelledRef.current,
+			);
 		},
 		onMutate: () => setErrorMessage(null),
 		onSettled: () => {
 			abortRef.current = null;
 			setTransfer(null);
 		},
-		onSuccess: (result) => {
+		onSuccess: ({ result, settledIds, aborted, message }) => {
 			if (result.uploaded.length > 0) {
 				posthog?.capture("books_uploaded", {
 					uploaded_count: result.uploaded.length,
 					skipped_count: result.skipped.length,
 				});
+				queryClient.invalidateQueries({
+					queryKey: orpc.books.listByLibrary.key(),
+				});
 			}
-			const next = applyUploadResult(items, sentIdsRef.current, result);
+			const next = applyUploadResult(items, settledIds, result);
 			setItems(next);
-			setErrorMessage(null);
-			queryClient.invalidateQueries({
-				queryKey: orpc.books.listByLibrary.key(),
-			});
 			const outcome = summarize(next);
+			// A cancelled upload leaves its remaining files queued, ready to send.
+			if (aborted) {
+				setErrorMessage(m["library.upload_cancelled"]());
+				return;
+			}
+			if (outcome.failed > 0) {
+				setErrorMessage(message ?? m["library.upload_network_failed"]());
+				return;
+			}
+			setErrorMessage(null);
 			// Nothing left to read: report it and get out of the way. Any file that
 			// did not make it stays on screen with its reason instead.
-			if (
-				outcome.skipped === 0 &&
-				outcome.failed === 0 &&
-				outcome.rejected === 0
-			) {
+			if (outcome.skipped === 0 && outcome.rejected === 0) {
 				toast.success(
 					m["library.upload_success"]({ count: result.uploaded.length }),
 				);
@@ -297,38 +295,18 @@ export function UploadBooksModal({
 				onOpenChange(false);
 			}
 		},
-		onError: (error: Error & { partial?: UploadResult }) => {
-			const ids = sentIdsRef.current;
-			if (error instanceof UploadRequestError) {
-				// A cancelled upload leaves its files queued, ready to send again.
-				setErrorMessage(
-					error.kind === "aborted"
-						? m["library.upload_cancelled"]()
-						: m["library.upload_network_failed"](),
-				);
-				if (error.kind === "network") {
-					setItems(applyUploadFailure(items, ids, "request_failed"));
-				}
-				return;
-			}
-			setErrorMessage(error.message);
-			setItems(
-				error.partial
-					? applyUploadResult(items, ids, error.partial)
-					: applyUploadFailure(items, ids, "request_failed"),
-			);
-		},
+		onError: (error: Error) => setErrorMessage(error.message),
 	});
 
 	const isBusy = uploadMutation.isPending;
 	const transferStatus = transfer
 		? transferStatuses(
 				items.filter((item) => transfer.ids.includes(item.id)),
-				transfer.fraction * transfer.bytes,
+				transfer.loaded,
 			)
 		: null;
 	const percent = transfer
-		? overallPercent(transfer.fraction * transfer.bytes, transfer.bytes)
+		? overallPercent(transfer.loaded, transfer.bytes)
 		: 0;
 
 	const addFiles = (incoming: FileList | File[]) => {
@@ -390,7 +368,10 @@ export function UploadBooksModal({
 					<Button
 						type="button"
 						variant="outline"
-						onClick={() => abortRef.current?.()}
+						onClick={() => {
+							cancelledRef.current = true;
+							abortRef.current?.();
+						}}
 						disabled={transfer?.phase === "processing"}
 					>
 						{m["library.upload_cancel_transfer"]()}
@@ -607,10 +588,10 @@ export function UploadBooksModal({
 							aria-live="polite"
 						>
 							{transfer.phase === "processing"
-								? m["library.upload_processing"]({ count: transfer.ids.length })
+								? m["library.upload_processing"]({ count: 1 })
 								: m["library.upload_progress"]({
 										percent,
-										loaded: formatBytes(transfer.fraction * transfer.bytes),
+										loaded: formatBytes(transfer.loaded),
 										total: formatBytes(transfer.bytes),
 									})}
 						</p>

@@ -47,21 +47,6 @@ async function digestSampled(
 	return HASH_PREFIX + toHex(digest);
 }
 
-// Content hash of an in-memory buffer, byte-for-byte identical to
-// calculateContentHash() for the same content. Uploads hash here to dedupe
-// before writing to disk.
-export async function hashContentBytes(bytes: Uint8Array): Promise<string> {
-	const size = bytes.byteLength;
-	if (size <= SAMPLE_SIZE * 2) {
-		return digestSampled(size, bytes);
-	}
-	return digestSampled(
-		size,
-		bytes.subarray(0, SAMPLE_SIZE),
-		bytes.subarray(size - SAMPLE_SIZE, size),
-	);
-}
-
 export async function calculateContentHash(
 	fullPath: string,
 	fileSize: number,

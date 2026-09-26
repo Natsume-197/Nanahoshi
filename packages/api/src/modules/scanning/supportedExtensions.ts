@@ -8,21 +8,12 @@ import {
 export type LibraryMediaType = "ebook" | "audiobook";
 
 // Shared by the upload route (server-side enforcement) and the upload modal
-// (client-side pre-validation) so the two limits can't drift apart.
-export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
-export const MAX_UPLOAD_BATCH_BYTES = MAX_UPLOAD_BYTES;
-// Bun applies this limit to the complete multipart request, not just its files.
-// Leave bounded room for field names, boundaries and other multipart headers.
-export const MAX_UPLOAD_REQUEST_BYTES =
-	MAX_UPLOAD_BATCH_BYTES + 8 * 1024 * 1024;
-
-export function isUploadBatchTooLarge(
-	files: readonly Pick<File, "size">[],
-): boolean {
-	return (
-		files.reduce((total, file) => total + file.size, 0) > MAX_UPLOAD_BATCH_BYTES
-	);
-}
+// (client-side pre-validation) so the two limits can't drift apart. Each
+// request carries one file streamed straight to disk, so this bounds disk use,
+// not memory.
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+// Bun's transport cap; the route enforces the exact limit and answers with JSON.
+export const MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 
 export const EBOOK_EXTENSIONS = [
 	"epub",
