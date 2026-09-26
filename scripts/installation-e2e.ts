@@ -140,8 +140,13 @@ try {
 				.getByRole("button", { name: "Upload (1)", exact: true })
 				.click();
 			const uploaded = await uploadResponse;
-			assert.equal(uploaded.status(), 200, await uploaded.text());
-			assert.deepEqual((await uploaded.json()).uploaded, ["upload.epub"]);
+			// The XHR's body can be evicted from the inspector cache before it is
+			// read; the book check below proves the file was stored and processed.
+			assert.equal(uploaded.status(), 200, uploaded.statusText());
+			assert.equal(
+				new URL(uploaded.url()).searchParams.get("filename"),
+				"upload.epub",
+			);
 		}
 	}
 	for (const title of ["Installation Fixture", "Uploaded Fixture"]) {
