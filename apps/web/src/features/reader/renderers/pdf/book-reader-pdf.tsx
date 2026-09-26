@@ -1,5 +1,6 @@
 import { EmbedPDF } from "@embedpdf/core/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
+import type { PdfDocumentObject, PdfEngine } from "@embedpdf/models";
 import pdfiumWasmUrl from "@embedpdf/pdfium/pdfium.wasm?url";
 import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { DocumentContent } from "@embedpdf/plugin-document-manager/react";
@@ -8,7 +9,6 @@ import {
 	PagePointerProvider,
 } from "@embedpdf/plugin-interaction-manager/react";
 import { usePanPlugin } from "@embedpdf/plugin-pan/react";
-import { RenderLayer } from "@embedpdf/plugin-render/react";
 import { Rotate, useRotate } from "@embedpdf/plugin-rotate/react";
 import {
 	Scroller,
@@ -18,7 +18,6 @@ import {
 import { SearchLayer } from "@embedpdf/plugin-search/react";
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { SpreadMode, useSpread } from "@embedpdf/plugin-spread/react";
-import { TilingLayer } from "@embedpdf/plugin-tiling/react";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
 import {
 	useZoom,
@@ -51,8 +50,17 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { useWindowEvent } from "@/hooks/use-window-event";
 import { PdfNavigationToolbar } from "./pdf-navigation-toolbar";
+import { PdfPageImageStore } from "./pdf-page-images";
 import { PdfPageNavigator } from "./pdf-page-navigator";
+import { type PdfBitmapStore, PdfPageRaster } from "./pdf-page-raster";
 import { createPdfReaderConfig } from "./pdf-reader-config";
+import {
+	type BitmapPageImage,
+	createEngineLane,
+	extraPdfRenderLaneCount,
+	openExtraEngineLanes,
+	pdfPagePreviewScale,
+} from "./pdf-render-lanes";
 import { PdfSearchPanel } from "./pdf-search-panel";
 import {
 	type PdfLayoutMode,
@@ -89,9 +97,9 @@ export function BookReaderPdf(props: BookReaderPdfProps) {
 			createPdfReaderConfig({
 				wasmUrl: pdfiumWasmUrl,
 				baseUrl: typeof document === "undefined" ? undefined : document.baseURI,
-				source: { name: source.name, url: source.url },
+				source: { name: source.name, data: source.data },
 			}),
-		[source.name, source.url],
+		[source.name, source.data],
 	);
 	const { engine, isLoading, error } = usePdfiumEngine(readerConfig.engine);
 	const surfaceStyle = {
@@ -160,7 +168,9 @@ export function BookReaderPdf(props: BookReaderPdfProps) {
 									<PdfDocumentViewport
 										{...props}
 										documentId={activeDocumentId}
-										pageCount={documentState.document.pageCount}
+										document={documentState.document}
+										engine={engine}
+										wasmUrl={readerConfig.engine.wasmUrl}
 									/>
 								);
 							}}
@@ -174,12 +184,16 @@ export function BookReaderPdf(props: BookReaderPdfProps) {
 
 interface PdfDocumentViewportProps extends BookReaderPdfProps {
 	documentId: string;
-	pageCount: number;
+	document: PdfDocumentObject;
+	engine: PdfEngine;
+	wasmUrl: string;
 }
 
 function PdfDocumentViewport({
 	documentId,
-	pageCount,
+	document: pdfDocument,
+	engine,
+	wasmUrl,
 	theme,
 	source,
 	initialPosition,
@@ -192,6 +206,16 @@ function PdfDocumentViewport({
 	onDocumentReady,
 	apiRef,
 }: PdfDocumentViewportProps) {
+	const pageCount = pdfDocument.pageCount;
+	const [pageImages] = useState<PdfBitmapStore>(
+		() =>
+			new PdfPageImageStore<BitmapPageImage>({
+				previewScale: (pageIndex) =>
+					pdfPagePreviewScale(
+						pdfDocument.pages[pageIndex]?.size ?? pdfDocument.pages[0].size,
+					),
+			}),
+	);
 	const { currentPage, readingPage, goToPage, positionReady, restorePosition } =
 		usePdfNavigation(documentId, pageCount, initialPosition?.exploredCharCount);
 	const { provides: scrollCapability } = useScrollCapability();
@@ -425,16 +449,10 @@ function PdfDocumentViewport({
 					data-reader-pdf-page={pageIndex + 1}
 					className="relative size-full"
 				>
-					<RenderLayer
+					<PdfPageRaster
 						documentId={documentId}
 						pageIndex={pageIndex}
-						scale={1}
-						className="absolute inset-0 block select-none"
-					/>
-					<TilingLayer
-						documentId={documentId}
-						pageIndex={pageIndex}
-						className="pointer-events-none absolute inset-0 overflow-hidden"
+						store={pageImages}
 					/>
 					<SearchLayer
 						documentId={documentId}
@@ -456,11 +474,20 @@ function PdfDocumentViewport({
 				</PagePointerProvider>
 			</Rotate>
 		),
-		[activeSearchMatch, documentId, pageCount, searchMatch],
+		[activeSearchMatch, documentId, pageCount, pageImages, searchMatch],
 	);
 
 	return (
 		<>
+			{/* First child so it holds before any page asks: page 1 shows until the restore lands. */}
+			{!positionReady && <PdfRenderHold store={pageImages} />}
+			<PdfRenderLanes
+				store={pageImages}
+				engine={engine}
+				document={pdfDocument}
+				buffer={source.data}
+				wasmUrl={wasmUrl}
+			/>
 			{positionReady && (
 				<PdfPageProgress
 					key={`${documentId}:${pageCount}:${currentPage}`}
@@ -544,6 +571,46 @@ function PdfDocumentViewport({
 			)}
 		</>
 	);
+}
+
+/** Feeds the page store: the reader's own engine plus extra PDFium workers. */
+function PdfRenderLanes({
+	store,
+	engine,
+	document: pdfDocument,
+	buffer,
+	wasmUrl,
+}: {
+	store: PdfBitmapStore;
+	engine: PdfEngine;
+	document: PdfDocumentObject;
+	buffer: ArrayBuffer;
+	wasmUrl: string;
+}) {
+	useMountEffect(() => {
+		const removeMainLane = store.addLane(createEngineLane(engine, pdfDocument));
+		const closeExtraLanes = openExtraEngineLanes({
+			count: extraPdfRenderLaneCount({
+				cores: navigator.hardwareConcurrency,
+				memoryGb: (navigator as Navigator & { deviceMemory?: number })
+					.deviceMemory,
+			}),
+			wasmUrl,
+			buffer,
+			onLane: (lane) => store.addLane(lane),
+		});
+		return () => {
+			closeExtraLanes();
+			removeMainLane();
+			store.clear();
+		};
+	});
+	return null;
+}
+
+function PdfRenderHold({ store }: { store: PdfBitmapStore }) {
+	useMountEffect(() => store.hold());
+	return null;
 }
 
 function PdfLoadingState({

@@ -75,6 +75,8 @@ export function usePdfNavigation(
 					window.clearTimeout(fallback);
 				};
 				goToPage(targetPage, "instant");
+				// Already there (e.g. page 1): no page change will ever fire.
+				if (scroll.getCurrentPage() === targetPage) ready();
 			});
 			return () => {
 				stopWaiting?.();

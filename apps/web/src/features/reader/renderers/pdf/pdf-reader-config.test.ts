@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createPdfReaderConfig } from "./pdf-reader-config";
 
-const source = { url: "https://reader.example/odyssey.pdf", name: "Odyssey" };
+const source = { data: new ArrayBuffer(8), name: "Odyssey" };
 
 describe("PDF reader configuration", () => {
 	test("preloads enough neighboring pages for continuous scrolling", () => {
@@ -30,7 +30,7 @@ describe("PDF reader configuration", () => {
 		expect(panPlugin?.config).toMatchObject({ defaultMode: "never" });
 	});
 
-	test("requests the range-capable reader transport", () => {
+	test("opens the already downloaded bytes instead of fetching again", () => {
 		const config = createPdfReaderConfig({
 			wasmUrl: "/assets/pdfium.wasm",
 			baseUrl: "https://reader.example/books/odyssey",
@@ -41,8 +41,8 @@ describe("PDF reader configuration", () => {
 		);
 
 		expect(documentManager?.config.initialDocuments?.[0]).toMatchObject({
-			mode: "range-request",
-			requestOptions: { credentials: "include" },
+			buffer: source.data,
+			name: "Odyssey",
 		});
 	});
 

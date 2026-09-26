@@ -28,7 +28,7 @@ import type { PdfReaderSource } from "@/features/reader/document/pdf-source";
 interface PdfReaderConfigOptions {
 	wasmUrl: string;
 	baseUrl?: string;
-	source: Pick<PdfReaderSource, "name" | "url">;
+	source: Pick<PdfReaderSource, "name" | "data">;
 }
 
 export function createPdfReaderConfig({
@@ -40,7 +40,8 @@ export function createPdfReaderConfig({
 		engine: {
 			wasmUrl: baseUrl ? new URL(wasmUrl, baseUrl).href : wasmUrl,
 			worker: true,
-			encoderPoolSize: 2,
+			// Pages render as raw bitmaps; only thumbnails and zoom tiles encode.
+			encoderPoolSize: 1,
 			fontFallback: null,
 		},
 		plugins: [
@@ -48,11 +49,9 @@ export function createPdfReaderConfig({
 				maxDocuments: 1,
 				initialDocuments: [
 					{
-						url: source.url,
+						buffer: source.data,
 						name: source.name,
 						documentId: "nanahoshi-reader-pdf",
-						mode: "range-request" as const,
-						requestOptions: { credentials: "include" as const },
 					},
 				],
 			}),
@@ -76,7 +75,7 @@ export function createPdfReaderConfig({
 			}),
 			createPluginRegistration(RotatePluginPackage),
 			createPluginRegistration(RenderPluginPackage, {
-				defaultImageType: "image/png",
+				defaultImageType: "image/jpeg",
 			}),
 			createPluginRegistration(ThumbnailPluginPackage, {
 				width: 132,
@@ -88,7 +87,7 @@ export function createPdfReaderConfig({
 				tileSize: 768,
 				overlapPx: 2.5,
 				extraRings: 0,
-				defaultImageType: "image/png",
+				defaultImageType: "image/jpeg",
 			}),
 			createPluginRegistration(SelectionPluginPackage),
 			createPluginRegistration(HistoryPluginPackage),

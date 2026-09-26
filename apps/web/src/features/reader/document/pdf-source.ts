@@ -1,7 +1,8 @@
 import type { Section } from "@/features/reader/document/types";
 
 export interface PdfReaderSource {
-	url: string;
+	/** Whole file, shared by every PDFium worker that renders it. */
+	data: ArrayBuffer;
 	name: string;
 	previewUrl?: string;
 }

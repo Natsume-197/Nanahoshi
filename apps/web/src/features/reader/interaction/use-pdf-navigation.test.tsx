@@ -20,6 +20,7 @@ const capability = {
 	forDocument: () => ({
 		scrollToPage,
 		getTotalPages: () => 10,
+		getCurrentPage: () => 1,
 		getLayout: () => ({ virtualItems: [{}] }),
 	}),
 	onLayoutReady: subscribe(layoutReadyListeners),
@@ -88,6 +89,22 @@ describe("usePdfNavigation", () => {
 		act(() => {
 			for (const listener of pageChangeListeners)
 				listener({ documentId: "doc-1", pageNumber: 7 });
+		});
+		expect(result.current.positionReady).toBe(true);
+		detach?.();
+	});
+
+	// No page change fires when the viewport already shows the target, which
+	// left rendering waiting on a one-second fallback.
+	test("a book resuming on page 1 is ready as soon as layout is", () => {
+		const { result } = renderHook(() => usePdfNavigation("doc-1", 10, 1));
+		const detach = result.current.restorePosition(
+			document.createElement("div"),
+		);
+
+		act(() => {
+			for (const listener of layoutReadyListeners)
+				listener({ documentId: "doc-1" });
 		});
 		expect(result.current.positionReady).toBe(true);
 		detach?.();

@@ -4,6 +4,7 @@ import {
 	type LoadedReaderBook,
 	loadBookForReader,
 } from "@/features/reader/document/load-book";
+import { loadPdfBytes } from "@/features/reader/document/load-pdf-bytes";
 import {
 	createPdfSections,
 	type PdfReaderSource,
@@ -138,12 +139,19 @@ export function useBookLoader({
 						if (sourceFormat === "pdf") {
 							if (!serverId)
 								throw new Error("PDF reading requires a server connection");
-							setLoadState({ phase: "parsing" });
-							const { url } = await client.files.getReaderUrl(
-								{ uuid, serverId },
-								{ signal },
-							);
+							const pdfData = await loadPdfBytes({
+								uuid,
+								serverId,
+								fileHash,
+								fileSizeBytes,
+								signal,
+								onDownloadProgress: (progress) => {
+									if (!cancelled)
+										setLoadState({ phase: "downloading", progress });
+								},
+							});
 							if (cancelled) return;
+							setLoadState({ phase: "parsing" });
 							const serverProgress = await serverProgressPromise;
 							if (cancelled) return;
 							const expectedPageCount = Math.max(1, pageCount ?? 1);
@@ -180,7 +188,7 @@ export function useBookLoader({
 								html: "",
 								position,
 								pdfSource: {
-									url,
+									data: pdfData,
 									name: fileName ?? `${bookTitle}.pdf`,
 									previewUrl: pdfPreviewUrl(cover),
 								},
