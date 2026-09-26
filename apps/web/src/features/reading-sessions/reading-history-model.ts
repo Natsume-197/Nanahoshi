@@ -454,29 +454,100 @@ export function goalStatus(input: {
 	};
 }
 
+export type GoalDayStatus = "met" | "partial" | "missed" | "today" | "ahead";
+
+export interface GoalCalendarDay {
+	day: string;
+	status: GoalDayStatus;
+	// Book fraction this day asked for: what was left over the days left.
+	target: number;
+	// Book fraction read that day; null for days still ahead.
+	read: number | null;
+	// Where the book stood when the day ended, or will if the plan holds.
+	position: number;
+	// A straight line from where the plan started to the whole book on the goal day.
+	minimum: number;
+}
+
+// A day counts as met a hair short of its share, so rounding never denies a check.
+const MET_SHARE = 0.95;
+
 /**
- * Where today, the estimated finish and the goal fall on one date axis that
- * starts with the reading and ends at whichever of the two comes last.
+ * The plan day by day, from the day the goal was set to its date. A missed day
+ * spreads over the rest instead of piling onto the next one.
  */
-export function goalTimeline(input: {
+export function goalCalendar(input: {
 	start: string;
+	goalDate: string;
 	today: string;
-	goalDay: string;
-	finishDay: string | null;
-}) {
-	const end =
-		input.finishDay && input.finishDay > input.goalDay
-			? input.finishDay
-			: input.goalDay;
-	const span = Math.max(1, daysBetween(input.start, end));
-	const at = (day: string) =>
-		Math.min(1, Math.max(0, daysBetween(input.start, day) / span));
-	return {
-		today: at(input.today),
-		goal: at(input.goalDay),
-		finish: input.finishDay ? at(input.finishDay) : null,
-		late: input.finishDay ? input.finishDay > input.goalDay : null,
-	};
+	position: number | null;
+	days: HistoryDay[];
+}): GoalCalendarDay[] {
+	const { goalDate, today } = input;
+	const start = input.start > goalDate ? goalDate : input.start;
+	const total = daysBetween(start, goalDate) + 1;
+	const progressOn = new Map(input.days.map((d) => [d.day, d.progress]));
+	// Walk back from today's position to where each day ended.
+	const endOf = new Map<string, number>();
+	let position = input.position ?? 0;
+	for (let day = today; day >= start; day = addDays(day, -1)) {
+		endOf.set(day, Math.max(0, position));
+		position -= progressOn.get(day) ?? 0;
+	}
+	const origin = Math.min(1, Math.max(0, position));
+	const plan: GoalCalendarDay[] = [];
+	// Days ahead start from today's position and assume today's share gets read.
+	let planned = Math.max(origin, input.position ?? 0);
+	for (let i = 0; i < total; i++) {
+		const day = addDays(start, i);
+		const daysLeft = total - i;
+		const minimum = origin + ((1 - origin) * (i + 1)) / total;
+		if (day <= today) {
+			const read = progressOn.get(day) ?? 0;
+			const end = endOf.get(day) ?? origin;
+			const target = Math.max(0, 1 - (end - read)) / daysLeft;
+			const met = read >= target * MET_SHARE;
+			const status: GoalDayStatus = met
+				? "met"
+				: day === today
+					? "today"
+					: read > 0
+						? "partial"
+						: "missed";
+			plan.push({ day, status, target, read, position: end, minimum });
+			if (day === today) planned = Math.max(end, end - read + target);
+			continue;
+		}
+		const target = Math.max(0, 1 - planned) / daysLeft;
+		planned = Math.min(1, planned + target);
+		plan.push({
+			day,
+			status: "ahead",
+			target,
+			read: null,
+			position: planned,
+			minimum,
+		});
+	}
+	return plan;
+}
+
+/** How much of its share a day covered, 0 to 1; null for days still ahead. */
+export function goalDayCompletion(day: GoalCalendarDay): number | null {
+	if (day.status === "ahead") return null;
+	if (day.status === "met") return 1;
+	if (day.target <= 0) return 0;
+	return Math.min(1, Math.max(0, (day.read ?? 0) / day.target));
+}
+
+/**
+ * Plan days already past whose straight-line minimum is still ahead of where
+ * the book stands: how far behind the goal, not behind a historical pace.
+ */
+export function daysBehind(plan: GoalCalendarDay[], today: string) {
+	const now = plan.find((d) => d.day === today)?.position;
+	if (now === undefined) return 0;
+	return plan.filter((d) => d.day < today && d.minimum > now + 0.005).length;
 }
 
 /** Consecutive days with activity; a streak ending yesterday is still alive until today ends. */

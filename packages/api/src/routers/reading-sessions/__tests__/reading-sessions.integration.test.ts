@@ -151,6 +151,24 @@ describe.skipIf(!enabled)("reading sessions persistence", () => {
 			repo.setGoal("someone-else", bookId, run.id, "2026-10-05"),
 		).rejects.toThrow("Reading not found");
 	});
+	test("a goal remembers when its date was set, until the date changes", async () => {
+		const run = required((await repo.history(userId, bookId)).runs[0]);
+		const first = await repo.setGoal(userId, bookId, run.id, "2026-10-05");
+		expect(first.goalSetAt).not.toBeNull();
+		await db.execute(
+			sql`UPDATE reading_run SET goal_set_at = '2026-01-01T00:00:00Z' WHERE id = ${run.id}`,
+		);
+		const same = await repo.setGoal(userId, bookId, run.id, "2026-10-05");
+		expect(Date.parse(same.goalSetAt ?? "")).toBe(
+			Date.parse("2026-01-01T00:00:00Z"),
+		);
+		const moved = await repo.setGoal(userId, bookId, run.id, "2026-10-09");
+		expect(Date.parse(moved.goalSetAt ?? "")).toBeGreaterThan(
+			Date.parse("2026-01-01T00:00:00Z"),
+		);
+		const cleared = await repo.setGoal(userId, bookId, run.id, null);
+		expect(cleared.goalSetAt).toBeNull();
+	});
 	test("a reading can be discarded with all of its sessions", async () => {
 		const before = await repo.history(userId, bookId);
 		const run = required(before.runs[0]);

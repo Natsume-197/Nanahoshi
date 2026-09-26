@@ -3,6 +3,7 @@ import {
 	clockParts,
 	readingDuration,
 	sessionDuration,
+	shortDuration,
 } from "./reading-duration";
 
 test("session duration retains hours, minutes and seconds without wrapping hours", () => {
@@ -18,6 +19,13 @@ test("reading duration drops zero minutes on whole hours", () => {
 	expect(readingDuration(3600)).toBe("1 h");
 	expect(readingDuration(3660)).toBe("1 h 1 min");
 	expect(readingDuration(7200)).toBe("2 h");
+});
+
+test("short duration drops the minutes unit so a calendar day fits it", () => {
+	expect(shortDuration(14 * 60)).toBe("14 min");
+	expect(shortDuration(96 * 60)).toBe("1 h 36");
+	expect(shortDuration(65 * 60)).toBe("1 h 05");
+	expect(shortDuration(7200)).toBe("2 h");
 });
 
 test("the live clock shows hours only once they exist", () => {

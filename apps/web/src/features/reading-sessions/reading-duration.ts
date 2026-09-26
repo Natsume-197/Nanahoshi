@@ -14,6 +14,14 @@ export function readingDuration(seconds: number) {
 		: `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
+/** Calendar-cell form: "1 h 36" instead of "1 h 36 min", so it fits a narrow day. */
+export function shortDuration(seconds: number) {
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes} min`;
+	const rest = minutes % 60;
+	return `${Math.floor(minutes / 60)} h${rest ? ` ${String(rest).padStart(2, "0")}` : ""}`;
+}
+
 /** Live clock split so the seconds can be drawn quieter: "0" + ":51", "1:02" + ":05". */
 export function clockParts(seconds: number) {
 	const total = Math.max(0, Math.floor(seconds));

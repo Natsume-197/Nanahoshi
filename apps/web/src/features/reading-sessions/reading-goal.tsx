@@ -15,19 +15,11 @@ export function GoalPanel({
 	goalDate,
 	dayLabel,
 	onEdit,
-	timeline,
 }: {
 	goal: GoalStatus | null;
 	goalDate: string | null;
 	dayLabel: (day: string) => string;
 	onEdit: () => void;
-	timeline?: {
-		today: number;
-		goal: number;
-		finish: number | null;
-		late: boolean | null;
-		finishLabel: string | null;
-	} | null;
 }) {
 	if (!goalDate || !goal)
 		return (
@@ -77,103 +69,6 @@ export function GoalPanel({
 						{goal.lateBy === 0
 							? m.reading_goal_on_track()
 							: m.reading_goal_late_short({ count: goal.lateBy })}
-					</span>
-				)}
-			</div>
-			{timeline && (
-				<GoalTimeline {...timeline} goalLabel={dayLabel(goalDate)} />
-			)}
-		</div>
-	);
-}
-
-// Keeps a label inside the track: left-aligned at 0 %, centred mid-way, right-aligned at 100 %.
-const pin = (at: number) => ({
-	left: `${at * 100}%`,
-	transform: `translateX(-${at * 100}%)`,
-});
-
-/** Today, the estimated finish and the goal on one date axis: ahead or behind at a glance. */
-function GoalTimeline({
-	today,
-	goal,
-	finish,
-	late,
-	finishLabel,
-	goalLabel,
-}: {
-	today: number;
-	goal: number;
-	finish: number | null;
-	late: boolean | null;
-	finishLabel: string | null;
-	goalLabel: string;
-}) {
-	return (
-		<div aria-hidden="true" className="text-[11px] tabular-nums">
-			<div className="relative h-4">
-				<span
-					className="absolute bottom-0 flex items-center gap-1 whitespace-nowrap font-medium text-primary first-letter:uppercase"
-					style={pin(goal)}
-				>
-					<Flag weight="fill" className="size-3" />
-					{goalLabel}
-				</span>
-			</div>
-			<div className="relative mt-1 h-1.5 rounded-full bg-foreground/[0.08]">
-				<span
-					className="absolute inset-y-0 left-0 rounded-full bg-primary/50"
-					style={{ width: `${today * 100}%` }}
-				/>
-				{finish !== null && (
-					<span
-						className="absolute inset-y-0 bg-primary/20"
-						style={{
-							left: `${today * 100}%`,
-							width: `${Math.max(0, Math.min(finish, goal) - today) * 100}%`,
-						}}
-					/>
-				)}
-				{finish !== null && late && (
-					<span
-						className="absolute inset-y-0 rounded-r-full bg-destructive/50"
-						style={{
-							left: `${goal * 100}%`,
-							width: `${(finish - goal) * 100}%`,
-						}}
-					/>
-				)}
-				<span
-					className="absolute top-1/2 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary"
-					style={{ left: `${goal * 100}%` }}
-				/>
-				{finish !== null && (
-					<span
-						className={cn(
-							"absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background",
-							late ? "border-destructive" : "border-primary",
-						)}
-						style={{ left: `${finish * 100}%` }}
-					/>
-				)}
-				<span
-					className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-background"
-					style={{ left: `${today * 100}%` }}
-				/>
-			</div>
-			<div className="relative mt-1.5 h-4 text-muted-foreground">
-				<span className="absolute whitespace-nowrap" style={pin(today)}>
-					{m.reading_goal_timeline_today()}
-				</span>
-				{finish !== null && finishLabel && (
-					<span
-						className={cn(
-							"absolute whitespace-nowrap",
-							late ? "text-destructive" : "text-foreground",
-						)}
-						style={pin(finish)}
-					>
-						{finishLabel}
 					</span>
 				)}
 			</div>

@@ -67,7 +67,7 @@ export function ReadingGoalDialog({
 						type="submit"
 						disabled={mutation.isPending || !value}
 					>
-						{m.reading_save()}
+						{m["common.save"]()}
 					</Button>
 				</>
 			}

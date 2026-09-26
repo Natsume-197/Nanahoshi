@@ -4,13 +4,15 @@ import {
 	chapterAt,
 	chapterLeft,
 	chartSlots,
+	daysBehind,
 	daysToFinish,
 	defaultPeriod,
 	displaySpeed,
 	finishInDays,
 	formatClock,
+	goalCalendar,
+	goalDayCompletion,
 	goalStatus,
-	goalTimeline,
 	groupByWeek,
 	type HistoryDay,
 	listeningScale,
@@ -383,33 +385,95 @@ test("goal reports lateness, overdue and the outcome of a finished reading", () 
 	expect(goalStatus({ ...base, goalDate: null, finishIn: null })).toBeNull();
 });
 
-test("goal timeline spans the reading up to the later of goal and finish", () => {
-	expect(
-		goalTimeline({
-			start: "2026-09-01",
-			today: "2026-09-11",
-			goalDay: "2026-09-21",
-			finishDay: "2026-10-01",
-		}),
-	).toEqual({ today: 1 / 3, goal: 2 / 3, finish: 1, late: true });
-	expect(
-		goalTimeline({
-			start: "2026-09-01",
-			today: "2026-09-11",
-			goalDay: "2026-09-21",
-			finishDay: "2026-09-16",
-		}),
-	).toEqual({ today: 0.5, goal: 1, finish: 0.75, late: false });
-	expect(
-		goalTimeline({
-			start: "2026-09-01",
-			today: "2026-09-11",
-			goalDay: "2026-09-21",
-			finishDay: null,
-		}),
-	).toMatchObject({ finish: null, late: null, goal: 1 });
+test("goal calendar spreads a missed day over the days left and lands on the whole book", () => {
+	const day = (d: string, progress: number) => ({
+		day: d,
+		seconds: 600,
+		observedSeconds: 600,
+		progress,
+		manualProgress: 0,
+		startPosition: null,
+		endPosition: null,
+	});
+	const plan = goalCalendar({
+		start: "2026-09-01",
+		goalDate: "2026-09-10",
+		today: "2026-09-04",
+		position: 0.37,
+		days: [
+			day("2026-09-01", 0.1),
+			day("2026-09-03", 0.05),
+			day("2026-09-04", 0.02),
+		],
+	});
+	expect(plan).toHaveLength(10);
+	expect(plan.slice(0, 5).map((d) => d.status)).toEqual([
+		"met",
+		"missed",
+		"partial",
+		"today",
+		"ahead",
+	]);
+	// The missed second day raises the share of every day after it.
+	expect(plan[0]?.target).toBeCloseTo(0.8 / 10);
+	expect(plan[1]?.target).toBeCloseTo(0.7 / 9);
+	expect(plan[2]?.target).toBeCloseTo(0.7 / 8);
+	expect(plan[3]?.target).toBeCloseTo(0.65 / 7);
+	expect(plan.map((d) => d.position.toFixed(2)).slice(0, 4)).toEqual([
+		"0.30",
+		"0.30",
+		"0.35",
+		"0.37",
+	]);
+	expect(plan[4]?.read).toBeNull();
+	expect(plan.at(-1)?.position).toBeCloseTo(1);
+	expect(plan[0]?.minimum).toBeCloseTo(0.28);
+	expect(plan.at(-1)?.minimum).toBeCloseTo(1);
+
+	// The day's ring fills with its share read: full when met, empty when missed, none ahead.
+	const rings = plan.slice(0, 5).map(goalDayCompletion);
+	expect(rings[0]).toBe(1);
+	expect(rings[1]).toBe(0);
+	expect(rings[2]).toBeCloseTo(0.05 / (0.7 / 8));
+	expect(rings[3]).toBeCloseTo(0.02 / (0.65 / 7));
+	expect(rings[4]).toBeNull();
 });
 
+test("goal calendar marks today met once its share is read", () => {
+	const plan = goalCalendar({
+		start: "2026-09-04",
+		goalDate: "2026-09-05",
+		today: "2026-09-04",
+		position: 0.75,
+		days: [
+			{
+				day: "2026-09-04",
+				seconds: 600,
+				observedSeconds: 600,
+				progress: 0.25,
+				manualProgress: 0,
+				startPosition: 0.5,
+				endPosition: 0.75,
+			},
+		],
+	});
+	expect(plan.map((d) => d.status)).toEqual(["met", "ahead"]);
+	expect(plan[1]?.position).toBeCloseTo(1);
+});
+
+test("goal calendar without any reading yet plans from the current position", () => {
+	const plan = goalCalendar({
+		start: "2026-09-12",
+		goalDate: "2026-09-10",
+		today: "2026-09-08",
+		position: 0.5,
+		days: [],
+	});
+	// A start after the goal date clamps to the goal date itself.
+	expect(plan).toHaveLength(1);
+	expect(plan[0]).toMatchObject({ status: "ahead", read: null });
+	expect(plan[0]?.position).toBeCloseTo(1);
+});
 test("streaks count consecutive active days and survive until today ends", () => {
 	const days = [
 		"2026-09-01",
@@ -521,4 +585,33 @@ test("chapter time left runs to the next chapter or the end", () => {
 	expect(chapterLeft(chapters, 0.05)).toBeNull();
 	expect(timeFor(0.01, 0.01 / 600)).toBeCloseTo(600);
 	expect(timeFor(0.01, null)).toBeNull();
+});
+
+test("days behind count only the plan's minimum, so a fresh goal is on time", () => {
+	const day = (d: string, progress: number) => ({
+		day: d,
+		seconds: 600,
+		observedSeconds: 600,
+		progress,
+		manualProgress: 0,
+		startPosition: null,
+		endPosition: null,
+	});
+	const fresh = goalCalendar({
+		start: "2026-09-26",
+		goalDate: "2026-09-30",
+		today: "2026-09-26",
+		position: 0.12,
+		days: [],
+	});
+	expect(daysBehind(fresh, "2026-09-26")).toBe(0);
+	// Nothing read for three days of a ten-day plan from zero: the minimum ran 30 % ahead.
+	const idle = goalCalendar({
+		start: "2026-09-01",
+		goalDate: "2026-09-10",
+		today: "2026-09-04",
+		position: 0.05,
+		days: [day("2026-09-04", 0.05)],
+	});
+	expect(daysBehind(idle, "2026-09-04")).toBe(3);
 });

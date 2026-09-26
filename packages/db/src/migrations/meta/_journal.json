@@ -869,6 +869,13 @@
       "when": 1790363541907,
       "tag": "0123_wooden_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1790441006071,
+      "tag": "0124_fixed_talos",
+      "breakpoints": true
     }
   ]
 }

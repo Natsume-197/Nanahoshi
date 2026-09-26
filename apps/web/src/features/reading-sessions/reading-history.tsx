@@ -24,9 +24,10 @@ import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { client, orpc } from "@/utils/orpc";
 import { createDayStore } from "./day-store";
+import { GoalCalendar } from "./goal-calendar";
 import { type HistoryCopy, historyCopy, type Medium } from "./history-copy";
 import { type Journey, ReadingDiary } from "./reading-diary";
-import { readingDuration } from "./reading-duration";
+import { readingDuration, shortDuration } from "./reading-duration";
 import { EmptyHistory, GoalPanel, PaceUnlock } from "./reading-goal";
 import { ReadingGoalDialog } from "./reading-goal-dialog";
 import { formatAmount, ReadingHistoryChart } from "./reading-history-chart";
@@ -37,13 +38,14 @@ import {
 	chapterAt,
 	chapterLeft,
 	chartSlots,
+	daysBehind,
 	daysBetween,
 	defaultPeriod,
 	displaySpeed,
 	finishInDays,
 	formatClock,
+	goalCalendar,
 	goalStatus,
-	goalTimeline,
 	groupByWeek,
 	listeningScale,
 	progressAmount,
@@ -447,6 +449,16 @@ function BookReadingHistory({
 		finishIn,
 		finishedOn: finished && current?.endedAt ? localDay(current.endedAt) : null,
 	});
+	// The goal's plan day by day; its minimum line also says how far behind the goal is.
+	const goalPlan = current?.goalDate
+		? goalCalendar({
+				start: localDay(current.goalSetAt ?? current.startedAt),
+				goalDate: current.goalDate,
+				today,
+				position: data.position,
+				days: data.days,
+			})
+		: null;
 	const goalDay = (value: string) =>
 		date(
 			value,
@@ -845,32 +857,35 @@ function BookReadingHistory({
 									{current.goalDate && (
 										<div className="mt-5 border-border/40 border-t pt-5">
 											<GoalPanel
-												goal={goal}
+												goal={
+													goal?.kind === "active" && goalPlan
+														? { ...goal, lateBy: daysBehind(goalPlan, today) }
+														: goal
+												}
 												goalDate={current.goalDate}
 												dayLabel={goalDay}
 												onEdit={() => setGoalOpen(true)}
-												timeline={
-													goal?.kind === "active"
-														? {
-																...goalTimeline({
-																	start: data.days[0]?.day ?? today,
-																	today,
-																	goalDay: current.goalDate,
-																	finishDay:
-																		finishIn === null
-																			? null
-																			: addDays(today, finishIn),
-																}),
-																finishLabel:
-																	finishIn === null
-																		? null
-																		: copy.projectionGoal({
-																				date: goalDay(addDays(today, finishIn)),
-																			}),
-															}
-														: null
-												}
 											/>
+											<div className="mt-6">
+												<GoalCalendar
+													plan={goalPlan ?? []}
+													today={today}
+													goalDate={current.goalDate}
+													amount={(fraction) =>
+														amountText(goalAmount(fraction))
+													}
+													compactAmount={
+														listening
+															? (fraction) =>
+																	shortDuration(goalAmount(fraction))
+															: unit === "chars"
+																? (fraction) =>
+																		formatAmount(goalAmount(fraction), unit)
+																: null
+													}
+													withShare={!listening && unit === "chars"}
+												/>
+											</div>
 										</div>
 									)}
 								</div>

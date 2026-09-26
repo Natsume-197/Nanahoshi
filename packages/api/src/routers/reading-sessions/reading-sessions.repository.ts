@@ -390,7 +390,14 @@ export class ReadingSessionsRepository {
 	) {
 		const [run] = await db
 			.update(readingRun)
-			.set({ goalDate })
+			.set({
+				goalDate,
+				// A new date restarts the plan from now; saving the same date keeps it.
+				goalSetAt:
+					goalDate === null
+						? null
+						: sql<string>`CASE WHEN ${readingRun.goalDate} IS DISTINCT FROM ${goalDate}::date THEN now() ELSE ${readingRun.goalSetAt} END`,
+			})
 			.where(
 				and(
 					eq(readingRun.id, id),
@@ -398,7 +405,11 @@ export class ReadingSessionsRepository {
 					eq(readingRun.bookId, bookId),
 				),
 			)
-			.returning({ id: readingRun.id, goalDate: readingRun.goalDate });
+			.returning({
+				id: readingRun.id,
+				goalDate: readingRun.goalDate,
+				goalSetAt: readingRun.goalSetAt,
+			});
 		if (!run) throw new NotFoundError("Reading not found");
 		return run;
 	}

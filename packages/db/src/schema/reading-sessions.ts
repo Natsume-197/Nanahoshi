@@ -62,6 +62,8 @@ export const readingRun = pgTable(
 		state: text("state").notNull().default("reading"),
 		// Optional finish-by day the reader chose for this reading, as a local calendar date.
 		goalDate: date("goal_date", { mode: "string" }),
+		// When that date was last set: the plan's daily targets start counting from here.
+		goalSetAt: instant("goal_set_at"),
 	},
 	(t) => [
 		index("reading_run_owner_book_idx").on(t.userId, t.bookId),
