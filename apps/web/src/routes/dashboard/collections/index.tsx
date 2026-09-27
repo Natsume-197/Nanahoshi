@@ -186,28 +186,28 @@ function CollectionsPage() {
 	}
 
 	return (
-		<div className={cn(PAGE_SHELL, "space-y-6")}>
-			<CollectionToolbar
-				title={m["nav.collections"]()}
-				actions={
-					pageLoading ? undefined : (
-						<CreateCollectionButton className="hidden md:inline-flex" />
-					)
-				}
-			/>
+		<>
+			<div className={cn(PAGE_SHELL, "space-y-6")}>
+				<CollectionToolbar
+					title={m["nav.collections"]()}
+					actions={
+						pageLoading ? undefined : (
+							<CreateCollectionButton className="hidden md:inline-flex" />
+						)
+					}
+				/>
 
-			{pageLoading && (
-				<ul className="flex flex-col gap-1">
-					{SKELETON_KEYS.map((key) => (
-						<li key={key}>
-							<CollectionListItemSkeleton />
-						</li>
-					))}
-				</ul>
-			)}
+				{pageLoading && (
+					<ul className="flex flex-col gap-1">
+						{SKELETON_KEYS.map((key) => (
+							<li key={key}>
+								<CollectionListItemSkeleton />
+							</li>
+						))}
+					</ul>
+				)}
 
-			{!pageLoading && (
-				<>
+				{!pageLoading && (
 					<Tabs
 						value={tab ?? "ebooks"}
 						onValueChange={(value) =>
@@ -242,13 +242,23 @@ function CollectionsPage() {
 							{renderLists("audiobook")}
 						</TabsContent>
 					</Tabs>
+				)}
+			</div>
 
-					<CreateCollectionButton
-						iconOnly
-						className="fixed right-[max(1rem,var(--safe-area-right))] bottom-[calc(var(--mobile-tabbar-height)+var(--mobile-player-offset)+var(--safe-area-bottom)+1rem)] z-20 size-12 shadow-lg md:hidden"
-					/>
-				</>
+			{/* Outside the page stack: as its last child the button made space-y
+			    add a stray margin under the lists. */}
+			{!pageLoading && (
+				// `fixed` here resolves against the dashboard workspace, not the
+				// viewport: the workspace's translateZ(0) makes it the containing
+				// block. It already ends above the tab bar and the mini player (the
+				// layout reserves a row for them), so a plain corner inset keeps the
+				// button just above whatever is showing. Adding their heights again
+				// here counted them twice and lifted it towards mid-screen.
+				<CreateCollectionButton
+					iconOnly
+					className="fixed right-4 bottom-6 z-20 size-12 shadow-lg md:hidden"
+				/>
 			)}
-		</div>
+		</>
 	);
 }
