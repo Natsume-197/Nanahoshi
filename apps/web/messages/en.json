@@ -2100,7 +2100,8 @@
 		"player_progress_chapter": "Chapter",
 		"player_progress_book": "Book",
 		"player_progress_toggle": "Switch between chapter and book time",
-		"player_progress_remaining": "{time} left ({scope})"
+		"player_progress_remaining": "{time} left ({scope})",
+		"player_playback_title": "Playback"
 	},
 	"server": {
 		"list_label": "Servers",

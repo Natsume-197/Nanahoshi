@@ -2100,7 +2100,8 @@
 		"player_progress_chapter": "Capítulo",
 		"player_progress_book": "Libro",
 		"player_progress_toggle": "Cambiar entre el tiempo del capítulo y el del libro",
-		"player_progress_remaining": "Quedan {time} ({scope})"
+		"player_progress_remaining": "Quedan {time} ({scope})",
+		"player_playback_title": "Reproducción"
 	},
 	"server": {
 		"list_label": "Servidores",

@@ -1,5 +1,11 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
 import {
 	Popover,
 	PopoverContent,
@@ -10,6 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 type Side = "top" | "bottom";
@@ -109,5 +116,80 @@ export function PlayerPopoverButton({
 				{children}
 			</PopoverContent>
 		</Popover>
+	);
+}
+
+/**
+ * A settings button that opens a bottom sheet on phones and a popover
+ * elsewhere. A popover anchored to a corner button is a poor target for a
+ * thumb, and its compact rows are smaller than a finger; the sheet gets
+ * full-width, touch-sized controls (`children` is told which it is).
+ */
+export function PlayerSheetButton({
+	label,
+	title,
+	side = "top",
+	align = "center",
+	className,
+	contentClassName,
+	trigger,
+	children,
+}: {
+	label: string;
+	/** The sheet's heading on phones. */
+	title: string;
+	side?: Side;
+	align?: "start" | "center" | "end";
+	className?: string;
+	contentClassName?: string;
+	trigger: ReactNode;
+	children: (touch: boolean) => ReactNode;
+}) {
+	const isMobile = useIsMobile();
+	const [open, setOpen] = useState(false);
+
+	if (!isMobile) {
+		return (
+			<PlayerPopoverButton
+				label={label}
+				side={side}
+				align={align}
+				className={className}
+				contentClassName={contentClassName}
+				trigger={trigger}
+			>
+				{children(false)}
+			</PlayerPopoverButton>
+		);
+	}
+
+	return (
+		<>
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={label}
+				aria-haspopup="dialog"
+				onClick={() => setOpen(true)}
+				className={cn("size-8 text-muted-foreground", className)}
+			>
+				{trigger}
+			</Button>
+			<Drawer
+				open={open}
+				onOpenChange={setOpen}
+				overlayClassName="supports-backdrop-filter:backdrop-blur-none"
+				showSwipeHandle
+			>
+				<DrawerContent className="rounded-t-[1.75rem] rounded-b-none border-x-0 border-b-0 [--drawer-content-max-height:min(85dvh,44rem)] [--drawer-inset:0px]">
+					<DrawerHeader className="px-[max(1.25rem,var(--safe-area-left))] pt-2 pr-[max(1.25rem,var(--safe-area-right))] pb-1 text-start">
+						<DrawerTitle>{title}</DrawerTitle>
+					</DrawerHeader>
+					<div className="flex min-h-0 flex-col gap-5 overflow-y-auto overscroll-contain px-[max(1.25rem,var(--safe-area-left))] pt-2 pr-[max(1.25rem,var(--safe-area-right))] pb-[max(1.25rem,var(--safe-area-bottom))]">
+						{children(true)}
+					</div>
+				</DrawerContent>
+			</Drawer>
+		</>
 	);
 }
