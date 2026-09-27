@@ -1,5 +1,6 @@
 import { BookOpen, Headphones } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -102,6 +103,7 @@ export function PublicationLink({
 				</p>
 				<p
 					title={publication.title}
+					{...typesetProps(publication.title)}
 					className="truncate font-medium text-sm group-hover/publication:underline group-hover/publication:decoration-1 group-hover/publication:underline-offset-2"
 				>
 					{publication.title}

@@ -1,5 +1,6 @@
 import { type CSSProperties, Fragment, type ReactNode } from "react";
 import { PAGE_GUTTER } from "@/lib/page-layout";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { getHeroSurfaceColors } from "@/utils/color";
 
@@ -116,6 +117,7 @@ export function HeroTitle({
 	return (
 		<h1
 			id={id}
+			{...typesetProps(children, "display")}
 			className="text-balance break-words font-bold text-2xl text-foreground leading-tight tracking-tight sm:text-3xl sm:leading-[1.1] lg:text-4xl dark:text-white dark:[text-shadow:0_1px_16px_rgb(0_0_0/0.35)]"
 		>
 			{children}

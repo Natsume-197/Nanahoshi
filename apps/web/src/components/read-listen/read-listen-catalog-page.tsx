@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useCollectionView } from "@/hooks/use-collection-view";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -113,7 +114,10 @@ export function ReadListenPairLinks({
 					<PublicationArtwork publication={publication} square={square} />
 					<span className="min-w-0">
 						<span className="block text-muted-foreground text-xs">{label}</span>
-						<span className="block truncate font-medium text-sm group-hover:underline">
+						<span
+							{...typesetProps(publication.title)}
+							className="block truncate font-medium text-sm group-hover:underline"
+						>
 							{publication.title}
 						</span>
 						{publication.authors.length > 0 && (
@@ -220,11 +224,17 @@ export function PairGridCard({ pairing }: { pairing: ReadListenPairing }) {
 			/>
 			<StackedPairCover pairing={pairing} />
 			<div className="min-h-[4.9375rem] px-0.5">
-				<p className="line-clamp-2 font-medium text-base leading-relaxed">
+				<p
+					{...typesetProps(title)}
+					className="line-clamp-2 font-medium text-base leading-relaxed"
+				>
 					{title}
 				</p>
 				{authorText && (
-					<p className="line-clamp-1 text-muted-foreground text-sm leading-relaxed">
+					<p
+						{...typesetProps(authorText)}
+						className="line-clamp-1 text-muted-foreground text-sm leading-relaxed"
+					>
 						{authorText}
 					</p>
 				)}

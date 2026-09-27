@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { PAGE_SHELL } from "@/lib/page-layout";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
@@ -152,7 +153,10 @@ function AuthorsPage() {
 								<User className="size-14 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/60" />
 							</div>
 							<div className="pt-2 text-center">
-								<p className="line-clamp-2 font-medium text-sm leading-tight">
+								<p
+									{...typesetProps(author.name)}
+									className="line-clamp-2 font-medium text-sm leading-tight"
+								>
 									{author.name}
 								</p>
 								<p className="text-muted-foreground text-xs">

@@ -399,6 +399,27 @@ html[data-rail-resizing] * {
 	}
 }
 
+/* Japanese library text (titles, authors, series), tagged by typesetProps() or
+   the book card. Full-width glyphs don't want the body's Latin tightening;
+   proportional kana (palt) plus a hair of tracking reads like a set cover line
+   instead of monospaced boxes; auto-phrase keeps 文節 together when a title
+   wraps or clamps (Chromium only, others keep the default break rules).
+   Matches the detected attribute, not :lang(), so a Japanese UI locale on
+   <html> doesn't pull Latin titles into these rules. */
+[data-typeset][lang="ja"] {
+	font-feature-settings: "palt";
+	letter-spacing: 0.02em;
+	word-break: auto-phrase;
+	overflow-wrap: break-word;
+}
+
+/* Large headings: palt alone is tight enough, and wrapped kanji lines need
+   more leading than the Latin 1.1. */
+[data-typeset="display"][lang="ja"] {
+	letter-spacing: 0;
+	line-height: 1.3;
+}
+
 @media (prefers-contrast: more) {
 	:root {
 		--muted-foreground: oklch(0.38 0.007 286);

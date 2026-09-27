@@ -56,6 +56,7 @@ import {
 	rankSearchResultBatches,
 	searchResultKey,
 } from "@/lib/search-result-batches";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -206,6 +207,7 @@ function ResultRowContent({
 			<div className="min-w-0 flex-1">
 				<p
 					title={title}
+					{...typesetProps(title)}
 					className="line-clamp-2 break-words font-semibold text-base leading-snug tracking-[-0.01em]"
 				>
 					{title}
@@ -213,6 +215,7 @@ function ResultRowContent({
 				{subtitle && (
 					<p
 						title={subtitle}
+						{...typesetProps(subtitle)}
 						className="mt-1 line-clamp-2 break-words text-muted-foreground text-sm leading-normal"
 					>
 						{subtitle}

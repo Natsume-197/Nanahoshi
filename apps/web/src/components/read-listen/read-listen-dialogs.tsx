@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
+import { typesetProps } from "@/lib/text-lang";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { formatNames, formatReadingTime } from "@/utils/format";
@@ -58,6 +59,7 @@ function PublicationSummary({
 			<span className="min-w-0">
 				<span
 					title={publication.title}
+					{...typesetProps(publication.title)}
 					className="block truncate font-medium text-sm"
 				>
 					{publication.title}

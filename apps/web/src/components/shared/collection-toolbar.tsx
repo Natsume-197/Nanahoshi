@@ -1,5 +1,6 @@
 import { CircleNotch } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,6 +27,7 @@ export function CollectionToolbar({
 			<div className="space-y-1.5">
 				<div className="flex items-center gap-2.5">
 					<h1
+						{...typesetProps(title, "display")}
 						className={cn(
 							"text-balance tracking-tight",
 							titleSize === "compact"

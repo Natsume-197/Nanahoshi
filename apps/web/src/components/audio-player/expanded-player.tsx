@@ -31,6 +31,7 @@ import {
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { useIsBelowLg } from "@/hooks/use-mobile";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
@@ -132,7 +133,8 @@ function UpNextRow() {
 					</p>
 					{upNext?.title && (
 						<p className="truncate text-muted-foreground text-xs">
-							{m["audiobook.player_up_next"]()}: {upNext.title}
+							{m["audiobook.player_up_next"]()}:{" "}
+							<span {...typesetProps(upNext.title)}>{upNext.title}</span>
 						</p>
 					)}
 				</div>

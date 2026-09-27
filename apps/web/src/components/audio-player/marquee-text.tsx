@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { marqueeVars, shouldLoop } from "@/components/audio-player/marquee";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 
 /**
@@ -49,6 +50,7 @@ export function MarqueeText({
 		<span
 			ref={containerRef}
 			title={text}
+			{...typesetProps(text)}
 			className={cn(
 				"relative block overflow-hidden",
 				overflow > 0 &&

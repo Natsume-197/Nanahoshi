@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
+import { detectTextLang } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -88,6 +89,12 @@ interface BookCardShellProps {
 	 * page and do not use it.
 	 */
 	tint?: string | null;
+	/**
+	 * Language of the title/subtitle text. Detected from a string title (or the
+	 * aria label) when omitted, so Japanese titles get Japanese typography even
+	 * under a Spanish or English UI.
+	 */
+	lang?: string;
 }
 
 type BookCardShellRowHeightEstimateOptions = {
@@ -187,6 +194,7 @@ export function BookCardShell({
 	orientation = "vertical",
 	meta,
 	tint,
+	lang,
 }: BookCardShellProps) {
 	const isHorizontal = orientation === "horizontal";
 	const usesTintedSurface = isHorizontal;
@@ -324,6 +332,8 @@ export function BookCardShell({
 		</div>
 	);
 
+	const textLang =
+		lang ?? detectTextLang(typeof title === "string" ? title : ariaLabel);
 	const titleClassName = cn(
 		"line-clamp-2 font-medium [&>em]:font-bold [&>em]:text-primary [&>em]:not-italic",
 		isHorizontal
@@ -331,9 +341,14 @@ export function BookCardShell({
 			: compactTextBlock
 				? COMPACT_TITLE_CLASS
 				: "text-base leading-relaxed",
+		// Two clamped lines of kanji need more air than Latin's tight leading.
+		textLang === "ja" &&
+			(isHorizontal ? "leading-snug" : compactTextBlock && "leading-[1.45]"),
 	);
 	const titleNode = hasImmediateCardAction ? (
-		<p className={titleClassName}>{title}</p>
+		<p data-slot="book-card-title" className={titleClassName}>
+			{title}
+		</p>
 	) : (
 		<Link
 			{...(resolvedLinkProps as ComponentProps<typeof Link>)}
@@ -342,7 +357,9 @@ export function BookCardShell({
 			className="pointer-events-auto relative z-10 block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 			onMouseEnter={inSweepScroll ? undefined : onLinkMouseEnter}
 		>
-			<p className={titleClassName}>{title}</p>
+			<p data-slot="book-card-title" className={titleClassName}>
+				{title}
+			</p>
 		</Link>
 	);
 
@@ -418,6 +435,9 @@ export function BookCardShell({
 			    never changes size. Content is top-aligned, so the subtitle always
 			    sits directly under the title and any slack falls at the bottom. */}
 			<div
+				data-slot="book-card-text"
+				data-typeset="text"
+				lang={textLang}
 				className={cn(
 					"flex min-w-0 flex-col gap-1 px-0.5",
 					hidesTextBlock && "hidden",

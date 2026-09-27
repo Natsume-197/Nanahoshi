@@ -25,6 +25,7 @@ import {
 	searchHistoryEntryKey,
 	useSearchHistory,
 } from "@/hooks/use-search-history";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
@@ -582,7 +583,12 @@ export function DashboardHeaderSearch() {
 									>
 										{hitVisual(entry.hit)}
 										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">{title}</p>
+											<p
+												{...typesetProps(title)}
+												className="truncate font-medium text-sm"
+											>
+												{title}
+											</p>
 											<p className="truncate text-muted-foreground text-xs">
 												{subtitle}
 											</p>
@@ -684,7 +690,12 @@ export function DashboardHeaderSearch() {
 									>
 										{hitVisual(hit)}
 										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">{title}</p>
+											<p
+												{...typesetProps(title)}
+												className="truncate font-medium text-sm"
+											>
+												{title}
+											</p>
 											<p className="truncate text-muted-foreground text-xs">
 												{subtitle}
 											</p>

@@ -84,6 +84,7 @@ import { useAbilities } from "@/hooks/use-abilities";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePop } from "@/hooks/use-pop";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -198,11 +199,17 @@ export function BookDetailPage() {
 									weight="thin"
 								/>
 								<div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/65 to-transparent px-4 pt-10 pb-4">
-									<p className="line-clamp-3 font-semibold text-sm text-white">
+									<p
+										{...typesetProps(title)}
+										className="line-clamp-3 font-semibold text-sm text-white"
+									>
 										{title}
 									</p>
 									{authorText && (
-										<p className="line-clamp-2 text-white/75 text-xs">
+										<p
+											{...typesetProps(authorText)}
+											className="line-clamp-2 text-white/75 text-xs"
+										>
 											{authorText}
 										</p>
 									)}
@@ -1355,7 +1362,7 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 							<div className="flex min-w-0 flex-col gap-1 py-0.5">
 								{copy.isCurrent ? (
 									<p className="min-w-0 break-words font-medium text-foreground text-sm leading-snug">
-										<bdi>{displayTitle}</bdi>
+										<bdi {...typesetProps(displayTitle)}>{displayTitle}</bdi>
 									</p>
 								) : (
 									<Link
@@ -1366,7 +1373,7 @@ function OtherCopiesSection({ book }: { book: BookData }) {
 										})}
 										className="min-w-0 break-words font-medium text-foreground text-sm leading-snug underline decoration-muted-foreground/35 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
 									>
-										<bdi>{displayTitle}</bdi>
+										<bdi {...typesetProps(displayTitle)}>{displayTitle}</bdi>
 									</Link>
 								)}
 								<p className="min-w-0 break-all text-muted-foreground text-xs leading-snug">
