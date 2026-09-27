@@ -1,4 +1,5 @@
 import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
+import { ReadCoverage } from "@nanahoshi/api/routers/reading-sessions/reading-statistics";
 export type TrackingMode = "automatic" | "manual" | "off";
 export interface ClockSnapshot {
 	state: "idle" | "active" | "paused" | "finished";
@@ -28,6 +29,9 @@ export class SessionClock {
 	private locator: string | null = null;
 	private startLocator: string | null = null;
 	private kind: "reading" | "jump" = "reading";
+	// Pages already read in this run, so paging back and forth counts like the server does.
+	private coverage = new ReadCoverage();
+	private coveredRun: string | null = null;
 	constructor(
 		private emit: (segment: SessionUpload["segments"][number]) => void,
 		private now = () => ({ mono: performance.now(), wall: Date.now() }),
@@ -97,13 +101,26 @@ export class SessionClock {
 			return;
 		}
 		if (!navigation && previous !== null)
-			this.observedProgress += Math.max(0, position - previous);
+			this.observedProgress += this.coverage.add(previous, position);
 		if (navigation) {
 			this.flush();
 			this.kind = "jump";
 		}
 		this.position = position;
 		this.locator = locator;
+		// Close the jump now, or reading right after it would be filed as navigation.
+		if (navigation) this.flush();
+	}
+	/** Adds what the run's history already read; a different run starts over. */
+	cover(runId: string | null, ranges: [number, number][]) {
+		if (runId && this.coveredRun && runId !== this.coveredRun)
+			this.resetCoverage();
+		this.coveredRun = runId ?? this.coveredRun;
+		for (const [start, end] of ranges) this.coverage.add(start, end);
+	}
+	resetCoverage() {
+		this.coverage = new ReadCoverage();
+		this.coveredRun = null;
 	}
 	flush() {
 		if (this.state !== "active") return;

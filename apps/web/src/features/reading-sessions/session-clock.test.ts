@@ -123,8 +123,66 @@ describe("reading session clock", () => {
 		f.clock.move(0.7, true);
 		f.advance(10000);
 		f.clock.tick(5);
-		expect(f.segments.at(-1)?.kind).toBe("jump");
 		expect(f.segments[0]?.endPosition).toBe(0.12);
+		const jump = f.segments.find((s) => s.kind === "jump");
+		expect(jump).toMatchObject({ startPosition: 0.12, endPosition: 0.7 });
+		expect(jump?.seconds).toBe(0);
+		// Time spent on the new page after the jump is reading there.
+		expect(f.segments.at(-1)).toMatchObject({
+			kind: "reading",
+			startPosition: 0.7,
+			seconds: 10,
+		});
+	});
+	test("reading right after paging back is not filed as navigation", () => {
+		const f = fixture();
+		f.clock.start(0.1);
+		f.advance(5000);
+		f.clock.move(0.11);
+		f.advance(300);
+		f.clock.move(0.105);
+		f.advance(300);
+		f.clock.move(0.12);
+		f.advance(5000);
+		f.clock.tick(5);
+		expect(
+			f.segments.map((s) => [s.kind, s.startPosition, s.endPosition]),
+		).toEqual([
+			["reading", 0.1, 0.11],
+			["jump", 0.11, 0.105],
+			["reading", 0.105, 0.12],
+		]);
+	});
+	test("paging back and forth only counts pages not read yet", () => {
+		const f = fixture();
+		f.clock.start(0.1);
+		f.advance(1000);
+		f.clock.move(0.11);
+		f.advance(1000);
+		f.clock.move(0.12);
+		f.advance(1000);
+		f.clock.move(0.11);
+		f.advance(1000);
+		f.clock.move(0.12);
+		f.advance(1000);
+		f.clock.move(0.13);
+		expect(f.clock.observedProgress).toBeCloseTo(0.03);
+	});
+	test("history of the same run is not counted again; another run starts over", () => {
+		const f = fixture();
+		f.clock.cover("run-1", [[0, 0.2]]);
+		f.clock.start(0.17);
+		f.advance(1000);
+		f.clock.move(0.19);
+		f.advance(1000);
+		f.clock.move(0.21);
+		expect(f.clock.observedProgress).toBeCloseTo(0.01);
+		f.clock.cover("run-2", []);
+		f.advance(1000);
+		f.clock.move(0.2);
+		f.advance(1000);
+		f.clock.move(0.22);
+		expect(f.clock.observedProgress).toBeCloseTo(0.03);
 	});
 	test("idle timeout pauses without repeated charges", () => {
 		const f = fixture();

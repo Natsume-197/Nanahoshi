@@ -28,6 +28,22 @@ interface Options {
 	// The table of contents may load after the session starts, so it is asked for on each save.
 	getChapters?: () => BookChapter[] | null;
 }
+function readRanges(
+	segments: {
+		kind: string;
+		startPosition: number | null;
+		endPosition: number | null;
+	}[],
+) {
+	return segments.flatMap((s) =>
+		s.kind !== "jump" &&
+		s.kind !== "listening" &&
+		s.startPosition !== null &&
+		s.endPosition !== null
+			? [[s.startPosition, s.endPosition] as [number, number]]
+			: [],
+	);
+}
 export function useReadingTracker(options: Options) {
 	const latest = useRef(options);
 	latest.current = options;
@@ -71,6 +87,31 @@ export function useReadingTracker(options: Options) {
 		finishReading: () => Promise<void>;
 		discardSession: () => Promise<void>;
 	} | null>(null);
+	const [timeZone] = useState(
+		() => Intl.DateTimeFormat().resolvedOptions().timeZone,
+	);
+	// Read once per visit: the clock tracks this visit's pages itself, and a
+	// readingSessions key would refetch the whole history on every sync.
+	const history = useQuery({
+		queryKey: ["reading-coverage", options.bookUuid],
+		queryFn: () =>
+			client.readingSessions.history({ bookUuid: options.bookUuid, timeZone }),
+		enabled: options.enabled,
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 0,
+	});
+	const coveredHistory = useRef<unknown>(null);
+	if (
+		history.data &&
+		runtime.current &&
+		coveredHistory.current !== history.data
+	) {
+		coveredHistory.current = history.data;
+		runtime.current.clock.cover(
+			history.data.runId,
+			readRanges(history.data.segments),
+		);
+	}
 	const jumpRef = useRef(false);
 	const reportPosition = useCallback((position: number) => {
 		const clock = runtime.current?.isOwner() ? runtime.current.clock : null;
@@ -190,6 +231,7 @@ export function useReadingTracker(options: Options) {
 								);
 								savedSegments = Math.max(0, savedSegments - removed);
 								session.runId = runId;
+								clock.cover(runId, []);
 								session.revision = Math.max(session.revision, sent.revision);
 							},
 						});
@@ -289,6 +331,17 @@ export function useReadingTracker(options: Options) {
 			clock.activity(mode);
 			publish();
 		};
+		// Another tab may have read pages since this one loaded: its unsent pages are
+		// in the shared outbox, the sent ones in a fresh history.
+		const takeOverCoverage = () => {
+			for (const row of pendingSessions(options.userId))
+				if (row.bookUuid === options.bookUuid)
+					clock.cover(null, readRanges(row.segments));
+			// While opening, the history is still on its way and needs no refetch.
+			const coverageKey = ["reading-coverage", options.bookUuid];
+			if (queryClient.getQueryData(coverageKey))
+				void queryClient.invalidateQueries({ queryKey: coverageKey });
+		};
 		const abort = new AbortController();
 		let acquiring = false;
 		const acquire = () => {
@@ -318,6 +371,7 @@ export function useReadingTracker(options: Options) {
 						if (disposed || document.visibilityState === "hidden") return;
 						owner = true;
 						setOtherTab(false);
+						takeOverCoverage();
 						void sync();
 						await new Promise<void>((resolve) => {
 							release = resolve;
@@ -444,6 +498,12 @@ export function useReadingTracker(options: Options) {
 				await client.readingSessions.discard({
 					bookUuid: options.bookUuid,
 					id: discarded.id,
+				});
+				// The discarded pages count as unread again, like on the server.
+				clock.resetCoverage();
+				coveredHistory.current = null;
+				void queryClient.invalidateQueries({
+					queryKey: ["reading-coverage", options.bookUuid],
 				});
 				if (session === discarded) {
 					session = null;
