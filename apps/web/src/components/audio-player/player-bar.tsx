@@ -114,7 +114,8 @@ const ChapterMarkers = memo(function ChapterMarkers({
 
 /**
  * Compact transport bar. Its cover doubles as the handle into the expanded
- * view — on phones, so does the whole strip between the controls.
+ * view — on phones, so does the whole strip between the controls, which keep
+ * just jump-back and play/pause (plus follow-text in the reader).
  */
 export const PlayerBar = memo(function PlayerBar({
 	readListen,
@@ -211,46 +212,18 @@ export const PlayerBar = memo(function PlayerBar({
 							secondaryTabular={Boolean(readListen)}
 						/>
 					</div>
-					<div className="relative shrink-0">
-						<PlayerBookmarksButton className={compactControlClass} />
-					</div>
-					{readListen ? (
-						<div className="relative flex shrink-0 items-center justify-center">
-							<PlayerTransport alwaysShowChapterControls />
-							{!readListen.followText && (
-								<ReadListenFollowButton
-									context={readListen}
-									className="size-8 text-foreground"
-								/>
-							)}
-						</div>
-					) : (
-						<div className="relative flex shrink-0 items-center">
-							<JumpBackButton className={compactControlClass} />
-							<PlayPauseButton
-								variant="strip"
-								className={compactControlClass}
+					{/* Two controls only: the strip is a handle first. Bookmarks, chapter
+					    skips, the reader and stop all live in the expanded player. */}
+					<div className="relative flex shrink-0 items-center">
+						<JumpBackButton className={compactControlClass} />
+						<PlayPauseButton variant="strip" className={compactControlClass} />
+						{readListen && !readListen.followText && (
+							<ReadListenFollowButton
+								context={readListen}
+								className={cn("size-8 text-foreground", compactControlClass)}
 							/>
-							{onOpenReadListen && (
-								<ReadListenOpenButton
-									onOpen={onOpenReadListen}
-									onIntent={onReadListenIntent}
-									onCommitIntent={onReadListenCommitIntent}
-									label={m["read_listen.open_reader"]()}
-									className="size-8 text-foreground"
-								/>
-							)}
-							{showStopButton && (
-								<PlayerIconButton
-									label={m["audiobook.player_stop"]()}
-									onClick={stop}
-									className="size-7"
-								>
-									<X className="size-4" />
-								</PlayerIconButton>
-							)}
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 				{/* scaleX so the 4×/s update composites instead of relaying out the markers. */}
 				<div className="relative h-0.5 overflow-hidden bg-foreground/20">

@@ -63,47 +63,68 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-for (const [layout, index] of [
-	["mobile", 0],
-	["desktop", 1],
-] as const) {
-	test(`${layout} creates and selects bookmarks without expanding or pausing`, async () => {
-		addBookmark(state.audiobook.uuid, 45, "Saved passage");
-		const view = render(
-			<TooltipProvider>
-				<PlayerBar />
-			</TooltipProvider>,
-		);
-		const trigger = view.getAllByRole("button", {
-			name: m["audiobook.player_bookmarks"](),
-		})[index];
-		if (!trigger) throw new Error("Missing bookmark trigger");
-		fireEvent.pointerDown(trigger);
-		fireEvent.click(trigger);
-		await waitFor(() =>
-			expect(view.getByRole("button", { name: /Saved passage/ })).toBeDefined(),
-		);
-		// Rows are enumerated in time order (accessible name concatenates
-		// the spans: "1" + "0:45" + label).
-		expect(view.getByRole("button", { name: /^1/ })).toBeDefined();
-		fireEvent.click(view.getByRole("button", { name: /Saved passage/ }));
-		expect(seekTo).toHaveBeenCalledWith(45);
-		fireEvent.change(view.getByRole("textbox"), {
-			target: { value: "New passage" },
-		});
-		fireEvent.click(
-			view.getByRole("button", { name: m["audiobook.player_bookmark_add"]() }),
-		);
-		expect(
-			listBookmarks(state.audiobook.uuid).map(({ time, label }) => ({
-				time,
-				label,
-			})),
-		).toEqual([
-			{ time: 45, label: "Saved passage" },
-			{ time: 123, label: "New passage" },
-		]);
-		expect(setExpanded).not.toHaveBeenCalled();
-		expect(togglePlay).not.toHaveBeenCalled();
+test("the mobile strip keeps bookmarks out, leaving them to the dock and expanded player", () => {
+	const view = render(
+		<TooltipProvider>
+			<PlayerBar />
+		</TooltipProvider>,
+	);
+	// Only the desktop dock renders a trigger now.
+	expect(
+		view.getAllByRole("button", { name: m["audiobook.player_bookmarks"]() }),
+	).toHaveLength(1);
+});
+
+test("desktop creates and selects bookmarks without expanding or pausing", async () => {
+	addBookmark(state.audiobook.uuid, 45, "Saved passage");
+	const view = render(
+		<TooltipProvider>
+			<PlayerBar />
+		</TooltipProvider>,
+	);
+	const trigger = view.getAllByRole("button", {
+		name: m["audiobook.player_bookmarks"](),
+	})[0];
+	if (!trigger) throw new Error("Missing bookmark trigger");
+	fireEvent.pointerDown(trigger);
+	fireEvent.click(trigger);
+	await waitFor(() =>
+		expect(view.getByRole("button", { name: /Saved passage/ })).toBeDefined(),
+	);
+	// Rows are enumerated in time order (accessible name concatenates
+	// the spans: "1" + "0:45" + label).
+	expect(view.getByRole("button", { name: /^1/ })).toBeDefined();
+	fireEvent.click(view.getByRole("button", { name: /Saved passage/ }));
+	expect(seekTo).toHaveBeenCalledWith(45);
+	// One tap saves the moment; the note is added on the row afterwards.
+	fireEvent.click(
+		view.getByRole("button", {
+			name: new RegExp(`^${m["audiobook.player_bookmark_add"]()}`),
+		}),
+	);
+	const editButtons = view.getAllByRole("button", {
+		name: m["audiobook.player_bookmark_edit"](),
 	});
-}
+	const newRowEdit = editButtons[1];
+	if (!newRowEdit) throw new Error("Missing edit button for the new row");
+	fireEvent.click(newRowEdit);
+	fireEvent.change(view.getByRole("textbox"), {
+		target: { value: "New passage" },
+	});
+	fireEvent.click(
+		view.getByRole("button", {
+			name: m["audiobook.player_bookmark_label_save"](),
+		}),
+	);
+	expect(
+		listBookmarks(state.audiobook.uuid).map(({ time, label }) => ({
+			time,
+			label,
+		})),
+	).toEqual([
+		{ time: 45, label: "Saved passage" },
+		{ time: 123, label: "New passage" },
+	]);
+	expect(setExpanded).not.toHaveBeenCalled();
+	expect(togglePlay).not.toHaveBeenCalled();
+});
