@@ -190,16 +190,7 @@ function ShelfGrid<TStatus extends string>({
 					</Badge>
 				</span>
 			}
-			headerAction={
-				<button
-					type="button"
-					onClick={() => onViewMore(status)}
-					className="rounded-sm font-medium text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-				>
-					{m["nav.show_all"]()}
-					<span className="sr-only">: {label}</span>
-				</button>
-			}
+			onShowAll={() => onViewMore(status)}
 		>
 			{books.slice(0, itemLimit).map((book) => (
 				<div

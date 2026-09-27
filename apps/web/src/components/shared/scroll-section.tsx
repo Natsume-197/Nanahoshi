@@ -14,13 +14,36 @@ import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { SweepScrollProvider } from "./sweep-scroll-context";
 
+/**
+ * A titled rail links its title to the full list, like the sidebar's section
+ * labels: the chevron is the affordance, so there is no separate "Show all".
+ */
+const SHOW_ALL_TITLE_CLASS =
+	"group/title rounded-sm focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2";
+
+function ShowAllChevron() {
+	return (
+		<>
+			<CaretRight
+				aria-hidden="true"
+				weight="bold"
+				className="ms-1.5 inline-block size-[0.75em] align-[-0.05em] text-foreground/50 group-hover/title:translate-x-0.5 group-hover/title:text-foreground group-focus-visible/title:text-foreground motion-safe:transition-[color,translate] motion-safe:duration-[var(--duration-quick)] rtl:-scale-x-100"
+			/>
+			<span className="sr-only">: {m["nav.show_all"]()}</span>
+		</>
+	);
+}
+
 interface ScrollSectionProps {
 	/** Omit to render a headerless section (e.g. the top-of-home Continue grid). */
 	title?: ReactNode;
+	/** Makes the title a link to the full list, marked by a trailing chevron. */
 	showAllHref?: string;
 	showAllSearch?: Record<string, string>;
-	/** History state for the "Show all" link (e.g. { format: "audiobooks" }). */
+	/** History state for the title link (e.g. { format: "audiobooks" }). */
 	showAllState?: Record<string, unknown>;
+	/** Same as showAllHref for a full list that opens in place (no route). */
+	onShowAll?: () => void;
 	headerAction?: ReactNode;
 	/**
 	 * "resume" lays wide (horizontal) cards one/two/three across so a row of
@@ -59,6 +82,7 @@ export function ScrollSection({
 	showAllHref,
 	showAllSearch,
 	showAllState,
+	onShowAll,
 	headerAction,
 	layout = "carousel",
 	restoreId,
@@ -198,26 +222,40 @@ export function ScrollSection({
 						"mb-4 flex items-start justify-between gap-3",
 					)}
 				>
+					{/* 24px from md up, so the heading clearly outranks the 18px card
+					    titles under it. Phones keep 20px against their 16px titles. */}
 					<h2
 						id={headingId}
-						className="min-w-0 text-balance font-semibold text-xl leading-tight"
+						className="min-w-0 text-balance font-semibold text-xl leading-tight md:text-2xl"
 					>
-						{title}
-					</h2>
-					<div className="flex shrink-0 items-center gap-2">
-						{headerAction}
-						{showAllHref && (
+						{showAllHref ? (
 							<Link
 								to={showAllHref}
 								search={showAllSearch}
 								state={showAllState}
-								className="relative inline-flex h-7 items-center whitespace-nowrap rounded-sm font-semibold text-foreground/80 text-sm transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2"
+								className={SHOW_ALL_TITLE_CLASS}
 							>
-								{m["nav.show_all"]()}
-								<span className="sr-only">: {title}</span>
+								{title}
+								<ShowAllChevron />
 							</Link>
+						) : onShowAll ? (
+							<button
+								type="button"
+								onClick={onShowAll}
+								className={cn(SHOW_ALL_TITLE_CLASS, "text-start")}
+							>
+								{title}
+								<ShowAllChevron />
+							</button>
+						) : (
+							title
 						)}
-					</div>
+					</h2>
+					{headerAction && (
+						<div className="flex shrink-0 items-center gap-2">
+							{headerAction}
+						</div>
+					)}
 				</div>
 			)}
 			<div className="@container relative">
