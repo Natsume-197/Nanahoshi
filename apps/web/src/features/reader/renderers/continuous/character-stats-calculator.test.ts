@@ -261,6 +261,54 @@ describe("precise reader positions", () => {
 		}
 	});
 
+	test("the blank end of a short page does not resolve to text in an off-screen column", () => {
+		const book = document.createElement("main");
+		book.innerHTML = "<p>Opening</p><p>Last</p>";
+		document.body.append(book);
+		book.getBoundingClientRect = () =>
+			({ left: 0, right: 1000, top: 0, bottom: 700 }) as DOMRect;
+		const opening = book.firstChild?.firstChild as Text;
+		const last = book.lastChild?.firstChild as Text;
+		// Only the last line is on this page; the caret snaps blank space to the chapter start.
+		Object.defineProperty(document, "caretPositionFromPoint", {
+			configurable: true,
+			value: (_x: number, y: number) =>
+				y < 60
+					? { offsetNode: last, offset: 0 }
+					: { offsetNode: opening, offset: 0 },
+		});
+		const measure = spyOn(
+			dom.window.Range.prototype,
+			"getBoundingClientRect",
+		).mockImplementation(function (this: Range) {
+			const left = this.startContainer === opening ? -5000 : 10;
+			return {
+				top: 10,
+				bottom: 40,
+				left,
+				right: left + 20,
+				width: 20,
+				height: 30,
+				x: left,
+				y: 10,
+				toJSON: () => ({}),
+			};
+		});
+		try {
+			const calculator = new CharacterStatsCalculator(
+				book,
+				"vertical",
+				"ltr",
+				book,
+				document,
+			);
+			expect(calculator.calcPreciseExploredCharCount()).toBe("Opening".length);
+		} finally {
+			measure.mockRestore();
+			book.remove();
+		}
+	});
+
 	test("ignores the transparent menu hit area while measuring the visible first line", () => {
 		const book = document.createElement("main");
 		book.innerHTML = "<p>First visible line</p><p>Following line</p>";

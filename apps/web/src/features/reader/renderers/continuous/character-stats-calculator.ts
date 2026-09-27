@@ -571,7 +571,27 @@ export class CharacterStatsCalculator {
 		}
 		const start = this.nodeStartCharacters.get(finalNode);
 		if (start === undefined) return undefined;
+		if (!this.isCaretVisible(finalNode, finalOffset)) return undefined;
 		return start + countTextCharactersBeforeOffset(finalNode.data, finalOffset);
+	}
+
+	// Over the blank end of a short page the caret snaps to the nearest text,
+	// which can sit in another column off-screen; that is not what is read.
+	private isCaretVisible(node: Text, offset: number) {
+		const range = this.document.createRange();
+		if (typeof range.getBoundingClientRect !== "function") return true;
+		const from = Math.min(offset, Math.max(0, node.length - 1));
+		range.setStart(node, from);
+		range.setEnd(node, Math.min(node.length, from + 1));
+		const rect = range.getBoundingClientRect();
+		if (!rect.width && !rect.height) return true;
+		const viewport = this.getViewportRect();
+		return (
+			rect.right > viewport.left &&
+			rect.left < viewport.right &&
+			rect.bottom > viewport.top &&
+			rect.top < viewport.bottom
+		);
 	}
 
 	/**
