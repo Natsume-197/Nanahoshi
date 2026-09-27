@@ -1,7 +1,13 @@
-import { ArrowSquareOut, DotsThreeVertical, X } from "@phosphor-icons/react";
+import {
+	ArrowSquareOut,
+	Books,
+	DotsThreeVertical,
+	ListPlus,
+	X,
+} from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
-import { JumpSettings } from "@/components/audio-player/player-jump-settings";
+import { AddToListModal } from "@/components/books/add-to-list-modal";
 import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,27 +27,38 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useAudioPlayerActions } from "@/context/audio-player-context";
+import {
+	useAudioPlayerActions,
+	useAudioPlayerBook,
+} from "@/context/audio-player-context";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const ROW_CLASS = "h-9 w-full justify-start gap-2 px-2 font-normal";
 
-/** Navigation and jump actions shared by the popover and the mobile drawer. */
+/**
+ * Actions about the book rather than playback, shared by the popover and the
+ * mobile drawer. Settings (speed, jumps, sleep) live on their own buttons;
+ * closing the player sits apart at the end, where it isn't hit by accident.
+ */
 function MoreActions({
 	uuid,
 	onOpenReadListenReader,
 	onReadListenIntent,
 	onReadListenCommitIntent,
+	onAddToList,
 	onDone,
 }: {
 	uuid: string;
 	onOpenReadListenReader?: () => void;
 	onReadListenIntent?: () => void;
 	onReadListenCommitIntent?: () => void;
+	onAddToList: () => void;
 	onDone: () => void;
 }) {
 	const { stop, setExpanded } = useAudioPlayerActions();
+	const seriesUuid = useAudioPlayerBook()?.seriesUuid ?? null;
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -77,13 +94,40 @@ function MoreActions({
 					{m["read_listen.open_full_reader"]()}
 				</Button>
 			)}
-			<Separator />
-			<JumpSettings />
-			<Separator />
+			{seriesUuid && (
+				<Button
+					asChild
+					variant="ghost"
+					size="sm"
+					className={ROW_CLASS}
+					onClick={() => {
+						setExpanded(false);
+						onDone();
+					}}
+				>
+					<Link to="/dashboard/series/$uuid" params={{ uuid: seriesUuid }}>
+						<Books className="size-4" />
+						{m["audiobook.player_go_to_series"]()}
+					</Link>
+				</Button>
+			)}
 			<Button
 				variant="ghost"
 				size="sm"
 				className={ROW_CLASS}
+				onClick={() => {
+					onDone();
+					onAddToList();
+				}}
+			>
+				<ListPlus className="size-4" />
+				{m["add_to_list.title"]()}
+			</Button>
+			<Separator />
+			<Button
+				variant="ghost"
+				size="sm"
+				className={cn(ROW_CLASS, "text-destructive hover:text-destructive")}
 				onClick={() => {
 					stop();
 					onDone();
@@ -98,8 +142,7 @@ function MoreActions({
 
 /**
  * The expanded player's overflow menu. Everything that isn't playback lives
- * here — leaving the artwork, the jump amounts (the one setting the expanded
- * controls don't already expose), and closing the player. A bottom sheet on
+ * here — leaving the artwork, lists, the series, and closing the player. A bottom sheet on
  * phones, where a popover anchored to a corner button is a poor target.
  */
 export const PlayerMoreMenu = memo(function PlayerMoreMenu({
@@ -115,7 +158,17 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 }) {
 	const isMobile = useIsMobile();
 	const [open, setOpen] = useState(false);
+	// Outside the menu: the menu closes as the dialog opens.
+	const [addToListOpen, setAddToListOpen] = useState(false);
 	const label = m["audiobook.player_more"]();
+	const addToList = (
+		<AddToListModal
+			bookUuid={uuid}
+			mediaType="audiobook"
+			open={addToListOpen}
+			onOpenChange={setAddToListOpen}
+		/>
+	);
 
 	const trigger = (
 		<Button
@@ -149,39 +202,45 @@ export const PlayerMoreMenu = memo(function PlayerMoreMenu({
 								onOpenReadListenReader={onOpenReadListenReader}
 								onReadListenIntent={onReadListenIntent}
 								onReadListenCommitIntent={onReadListenCommitIntent}
+								onAddToList={() => setAddToListOpen(true)}
 								onDone={() => setOpen(false)}
 							/>
 						</div>
 					</DrawerContent>
 				</Drawer>
+				{addToList}
 			</>
 		);
 	}
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<PopoverTrigger asChild>{trigger}</PopoverTrigger>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" sideOffset={8}>
-					{label}
-				</TooltipContent>
-			</Tooltip>
-			<PopoverContent
-				side="bottom"
-				align="end"
-				sideOffset={8}
-				className="w-64 rounded-xl p-3"
-			>
-				<MoreActions
-					uuid={uuid}
-					onOpenReadListenReader={onOpenReadListenReader}
-					onReadListenIntent={onReadListenIntent}
-					onReadListenCommitIntent={onReadListenCommitIntent}
-					onDone={() => setOpen(false)}
-				/>
-			</PopoverContent>
-		</Popover>
+		<>
+			<Popover open={open} onOpenChange={setOpen}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<PopoverTrigger asChild>{trigger}</PopoverTrigger>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" sideOffset={8}>
+						{label}
+					</TooltipContent>
+				</Tooltip>
+				<PopoverContent
+					side="bottom"
+					align="end"
+					sideOffset={8}
+					className="w-64 rounded-xl p-3"
+				>
+					<MoreActions
+						uuid={uuid}
+						onOpenReadListenReader={onOpenReadListenReader}
+						onReadListenIntent={onReadListenIntent}
+						onReadListenCommitIntent={onReadListenCommitIntent}
+						onAddToList={() => setAddToListOpen(true)}
+						onDone={() => setOpen(false)}
+					/>
+				</PopoverContent>
+			</Popover>
+			{addToList}
+		</>
 	);
 });
