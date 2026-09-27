@@ -204,7 +204,7 @@ export function ReadingSessionControl({
 						onOpenChange={setOpen}
 						title={m.reading_session()}
 						style={surface}
-						className="top-auto bottom-0 max-h-[85dvh] translate-y-0 rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>*]:min-w-0 [&>div:first-child]:pr-8"
+						className="[&>*]:min-w-0"
 					>
 						{content}
 					</Modal>

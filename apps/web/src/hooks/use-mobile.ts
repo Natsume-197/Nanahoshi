@@ -27,6 +27,18 @@ export function useIsMobile() {
 	return useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
 }
 
+/**
+ * True where a modal should present as a bottom sheet rather than a centered
+ * dialog: phone widths, plus touch devices held in landscape, where a phone is
+ * wider than `md` but too short for a floating dialog to breathe. The height
+ * cut-off matches the `short:` variant in index.css.
+ */
+export function usePrefersBottomSheet() {
+	return useMediaQuery(
+		`(max-width: ${MOBILE_BREAKPOINT - 1}px), (pointer: coarse) and (max-height: 26rem)`,
+	);
+}
+
 /** True below `lg`: too narrow for a main column and a side panel at once. */
 export function useIsBelowLg() {
 	return useMediaQuery(`(max-width: ${ACTIVITY_RAIL_BREAKPOINT - 1}px)`);

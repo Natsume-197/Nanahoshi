@@ -5,10 +5,12 @@ import { cn } from "@/lib/utils";
 
 type DrawerContextProps = {
 	hasSnapPoints: boolean;
+	keyboardAware: boolean;
 	modal: DrawerPrimitive.Root.Props["modal"];
 	overlayClassName?: string;
 	showSwipeHandle: boolean;
 	swipeDirection: NonNullable<DrawerPrimitive.Root.Props["swipeDirection"]>;
+	viewportClassName?: string;
 };
 
 const DrawerContext = React.createContext<DrawerContextProps | null>(null);
@@ -24,26 +26,46 @@ function useDrawer() {
 }
 
 function Drawer({
+	keyboardAware = false,
 	modal = true,
 	overlayClassName,
 	showSwipeHandle = false,
 	snapPoints,
 	swipeDirection = "down",
+	viewportClassName,
 	...props
 }: DrawerPrimitive.Root.Props & {
+	/**
+	 * Keep focused fields clear of the on-screen keyboard (iOS ignores
+	 * `interactive-widget=resizes-content`, so the sheet has to do it itself).
+	 * Turn on for bottom sheets that contain form fields.
+	 */
+	keyboardAware?: boolean;
 	overlayClassName?: string;
 	showSwipeHandle?: boolean;
+	/** Extra classes for the fixed viewport layer, e.g. a higher `z-*`. */
+	viewportClassName?: string;
 }) {
 	const hasSnapPoints = snapPoints != null && snapPoints.length > 0;
 	const contextValue = React.useMemo(
 		() => ({
 			hasSnapPoints,
+			keyboardAware,
 			modal,
 			overlayClassName,
 			showSwipeHandle,
 			swipeDirection,
+			viewportClassName,
 		}),
-		[hasSnapPoints, modal, overlayClassName, showSwipeHandle, swipeDirection],
+		[
+			hasSnapPoints,
+			keyboardAware,
+			modal,
+			overlayClassName,
+			showSwipeHandle,
+			swipeDirection,
+			viewportClassName,
+		],
 	);
 
 	return (
@@ -111,15 +133,17 @@ function DrawerContent({
 }: DrawerPrimitive.Popup.Props) {
 	const {
 		hasSnapPoints,
+		keyboardAware,
 		modal,
 		overlayClassName,
 		showSwipeHandle,
 		swipeDirection,
+		viewportClassName,
 	} = useDrawer();
 	const swipeAxis =
 		swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
-	return (
+	const portal = (
 		<DrawerPortal data-slot="drawer-portal">
 			{modal === true && (
 				<DrawerOverlay
@@ -130,7 +154,10 @@ function DrawerContent({
 			<DrawerPrimitive.Viewport
 				data-slot="drawer-viewport"
 				data-modal={modal}
-				className="pointer-events-none fixed inset-0 z-50 select-none data-[modal=true]:pointer-events-auto"
+				className={cn(
+					"pointer-events-none fixed inset-0 z-50 select-none data-[modal=true]:pointer-events-auto",
+					viewportClassName,
+				)}
 			>
 				<DrawerPrimitive.Popup
 					data-slot="drawer-popup"
@@ -177,6 +204,15 @@ function DrawerContent({
 				</DrawerPrimitive.Popup>
 			</DrawerPrimitive.Viewport>
 		</DrawerPortal>
+	);
+
+	// The provider has to sit above the Viewport it measures.
+	return keyboardAware ? (
+		<DrawerPrimitive.VirtualKeyboardProvider>
+			{portal}
+		</DrawerPrimitive.VirtualKeyboardProvider>
+	) : (
+		portal
 	);
 }
 

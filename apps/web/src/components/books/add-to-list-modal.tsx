@@ -118,7 +118,10 @@ export function AddToListModal({
 			}}
 			title={resolvedTitle ?? m["add_to_list.title"]()}
 			bare
-			className="p-4 sm:max-w-lg sm:p-6"
+			// A plain vertical stack, so it reads fine as a sheet; the sheet
+			// supplies its own safe-area padding on phones.
+			mobilePresentation="sheet"
+			className="sm:max-w-lg"
 		>
 			<div className="flex flex-col gap-5">
 				{/* Book header */}
