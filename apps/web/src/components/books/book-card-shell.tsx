@@ -372,9 +372,10 @@ export function BookCardShell({
 				// their shared top edge is the only one that holds. Slack falls to
 				// the bottom, as it does under a vertical card. h-full makes every
 				// card in the rail take the row height, so a square audiobook and a
-				// 2:3 book are the same size.
+				// 2:3 book are the same size. Flat, no drop shadow: the cover tint
+				// already lifts it off the canvas, and hover lightens it instead.
 				isHorizontal
-					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5 shadow-card hover:shadow-card-hover motion-safe:transition-[box-shadow] motion-safe:duration-150 motion-safe:ease-out"
+					? "h-full items-center gap-2.5 rounded-2xl bg-card p-2.5"
 					: cn("flex-col", hidesTextBlock ? "gap-0" : "gap-3"),
 			)}
 			style={usesTintedSurface ? getTintedCardStyle(tint) : undefined}
