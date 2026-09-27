@@ -17,9 +17,15 @@ import { CollectionContextMenu } from "./collection-context-menu";
 export function CollectionArtwork({
 	covers,
 	fallback,
+	tileSize,
 }: {
 	covers?: string[];
 	fallback?: JSX.Element;
+	/**
+	 * Width in CSS px of a small, fixed-size artwork square (list rows,
+	 * previews). Omit for cards, which stretch with their grid.
+	 */
+	tileSize?: number;
 }): JSX.Element {
 	const filenames = Array.from(
 		new Set(
@@ -42,6 +48,14 @@ export function CollectionArtwork({
 		);
 	}
 
+	// A mosaic splits the square in half each way, so each cover gets half.
+	const preset =
+		tileSize === undefined ? coverPresets.small : coverPresets.tile;
+	const sizes =
+		tileSize === undefined
+			? coverPresets.small.sizes
+			: `${filenames.length === 1 ? tileSize : Math.ceil(tileSize / 2)}px`;
+
 	return (
 		<div
 			className={cn(
@@ -53,9 +67,9 @@ export function CollectionArtwork({
 			{filenames.map((filename, index) => (
 				<img
 					key={filename}
-					src={getCoverPresetUrl(filename, coverPresets.small)}
-					srcSet={getCoverSrcSet(filename, coverPresets.small.widths)}
-					sizes={coverPresets.small.sizes}
+					src={getCoverPresetUrl(filename, preset)}
+					srcSet={getCoverSrcSet(filename, preset.widths)}
+					sizes={sizes}
 					alt=""
 					loading="lazy"
 					className={cn(
@@ -164,7 +178,7 @@ export function CollectionListItem({
 			className="flex min-h-28 items-center gap-5 rounded-xl p-4 transition-colors duration-150 ease-out hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 		>
 			<div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
-				<CollectionArtwork covers={previewCovers} />
+				<CollectionArtwork covers={previewCovers} tileSize={80} />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p

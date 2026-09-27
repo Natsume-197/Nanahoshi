@@ -140,6 +140,7 @@ export function ShelfListItem({
 			<div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted shadow-sm ring-1 ring-black/10 dark:ring-white/10">
 				<CollectionArtwork
 					covers={previewCovers}
+					tileSize={80}
 					fallback={
 						<StatusIcon
 							className="size-8 text-muted-foreground/35"

@@ -72,6 +72,11 @@ export const coverPresets = {
 	// The rail's 52px square. Capped near 2x the tile: a 300w cover shrunk
 	// ~5x aliases, and srcset happily reuses a cached carousel rung.
 	rail: { widths: [128, 200], defaultWidth: 128, sizes: "52px" },
+	// Small collection/shelf artwork in lists (an 80px mosaic of 40px cells).
+	// Same failure as the rail with the carousel preset: 3x phones pulled a
+	// 600w rung into a 40px cell and the ~5x shrink aliased. The caller
+	// declares the real slot; these rungs cover it up to 3x.
+	tile: { widths: [128, 200, 300], defaultWidth: 128, sizes: "80px" },
 	// Genre/tag tiles: the artwork is height-driven inside a wide plate, so its
 	// width is bounded by the tile's own ratio (a third of it for a 2:3 cover)
 	// and stays far below a cover tile's.

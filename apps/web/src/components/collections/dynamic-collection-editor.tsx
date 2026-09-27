@@ -518,7 +518,7 @@ export function DynamicCollectionEditor({
 														key={cover}
 														className="aspect-[2/3] w-12 shrink-0 overflow-hidden rounded-md shadow-sm ring-1 ring-black/10 dark:ring-white/10"
 													>
-														<CollectionArtwork covers={[cover]} />
+														<CollectionArtwork covers={[cover]} tileSize={48} />
 													</div>
 												))}
 											</div>
