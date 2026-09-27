@@ -35,11 +35,11 @@ export const PlayerChapterPanel = memo(function PlayerChapterPanel({
 	return (
 		<div className={cn("flex min-h-0 flex-col", className)}>
 			{showHeader && (
-				<div className="flex shrink-0 items-baseline justify-between gap-2 px-2 pb-2">
-					<p className="text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
+				<div className="flex shrink-0 items-baseline gap-2 px-3 pb-3">
+					<p className="font-semibold text-base text-foreground">
 						{m["audiobook.player_chapters"]()}
 					</p>
-					<span className="text-[11px] text-muted-foreground tabular-nums">
+					<span className="text-muted-foreground text-sm tabular-nums">
 						{chapters.length}
 					</span>
 				</div>
