@@ -2101,6 +2101,8 @@
 		"player_progress_book": "Libro",
 		"player_progress_toggle": "Cambiar entre el tiempo del capítulo y el del libro",
 		"player_progress_remaining": "Quedan {time} ({scope})",
+		"player_bookmark_edit": "Editar etiqueta",
+		"player_bookmark_label_save": "Guardar etiqueta",
 		"player_go_to_series": "Ir a la serie",
 		"player_playback_title": "Reproducción"
 	},

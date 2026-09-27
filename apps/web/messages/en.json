@@ -2101,6 +2101,8 @@
 		"player_progress_book": "Book",
 		"player_progress_toggle": "Switch between chapter and book time",
 		"player_progress_remaining": "{time} left ({scope})",
+		"player_bookmark_edit": "Edit label",
+		"player_bookmark_label_save": "Save label",
 		"player_go_to_series": "Go to series",
 		"player_playback_title": "Playback"
 	},

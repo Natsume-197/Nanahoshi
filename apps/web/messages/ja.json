@@ -2064,6 +2064,8 @@
 		"player_progress_book": "全体",
 		"player_progress_toggle": "チャプターと全体の時間を切り替え",
 		"player_progress_remaining": "残り {time}（{scope}）",
+		"player_bookmark_edit": "ラベルを編集",
+		"player_bookmark_label_save": "ラベルを保存",
 		"player_go_to_series": "シリーズへ",
 		"player_playback_title": "再生"
 	},

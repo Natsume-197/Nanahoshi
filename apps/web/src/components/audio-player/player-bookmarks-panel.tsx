@@ -1,8 +1,15 @@
-import { BookmarkSimple, Trash } from "@phosphor-icons/react";
-import { memo, useRef, useState } from "react";
 import {
+	BookmarkSimple,
+	Check,
+	PencilSimple,
+	Trash,
+} from "@phosphor-icons/react";
+import { memo, useState } from "react";
+import {
+	type AudioBookmark,
 	addBookmark,
 	removeBookmark,
+	renameBookmark,
 	useBookmarks,
 } from "@/components/audio-player/bookmarks";
 import { PlayerPopoverButton } from "@/components/audio-player/player-controls";
@@ -13,6 +20,7 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
+import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatChapterLabel, getActiveChapterIndex } from "@/utils/chapters";
@@ -40,7 +48,138 @@ export const PlayerBookmarksButton = memo(function PlayerBookmarksButton({
 	);
 });
 
-/** Local-first bookmarks for the active book (see bookmarks.ts). */
+/** One bookmark row: jump on tap, rename and delete in place. */
+const BookmarkRow = memo(function BookmarkRow({
+	uuid,
+	bookmark,
+	index,
+	chapterLabel,
+	onSeek,
+}: {
+	uuid: string;
+	bookmark: AudioBookmark;
+	index: number;
+	chapterLabel: string | null;
+	onSeek: (time: number) => void;
+}) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState("");
+	const title = bookmark.label || chapterLabel || formatTime(bookmark.time);
+	// Older bookmarks stored the chapter as their label; don't say it twice.
+	const subtitle =
+		bookmark.label && chapterLabel && bookmark.label !== chapterLabel
+			? chapterLabel
+			: null;
+
+	const commit = () => {
+		renameBookmark(uuid, bookmark.id, draft.trim());
+		setEditing(false);
+	};
+
+	if (editing) {
+		return (
+			<form
+				className="flex items-center gap-1 rounded-lg px-1 py-1"
+				onSubmit={(e) => {
+					e.preventDefault();
+					commit();
+				}}
+			>
+				<span className="shrink-0 px-1.5 font-mono text-[11px] text-primary tabular-nums">
+					{formatTime(bookmark.time)}
+				</span>
+				<Input
+					autoFocus
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Escape") {
+							e.stopPropagation();
+							setEditing(false);
+						}
+					}}
+					placeholder={
+						chapterLabel ?? m["audiobook.player_bookmark_label_placeholder"]()
+					}
+					aria-label={m["audiobook.player_bookmark_edit"]()}
+					className="h-9 min-w-0 flex-1 text-sm"
+				/>
+				<Button
+					type="submit"
+					variant="ghost"
+					size="icon"
+					aria-label={m["audiobook.player_bookmark_label_save"]()}
+					className="size-9 shrink-0"
+				>
+					<Check aria-hidden="true" className="size-4" />
+				</Button>
+			</form>
+		);
+	}
+
+	return (
+		<div className="group flex items-center gap-0.5 rounded-xl px-1 transition-colors hover:bg-foreground/[0.06]">
+			<button
+				type="button"
+				onClick={() => onSeek(bookmark.time)}
+				className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-2 text-left"
+			>
+				<span className="w-4 shrink-0 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+					{index + 1}
+				</span>
+				<span className="shrink-0 font-mono text-[11px] text-primary tabular-nums">
+					{formatTime(bookmark.time)}
+				</span>
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="truncate text-sm" {...typesetProps(title)}>
+						{title}
+					</span>
+					{subtitle && (
+						<span
+							className="truncate text-[11px] text-muted-foreground"
+							{...typesetProps(subtitle)}
+						>
+							{subtitle}
+						</span>
+					)}
+				</span>
+			</button>
+			{/* Revealed on hover for a mouse; a touch screen has no hover, so there
+			    they are always shown. */}
+			<div className="flex shrink-0 items-center opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					aria-label={m["audiobook.player_bookmark_edit"]()}
+					onClick={() => {
+						setDraft(bookmark.label);
+						setEditing(true);
+					}}
+					className="size-9 text-muted-foreground"
+				>
+					<PencilSimple aria-hidden="true" className="size-4" />
+				</Button>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					aria-label={m["audiobook.player_bookmark_delete"]()}
+					onClick={() => removeBookmark(uuid, bookmark.id)}
+					className="size-9 text-muted-foreground hover:text-destructive"
+				>
+					<Trash aria-hidden="true" className="size-4" />
+				</Button>
+			</div>
+		</div>
+	);
+});
+
+/**
+ * Local-first bookmarks for the active book (see bookmarks.ts). Saving is one
+ * tap — the moment is what matters mid-listen — and a note can be added to
+ * any row afterwards.
+ */
 export const PlayerBookmarksPanel = memo(function PlayerBookmarksPanel({
 	className,
 	variant = "panel",
@@ -55,28 +194,13 @@ export const PlayerBookmarksPanel = memo(function PlayerBookmarksPanel({
 	// Live list: adding/removing anywhere (panel, popover, another tab)
 	// re-renders here through the bookmark store.
 	const bookmarks = useBookmarks(uuid);
-	const [label, setLabel] = useState("");
-	// Clear the draft label when the book changes (render-phase guard).
-	const uuidRef = useRef(uuid);
-	if (uuid !== uuidRef.current) {
-		uuidRef.current = uuid;
-		setLabel("");
-	}
 
 	if (!audiobook || !uuid) return null;
 
 	const chapters = audiobook.chapters;
-	const chapterIndex = getActiveChapterIndex(chapters, globalCurrentTime);
-	const fallbackLabel =
-		chapterIndex >= 0
-			? (formatChapterLabel(chapters[chapterIndex], chapterIndex) ??
-				formatTime(globalCurrentTime))
-			: formatTime(globalCurrentTime);
-
-	const handleAdd = () => {
-		if (!uuid) return;
-		addBookmark(uuid, globalCurrentTime, label.trim() || fallbackLabel);
-		setLabel("");
+	const chapterLabelAt = (time: number) => {
+		const index = getActiveChapterIndex(chapters, time);
+		return index >= 0 ? formatChapterLabel(chapters[index], index) : null;
 	};
 
 	const isPopover = variant === "popover";
@@ -90,33 +214,24 @@ export const PlayerBookmarksPanel = memo(function PlayerBookmarksPanel({
 					"shrink-0",
 					isPopover
 						? "font-medium text-xs"
-						: "px-2 pb-2 text-[11px] text-muted-foreground uppercase tracking-[0.14em]",
+						: "px-3 pb-3 font-semibold text-base text-foreground",
 				)}
 			>
 				{m["audiobook.player_bookmarks"]()}
 			</p>
-			<form
-				className={cn(
-					"flex shrink-0 gap-1.5",
-					isPopover ? "flex-col gap-2" : "px-1 pb-2",
-				)}
-				onSubmit={(e) => {
-					e.preventDefault();
-					handleAdd();
-				}}
-			>
-				<Input
-					value={label}
-					onChange={(e) => setLabel(e.target.value)}
-					placeholder={m["audiobook.player_bookmark_label_placeholder"]()}
-					aria-label={m["audiobook.player_bookmark_add"]()}
-					className="h-8 text-xs"
-				/>
-				<Button type="submit" size="sm" className="h-8 shrink-0 text-xs">
-					<BookmarkSimple aria-hidden="true" />
+			<div className={cn("shrink-0", !isPopover && "px-1 pb-2")}>
+				<Button
+					type="button"
+					onClick={() => addBookmark(uuid, globalCurrentTime)}
+					className="h-10 w-full gap-2 text-sm"
+				>
+					<BookmarkSimple aria-hidden="true" weight="fill" />
 					{m["audiobook.player_bookmark_add"]()}
+					<span className="font-mono text-xs tabular-nums opacity-70">
+						{formatTime(globalCurrentTime)}
+					</span>
 				</Button>
-			</form>
+			</div>
 			{isPopover && <Separator className="my-1" />}
 			<div
 				data-sheet-ignore
@@ -130,33 +245,13 @@ export const PlayerBookmarksPanel = memo(function PlayerBookmarksPanel({
 					<ol className="flex flex-col gap-0.5">
 						{bookmarks.map((bookmark, index) => (
 							<li key={bookmark.id}>
-								<div className="group flex items-center gap-1 rounded-lg px-1 py-0.5 hover:bg-accent/60">
-									<button
-										type="button"
-										onClick={() => seekTo(bookmark.time)}
-										className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1.5 text-left"
-									>
-										<span className="w-4 shrink-0 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
-											{index + 1}
-										</span>
-										<span className="shrink-0 font-mono text-[11px] text-primary tabular-nums">
-											{formatTime(bookmark.time)}
-										</span>
-										<span className="min-w-0 flex-1 truncate text-xs">
-											{bookmark.label || formatTime(bookmark.time)}
-										</span>
-									</button>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon"
-										aria-label={m["audiobook.player_bookmark_delete"]()}
-										onClick={() => removeBookmark(uuid, bookmark.id)}
-										className="size-7 shrink-0 text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-									>
-										<Trash aria-hidden="true" className="size-3.5" />
-									</Button>
-								</div>
+								<BookmarkRow
+									uuid={uuid}
+									bookmark={bookmark}
+									index={index}
+									chapterLabel={chapterLabelAt(bookmark.time)}
+									onSeek={seekTo}
+								/>
 							</li>
 						))}
 					</ol>
