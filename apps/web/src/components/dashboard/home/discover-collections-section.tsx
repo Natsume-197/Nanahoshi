@@ -71,8 +71,6 @@ export const DiscoverCollectionsSection = memo(
 		return renderSection(
 			<ScrollSection
 				title={m["home.discover_collections"]()}
-				showAllHref="/dashboard/collections"
-				showAllSearch={{ tab: "discover" }}
 				restoreId="discover-collections"
 			>
 				{visibleCollections.map((collection) => {
