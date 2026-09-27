@@ -55,6 +55,26 @@ function OnOpen({ run }: { run: () => void }) {
 	return null;
 }
 
+/**
+ * Starts the slide only once the freshly mounted contents have painted
+ * off-screen. Flipping the sheet in the same commit that mounts them makes the
+ * browser spend the transition's first frames on React and layout, so the
+ * sheet jumps instead of gliding. Two frames: one to commit, one to paint.
+ */
+function RevealAfterPaint({ onReveal }: { onReveal: () => void }) {
+	useMountEffect(() => {
+		let second = 0;
+		const first = requestAnimationFrame(() => {
+			second = requestAnimationFrame(onReveal);
+		});
+		return () => {
+			cancelAnimationFrame(first);
+			cancelAnimationFrame(second);
+		};
+	});
+	return null;
+}
+
 /** Stops the viewport overscroll gesture from reaching browser refresh. */
 function DisablePullToRefresh() {
 	useMountEffect(() => {
@@ -170,6 +190,10 @@ export const MiniPlayer = memo(function MiniPlayer({
 	// its contents don't, or they'd re-render on every playback tick unseen.
 	const [hasContent, setHasContent] = useState(false);
 	if (isExpanded && !hasContent) setHasContent(true);
+	// What the sheet shows, which trails isExpanded by the reveal's two frames
+	// on open and follows it at once on close.
+	const [sheetOpen, setSheetOpen] = useState(false);
+	if (!isExpanded && sheetOpen) setSheetOpen(false);
 
 	if (!audiobook) return null;
 
@@ -207,7 +231,7 @@ export const MiniPlayer = memo(function MiniPlayer({
 
 			<div
 				ref={panelRef}
-				data-expanded={isExpanded}
+				data-expanded={sheetOpen}
 				role="dialog"
 				aria-modal="true"
 				aria-label={m["audiobook.player_now_playing"]()}
@@ -236,6 +260,9 @@ export const MiniPlayer = memo(function MiniPlayer({
 				{/* Reopening mid-dismissal: dropping the swipe's leftover transform
 				    lets it slide back up from wherever it had got to. */}
 				{isExpanded && <OnOpen run={drag.clearInlineStyles} />}
+				{isExpanded && !sheetOpen && (
+					<RevealAfterPaint onReveal={() => setSheetOpen(true)} />
+				)}
 				{isExpanded && <FocusScope container={panelRef} />}
 				{hasContent && (
 					<ExpandedPlayer
