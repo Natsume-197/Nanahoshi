@@ -2059,7 +2059,11 @@
 		"player_bookmark_add": "この場面をブックマーク",
 		"player_bookmark_label_placeholder": "ラベル（任意）",
 		"player_bookmarks_empty": "ブックマークはまだありません。",
-		"player_bookmark_delete": "ブックマークを削除"
+		"player_bookmark_delete": "ブックマークを削除",
+		"player_progress_chapter": "チャプター",
+		"player_progress_book": "全体",
+		"player_progress_toggle": "チャプターと全体の時間を切り替え",
+		"player_progress_remaining": "残り {time}（{scope}）"
 	},
 	"server": {
 		"list_label": "サーバー",

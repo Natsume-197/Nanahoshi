@@ -8,7 +8,9 @@ import {
 import {
 	getProgressReadout,
 	type ProgressScope,
+	realTimeAt,
 } from "@/components/audio-player/chapter-progress";
+import { formatSpeed } from "@/components/audio-player/player-preferences";
 import {
 	hoverFraction,
 	pointerSeekTime,
@@ -97,13 +99,17 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 	size = "sm",
 	scope = "book",
 	chapter,
+	onToggleScope,
 }: {
 	className?: string;
 	size?: "sm" | "lg";
 	scope?: ProgressScope;
 	chapter?: { startTime: number; endTime: number };
+	/** Large bar only: makes the countdown a button that flips the scope. */
+	onToggleScope?: () => void;
 }) {
-	const { audiobook, globalCurrentTime, totalDuration } = useAudioPlayerState();
+	const { audiobook, globalCurrentTime, totalDuration, speed } =
+		useAudioPlayerState();
 	const { seekTo } = useAudioPlayerActions();
 
 	const [isDragging, setIsDragging] = useState(false);
@@ -161,8 +167,7 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 	const isLarge = size === "lg";
 	const labelClass =
 		"w-10 shrink-0 text-[11px] text-muted-foreground tabular-nums";
-	// The bar shows the total; the expanded player counts down.
-	const rightLabel = isLarge ? `-${formatTime(remaining)}` : formatTime(total);
+	const rightLabel = formatTime(total);
 
 	const track = (
 		// flex-1 only in the inline layout: in the stacked one the parent's main
@@ -277,12 +282,47 @@ export const PlayerSeekBar = memo(function PlayerSeekBar({
 
 	// Times under the bar and at its ends, so the track owns the full width.
 	if (isLarge) {
+		// The countdown is wall-clock time at the current rate, so "time left"
+		// never needs a line of its own (which pushed the layout down whenever
+		// the speed left 1×). The rate rides along when it changes the answer.
+		const remainingLabel = `-${formatTime(realTimeAt(remaining, speed))}`;
+		const scopeLabel = isChapterScope
+			? m["audiobook.player_progress_chapter"]()
+			: m["audiobook.player_progress_book"]();
+		const countdown = (
+			<>
+				{onToggleScope && (
+					<span className="text-[11px] uppercase tracking-[0.08em]">
+						{scopeLabel}
+					</span>
+				)}
+				<span className="text-foreground/80">{remainingLabel}</span>
+				{speed !== 1 && (
+					<span className="text-[11px]">· {formatSpeed(speed)}</span>
+				)}
+			</>
+		);
 		return (
 			<div data-sheet-ignore className={cn("flex w-full flex-col", className)}>
 				{track}
-				<div className="-mt-2 flex items-baseline justify-between text-muted-foreground text-sm tabular-nums">
+				<div className="-mt-2 flex items-center justify-between text-muted-foreground text-sm tabular-nums">
 					<span>{formatTime(elapsed)}</span>
-					<span>{rightLabel}</span>
+					{onToggleScope ? (
+						<button
+							type="button"
+							onClick={onToggleScope}
+							aria-label={`${m["audiobook.player_progress_remaining"]({
+								time: formatTime(realTimeAt(remaining, speed)),
+								scope: scopeLabel,
+							})}. ${m["audiobook.player_progress_toggle"]()}`}
+							// Negative margin: a full-height hit area without moving the text.
+							className="-my-2 -mr-2 flex items-center gap-1.5 rounded-full px-2 py-2 outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:bg-foreground/10"
+						>
+							{countdown}
+						</button>
+					) : (
+						<span className="flex items-center gap-1.5">{countdown}</span>
+					)}
 				</div>
 			</div>
 		);

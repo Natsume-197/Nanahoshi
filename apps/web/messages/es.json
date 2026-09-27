@@ -2096,7 +2096,11 @@
 		"player_bookmark_add": "Guardar este momento",
 		"player_bookmark_label_placeholder": "Etiqueta (opcional)",
 		"player_bookmarks_empty": "Aún no hay marcadores. Guarda un momento para volver a él.",
-		"player_bookmark_delete": "Eliminar marcador"
+		"player_bookmark_delete": "Eliminar marcador",
+		"player_progress_chapter": "Capítulo",
+		"player_progress_book": "Libro",
+		"player_progress_toggle": "Cambiar entre el tiempo del capítulo y el del libro",
+		"player_progress_remaining": "Quedan {time} ({scope})"
 	},
 	"server": {
 		"list_label": "Servidores",

@@ -1,21 +1,25 @@
 import {
 	BookmarkSimple,
 	CaretDown,
+	CaretRight,
 	CheckCircle,
 	Headphones,
 	ListBullets,
-	Timer,
 	WarningCircle,
 	X,
 } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
-import { realTimeAt } from "@/components/audio-player/chapter-progress";
 import { MarqueeText } from "@/components/audio-player/marquee-text";
+import { PlayerArtField } from "@/components/audio-player/player-art-field";
 import { PlayerBookmarksPanel } from "@/components/audio-player/player-bookmarks-panel";
 import { PlayerChapterPanel } from "@/components/audio-player/player-chapter-panel";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
 import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
 import { PlayerMoreMenu } from "@/components/audio-player/player-more-menu";
+import {
+	persistProgressScope,
+	readStoredProgressScope,
+} from "@/components/audio-player/player-preferences";
 import { PlayerSeekBar } from "@/components/audio-player/player-seek-bar";
 import { SleepButton } from "@/components/audio-player/player-sleep-control";
 import { SpeedButton } from "@/components/audio-player/player-speed-control";
@@ -34,8 +38,9 @@ import { useIsBelowLg } from "@/hooks/use-mobile";
 import { typesetProps } from "@/lib/text-lang";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
+import { formatChapterLabel } from "@/utils/chapters";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";
-import { formatNames, formatTime } from "@/utils/format";
+import { formatNames } from "@/utils/format";
 
 // No srcSet: `sizes` would become the image's intrinsic width, capping the
 // artwork at whatever it claimed instead of "as large as fits".
@@ -45,10 +50,11 @@ const COVER_WIDTH = 1200;
 const SCENE_STYLE = {
 	// The popovers portal out to the app theme, so keep the app's radius.
 	"--radius": "inherit",
-	// Pin lightness and reduce chroma while preserving the extracted hue, so
-	// every cover gets its own dark floor without sacrificing text contrast.
-	"--background": "oklch(from var(--player-source) 0.18 calc(c * 0.2) h)",
-	"--player-source": "#625a78",
+	// A neutral near-black floor. The cover's extracted colour is deliberately
+	// not used: it flashed in before the art field and tinted everything the
+	// art didn't cover. The blurred cover alone gives the scene its colour.
+	"--background": "oklch(0.16 0 0)",
+	"--player-source": "oklch(0.5 0 0)",
 	"--foreground": "oklch(0.985 0 0)",
 	"--reading": "oklch(0.985 0 0)",
 	"--card": "oklch(0.235 0 90)",
@@ -207,17 +213,15 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 	sidePanel: PlayerSidePanelMode;
 	onSidePanelChange: (mode: PlayerSidePanelMode) => void;
 }) {
-	const {
-		audiobook,
-		activeChapterIndex,
-		globalCurrentTime,
-		totalDuration,
-		speed,
-		showError,
-	} = useAudioPlayerState();
+	const { audiobook, activeChapterIndex, showError } = useAudioPlayerState();
 	const { seekTo, setExpanded } = useAudioPlayerActions();
 
-	const [showChapterSeek, setShowChapterSeek] = useState(false);
+	const [progressScope, setProgressScope] = useState(readStoredProgressScope);
+	const toggleProgressScope = () => {
+		const next = progressScope === "chapter" ? "book" : "chapter";
+		setProgressScope(next);
+		persistProgressScope(next);
+	};
 	// A media query, not a `lg:` class: it decides which parent the panel is under.
 	const isBelowLg = useIsBelowLg();
 
@@ -225,13 +229,6 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 		const filename = getCoverFilename(audiobook?.cover);
 		return filename ? getCoverUrl(filename, COVER_WIDTH) : null;
 	}, [audiobook?.cover]);
-	const sceneStyle = useMemo(() => {
-		if (!audiobook?.mainColor) return SCENE_STYLE;
-		return {
-			...SCENE_STYLE,
-			"--player-source": audiobook.mainColor,
-		} as React.CSSProperties;
-	}, [audiobook?.mainColor]);
 	// Audiobooks often ship narrators and no author; the line reads the same.
 	const authorText = useMemo(
 		() =>
@@ -245,17 +242,19 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 	const chapters = audiobook.chapters;
 	const hasChapters = chapters.length > 0;
 	const chapter = chapters[activeChapterIndex];
+	const chapterLabel = chapter
+		? formatChapterLabel(chapter, activeChapterIndex)
+		: null;
 	const inlineSidePanel = sidePanel !== null && isBelowLg;
 	const splitLayout = sidePanel !== null && !inlineSidePanel;
-	// Remaining wall-clock time at the current rate, not remaining book seconds.
-	const timeLeft = formatTime(
-		realTimeAt(Math.max(0, totalDuration - globalCurrentTime), speed),
-	);
+	const barScope = chapter ? progressScope : "book";
+	const toggleChapters = () =>
+		onSidePanelChange(sidePanel === "chapters" ? null : "chapters");
 
 	return (
 		<div
 			className="dark relative flex h-full flex-col overflow-hidden bg-background text-foreground"
-			style={sceneStyle}
+			style={SCENE_STYLE}
 		>
 			<div
 				aria-hidden
@@ -264,23 +263,28 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 				key={audiobook.uuid}
 				className="player-ambient-field pointer-events-none absolute inset-0 overflow-hidden"
 			>
-				{coverUrl && (
-					<img
-						src={coverUrl}
-						alt=""
-						aria-hidden
-						draggable={false}
-						className="player-ambient-backdrop"
-					/>
+				{/* The art carries the scene when there is one; the procedural
+				    glows only stand in for a missing cover. */}
+				{coverUrl ? (
+					<PlayerArtField src={coverUrl} />
+				) : (
+					<>
+						<div className="player-ambient-orbs" />
+						<div className="player-ambient-orbs-b" />
+					</>
 				)}
-				<div className="player-ambient-orbs" />
-				<div className="player-ambient-orbs-b" />
 				<div className="player-ambient-veil" />
 				<div className="player-ambient-grain" />
 			</div>
 
 			{/* Insets here, not on the panel, so the scene still paints under the notch. */}
 			<div className="relative flex min-h-0 flex-1 flex-col pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)]">
+				{/* The sheet already follows a downward swipe; this says so. Phones
+				    only — a mouse closes it with the caret. */}
+				<span
+					aria-hidden
+					className="pointer-events-none absolute top-[calc(var(--safe-area-top)+0.375rem)] left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-foreground/35 md:hidden"
+				/>
 				{/* One button's padding less than the content below, so the icons land
 				    on the title's edge. */}
 				<div className="grid min-h-12 shrink-0 touch-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-4 py-1 max-[22rem]:grid-cols-2 md:min-h-14 md:px-6">
@@ -377,6 +381,30 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 										{authorText}
 									</p>
 								)}
+								{chapterLabel && (
+									<button
+										type="button"
+										onClick={toggleChapters}
+										aria-label={`${m["audiobook.player_chapters"]()}: ${chapterLabel}`}
+										aria-pressed={sidePanel === "chapters"}
+										// Negative margin: a taller hit area without moving the line.
+										className="-mx-1.5 mt-1 flex max-w-[calc(100%+0.75rem)] items-center gap-1 rounded-md px-1.5 py-1 text-left text-foreground/80 text-sm outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:bg-foreground/10"
+									>
+										<span
+											className="min-w-0 truncate"
+											{...typesetProps(chapterLabel)}
+										>
+											{chapterLabel}
+										</span>
+										<CaretRight
+											aria-hidden
+											className={cn(
+												"size-3.5 shrink-0 transition-transform",
+												sidePanel === "chapters" && "rotate-90",
+											)}
+										/>
+									</button>
+								)}
 								{readListen && (
 									<p
 										title={readListen.statusText}
@@ -401,23 +429,13 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 									<WarningCircle className="size-4 shrink-0" weight="fill" />
 									{m["audiobook.playback_error"]()}
 								</p>
-							) : (
-								// At 1× the seek bar already counts this down.
-								speed !== 1 && (
-									<p className="flex justify-end text-muted-foreground text-sm tabular-nums">
-										{m["audiobook.time_left"]({ time: timeLeft })}
-									</p>
-								)
-							)}
-							<PlayerSeekBar size="lg" />
-							{showChapterSeek && chapter && (
-								<PlayerSeekBar
-									className="bar-in"
-									size="lg"
-									scope="chapter"
-									chapter={chapter}
-								/>
-							)}
+							) : null}
+							<PlayerSeekBar
+								size="lg"
+								scope={barScope}
+								chapter={chapter}
+								onToggleScope={chapter ? toggleProgressScope : undefined}
+							/>
 						</div>
 
 						<PlayerTransport size="expanded" />
@@ -439,40 +457,20 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 									/>
 								</div>
 								{hasChapters && (
-									<>
-										<PlayerIconButton
-											label={m["audiobook.player_chapter_time"]()}
-											pressed={showChapterSeek}
-											onClick={() => setShowChapterSeek((prev) => !prev)}
-											className={cn(
-												"size-11 rounded-full text-foreground",
-												showChapterSeek && PILL_ACTIVE_CLASS,
-											)}
-										>
-											<Timer
-												className="size-5"
-												weight={showChapterSeek ? "fill" : "regular"}
-											/>
-										</PlayerIconButton>
-										<PlayerIconButton
-											label={m["audiobook.player_chapters"]()}
-											pressed={sidePanel === "chapters"}
-											onClick={() =>
-												onSidePanelChange(
-													sidePanel === "chapters" ? null : "chapters",
-												)
-											}
-											className={cn(
-												"size-11 rounded-full text-foreground",
-												sidePanel === "chapters" && PILL_ACTIVE_CLASS,
-											)}
-										>
-											<ListBullets
-												className="size-5"
-												weight={sidePanel === "chapters" ? "bold" : "regular"}
-											/>
-										</PlayerIconButton>
-									</>
+									<PlayerIconButton
+										label={m["audiobook.player_chapters"]()}
+										pressed={sidePanel === "chapters"}
+										onClick={toggleChapters}
+										className={cn(
+											"size-11 rounded-full text-foreground",
+											sidePanel === "chapters" && PILL_ACTIVE_CLASS,
+										)}
+									>
+										<ListBullets
+											className="size-5"
+											weight={sidePanel === "chapters" ? "bold" : "regular"}
+										/>
+									</PlayerIconButton>
 								)}
 								<PlayerIconButton
 									label={m["audiobook.player_bookmarks"]()}

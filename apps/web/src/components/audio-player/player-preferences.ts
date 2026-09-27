@@ -161,3 +161,18 @@ export function persistActiveBook(uuid: string | null) {
 		// Private-mode quota errors must not break playback.
 	}
 }
+
+const PROGRESS_SCOPE_KEY = "audio-progress-scope";
+
+/**
+ * Whether the expanded player's bar measures the chapter or the whole book.
+ * Chapter by default: it is the span a listener plans around, and a whole
+ * book's bar barely moves in a sitting.
+ */
+export function readStoredProgressScope(): "book" | "chapter" {
+	return readStored(PROGRESS_SCOPE_KEY) === "book" ? "book" : "chapter";
+}
+
+export function persistProgressScope(scope: "book" | "chapter") {
+	writeStored(PROGRESS_SCOPE_KEY, scope);
+}

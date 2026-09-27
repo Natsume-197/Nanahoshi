@@ -2096,7 +2096,11 @@
 		"player_bookmark_add": "Bookmark this moment",
 		"player_bookmark_label_placeholder": "Label (optional)",
 		"player_bookmarks_empty": "No bookmarks yet. Save a moment to jump back to it.",
-		"player_bookmark_delete": "Delete bookmark"
+		"player_bookmark_delete": "Delete bookmark",
+		"player_progress_chapter": "Chapter",
+		"player_progress_book": "Book",
+		"player_progress_toggle": "Switch between chapter and book time",
+		"player_progress_remaining": "{time} left ({scope})"
 	},
 	"server": {
 		"list_label": "Servers",

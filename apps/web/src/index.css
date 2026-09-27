@@ -884,12 +884,9 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 	animation: read-listen-route-return var(--read-listen-route-dur)
 		var(--ease-smooth-out) both;
 }
-/* The whole scene derives from the cover's extracted colour, so it always
-   harmonises: a near-black base to disappear into, two analogous glows
-   (hue-shifted, cover-dominant) and one bright wash behind the artwork.
-   Fixed hues only whisper in, so grey covers still get a little life without
-   violet blobs fighting green/orange artwork. The cover itself is never
-   blurred. */
+/* The floor under the art: --player-source is a fixed neutral grey (the
+   player no longer feeds it the cover's extracted colour), so these resolve
+   to a plain near-black gradient and, without a cover, soft grey glows. */
 .player-ambient-field {
 	--player-night-light: oklch(from var(--player-source) 0.23 calc(c * 0.3) h);
 	--player-night-mid: oklch(from var(--player-source) 0.17 calc(c * 0.22) h);
@@ -926,105 +923,33 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 	}
 }
 
-/* The actual cover, hugely blurred and saturated, behind everything
-   procedural. Same URL as the artwork itself, so it costs no extra fetch —
-   and it ties the scene to the real art, not just its average colour.
-   Static layer: composited once, never repainted by the drift above it. */
-.player-ambient-backdrop {
+/* The cover as a still, dimmed wash (see PlayerArtField). One stretched
+   64px canvas with the blur baked in; the veil below handles the controls. */
+.player-art-field {
 	position: absolute;
 	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	opacity: 0.32;
-	transform: scale(1.06);
-	filter: blur(72px) saturate(1.5);
+	opacity: 0;
+	transition: opacity 700ms ease-out;
 }
 
-.player-ambient-orbs {
+.player-art-field[data-ready="true"] {
+	opacity: 1;
+}
+
+.player-art-layer {
 	position: absolute;
-	inset: -18%;
-	backface-visibility: hidden;
-	background:
-		radial-gradient(
-			ellipse 72% 52% at 50% 30%,
-			color-mix(in oklab, var(--player-glow-cover) 26%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-cover) 12%, transparent) 42%,
-			transparent 72%
-		),
-		radial-gradient(
-			ellipse 90% 62% at 12% 88%,
-			color-mix(in oklab, var(--player-glow-warm) 20%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-warm) 9%, transparent) 46%,
-			transparent 74%
-		),
-		radial-gradient(
-			ellipse 84% 60% at 92% 74%,
-			color-mix(in oklab, var(--player-glow-cool) 18%, transparent) 0%,
-			color-mix(in oklab, var(--player-glow-cool) 8%, transparent) 48%,
-			transparent 76%
-		);
-	contain: paint;
-	transform: translate3d(0, 0, 0);
+	top: -10%;
+	left: -10%;
+	width: 120%;
+	height: 120%;
+	max-width: none;
 }
 
-/* Drift is translation-only: rotation/scale on a layer this large reads as
-   smearing, not air. The main layer tours a slow circuit while a fainter
-   second layer drifts against it, so the light feels alive with parallax
-   instead of rocking back and forth. */
-@keyframes player-ambient-drift {
-	0% {
-		transform: translate3d(-1.1%, 0.7%, 0);
-	}
-
-	35% {
-		transform: translate3d(0.9%, 1%, 0);
-	}
-
-	70% {
-		transform: translate3d(1%, -0.8%, 0);
-	}
-
-	100% {
-		transform: translate3d(-1.1%, 0.7%, 0);
-	}
-}
-
-@keyframes player-ambient-drift-b {
-	0% {
-		transform: translate3d(0.9%, -0.6%, 0);
-	}
-
-	45% {
-		transform: translate3d(-0.9%, -0.3%, 0);
-	}
-
-	75% {
-		transform: translate3d(-0.5%, 0.7%, 0);
-	}
-
-	100% {
-		transform: translate3d(0.9%, -0.6%, 0);
-	}
-}
-
-.player-ambient-orbs-b {
+/* A fixed dim over the art so white controls read on any cover. */
+.player-art-scrim {
 	position: absolute;
-	inset: -18%;
-	backface-visibility: hidden;
-	background:
-		radial-gradient(
-			ellipse 58% 42% at 80% 16%,
-			color-mix(in oklab, var(--player-glow-warm) 13%, transparent) 0%,
-			transparent 70%
-		),
-		radial-gradient(
-			ellipse 62% 44% at 16% 84%,
-			color-mix(in oklab, var(--player-glow-cool) 11%, transparent) 0%,
-			transparent 72%
-		);
-	contain: paint;
-	transform: translate3d(0, 0, 0);
+	inset: 0;
+	background: oklch(0 0 0 / 22%);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1043,18 +968,24 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 	}
 }
 
-/* Vignette for depth plus top/bottom shading so header and transport type
-   stay legible over bright artwork. */
+/* Vignette for depth plus a bottom shade so the transport stays legible.
+   Nothing darkens the top: with the art field already fading downwards, a
+   top shade left an undimmed strip between the two that read as a light
+   band. Brightness only ever falls from the top; the adaptive scrim keeps
+   the header icons legible on pale covers. */
 .player-ambient-veil {
 	position: absolute;
 	inset: 0;
 	background:
 		linear-gradient(
 			to bottom,
-			oklch(0 0 0 / 26%) 0%,
-			transparent 22%,
-			transparent 62%,
-			oklch(0 0 0 / 30%) 100%
+			transparent 30%,
+			oklch(0 0 0 / 3%) 40%,
+			oklch(0 0 0 / 12%) 52%,
+			oklch(0 0 0 / 26%) 64%,
+			oklch(0 0 0 / 40%) 76%,
+			oklch(0 0 0 / 52%) 88%,
+			oklch(0 0 0 / 60%) 100%
 		),
 		radial-gradient(
 			ellipse 110% 90% at 50% 46%,
@@ -1076,7 +1007,7 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 @media (prefers-reduced-transparency: reduce) {
 	.player-ambient-orbs,
 	.player-ambient-orbs-b,
-	.player-ambient-backdrop,
+	.player-art-field[data-ready],
 	.player-ambient-grain {
 		opacity: 0;
 	}
@@ -1092,8 +1023,8 @@ html[data-read-listen-navigation="exit"]::view-transition-new(root) {
 		opacity: 0.5;
 	}
 
-	.player-ambient-backdrop {
-		opacity: 0;
+	.player-art-field[data-ready] {
+		opacity: 0.45;
 	}
 
 	.player-ambient-grain {
