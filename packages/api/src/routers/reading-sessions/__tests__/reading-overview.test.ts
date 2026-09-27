@@ -4,6 +4,7 @@ import { type OverviewSegment, summarizeOverview } from "../reading-overview";
 function segment(overrides: Partial<OverviewSegment> = {}): OverviewSegment {
 	return {
 		sessionId: "s1",
+		runId: "r1",
 		book: 0,
 		medium: "reading",
 		characterCount: 100_000,
@@ -199,4 +200,72 @@ test("finishes count on their local day and keep when the reading began", () => 
 		day: "2026-01-03",
 		startedDay: "2025-12-20",
 	});
+});
+
+// Paging back one page at a time and reading forward again to where the reader was.
+const reread = (runId: string, day = "2026-01-01") => [
+	segment({
+		runId,
+		startPosition: 0.1,
+		endPosition: 0.12,
+		startedAt: `${day}T12:00:00Z`,
+		endedAt: `${day}T12:10:00Z`,
+	}),
+	segment({
+		runId,
+		kind: "jump",
+		startPosition: 0.12,
+		endPosition: 0.11,
+		startedAt: `${day}T12:10:00Z`,
+		endedAt: `${day}T12:10:01Z`,
+		seconds: 0,
+	}),
+	segment({
+		runId,
+		startPosition: 0.11,
+		endPosition: 0.13,
+		startedAt: `${day}T12:10:01Z`,
+		endedAt: `${day}T12:20:00Z`,
+	}),
+];
+
+test("paging back and reading up to the same place again counts only new text", () => {
+	const { days } = summarizeOverview(reread("r1"), [], "UTC");
+	expect(days[0]?.characters).toBeCloseTo(3000);
+	// Rereading is still time spent reading.
+	expect(days[0]?.readingSeconds).toBe(1199);
+});
+
+test("a new reading of the book counts its pages again", () => {
+	const [first] = reread("r1");
+	const { days } = summarizeOverview(
+		[
+			first as OverviewSegment,
+			segment({
+				runId: "r2",
+				startedAt: "2026-01-02T12:00:00Z",
+				endedAt: "2026-01-02T12:10:00Z",
+			}),
+		],
+		[],
+		"UTC",
+	);
+	expect(days.map((d) => Math.round(d.characters))).toEqual([2000, 2000]);
+});
+
+test("pages read on an earlier day do not count again today", () => {
+	const { days } = summarizeOverview(
+		[
+			segment({ startPosition: 0.1, endPosition: 0.2 }),
+			segment({
+				startPosition: 0.15,
+				endPosition: 0.25,
+				startedAt: "2026-01-03T12:00:00Z",
+				endedAt: "2026-01-03T12:10:00Z",
+			}),
+		],
+		[],
+		"UTC",
+	);
+	expect(days.map((d) => Math.round(d.characters))).toEqual([10_000, 5000]);
 });

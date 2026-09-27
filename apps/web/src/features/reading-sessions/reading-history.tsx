@@ -350,14 +350,7 @@ function BookReadingHistory({
 			row?.focus({ preventScroll: true });
 		});
 	};
-	const sessionProgress = new Map<string, number>();
-	for (const s of data.segments)
-		if (s.kind !== "jump" && s.startPosition !== null && s.endPosition !== null)
-			sessionProgress.set(
-				s.sessionId,
-				(sessionProgress.get(s.sessionId) ?? 0) +
-					Math.max(0, s.endPosition - s.startPosition),
-			);
+	const sessionProgress = new Map(Object.entries(data.sessionAdvance));
 	const sessionRanges = new Map<string, ReadRange[]>();
 	for (const s of data.segments)
 		sessionRanges.set(s.sessionId, [

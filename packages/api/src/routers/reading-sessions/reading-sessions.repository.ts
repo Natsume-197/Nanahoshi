@@ -548,11 +548,17 @@ export class ReadingSessionsRepository {
 	private overviewSegments(userId: string, serverId: string, since?: Date) {
 		const onServer = sql`(l.server_id = ${serverId} OR (r.book_id IS NULL AND r.orphan_server_id = ${serverId}))`;
 		// Raw Date params serialize as local clock time; ISO keeps the bound in UTC.
+		// Whole runs, so rereading pages from an older day is not counted as new today.
 		const recent = since
-			? sql`AND g.ended_at >= ${since.toISOString()}::timestamptz`
+			? sql`AND s.run_id IN (
+				SELECT rs.run_id FROM reading_segment rg
+				JOIN reading_session rs ON rs.id = rg.session_id
+				JOIN reading_run rr ON rr.id = rs.run_id
+				WHERE rr.user_id = ${userId} AND rg.ended_at >= ${since.toISOString()}::timestamptz)`
 			: sql``;
 		return db.execute<{
 			session_id: string;
+			run_id: string;
 			book_id: number | null;
 			orphan_hash: string | null;
 			character_count: number | null;
@@ -564,7 +570,7 @@ export class ReadingSessionsRepository {
 			end_position: number | null;
 			kind: string;
 		}>(sql`
-			SELECT s.id AS session_id, r.book_id, r.orphan_hash, s.character_count, s.duration_seconds,
+			SELECT s.id AS session_id, s.run_id, r.book_id, r.orphan_hash, s.character_count, s.duration_seconds,
 				g.started_at, g.ended_at, g.seconds, g.start_position, g.end_position, g.kind
 			FROM reading_segment g
 			JOIN reading_session s ON s.id = g.session_id
@@ -573,7 +579,7 @@ export class ReadingSessionsRepository {
 			LEFT JOIN library l ON l.id = b.library_id
 			WHERE r.user_id = ${userId} AND s.discarded_at IS NULL AND ${onServer} ${recent}`);
 	}
-	/** Segments that ended after `since`, enough to total the current reading day. */
+	/** Every segment of the runs read after `since`, enough to total the current reading day. */
 	async recentSegments(userId: string, serverId: string, since: Date) {
 		return (await this.overviewSegments(userId, serverId, since)).rows;
 	}

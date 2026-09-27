@@ -142,6 +142,7 @@ function overviewSegment(s: SegmentRow, book: number): OverviewSegment {
 			: "reading";
 	return {
 		sessionId: s.session_id,
+		runId: s.run_id,
 		book,
 		medium,
 		characterCount: s.character_count,

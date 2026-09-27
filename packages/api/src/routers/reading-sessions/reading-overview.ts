@@ -1,8 +1,10 @@
-import { dayKey, splitDays } from "./reading-statistics";
+import { dayKey, ReadCoverage, splitDays } from "./reading-statistics";
 
 export type Medium = "reading" | "listening";
 export interface OverviewSegment {
 	sessionId: string;
+	// Pages reread within one reading count once; a reread of the book is a new run.
+	runId: string;
 	book: number;
 	medium: Medium;
 	// Characters in the edition the session read; null for audio or unknown editions.
@@ -220,7 +222,8 @@ export function summarizeOverview(
 					startedAt: new Date(session.startedAt).toISOString(),
 				};
 	}
-	// Characters follow forward progress on the day it ends, like a book's own history.
+	// Characters follow new forward progress on the day it ends, like a book's own history.
+	const coverage = new Map<string, ReadCoverage>();
 	for (const segment of ordered) {
 		if (
 			segment.medium !== "reading" ||
@@ -230,8 +233,10 @@ export function summarizeOverview(
 			segment.endPosition === null
 		)
 			continue;
+		const covered = coverage.get(segment.runId) ?? new ReadCoverage();
+		coverage.set(segment.runId, covered);
 		const characters =
-			Math.max(0, segment.endPosition - segment.startPosition) *
+			covered.add(segment.startPosition, segment.endPosition) *
 			segment.characterCount;
 		if (characters <= 0) continue;
 		const day = dayKey(Date.parse(segment.endedAt), timeZone, dayStartHour);

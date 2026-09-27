@@ -20,6 +20,30 @@ export interface StatisticsSession {
 	contentVersion: string;
 	mode: string;
 }
+/** The parts of a book already read in one run; paging back over them is not new reading. */
+export class ReadCoverage {
+	private ranges: [number, number][] = [];
+	/** Marks [start, end) read and returns how much of it was not read before. */
+	add(start: number, end: number) {
+		if (!(end > start)) return 0;
+		let added = end - start;
+		let from = start;
+		let to = end;
+		const kept: [number, number][] = [];
+		for (const [a, b] of this.ranges) {
+			if (b < from || a > to) {
+				kept.push([a, b]);
+				continue;
+			}
+			added -= Math.max(0, Math.min(b, end) - Math.max(a, start));
+			from = Math.min(from, a);
+			to = Math.max(to, b);
+		}
+		kept.push([from, to]);
+		this.ranges = kept.sort((x, y) => x[0] - y[0]);
+		return Math.max(0, added);
+	}
+}
 /** Local calendar day of an instant; a day may start after midnight (`startHour`). */
 export function dayKey(ms: number, timeZone: string, startHour = 0) {
 	return dayFormat(timeZone).format(ms - startHour * 3600_000);
@@ -91,6 +115,8 @@ export function summarizeReading(
 		}
 	>();
 	const bySession = new Map<string, number>();
+	const sessionAdvance: Record<string, number> = {};
+	const coverage = new ReadCoverage();
 	const sessionStartedAt = new Map<string, number>();
 	let coveredUntil = 0;
 	let overlapSeconds = 0;
@@ -167,8 +193,14 @@ export function summarizeReading(
 				s.startPosition !== null &&
 				s.endPosition !== null
 			) {
-				const advance = Math.max(0, s.endPosition - s.startPosition);
+				// Listening keeps counting replays; only text pages are deduplicated.
+				const advance =
+					s.kind === "listening"
+						? Math.max(0, s.endPosition - s.startPosition)
+						: coverage.add(s.startPosition, s.endPosition);
 				d.progress += advance;
+				sessionAdvance[s.sessionId] =
+					(sessionAdvance[s.sessionId] ?? 0) + advance;
 				if (s.kind === "manual") d.manualProgress += advance;
 			}
 			if (
@@ -298,6 +330,8 @@ export function summarizeReading(
 				},
 		days: daily,
 		longestSession: longest ? { id: longest[0], seconds: longest[1] } : null,
+		// New book fraction each session read; rereading earlier pages adds nothing.
+		sessionAdvance,
 		bestDay:
 			bestDay && bestDay.observedSeconds > 0
 				? { day: bestDay.day, seconds: bestDay.observedSeconds }

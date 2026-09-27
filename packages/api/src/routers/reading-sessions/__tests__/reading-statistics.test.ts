@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	ReadCoverage,
 	type StatisticsSegment,
 	splitDays,
 	summarizeReading,
@@ -417,4 +418,59 @@ test("with a day start the split falls at that hour, not midnight", () => {
 		["2026-01-02", "2026-01-03T09:00:00.000Z"],
 		["2026-01-03", "2026-01-03T10:00:00.000Z"],
 	]);
+});
+
+test("a chapter skipped and read later counts, rereading does not", () => {
+	const coverage = new ReadCoverage();
+	expect(coverage.add(0, 0.1)).toBeCloseTo(0.1);
+	expect(coverage.add(0.3, 0.4)).toBeCloseTo(0.1);
+	expect(coverage.add(0.05, 0.35)).toBeCloseTo(0.2);
+	expect(coverage.add(0, 0.4)).toBe(0);
+});
+
+test("session progress excludes pages the reading already covered", () => {
+	const at = (min: number) =>
+		new Date(Date.UTC(2026, 0, 1, 12, min)).toISOString();
+	const result = summarizeReading(
+		[
+			{
+				id: "a",
+				sessionId: "s1",
+				startedAt: at(0),
+				endedAt: at(10),
+				seconds: 600,
+				startPosition: 0.1,
+				endPosition: 0.2,
+				kind: "reading",
+			},
+			{
+				id: "b",
+				sessionId: "s2",
+				startedAt: at(20),
+				endedAt: at(21),
+				seconds: 0,
+				startPosition: 0.2,
+				endPosition: 0.15,
+				kind: "jump",
+			},
+			{
+				id: "c",
+				sessionId: "s2",
+				startedAt: at(21),
+				endedAt: at(30),
+				seconds: 540,
+				startPosition: 0.15,
+				endPosition: 0.25,
+				kind: "reading",
+			},
+		],
+		[
+			{ id: "s1", mode: "automatic", contentVersion: "v1" },
+			{ id: "s2", mode: "automatic", contentVersion: "v1" },
+		],
+		"UTC",
+	);
+	expect(result.sessionAdvance.s1).toBeCloseTo(0.1);
+	expect(result.sessionAdvance.s2).toBeCloseTo(0.05);
+	expect(result.days[0]?.progress).toBeCloseTo(0.15);
 });
