@@ -198,11 +198,12 @@ html[data-rail-resizing] * {
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	/* Content canvas: one step above the navigation chrome. */
-	--background: #1f2024;
+	/* Content canvas: one step above the navigation chrome, in the same
+	   neutral family (#1f2024 carried a blue cast next to it). */
+	--background: #1f1f20;
 	--foreground: color-mix(in oklab, #352d3e 8%, #ededed);
 	--reading: color-mix(in oklab, #352d3e 6%, #e3e3e3);
-	--card: color-mix(in oklab, #352d3e 10%, #252529);
+	--card: #272729;
 	--card-border: color-mix(in oklab, #352d3e 10%, #484848);
 	--card-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
 	--surface-card: var(--card);
@@ -210,7 +211,7 @@ html[data-rail-resizing] * {
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
-	--popover: color-mix(in oklab, #352d3e 10%, #252529);
+	--popover: #272729;
 	--popover-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
 	--dropdown: var(--popover);
 	--dropdown-destructive: color-mix(
@@ -250,9 +251,9 @@ html[data-rail-resizing] * {
 	--sidebar-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
 	--sidebar-primary: #8b7a9e;
 	--sidebar-primary-foreground: #000000;
-	--sidebar-accent: #2c2d33;
+	--sidebar-accent: #2c2c2e;
 	--sidebar-accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
-	--sidebar-border: #232428;
+	--sidebar-border: #242425;
 	--sidebar-ring: color-mix(in oklab, #8b7a9e 80%, black);
 	--nav-inactive: color-mix(
 		in oklab,
