@@ -582,7 +582,7 @@ export function FixMatchDialog({
 								{m["match.back"]()}
 							</Button>
 						</div>
-						<div className="max-h-[48vh] overflow-y-auto rounded-lg border">
+						<div className="max-h-[48dvh] overflow-y-auto rounded-lg border">
 							<div className="grid grid-cols-[auto_7rem_1fr_1fr] gap-2 border-b bg-muted/40 p-2 text-muted-foreground text-xs">
 								<span />
 								<span>{m["match.field"]()}</span>
@@ -782,7 +782,7 @@ export function FixMatchDialog({
 									text={m["match.no_results"]()}
 								/>
 							) : (
-								<ul className="max-h-[45vh] space-y-2 overflow-y-auto p-3">
+								<ul className="max-h-[45dvh] space-y-2 overflow-y-auto p-3">
 									{results.map(renderCandidate)}
 								</ul>
 							)}

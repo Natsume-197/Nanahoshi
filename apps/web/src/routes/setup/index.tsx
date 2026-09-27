@@ -16,7 +16,7 @@ export const Route = createFileRoute("/setup/")({
 
 function SetupRoutePage() {
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+		<main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
 			<CreateWorkspaceForm />
 		</main>
 	);

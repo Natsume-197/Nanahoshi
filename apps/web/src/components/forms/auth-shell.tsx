@@ -58,7 +58,7 @@ export function AuthShell({
 	className?: string;
 }) {
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+		<main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
 			<section className={cn("w-full max-w-md", className)}>
 				<header className="space-y-2">
 					<h1 className="font-bold text-4xl tracking-tight">{title}</h1>

@@ -173,7 +173,7 @@ export function NotificationRail({ open, onClose }: NotificationRailProps) {
 						: "pointer-events-none scale-[0.98] opacity-0",
 				)}
 			>
-				<div className="theme-gradient-surface flex max-h-[min(70vh,34rem)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-sidebar-border bg-background text-foreground shadow-2xl">
+				<div className="theme-gradient-surface flex max-h-[min(70dvh,34rem)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-sidebar-border bg-background text-foreground shadow-2xl">
 					{!isSheet && (
 						<NotificationPanel active={open} mode="rail" onNavigate={onClose} />
 					)}

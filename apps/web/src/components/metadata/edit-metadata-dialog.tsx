@@ -233,7 +233,7 @@ function MetadataFormModal({
 				</>
 			}
 		>
-			<div className="-mr-2 grid max-h-[60vh] grid-cols-1 gap-4 overflow-y-auto pr-2 sm:grid-cols-2">
+			<div className="-mr-2 grid max-h-[60dvh] grid-cols-1 gap-4 overflow-y-auto pr-2 sm:grid-cols-2">
 				{fields.map((def) => (
 					<FieldRow
 						key={def.key}

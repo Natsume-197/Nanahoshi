@@ -120,7 +120,7 @@ export function DirectoryPicker({
 				bare
 				showCloseButton={false}
 				title={m["dir_picker.title"]()}
-				className="flex h-[80vh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+				className="flex h-[80dvh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
 			>
 				<div className="border-b p-4">
 					<p className="font-heading font-medium text-base leading-none">

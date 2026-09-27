@@ -28,7 +28,7 @@ export function ErrorPage({
 	const router = useRouter();
 
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+		<main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
 					<div className="mb-4 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
@@ -74,7 +74,7 @@ export function ErrorPage({
 
 export function NotFoundPage() {
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+		<main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
 			<div className="w-full max-w-md">
 				<div className="space-y-2">
 					<p className="font-bold text-7xl text-muted-foreground/40 tracking-tight">

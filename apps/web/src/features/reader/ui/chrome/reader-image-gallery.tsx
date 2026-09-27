@@ -110,7 +110,7 @@ export function ReaderImageGallery({
 								<CaretLeft className="size-10" />
 							</button>
 							<div className="relative flex flex-1 items-center justify-center">
-								<img className="max-h-[94vh]" src={selected.url} alt="" />
+								<img className="max-h-[94dvh]" src={selected.url} alt="" />
 							</div>
 							<button
 								type="button"

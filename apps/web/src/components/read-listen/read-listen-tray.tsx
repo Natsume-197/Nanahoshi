@@ -210,7 +210,7 @@ export function ReadListenReviewTab({
 			/>
 			<PopoverContent
 				align="start"
-				className="max-h-[70vh] w-60 overflow-y-auto p-2"
+				className="max-h-[70dvh] w-60 overflow-y-auto p-2"
 			>
 				{nav}
 			</PopoverContent>

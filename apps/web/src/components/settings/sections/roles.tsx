@@ -382,7 +382,7 @@ export function RolesSettings() {
 							? m["settings.roles_section.edit"]()
 							: m["settings.roles_section.new"]()
 				}
-				className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+				className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
 				footer={
 					<>
 						<Button variant="ghost" onClick={() => setEditing(null)}>

@@ -60,7 +60,7 @@ export function CoverPreviewDialog({
 					alt={title}
 					width={800}
 					height={height}
-					className="relative max-h-[88vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+					className="relative max-h-[88dvh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
 					decoding="async"
 					fetchPriority="high"
 				/>
