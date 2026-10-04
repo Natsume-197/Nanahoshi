@@ -3,7 +3,6 @@ import {
 	createContext,
 	type ReactNode,
 	use,
-	useMemo,
 	useState,
 	useSyncExternalStore,
 } from "react";
@@ -15,6 +14,7 @@ import { ExportManager } from "./export";
 import { listDownloads, readEntry } from "./files";
 import { DownloadManager, type DownloadsSnapshot } from "./manager";
 import { type DownloadKind, sortEntries } from "./model";
+import { connectDownloadNotification } from "./notifier";
 import { SmartDownloads } from "./smart-engine";
 
 const DownloadsContext = createContext<DownloadManager | null>(null);
@@ -51,6 +51,9 @@ export function DownloadsProvider({
 			}),
 	);
 	useMountEffect(() => smart.start());
+	useMountEffect(() =>
+		connectDownloadNotification(manager, () => smart.pause()),
+	);
 	return (
 		<DownloadsContext value={manager}>
 			<ExportsContext value={exports}>
@@ -117,11 +120,8 @@ export function useTitleDownload(
 ): TitleDownloadState & { serverId: string | null } {
 	const serverId = useActiveServerId();
 	const job = useDownloadsState((s) => s.jobs[uuid]);
-	const version = useDownloadsState((s) => s.version);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: version marks disk changes
-	const entry = useMemo(
-		() => (serverId ? readEntry(kind, serverId, uuid) : null),
-		[kind, serverId, uuid, version],
+	const entry = useDiskRead(`entry:${kind}:${serverId}:${uuid}`, () =>
+		serverId ? readEntry(kind, serverId, uuid) : null,
 	);
 	if (job?.status === "failed") return { state: "failed", serverId };
 	if (job) return { state: job.status, progress: job.progress, serverId };
@@ -132,37 +132,56 @@ export function useTitleDownload(
 /** Titles on this device for the active server, unfinished ones first. */
 export function useDownloadedTitles() {
 	const serverId = useActiveServerId();
-	const version = useDownloadsState((s) => s.version);
 	const jobs = useDownloadsState((s) => s.jobs);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: version marks disk changes
-	const titles = useMemo(
-		() => (serverId ? sortEntries(listDownloads(serverId)) : []),
-		[serverId, version],
+	const titles = useDiskRead(`list:${serverId}`, () =>
+		serverId ? sortEntries(listDownloads(serverId)) : [],
 	);
 	return { serverId, titles, jobs };
 }
 
-let onDevice = { key: "", uuids: new Set<string>() };
+/**
+ * Disk reads cached until the manager's `version` moves. Not useMemo: the
+ * React Compiler keys memos on what the callback reads, so a `version` dep
+ * the callback ignores was dropped and the reads went stale.
+ */
+const diskCaches = new WeakMap<
+	DownloadManager,
+	Map<string, { version: number; value: unknown }>
+>();
+
+function useDiskRead<T>(key: string, read: () => T): T {
+	const manager = useDownloads();
+	const version = useDownloadsState((s) => s.version);
+	let cache = diskCaches.get(manager);
+	if (!cache) {
+		cache = new Map();
+		diskCaches.set(manager, cache);
+	}
+	const hit = cache.get(key);
+	if (hit && hit.version === version) return hit.value as T;
+	const value = read();
+	cache.set(key, { version, value });
+	return value;
+}
 
 /** Whether a title opens without the server, or null while online (nothing
  * to tell apart then). One disk listing per change, shared by every tile. */
 export function useAvailableOffline(uuid: string): boolean | null {
 	const online = useIsOnline();
 	const serverId = useActiveServerId();
-	const version = useDownloadsState((s) => s.version);
-	if (online || !serverId) return null;
-	const key = `${serverId}:${version}`;
-	if (onDevice.key !== key) {
-		onDevice = {
-			key,
-			uuids: new Set(
-				listDownloads(serverId)
-					.filter((entry) => entry.complete)
-					.map((entry) => entry.uuid),
+	const onPhone = useDiskRead(
+		`complete:${serverId}`,
+		() =>
+			new Set(
+				serverId
+					? listDownloads(serverId)
+							.filter((entry) => entry.complete)
+							.map((entry) => entry.uuid)
+					: [],
 			),
-		};
-	}
-	return onDevice.uuids.has(uuid);
+	);
+	if (online || !serverId) return null;
+	return onPhone.has(uuid);
 }
 
 /** The device's network, as React Query sees it (see query-lifecycle). */

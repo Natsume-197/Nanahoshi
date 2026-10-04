@@ -12,6 +12,7 @@ import {
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
 import { websocket } from "./gateway/gateway";
+import { restoreFileBody } from "./lib/file-body";
 import { posthog } from "./lib/posthog";
 import type { WebHandler } from "./lib/web-app";
 
@@ -55,12 +56,13 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 }
 
 export default withHttpRequestLimits({
-	fetch(request: Request, server: Bun.Server<unknown>) {
+	async fetch(request: Request, server: Bun.Server<unknown>) {
 		const peer = server.requestIP(request);
-		return app.fetch(
+		const response = await app.fetch(
 			prepareClientIpRequest(request, peer?.address, trustedProxyIps),
 			server,
 		);
+		return restoreFileBody(response);
 	},
 	websocket,
 });

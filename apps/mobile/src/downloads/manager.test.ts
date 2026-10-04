@@ -293,3 +293,20 @@ test("smart downloads clearing a title don't count as you deleting it", async ()
 	manager.remove("book", "s1", "a", { byUser: false });
 	expect(manager.isDismissed("s1", "a")).toBe(false);
 });
+
+test("a failed download retries with the reasons it had", async () => {
+	network = async () => {
+		throw new Error("offline");
+	};
+	const manager = createManager();
+	manager.download("book", "a", "s1", [{ type: "want" }]);
+	await settled(manager);
+	expect(manager.getSnapshot().jobs.a?.status).toBe("failed");
+	network = async () => {};
+	manager.retryFailed();
+	await settled(manager);
+	expect(entries.get("book/s1/a")).toMatchObject({
+		complete: true,
+		reasons: [{ type: "want" }],
+	});
+});

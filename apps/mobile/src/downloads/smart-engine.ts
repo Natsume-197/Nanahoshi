@@ -56,6 +56,9 @@ export class SmartDownloads {
 	private again = false;
 	/** Titles whose next volume was already asked for this session. */
 	private readonly nexted = new Set<string>();
+	/** Cancelled from the notification: no new downloads until the app starts
+	 * again or the user downloads something by hand. */
+	private paused = false;
 
 	constructor(private readonly deps: Deps) {}
 
@@ -80,6 +83,16 @@ export class SmartDownloads {
 			network.remove();
 			if (this.timer) clearTimeout(this.timer);
 		};
+	}
+
+	pause() {
+		this.paused = true;
+	}
+
+	resume() {
+		if (!this.paused) return;
+		this.paused = false;
+		this.schedule();
 	}
 
 	/** Runs a sync soon; calls in a burst share one. */
@@ -130,6 +143,7 @@ export class SmartDownloads {
 			fraction !== null &&
 			fraction >= NEXT_VOLUME_AT &&
 			smartDownloads.isOn() &&
+			!this.paused &&
 			!this.nexted.has(uuid)
 		) {
 			this.nexted.add(uuid);
@@ -273,7 +287,7 @@ export class SmartDownloads {
 		const downloads = plan.download
 			.filter((title) => !manager.isDismissed(serverId, title.uuid))
 			.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "book" ? -1 : 1));
-		if (downloads.length > 0 && (await this.mayDownload()))
+		if (downloads.length > 0 && !this.paused && (await this.mayDownload()))
 			for (const { kind, uuid, reasons } of downloads)
 				manager.download(kind, uuid, serverId, reasons);
 	}

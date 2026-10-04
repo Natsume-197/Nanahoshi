@@ -149,6 +149,13 @@ export class DownloadManager {
 		}
 	}
 
+	/** Tries every failed download again, for the same reasons as before. */
+	retryFailed() {
+		for (const [uuid, job] of Object.entries(this.snapshot.jobs))
+			if (job.status === "failed")
+				this.download(job.kind, uuid, job.serverId, this.reasons.get(uuid));
+	}
+
 	/** Signing out: nothing keeps downloading for an account that left. */
 	cancelAll() {
 		for (const uuid of Object.keys(this.snapshot.jobs)) this.cancel(uuid);
@@ -260,7 +267,9 @@ export class DownloadManager {
 						this.setJob(uuid, { ...job, status: "failed" });
 				} finally {
 					this.aborts.delete(uuid);
-					this.reasons.delete(uuid);
+					// A failed job keeps why it was asked for, for its retry.
+					if (this.snapshot.jobs[uuid]?.status !== "failed")
+						this.reasons.delete(uuid);
 					this.diskChanged();
 				}
 			}
@@ -272,12 +281,12 @@ export class DownloadManager {
 	/** Progress updates at 1% steps, not per network chunk. */
 	private reporter(uuid: string) {
 		let last = -1;
-		return (progress: number) => {
+		return (progress: number, size?: { done: number; total: number }) => {
 			const step = Math.floor(progress * 100);
 			if (step === last) return;
 			last = step;
 			const job = this.snapshot.jobs[uuid];
-			if (job) this.setJob(uuid, { ...job, progress: step / 100 });
+			if (job) this.setJob(uuid, { ...job, progress: step / 100, size });
 		};
 	}
 
@@ -342,7 +351,11 @@ export class DownloadManager {
 			filename: meta.filename ?? `${uuid}.epub`,
 			cookie: await this.deps.auth.getCookie(),
 			signal,
-			onProgress: (written, total) => report(byteFraction(written, total)),
+			onProgress: (written, total) =>
+				report(
+					byteFraction(written, total),
+					total > 0 ? { done: written, total } : undefined,
+				),
 			resolveUrl: async () =>
 				onConnectedServer(
 					(await client.files.getReaderUrl({ uuid, serverId })).url,
@@ -412,6 +425,10 @@ export class DownloadManager {
 				onProgress: (written, total) =>
 					report(
 						weightedProgress(weights, position, byteFraction(written, total)),
+						// One file (most m4b): its bytes are the whole title's.
+						tracks.length === 1 && total > 0
+							? { done: written, total }
+							: undefined,
 					),
 			});
 			report(weightedProgress(weights, position + 1, 0));

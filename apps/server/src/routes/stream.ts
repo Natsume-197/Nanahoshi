@@ -1,4 +1,3 @@
-import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import {
 	canAccessBookAction,
@@ -7,7 +6,7 @@ import {
 import { createContext } from "@nanahoshi/api/context";
 import { getAudioFile } from "@nanahoshi/api/routers/audiobooks/audiobook.service";
 import type { Hono } from "hono";
-import { asBody } from "../lib/node-stream";
+import { sendFile } from "../lib/file-body";
 
 export function mountStream(app: Hono) {
 	app.get("/stream/:uuid/:fileIndex", async (c) => {
@@ -71,13 +70,17 @@ export function mountStream(app: Hono) {
 				: c.req.header("Range");
 
 		if (!rangeHeader) {
-			const stream = createReadStream(file.path);
-			return c.body(asBody(stream), 200, {
-				...cacheHeaders,
-				"Content-Length": fileSize.toString(),
-				"Content-Type": mimeType,
-				"Accept-Ranges": "bytes",
-			});
+			return sendFile(
+				c,
+				200,
+				{ path: file.path },
+				{
+					...cacheHeaders,
+					"Content-Length": fileSize.toString(),
+					"Content-Type": mimeType,
+					"Accept-Ranges": "bytes",
+				},
+			);
 		}
 
 		const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
@@ -95,14 +98,17 @@ export function mountStream(app: Hono) {
 		}
 
 		const chunkSize = end - start + 1;
-		const stream = createReadStream(file.path, { start, end });
-
-		return c.body(asBody(stream), 206, {
-			...cacheHeaders,
-			"Content-Range": `bytes ${start}-${end}/${fileSize}`,
-			"Accept-Ranges": "bytes",
-			"Content-Length": chunkSize.toString(),
-			"Content-Type": mimeType,
-		});
+		return sendFile(
+			c,
+			206,
+			{ path: file.path, range: { start, end } },
+			{
+				...cacheHeaders,
+				"Content-Range": `bytes ${start}-${end}/${fileSize}`,
+				"Accept-Ranges": "bytes",
+				"Content-Length": chunkSize.toString(),
+				"Content-Type": mimeType,
+			},
+		);
 	});
 }

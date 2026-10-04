@@ -90,7 +90,6 @@ export const icons = {
 	download: { ios: "arrow.down.circle", android: "download" },
 	downloaded: { ios: "arrow.down.circle.fill", android: "download_done" },
 	offline: { ios: "wifi.slash", android: "cloud_off" },
-	smart: { ios: "sparkles", android: "auto_awesome" },
 	retry: { ios: "arrow.clockwise", android: "refresh" },
 	share: { ios: "square.and.arrow.up", android: "share" },
 	send: { ios: "paperplane", android: "send" },

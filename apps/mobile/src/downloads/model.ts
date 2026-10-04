@@ -39,6 +39,8 @@ export type DownloadJob = {
 	status: DownloadJobStatus;
 	/** 0–1 */
 	progress: number;
+	/** Bytes so far and in all, when the title is one file of known size. */
+	size?: { done: number; total: number };
 };
 
 /**

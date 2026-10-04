@@ -6,6 +6,7 @@ import {
 	useActiveServerId,
 	useDownloads,
 	useIsOnline,
+	useSmartDownloadsEngine,
 	useTitleDownload,
 } from "./provider";
 
@@ -21,6 +22,7 @@ export function useDownloadActions(
 	const can = useCan();
 	const serverId = useActiveServerId();
 	const status = useTitleDownload(kind, uuid);
+	const smart = useSmartDownloadsEngine();
 	// Offline a download can't start; removing or cancelling still can.
 	const online = useIsOnline();
 
@@ -28,6 +30,7 @@ export function useDownloadActions(
 		if (!serverId) return;
 		haptics.tap();
 		downloads.download(kind, uuid, serverId);
+		smart.resume();
 	};
 	// No confirmations: each is one tap to undo, and the state shows at once.
 	const cancel = () => {

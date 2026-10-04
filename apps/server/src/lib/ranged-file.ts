@@ -1,7 +1,6 @@
-import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import type { Context } from "hono";
-import { asBody } from "./node-stream";
+import { sendFile } from "./file-body";
 
 export async function serveRangedFile(
 	c: Context,
@@ -45,18 +44,28 @@ export async function serveRangedFile(
 		});
 	}
 	if (!range) {
-		return c.body(asBody(createReadStream(file.path)), 200, {
-			...commonHeaders,
-			"Content-Length": size.toString(),
-		});
+		return sendFile(
+			c,
+			200,
+			{ path: file.path },
+			{
+				...commonHeaders,
+				"Content-Length": size.toString(),
+			},
+		);
 	}
 
 	const { start, end } = range;
-	return c.body(asBody(createReadStream(file.path, { start, end })), 206, {
-		...commonHeaders,
-		"Content-Length": (end - start + 1).toString(),
-		"Content-Range": `bytes ${start}-${end}/${size}`,
-	});
+	return sendFile(
+		c,
+		206,
+		{ path: file.path, range: { start, end } },
+		{
+			...commonHeaders,
+			"Content-Length": (end - start + 1).toString(),
+			"Content-Range": `bytes ${start}-${end}/${size}`,
+		},
+	);
 }
 
 export function parseByteRange(

@@ -1,4 +1,4 @@
-import { createReadStream, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import {
 	canAccessBookAction,
 	canAccessBookActionInOrganization,
@@ -35,7 +35,7 @@ import { auth } from "@nanahoshi/auth";
 import { getAuditRequestMetadata } from "@nanahoshi/auth/security-audit";
 import type { Hono } from "hono";
 import { attachmentContentDisposition } from "../lib/content-disposition";
-import { asBody } from "../lib/node-stream";
+import { sendFile } from "../lib/file-body";
 import { serveRangedFile } from "../lib/ranged-file";
 
 const log = logger.child({ component: "downloads-routes" });
@@ -177,7 +177,6 @@ export function mountDownloads(app: Hono) {
 
 		try {
 			const stats = statSync(payload.fullPath);
-			const stream = createReadStream(payload.fullPath);
 			recordDelivery(c.req.raw.headers, {
 				deliveryKind: payload.mediaType === "audiobook" ? "audiobook" : "ebook",
 				source: deliverySource,
@@ -188,11 +187,16 @@ export function mountDownloads(app: Hono) {
 				filename: payload.filename,
 			});
 
-			return c.body(asBody(stream), 200, {
-				"Content-Length": stats.size.toString(),
-				"Content-Type": payload.mimetype,
-				"Content-Disposition": attachmentContentDisposition(payload.filename),
-			});
+			return sendFile(
+				c,
+				200,
+				{ path: payload.fullPath },
+				{
+					"Content-Length": stats.size.toString(),
+					"Content-Type": payload.mimetype,
+					"Content-Disposition": attachmentContentDisposition(payload.filename),
+				},
+			);
 		} catch (error) {
 			log.info({ err: error }, "File missing on disk");
 			return c.text("File missing on disk", 404);
@@ -243,7 +247,6 @@ export function mountDownloads(app: Hono) {
 
 		try {
 			const stats = statSync(file.path);
-			const stream = createReadStream(file.path);
 			recordDelivery(c.req.raw.headers, {
 				deliveryKind: "audio_file",
 				source: "web",
@@ -254,11 +257,16 @@ export function mountDownloads(app: Hono) {
 				filename: file.filename,
 			});
 
-			return c.body(asBody(stream), 200, {
-				"Content-Length": stats.size.toString(),
-				"Content-Type": file.mimeType || "application/octet-stream",
-				"Content-Disposition": attachmentContentDisposition(file.filename),
-			});
+			return sendFile(
+				c,
+				200,
+				{ path: file.path },
+				{
+					"Content-Length": stats.size.toString(),
+					"Content-Type": file.mimeType || "application/octet-stream",
+					"Content-Disposition": attachmentContentDisposition(file.filename),
+				},
+			);
 		} catch (error) {
 			log.info({ err: error }, "Audio file missing on disk");
 			return c.text("File missing on disk", 404);

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { ChipRow } from "@/components/chip";
 import { Cover } from "@/components/cover";
-import { Icon, icons } from "@/components/icon";
+import { Icon, type IconName, icons } from "@/components/icon";
 import { ProgressBar } from "@/components/progress-bar";
 import { EmptyState } from "@/components/states";
 import { Text } from "@/components/text";
@@ -195,7 +195,7 @@ function DownloadRow({
 				>
 					{status ?? detail}
 				</Text>
-				{smartLine && !status ? (
+				{origin && smartLine && !status ? (
 					<View
 						style={{
 							flexDirection: "row",
@@ -204,7 +204,7 @@ function DownloadRow({
 						}}
 					>
 						<Icon
-							name={origin?.type === "collection" ? icons.folder : icons.smart}
+							name={originIcon(origin, audio)}
 							size={14}
 							color={palette.textTertiary}
 						/>
@@ -252,6 +252,19 @@ function DownloadRow({
 			</Pressable>
 		</Pressable>
 	);
+}
+
+function originIcon(origin: DownloadReason, audio: boolean): IconName {
+	switch (origin.type) {
+		case "collection":
+			return icons.folder;
+		case "series":
+			return icons.series;
+		case "reading":
+			return audio ? icons.headphones : icons.book;
+		default:
+			return icons.bookmark;
+	}
 }
 
 function originLabel(origin: DownloadReason, audio: boolean): string {
