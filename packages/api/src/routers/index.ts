@@ -9,6 +9,7 @@ import { discordRulesRouter } from "./discord-rules";
 import { enrichmentRouter } from "./enrichment/enrichment.router";
 import { filesRouter } from "./files";
 import { genresRouter } from "./genres";
+import { instanceRouter } from "./instance";
 import { instanceActivityRouter } from "./instance-activity";
 import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
@@ -87,6 +88,7 @@ export const appRouter: {
 	kindle: typeof kindleRouter;
 	opdsKeys: typeof opdsKeysRouter;
 	recommendations: typeof recommendationsRouter;
+	instance: typeof instanceRouter;
 	registration: typeof registrationRouter;
 } = {
 	admin: adminRouter,
@@ -132,6 +134,7 @@ export const appRouter: {
 	kindle: kindleRouter,
 	opdsKeys: opdsKeysRouter,
 	recommendations: recommendationsRouter,
+	instance: instanceRouter,
 	registration: registrationRouter,
 };
 export type AppRouter = typeof appRouter;

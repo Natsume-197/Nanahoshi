@@ -156,9 +156,20 @@ describe("normalizeRegistrationSettings", () => {
 		expect(
 			normalizeRegistrationSettings({
 				policy: "closed",
-				methods: { email: false, discord: true },
+				methods: { email: false, discord: true, google: false },
 			}),
-		).toEqual({ policy: "closed", methods: { email: false, discord: true } });
+		).toEqual({
+			policy: "closed",
+			methods: { email: false, discord: true, google: false },
+		});
+	});
+
+	test("settings stored before Google existed keep Google sign-up on", () => {
+		expect(
+			normalizeRegistrationSettings({
+				methods: { email: false, discord: true },
+			}).methods.google,
+		).toBe(true);
 	});
 
 	test("falls back to invite-only on unknown policy values", () => {
@@ -171,6 +182,7 @@ describe("normalizeRegistrationSettings", () => {
 		expect(normalizeRegistrationSettings({ methods: {} }).methods).toEqual({
 			email: true,
 			discord: true,
+			google: true,
 		});
 	});
 });

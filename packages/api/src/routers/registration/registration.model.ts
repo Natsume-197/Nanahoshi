@@ -5,6 +5,8 @@ export const UpdateRegistrationInput = z.object({
 	methods: z.object({
 		email: z.boolean(),
 		discord: z.boolean(),
+		// Older clients don't send it; Google sign-up then stays as stored.
+		google: z.boolean().default(true),
 	}),
 });
 

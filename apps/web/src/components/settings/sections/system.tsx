@@ -2,6 +2,7 @@ import { Button } from "@nanahoshi/ui/components/button";
 import { ArrowsClockwise, CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { InstanceNameRow } from "@/components/settings/sections/instance-name";
 import {
 	SettingControlRow,
 	SettingRows,
@@ -73,6 +74,7 @@ export function AdminSystem() {
 						{m["settings.system.desc"]()}
 					</p>
 				</div>
+				<InstanceNameRow />
 				<SettingRows>
 					{statCards.map(({ label, value }) => (
 						<SettingStatRow

@@ -31,6 +31,17 @@ export class SettingsRepository {
 			});
 	}
 
+	/** Stores `value` unless the key exists, then returns whatever is stored. */
+	async insertIfAbsent<T>(key: string, value: T): Promise<T> {
+		const [inserted] = await db
+			.insert(appSettings)
+			.values({ key, value })
+			.onConflictDoNothing({ target: [appSettings.key] })
+			.returning({ value: appSettings.value });
+		if (inserted) return inserted.value as T;
+		return (await this.getValue<T>(key)) ?? value;
+	}
+
 	// ---------- Per-organization settings (organization_settings) ----------
 	async getOrgValue<T = unknown>(
 		serverId: string,

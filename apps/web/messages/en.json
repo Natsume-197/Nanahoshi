@@ -262,6 +262,8 @@
 			"method_email_desc": "Create an account with an email address and a password.",
 			"method_discord": "Discord",
 			"method_discord_desc": "Create an account by signing in with Discord.",
+			"method_google": "Google",
+			"method_google_desc": "Create an account by signing in with Google.",
 			"updated": "Registration settings updated"
 		},
 		"system": {
@@ -278,7 +280,12 @@
 			"maintenance": "Maintenance",
 			"rebuild_recommendations": "Update recommendations",
 			"rebuild_recommendations_desc": "Regenerate recommendations for every organization where they are enabled",
-			"rebuild": "Rebuild"
+			"rebuild": "Rebuild",
+			"instance_name": "Instance name",
+			"instance_name_edit": "Edit instance name",
+			"instance_name_hint": "Shown on the sign-in screens of the web and mobile apps, before anyone signs in.",
+			"instance_name_required": "Enter a name.",
+			"instance_name_updated": "Instance name updated."
 		},
 		"about": {
 			"tagline": "A modern and self-hosted library server for books and audiobooks, setup your own and share your collection.",

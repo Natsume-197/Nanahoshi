@@ -5,6 +5,7 @@ import { ensureDefaultRole } from "../auth/access.repository";
 import { InternalServerError } from "../errors";
 import { publicProcedure } from "../index";
 import { logger } from "../lib/logger";
+import { getInstanceName } from "./instance/instance.service";
 import {
 	isAppConfigured,
 	markAppConfigured,
@@ -17,18 +18,30 @@ type SignUpResponse = Awaited<ReturnType<typeof auth.api.signUpEmail>>;
 export const setupRouter = {
 	/** Public: which external sign-in providers are available, for the auth screens. */
 	ssoStatus: publicProcedure.handler(async () => {
-		const [registration, configured] = await Promise.all([
+		const [registration, configured, instanceName] = await Promise.all([
 			getRegistrationSettings(),
 			isAppConfigured(),
+			getInstanceName(),
 		]);
 		const discordConfigured =
 			!!env.DISCORD_CLIENT_ID && !!env.DISCORD_CLIENT_SECRET;
+		const googleConfigured =
+			!!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET;
 		return {
 			configured,
+			// What the apps call this instance before anyone signs in.
+			instanceName,
 			enabled: !!env.OIDC_ENABLED && !!env.OIDC_ISSUER && !!env.OIDC_CLIENT_ID,
 			providerId: env.OIDC_PROVIDER_ID,
 			label: env.OIDC_PROVIDER_LABEL,
 			discord: discordConfigured,
+			google: googleConfigured,
+			// What "by continuing you agree to…" links to. Null means the
+			// server's built-in /legal pages.
+			legal: {
+				terms: env.TERMS_URL ?? null,
+				privacy: env.PRIVACY_URL ?? null,
+			},
 			// Send to Kindle needs SMTP. Kept for Kindle UI; invite links
 			// don't need mailer (email invitations were removed).
 			mailer: !!env.SMTP_USER && !!env.SMTP_PASS,
@@ -38,6 +51,7 @@ export const setupRouter = {
 				policy: registration.policy,
 				email: registration.methods.email,
 				discord: discordConfigured && registration.methods.discord,
+				google: googleConfigured && registration.methods.google,
 			},
 		};
 	}),

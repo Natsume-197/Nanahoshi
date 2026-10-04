@@ -5,7 +5,7 @@
 
 export type RegistrationPolicy = "invite-only" | "closed";
 
-export type SignUpMethod = "email" | "discord";
+export type SignUpMethod = "email" | "discord" | "google";
 
 export type RegistrationSettings = {
 	policy: RegistrationPolicy;
@@ -14,7 +14,7 @@ export type RegistrationSettings = {
 
 export const DEFAULT_REGISTRATION_SETTINGS: RegistrationSettings = {
 	policy: "invite-only",
-	methods: { email: true, discord: true },
+	methods: { email: true, discord: true, google: true },
 };
 
 /** Tolerates missing/partial stored values so new fields default safely. */
@@ -23,13 +23,14 @@ export function normalizeRegistrationSettings(
 ): RegistrationSettings {
 	const raw = (value ?? {}) as {
 		policy?: unknown;
-		methods?: { email?: unknown; discord?: unknown };
+		methods?: { email?: unknown; discord?: unknown; google?: unknown };
 	};
 	return {
 		policy: raw.policy === "closed" ? "closed" : "invite-only",
 		methods: {
 			email: raw.methods?.email !== false,
 			discord: raw.methods?.discord !== false,
+			google: raw.methods?.google !== false,
 		},
 	};
 }

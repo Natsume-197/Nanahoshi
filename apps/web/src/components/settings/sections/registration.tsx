@@ -1,7 +1,13 @@
 import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { Switch } from "@nanahoshi/ui/components/switch";
 import { cn } from "@nanahoshi/ui/lib/utils";
-import { Check, EnvelopeSimple, Prohibit, Ticket } from "@phosphor-icons/react";
+import {
+	Check,
+	EnvelopeSimple,
+	GoogleLogo,
+	Prohibit,
+	Ticket,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { toast } from "sonner";
@@ -59,14 +65,17 @@ export function RegistrationSettings() {
 	});
 
 	const policy = data?.policy ?? "invite-only";
-	const methods = data?.methods ?? { email: true, discord: true };
+	const methods = data?.methods ?? { email: true, discord: true, google: true };
 	const busy = isLoading || updateMutation.isPending;
 
 	const setPolicy = (value: RegistrationPolicy) => {
 		if (!data) return;
 		updateMutation.mutate({ ...data, policy: value });
 	};
-	const setMethod = (method: "email" | "discord", enabled: boolean) => {
+	const setMethod = (
+		method: "email" | "discord" | "google",
+		enabled: boolean,
+	) => {
 		if (!data) return;
 		updateMutation.mutate({
 			...data,
@@ -170,6 +179,23 @@ export function RegistrationSettings() {
 									checked={methods.discord}
 									disabled={busy || policy === "closed"}
 									onCheckedChange={(checked) => setMethod("discord", checked)}
+								/>
+							</SettingControlRow>
+						)}
+						{sso?.google && (
+							<SettingControlRow
+								label={
+									<h3 className="flex items-center gap-2 font-medium text-base text-foreground">
+										<GoogleLogo className="size-4.5" weight="bold" />
+										{m["settings.registration.method_google"]()}
+									</h3>
+								}
+								description={m["settings.registration.method_google_desc"]()}
+							>
+								<Switch
+									checked={methods.google}
+									disabled={busy || policy === "closed"}
+									onCheckedChange={(checked) => setMethod("google", checked)}
 								/>
 							</SettingControlRow>
 						)}

@@ -1,5 +1,5 @@
 import { Button } from "@nanahoshi/ui/components/button";
-import { Key } from "@phosphor-icons/react";
+import { GoogleLogo, Key } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
@@ -94,7 +94,7 @@ export function SignInForm({
 				</fieldset>
 			</form>
 
-			{(sso.discord || sso.enabled) && (
+			{(sso.discord || sso.google || sso.enabled) && (
 				<>
 					<AuthDivider>{m["auth.or"]()}</AuthDivider>
 					{sso.discord && (
@@ -115,10 +115,28 @@ export function SignInForm({
 						</Button>
 					)}
 
-					{sso.enabled && (
+					{sso.google && (
 						<Button
 							variant="outline"
 							className={`${authButtonClass} ${sso.discord ? "mt-3" : ""}`}
+							onClick={() =>
+								authClient.signIn.social({
+									provider: "google",
+									callbackURL: `${window.location.origin}${redirectTo ?? "/dashboard"}`,
+									errorCallbackURL: `${window.location.origin}${errorReturnPath}`,
+									additionalData: inviteCode ? { inviteCode } : undefined,
+								})
+							}
+						>
+							<GoogleLogo className="mr-2 size-4" weight="bold" />
+							{m["auth.sign_in_with"]({ provider: "Google" })}
+						</Button>
+					)}
+
+					{sso.enabled && (
+						<Button
+							variant="outline"
+							className={`${authButtonClass} ${sso.discord || sso.google ? "mt-3" : ""}`}
 							onClick={() =>
 								authClient.signIn.social({
 									provider: sso.providerId,

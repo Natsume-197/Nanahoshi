@@ -25,6 +25,7 @@ import {
 } from "./auth-security-options";
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
+import { mapGoogleProfileToUser } from "./google-profile";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
 import { provisionOidcUser } from "./oidc-provisioning";
 import {
@@ -295,8 +296,8 @@ const authConfig = {
 	databaseHooks: {
 		// Social/OAuth callbacks create users without passing through the
 		// /sign-up/email gate above. Gate them here: after first setup, a new
-		// Discord user needs the invite-link code carried in the protected
-		// OAuth state. OIDC (/callback)
+		// Discord or Google user needs the invite-link code carried in the
+		// protected OAuth state. OIDC (/callback)
 		// is exempt — SSO provisioning is configured intentionally by the admin.
 		user: {
 			create: {
@@ -311,7 +312,7 @@ const authConfig = {
 					const verdict = await checkSignUp({
 						email: user.email,
 						inviteCode,
-						method: "discord",
+						method: path.startsWith("/callback/google") ? "google" : "discord",
 					});
 					if (verdict.allowed) return;
 					throw new APIError("FORBIDDEN", {
@@ -438,9 +439,9 @@ const authConfig = {
 				.where(eq(schema.session.id, newSession.session.id));
 		}),
 	},
-	...(env.DISCORD_CLIENT_ID &&
-		env.DISCORD_CLIENT_SECRET && {
-			socialProviders: {
+	socialProviders: {
+		...(env.DISCORD_CLIENT_ID &&
+			env.DISCORD_CLIENT_SECRET && {
 				discord: {
 					clientId: env.DISCORD_CLIENT_ID,
 					clientSecret: env.DISCORD_CLIENT_SECRET,
@@ -475,8 +476,18 @@ const authConfig = {
 						};
 					},
 				},
-			},
-		}),
+			}),
+		...(env.GOOGLE_CLIENT_ID &&
+			env.GOOGLE_CLIENT_SECRET && {
+				google: {
+					clientId: env.GOOGLE_CLIENT_ID,
+					clientSecret: env.GOOGLE_CLIENT_SECRET,
+					// Let a phone with several Google accounts pick one.
+					prompt: "select_account",
+					mapProfileToUser: (profile) => mapGoogleProfileToUser(profile),
+				},
+			}),
+	},
 	plugins: [
 		expo(),
 		organization({

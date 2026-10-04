@@ -262,6 +262,8 @@
 			"method_email_desc": "Crear una cuenta con una dirección de correo y una contraseña.",
 			"method_discord": "Discord",
 			"method_discord_desc": "Crear una cuenta iniciando sesión con Discord.",
+			"method_google": "Google",
+			"method_google_desc": "Crear una cuenta iniciando sesión con Google.",
 			"updated": "Configuración de registro actualizada"
 		},
 		"system": {
@@ -278,7 +280,12 @@
 			"maintenance": "Mantenimiento",
 			"rebuild_recommendations": "Actualizar recomendaciones",
 			"rebuild_recommendations_desc": "Regenera las recomendaciones de todas las organizaciones que las tengan habilitadas",
-			"rebuild": "Regenerar"
+			"rebuild": "Regenerar",
+			"instance_name": "Nombre de la instancia",
+			"instance_name_edit": "Editar nombre de la instancia",
+			"instance_name_hint": "Se muestra en las pantallas de inicio de sesión de la web y la app móvil, antes de que nadie entre.",
+			"instance_name_required": "Escribe un nombre.",
+			"instance_name_updated": "Nombre de la instancia actualizado."
 		},
 		"about": {
 			"tagline": "Un servidor de biblioteca moderno y autohospedado para libros y audiolibros. Crea el tuyo y comparte tu colección.",

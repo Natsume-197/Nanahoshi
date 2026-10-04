@@ -262,6 +262,8 @@
 			"method_email_desc": "メールアドレスとパスワードでアカウントを作成します。",
 			"method_discord": "Discord",
 			"method_discord_desc": "Discordでサインインしてアカウントを作成します。",
+			"method_google": "Google",
+			"method_google_desc": "Googleでサインインしてアカウントを作成します。",
 			"updated": "登録設定を更新しました"
 		},
 		"system": {
@@ -278,7 +280,12 @@
 			"maintenance": "メンテナンス",
 			"rebuild_recommendations": "おすすめを更新",
 			"rebuild_recommendations_desc": "おすすめが有効なすべての組織で、おすすめを再生成します",
-			"rebuild": "再構築"
+			"rebuild": "再構築",
+			"instance_name": "インスタンス名",
+			"instance_name_edit": "インスタンス名を編集",
+			"instance_name_hint": "ログイン前に、Web とモバイルアプリのログイン画面に表示されます。",
+			"instance_name_required": "名前を入力してください。",
+			"instance_name_updated": "インスタンス名を更新しました。"
 		},
 		"about": {
 			"tagline": "書籍とオーディオブックのためのモダンなセルフホスト型ライブラリサーバー。自分だけのサーバーを構築して、コレクションを共有できます。",

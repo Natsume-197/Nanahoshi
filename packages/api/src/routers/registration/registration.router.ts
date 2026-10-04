@@ -18,15 +18,20 @@ export const registrationRouter = {
 		.input(UpdateRegistrationInput)
 		.handler(async ({ input }) => {
 			// A method only counts as available if the deployment can actually
-			// offer it — Discord sign-up needs OAuth credentials in the env.
+			// offer it — Discord and Google sign-up need OAuth credentials in the env.
 			const discordUsable =
 				input.methods.discord &&
 				!!env.DISCORD_CLIENT_ID &&
 				!!env.DISCORD_CLIENT_SECRET;
+			const googleUsable =
+				input.methods.google &&
+				!!env.GOOGLE_CLIENT_ID &&
+				!!env.GOOGLE_CLIENT_SECRET;
 			if (
 				input.policy === "invite-only" &&
 				!input.methods.email &&
-				!discordUsable
+				!discordUsable &&
+				!googleUsable
 			) {
 				throw new BadRequestError(
 					"At least one usable sign-up method must remain enabled while registration is invite-only.",

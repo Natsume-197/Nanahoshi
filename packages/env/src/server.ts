@@ -52,6 +52,11 @@ export const env = createEnv({
 		BETTER_AUTH_URL: z.url(),
 		DISCORD_CLIENT_ID: z.string().optional(),
 		DISCORD_CLIENT_SECRET: z.string().optional(),
+		GOOGLE_CLIENT_ID: z.string().optional(),
+		GOOGLE_CLIENT_SECRET: z.string().optional(),
+		// The server's own legal documents; unset uses the built-in /legal pages.
+		TERMS_URL: z.url().optional(),
+		PRIVACY_URL: z.url().optional(),
 
 		// OIDC / SSO
 		OIDC_ENABLED: z
