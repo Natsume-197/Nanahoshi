@@ -3,6 +3,7 @@ import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { setAppearance, useAppearancePreference } from "@/lib/appearance";
 import { t } from "@/lib/i18n";
 import type { AppearancePreference } from "@/lib/preferences";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { space } from "@/theme";
 
 const OPTIONS: {
@@ -21,11 +22,15 @@ const OPTIONS: {
 
 /** Light, dark or the device's own: kept on this phone, applied at once. */
 export function AppearanceSettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const current = useAppearancePreference();
 	return (
 		<ScrollView
 			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ padding: space.lg }}
+			contentContainerStyle={{
+				padding: space.lg,
+				paddingBottom: space.lg + miniPlayerInset,
+			}}
 		>
 			<GroupedList title={t("settings.appearance.color_scheme")}>
 				{OPTIONS.map((option, index) => (

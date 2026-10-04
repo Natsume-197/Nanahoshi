@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { View } from "react-native";
 import { titleOrUntitled } from "@/lib/format";
 import { type MediaKind, routes } from "@/lib/routes";
+import { usePrefetchTitle } from "@/lib/title-queries";
 import { usePalette } from "@/theme";
 import { BookMenuTarget } from "./book-menu";
 import { Cover } from "./cover";
@@ -38,6 +39,7 @@ export function TitleTile({
 	frame?: "book" | "square";
 }) {
 	const palette = usePalette();
+	const prefetch = usePrefetchTitle();
 	const square = item.kind === "audiobook";
 	const frameHeight = frame === "square" ? width : Math.round(width * 1.5);
 	const plated = square && frame === "book";
@@ -57,6 +59,7 @@ export function TitleTile({
 		>
 			{(onLongPress) => (
 				<PressableScale
+					onPressIn={() => prefetch(item.kind, item.uuid, item.cover)}
 					onPress={() => router.push(routes.title(item.kind, item.uuid))}
 					onLongPress={onLongPress}
 					accessibilityRole="button"

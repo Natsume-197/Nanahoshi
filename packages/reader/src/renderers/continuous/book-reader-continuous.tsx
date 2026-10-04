@@ -21,7 +21,10 @@ import {
 import { createTextReaderSession } from "../../session/text-reader-session";
 import { ReaderLoadingOverlay } from "../../ui/chrome/reader-loading-overlay";
 import { resolveReaderTextAnchorOffset } from "../paginated/text-anchor";
-import { handleReaderContentClick } from "../shared/reader-content-click";
+import {
+	handleReaderContentClick,
+	toggleChromeOnTap,
+} from "../shared/reader-content-click";
 import { applyReaderDocumentChrome } from "../shared/reader-document-chrome";
 import {
 	buildContinuousReaderSizing,
@@ -108,6 +111,7 @@ export function BookReaderContinuous({
 	initialPosition,
 	onPositionChange,
 	onSectionProgressChange,
+	onToggleChrome,
 	apiRef,
 }: BookReaderContinuousProps) {
 	const contentElRef = useRef<HTMLDivElement | null>(null);
@@ -149,6 +153,8 @@ export function BookReaderContinuous({
 	navigationBlockedRef.current = navigationBlocked;
 	// Live settings read by long-lived DOM handlers (the component does not
 	// remount when these change, so closures must not capture them).
+	const toggleChromeRef = useRef(onToggleChrome);
+	toggleChromeRef.current = onToggleChrome;
 	const livePropsRef = useRef({
 		fontSize,
 		firstDimensionMargin,
@@ -540,8 +546,13 @@ export function BookReaderContinuous({
 		s.calculator = calculator;
 		s.pageManager = pageManager;
 
-		const handleContentClick = (event: MouseEvent) =>
-			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
+		const handleContentClick = (event: MouseEvent) => {
+			if (
+				handleReaderContentClick(event, livePropsRef.current, navigateToSection)
+			)
+				return;
+			toggleChromeOnTap(event, toggleChromeRef.current);
+		};
 		contentEl.addEventListener("click", handleContentClick);
 
 		// Layout shifts from late image loads: recalculate paragraph positions

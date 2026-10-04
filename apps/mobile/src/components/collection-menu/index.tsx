@@ -1,6 +1,6 @@
 import { ListItem, Text } from "@expo/ui/jetpack-compose";
-import * as Haptics from "expo-haptics";
 import { type ReactElement, useState } from "react";
+import { haptics } from "@/lib/haptics";
 import { usePalette } from "@/theme";
 import { ActionSheet } from "../action-menu/action-sheet";
 import {
@@ -26,9 +26,7 @@ export function CollectionMenuTarget({
 	return (
 		<>
 			{children(() => {
-				void Haptics.performAndroidHapticsAsync(
-					Haptics.AndroidHaptics.Long_Press,
-				);
+				haptics.longPress();
 				setOpen(true);
 			})}
 			{open ? (

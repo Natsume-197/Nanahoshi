@@ -11,12 +11,14 @@ import { TextField } from "@/components/text-field";
 import { clearDownloads } from "@/downloads/files";
 import { locale, t } from "@/lib/i18n";
 import { describeSessionDevice } from "@/lib/session-device";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { space } from "@/theme";
 
 /** Connected accounts, where you're signed in, signing out, and deleting the
  * account. Every way out ends the session; the root guard then shows sign-in. */
 export function AccountSettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { client } = useApi();
 	const { auth } = useConnection();
 	const session = auth.useSession();
@@ -95,7 +97,11 @@ export function AccountSettingsScreen() {
 			contentInsetAdjustmentBehavior="automatic"
 			keyboardShouldPersistTaps="handled"
 			automaticallyAdjustKeyboardInsets
-			contentContainerStyle={{ padding: space.lg, gap: space.xl }}
+			contentContainerStyle={{
+				padding: space.lg,
+				paddingBottom: space.lg + miniPlayerInset,
+				gap: space.xl,
+			}}
 		>
 			<GroupedList
 				title={t("settings.account.connected_accounts")}

@@ -1,12 +1,18 @@
-import { FlashList } from "@shopify/flash-list";
-import type { ReactElement } from "react";
-import { RefreshControl, View } from "react-native";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { useScrollToTop } from "expo-router";
+import { type ReactElement, useRef } from "react";
+import { View } from "react-native";
+import Animated, { type ScrollHandlerProcessed } from "react-native-reanimated";
+import { RefreshControl } from "@/components/refresh-control";
 import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
 import { t } from "@/lib/i18n";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { space } from "@/theme";
 import { icons } from "./icon";
 import { EmptyState, ErrorState, ShelfSkeleton, Spinner } from "./states";
 import { type TileItem, TitleTile } from "./title-tile";
+
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<TileItem>);
 
 type Paged = {
 	isPending: boolean;
@@ -29,7 +35,10 @@ export function TitleGrid({
 	emptyTitle,
 	emptyMessage,
 	empty,
+	onScroll,
 }: {
+	/** A worklet scroll handler; the header then draws under the bars. */
+	onScroll?: ScrollHandlerProcessed<Record<string, unknown>>;
 	/** Replaces the empty state outright (a profile's overview tab). */
 	empty?: ReactElement | null;
 	items: TileItem[];
@@ -40,19 +49,27 @@ export function TitleGrid({
 }) {
 	const gap = space.sm;
 	const width = useGridTileWidth(2, gap);
+	const listRef = useRef<FlashListRef<TileItem>>(null);
+	const miniPlayerInset = useMiniPlayerInset();
+	// Re-tapping the tab scrolls a root grid back up (no-op on pushed pages).
+	useScrollToTop(listRef);
+	const List = onScroll ? AnimatedFlashList : FlashList<TileItem>;
 	const allSquare =
 		items.length > 0 && items.every((item) => item.kind === "audiobook");
 
 	return (
-		<FlashList
+		<List
+			ref={listRef}
 			data={items}
 			numColumns={2}
-			contentInsetAdjustmentBehavior="automatic"
+			contentInsetAdjustmentBehavior={onScroll ? "never" : "automatic"}
+			onScroll={onScroll}
+			scrollEventThrottle={onScroll ? 16 : undefined}
 			keyExtractor={(item) => `${item.kind}:${item.uuid}`}
 			ListHeaderComponent={header}
 			contentContainerStyle={{
 				paddingHorizontal: space.lg - gap / 2,
-				paddingBottom: space.xxl,
+				paddingBottom: space.xxl + miniPlayerInset,
 			}}
 			onEndReachedThreshold={0.6}
 			onEndReached={() => {

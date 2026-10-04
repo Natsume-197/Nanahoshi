@@ -1,9 +1,9 @@
 import type { RecommendationItem } from "@nanahoshi/api/routers/recommendations/recommendations.model";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useScrollToTop } from "expo-router";
+import { useRef, useState } from "react";
 import {
 	FlatList,
-	RefreshControl,
 	type RefreshControlProps,
 	ScrollView,
 	useWindowDimensions,
@@ -19,19 +19,29 @@ import {
 	useAppBarScroll,
 } from "@/components/home-app-bar";
 import { icons } from "@/components/icon";
+import { RefreshControl } from "@/components/refresh-control";
 import { SectionHeader } from "@/components/section-header";
 import { Shelf } from "@/components/shelf";
+import { Bone, ShelfSkeleton, SkeletonPulse } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
 import { OfflineBanner } from "@/downloads/offline-banner";
 import { useIsOnline } from "@/downloads/provider";
+import { useCan } from "@/lib/abilities";
 import { joinNames, percent } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { setupSteps } from "@/lib/setup-flow";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
-import { space } from "@/theme";
-import { ContinueCard, type ContinueItem } from "./continue-card";
+import { radius, sizes, space } from "@/theme";
+import {
+	ContinueCard,
+	type ContinueItem,
+	ContinueSkeleton,
+} from "./continue-card";
 import { SeriesShelf } from "./series-shelf";
+import { SetupChecklist } from "./setup-checklist";
 
 type Category = "home" | "books" | "audiobooks";
 type Format = "all" | "books" | "audiobooks";
@@ -44,8 +54,12 @@ const COLLECTION_CARD_WIDTH = 168;
  * the same default order as the web home layout.
  */
 export function Home() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const insets = useSafeAreaInsets();
+	const scrollRef = useRef<ScrollView>(null);
+	// Re-tapping Home scrolls back up, as every native tab does.
+	useScrollToTop(scrollRef);
 	const [picked, setPicked] = useState<Category>("home");
 	const libraries = useQuery(orpc.libraries.getLibraries.queryOptions());
 	const hasBooks =
@@ -85,7 +99,9 @@ export function Home() {
 	const content = (
 		<>
 			{offline ? <OfflineBanner /> : null}
-			{categories.length > 1 ? (
+			{libraries.isPending ? (
+				<ChipRowSkeleton />
+			) : categories.length > 1 ? (
 				<View style={{ paddingTop: 20, paddingBottom: space.sm }}>
 					<ChipRow value={category} onChange={setPicked} options={categories} />
 				</View>
@@ -106,8 +122,9 @@ export function Home() {
 	if (process.env.EXPO_OS === "ios")
 		return (
 			<ScrollView
+				ref={scrollRef}
 				contentInsetAdjustmentBehavior="never"
-				contentContainerStyle={{ paddingBottom: space.xxl }}
+				contentContainerStyle={{ paddingBottom: space.xxl + miniPlayerInset }}
 				refreshControl={refreshControl}
 			>
 				{content}
@@ -115,32 +132,66 @@ export function Home() {
 		);
 	// Android: the server / friends / notifications bar lives on Home only;
 	// the other tabs open straight onto their own title.
-	return <AndroidHome refreshControl={refreshControl}>{content}</AndroidHome>;
+	return (
+		<AndroidHome scrollRef={scrollRef} refreshControl={refreshControl}>
+			{content}
+		</AndroidHome>
+	);
 }
 
 function AndroidHome({
+	scrollRef,
 	refreshControl,
 	children,
 }: {
+	scrollRef: React.RefObject<ScrollView | null>;
 	refreshControl: React.ReactElement<RefreshControlProps>;
 	children: React.ReactNode;
 }) {
 	const insets = useSafeAreaInsets();
 	const appBar = useAppBarScroll();
+	const miniPlayerInset = useMiniPlayerInset();
 	return (
 		<View style={{ flex: 1 }}>
 			<Animated.ScrollView
+				ref={scrollRef}
 				onScroll={appBar.onScroll}
 				scrollEventThrottle={16}
 				contentContainerStyle={{
 					paddingTop: insets.top + appBar.height,
-					paddingBottom: space.xxl,
+					paddingBottom: space.xxl + miniPlayerInset,
 				}}
 				refreshControl={refreshControl}
 			>
 				{children}
 			</Animated.ScrollView>
 			<HomeAppBar scroll={appBar} />
+		</View>
+	);
+}
+
+/** The category chips' row while the libraries (and so the formats) load. */
+function ChipRowSkeleton() {
+	return (
+		<View style={{ paddingTop: 20, paddingBottom: space.sm }}>
+			<SkeletonPulse>
+				<View
+					style={{
+						flexDirection: "row",
+						gap: space.md,
+						paddingHorizontal: space.lg,
+					}}
+				>
+					{[72, 76, 112].map((width) => (
+						<Bone
+							key={width}
+							width={width}
+							height={sizes.chip}
+							radius={radius.field}
+						/>
+					))}
+				</View>
+			</SkeletonPulse>
 		</View>
 	);
 }
@@ -235,7 +286,10 @@ function ContinueSection({ format }: { format: Format }) {
 		.sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""))
 		.slice(0, LIMIT);
 
-	if (items.length === 0) return null;
+	const loading =
+		(format !== "audiobooks" && reading.isPending) ||
+		(format !== "books" && listening.isPending);
+	if (items.length === 0 && !loading) return null;
 	const title =
 		format === "books"
 			? t("home.continue_reading")
@@ -246,16 +300,20 @@ function ContinueSection({ format }: { format: Format }) {
 	return (
 		<View style={{ gap: space.lg }}>
 			<SectionHeader title={title} />
-			<FlatList
-				horizontal
-				data={items}
-				keyExtractor={(item) => `${item.kind}:${item.uuid}`}
-				renderItem={({ item }) => <ContinueCard item={item} width={width} />}
-				showsHorizontalScrollIndicator={false}
-				snapToInterval={width + space.lg}
-				decelerationRate="fast"
-				contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.lg }}
-			/>
+			{items.length === 0 ? (
+				<ContinueSkeleton width={width} />
+			) : (
+				<FlatList
+					horizontal
+					data={items}
+					keyExtractor={(item) => `${item.kind}:${item.uuid}`}
+					renderItem={({ item }) => <ContinueCard item={item} width={width} />}
+					showsHorizontalScrollIndicator={false}
+					snapToInterval={width + space.lg}
+					decelerationRate="fast"
+					contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.lg }}
+				/>
+			)}
 		</View>
 	);
 }
@@ -313,6 +371,7 @@ function RecentlyAddedSection({ format }: { format: Format }) {
 				params: { format: format === "audiobooks" ? "audiobook" : "ebook" },
 			}}
 			loading={loading}
+			audio={format === "audiobooks"}
 			items={items}
 		/>
 	);
@@ -363,6 +422,17 @@ function RecommendationsSection({
 		}),
 		staleTime: Number.POSITIVE_INFINITY,
 	});
+	const title =
+		format === "books" ? t("recs.books_for_you") : t("recs.audiobooks_for_you");
+	if (recs.isPending)
+		return (
+			<Shelf
+				title={title}
+				items={undefined}
+				loading
+				audio={format === "audiobooks"}
+			/>
+		);
 	if (!recs.data?.enabled) return null;
 	const items = mergeMixes(recs.data.mixes, LIMIT);
 	// Cold start: the server answers with popularity, which has its own row.
@@ -373,11 +443,7 @@ function RecommendationsSection({
 		return null;
 	return (
 		<Shelf
-			title={
-				format === "books"
-					? t("recs.books_for_you")
-					: t("recs.audiobooks_for_you")
-			}
+			title={title}
 			items={items.map((item) => ({ ...toTile(item), recommendation: true }))}
 		/>
 	);
@@ -390,13 +456,22 @@ function PopularSection({ format }: { format: Format }) {
 			input: { format, limit: LIMIT },
 		}),
 	);
-	if (!popular.data?.enabled || popular.data.items.length === 0) return null;
 	const title =
 		format === "books"
 			? t("recs.mix_popular_books")
 			: format === "audiobooks"
 				? t("recs.mix_popular_audiobooks")
 				: t("recs.mix_popular");
+	if (popular.isPending)
+		return (
+			<Shelf
+				title={title}
+				items={undefined}
+				loading
+				audio={format === "audiobooks"}
+			/>
+		);
+	if (!popular.data?.enabled || popular.data.items.length === 0) return null;
 	return <Shelf title={title} items={popular.data.items.map(toTile)} />;
 }
 
@@ -404,7 +479,9 @@ function CollectionsRail({
 	title,
 	href,
 	collections,
+	loading,
 }: {
+	loading?: boolean;
 	title: string;
 	href?: Parameters<typeof SectionHeader>[0]["href"];
 	collections: {
@@ -414,30 +491,34 @@ function CollectionsRail({
 		bookCount: number | null;
 	}[];
 }) {
-	if (collections.length === 0) return null;
+	if (collections.length === 0 && !loading) return null;
 	return (
 		<View style={{ gap: space.lg }}>
 			<SectionHeader title={title} href={href} />
-			<FlatList
-				horizontal
-				data={collections}
-				keyExtractor={(item) => item.id}
-				showsHorizontalScrollIndicator={false}
-				contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.lg }}
-				renderItem={({ item }) => (
-					<CollectionCard
-						href={routes.collection(item.id)}
-						name={item.name}
-						covers={item.previewCovers}
-						width={COLLECTION_CARD_WIDTH}
-						subtitle={
-							item.bookCount == null
-								? "…"
-								: t("media.item_count", { count: item.bookCount })
-						}
-					/>
-				)}
-			/>
+			{collections.length === 0 ? (
+				<ShelfSkeleton width={COLLECTION_CARD_WIDTH} shape="collection" />
+			) : (
+				<FlatList
+					horizontal
+					data={collections}
+					keyExtractor={(item) => item.id}
+					showsHorizontalScrollIndicator={false}
+					contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.lg }}
+					renderItem={({ item }) => (
+						<CollectionCard
+							href={routes.collection(item.id)}
+							name={item.name}
+							covers={item.previewCovers}
+							width={COLLECTION_CARD_WIDTH}
+							subtitle={
+								item.bookCount == null
+									? "…"
+									: t("media.item_count", { count: item.bookCount })
+							}
+						/>
+					)}
+				/>
+			)}
 		</View>
 	);
 }
@@ -451,6 +532,7 @@ function DiscoverCollectionsSection() {
 		<CollectionsRail
 			title={t("home.discover_collections")}
 			collections={discover.data ?? []}
+			loading={discover.isPending}
 		/>
 	);
 }
@@ -472,6 +554,7 @@ function YourCollectionsSection() {
 			title={t("home.your_collections")}
 			href="/collections"
 			collections={visible}
+			loading={collections.isPending}
 		/>
 	);
 }
@@ -485,6 +568,7 @@ function BookSeriesSection() {
 		<SeriesShelf
 			title={t("home.book_series")}
 			kind="book"
+			loading={series.isPending}
 			items={series.data?.map((item) => ({
 				uuid: item.uuid,
 				name: item.name,
@@ -507,6 +591,7 @@ function AudiobookSeriesSection() {
 		<SeriesShelf
 			title={t("home.audiobook_series")}
 			kind="audiobook"
+			loading={series.isPending}
 			items={series.data?.map((item) => ({
 				uuid: item.uuid,
 				name: item.name,
@@ -556,6 +641,8 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 					: t("home.random_audiobooks")
 			}
 			items={items}
+			loading={format === "books" ? books.isPending : audiobooks.isPending}
+			audio={format === "audiobooks"}
 		/>
 	);
 }
@@ -573,9 +660,20 @@ function EmptyHomeNotice() {
 			input: { limit: LIMIT, compact: true },
 		}),
 	);
-	if (books.isPending || audiobooks.isPending) return null;
-	if ((books.data?.length ?? 0) + (audiobooks.data?.length ?? 0) > 0)
+	const libraries = useQuery(orpc.libraries.getLibraries.queryOptions());
+	const can = useCan();
+	if (books.isPending || audiobooks.isPending || libraries.isPending)
 		return null;
+	const titleCount = (books.data?.length ?? 0) + (audiobooks.data?.length ?? 0);
+	if (titleCount > 0) return null;
+	// Someone who can fill the server gets walked through it instead.
+	const steps = setupSteps({
+		canCreateLibrary: can("library", "create"),
+		canUpload: can("library", "upload"),
+		libraryCount: libraries.data?.length ?? 0,
+		titleCount,
+	});
+	if (steps) return <SetupChecklist steps={steps} />;
 	return (
 		<EmptyState
 			icon={icons.shelf}

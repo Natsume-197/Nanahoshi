@@ -1,28 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Href } from "expo-router";
-import type { ReactNode } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { type Href, router, useScrollToTop } from "expo-router";
+import { type ReactNode, useRef } from "react";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { Cover } from "@/components/cover";
+import { Fab } from "@/components/fab";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { PressableLink } from "@/components/pressable-link";
+import { askChoice } from "@/components/prompt";
+import { RefreshControl } from "@/components/refresh-control";
+import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
+import { useDownloadedTitles } from "@/downloads/provider";
+import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
-import { radius, space, usePalette } from "@/theme";
+import { radius, sizes, space, usePalette } from "@/theme";
 
 type Destination = { href: Href; label: () => string; icon: IconName };
 
-/** Every browse destination of the web's LibraryHub, as one list, plus the
- * phone's own downloads. */
+/** Every browse destination of the web's LibraryHub. */
 const BROWSE: Destination[] = [
-	// First: offline, it's the one destination that still opens.
-	{
-		href: "/downloads",
-		label: () => t("mobile.downloads.title"),
-		icon: icons.downloaded,
-	},
 	{ href: "/catalog", label: () => t("nav.catalog"), icon: icons.catalog },
 	{ href: "/series", label: () => t("nav.series"), icon: icons.series },
 	{ href: "/authors", label: () => t("nav.authors"), icon: icons.author },
@@ -40,13 +40,14 @@ const NARRATORS: Destination = {
 };
 
 /**
- * The Library tab, redesigned after Audible's "Lists from Library" and Apple
- * Music's library: a big title, the browse destinations as full-width rows
- * with a tinted icon tile and a chevron, then each library as a row with its
- * covers stacked. Rows, not tiles: they read as one list, scale to any count
- * and match the Collections tab.
+ * The Library tab: the browse destinations as a compact two-column grid,
+ * what's on the phone (only when there is some), then each library. Every
+ * block is the same flat card, so the page reads as one surface.
  */
 export function Library() {
+	const miniPlayerInset = useMiniPlayerInset();
+	const scrollRef = useRef<ScrollView>(null);
+	useScrollToTop(scrollRef);
 	const { orpc } = useApi();
 	const narrators = useQuery({
 		...orpc.narrators.count.queryOptions(),
@@ -58,86 +59,109 @@ export function Library() {
 	});
 	const destinations =
 		(narrators.data ?? 0) > 0 ? [...BROWSE, NARRATORS] : BROWSE;
+	const can = useCan();
+	const canCreate = can("library", "create");
+	const canUpload = can("library", "upload");
 
 	return (
-		<ScrollView
-			contentInsetAdjustmentBehavior={
-				process.env.EXPO_OS === "ios" ? "never" : "automatic"
-			}
-			contentContainerStyle={{ paddingBottom: space.xxl }}
-			refreshControl={
-				<RefreshControl
-					refreshing={libraries.isRefetching}
-					onRefresh={() => libraries.refetch()}
-				/>
-			}
-		>
-			<PageHeader title={t("nav.library")} size="default" />
-
-			<Section title={t("nav.browse")}>
-				{destinations.map((item, index) => (
-					<Row
-						key={item.label()}
-						href={item.href}
-						first={index === 0}
-						leading={<IconTile icon={item.icon} />}
-						title={item.label()}
+		<View style={{ flex: 1 }}>
+			<ScrollView
+				ref={scrollRef}
+				contentInsetAdjustmentBehavior={
+					process.env.EXPO_OS === "ios" ? "never" : "automatic"
+				}
+				contentContainerStyle={{
+					// Room for the floating "+" under the last library.
+					paddingBottom: space.xxl + miniPlayerInset + sizes.fab,
+				}}
+				refreshControl={
+					<RefreshControl
+						refreshing={libraries.isRefetching}
+						onRefresh={() => libraries.refetch()}
 					/>
-				))}
-			</Section>
+				}
+			>
+				<PageHeader title={t("nav.library")} />
 
-			<Section title={t("nav.libraries")}>
-				{libraries.isPending ? (
-					<View style={{ height: 80 }} />
-				) : (libraries.data ?? []).length === 0 ? (
-					<Text
-						variant="subhead"
-						tone="secondary"
-						style={{ paddingHorizontal: space.lg, paddingVertical: space.lg }}
-					>
-						{t("library.none")}
-					</Text>
-				) : (
-					(libraries.data ?? []).map((library, index) => {
-						const audiobook = library.mediaType === "audiobook";
-						const name = library.name ?? t("library.untitled");
-						return (
-							<Row
-								key={library.uuid}
-								href={{
-									pathname: "/library/[uuid]",
-									params: { uuid: library.uuid, name },
-								}}
-								first={index === 0}
-								tall
-								leading={
-									<CoverStack
-										covers={library.previewCovers}
-										audiobook={audiobook}
-									/>
-								}
-								title={name}
-								subtitle={
-									audiobook
-										? t("media.audiobook_count", { count: library.bookCount })
-										: t("media.book_count", { count: library.bookCount })
-								}
+				<Section title={t("nav.browse")}>
+					<View style={{ flexDirection: "row", flexWrap: "wrap", gap: GAP }}>
+						{destinations.map((item) => (
+							<BrowseTile
+								key={item.label()}
+								href={item.href}
+								icon={item.icon}
+								label={item.label()}
 							/>
-						);
-					})
-				)}
-			</Section>
-		</ScrollView>
+						))}
+					</View>
+				</Section>
+
+				<Section title={t("nav.libraries")}>
+					{libraries.isPending ? (
+						<LibrariesSkeleton />
+					) : (libraries.data ?? []).length === 0 ? (
+						canCreate ? null : (
+							<Text variant="subhead" tone="secondary">
+								{t("library.none")}
+							</Text>
+						)
+					) : (
+						(libraries.data ?? []).map((library) => {
+							const audio = library.mediaType === "audiobook";
+							const name = library.name ?? t("library.untitled");
+							return (
+								<CardRow
+									key={library.uuid}
+									href={{
+										pathname: "/library/[uuid]",
+										params: { uuid: library.uuid, name },
+									}}
+									title={name}
+									subtitle={
+										audio
+											? t("media.audiobook_count", { count: library.bookCount })
+											: t("media.book_count", { count: library.bookCount })
+									}
+									art={
+										<CoverFan
+											fallback={audio ? icons.headphones : icons.book}
+											covers={Array.from(
+												new Set(library.previewCovers.filter(Boolean)),
+											).map((cover) => ({ key: cover, cover, audio }))}
+										/>
+									}
+								/>
+							);
+						})
+					)}
+					<DownloadsRow />
+				</Section>
+			</ScrollView>
+			{canCreate || canUpload ? (
+				<CreateFab canCreate={canCreate} canUpload={canUpload} />
+			) : null}
+		</View>
 	);
 }
 
+const GAP = space.sm;
+const ROW_HEIGHT = 88;
+const FAN_HEIGHT = 64;
+const FAN_WIDTH = 84;
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<View style={{ paddingTop: space.xl }}>
+		<View
+			style={{
+				paddingTop: space.xl,
+				paddingHorizontal: space.lg,
+				gap: GAP,
+			}}
+		>
 			<Text
 				variant="section"
 				accessibilityRole="header"
-				style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}
+				style={{ paddingBottom: space.xs }}
 			>
 				{title}
 			</Text>
@@ -146,113 +170,110 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 	);
 }
 
-/** Full-bleed list row: leading art, title (+ subtitle), chevron. The
- * hairline starts at the text so the art column reads as one strip. */
-function Row({
+/** Titles saved on this phone, as one more library: only when there are
+ * some. */
+function DownloadsRow() {
+	const { titles } = useDownloadedTitles();
+	if (titles.length === 0) return null;
+	return (
+		<CardRow
+			href="/downloads"
+			title={t("mobile.downloads.title")}
+			subtitle={t("media.item_count", { count: titles.length })}
+			art={
+				<CoverFan
+					fallback={icons.downloaded}
+					covers={titles.map((title) => ({
+						key: `${title.kind}:${title.uuid}`,
+						cover: title.cover,
+						localUri: title.localCover,
+						color: title.color,
+						audio: title.kind === "audiobook",
+					}))}
+				/>
+			}
+		/>
+	);
+}
+
+/** The flat card every block on the page shares: covers, title, count. */
+function CardRow({
 	href,
-	leading,
+	art,
 	title,
 	subtitle,
-	first,
-	tall,
 }: {
 	href: Href;
-	leading: ReactNode;
+	art: ReactNode;
 	title: string;
-	subtitle?: string;
-	first?: boolean;
-	tall?: boolean;
+	subtitle: string;
 }) {
 	const palette = usePalette();
 	return (
 		<PressableLink
-			android_ripple={{ color: palette.ripple }}
 			href={href}
+			android_ripple={{ color: palette.ripple }}
 			accessibilityRole="button"
-			accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+			accessibilityLabel={`${title}, ${subtitle}`}
 			style={({ pressed }) => ({
+				minHeight: ROW_HEIGHT,
 				flexDirection: "row",
 				alignItems: "center",
 				gap: space.lg,
-				paddingLeft: space.lg,
+				paddingHorizontal: space.md,
+				paddingVertical: space.md,
+				borderRadius: radius.card,
+				borderCurve: "continuous",
+				overflow: "hidden",
 				backgroundColor:
-					pressed && !IS_ANDROID ? palette.surfaceCardHover : "transparent",
+					pressed && !IS_ANDROID
+						? palette.surfaceCardHover
+						: palette.surfaceCard,
 			})}
 		>
-			{leading}
-			<View
-				style={{
-					flex: 1,
-					minHeight: tall ? 88 : 64,
-					flexDirection: "row",
-					alignItems: "center",
-					gap: space.md,
-					paddingRight: space.lg,
-					borderTopWidth: first ? 0 : 1,
-					borderColor: palette.separator,
-				}}
-			>
-				<View style={{ flex: 1, gap: 2 }}>
-					<Text variant="headline" numberOfLines={1}>
-						{title}
-					</Text>
-					{subtitle ? (
-						<Text
-							variant="subhead"
-							tone="secondary"
-							style={{ fontVariant: ["tabular-nums"] }}
-						>
-							{subtitle}
-						</Text>
-					) : null}
-				</View>
-				<Icon
-					name={icons.chevronRight}
-					size={16}
-					color={palette.textTertiary}
-				/>
+			{art}
+			<View style={{ flex: 1, gap: 2 }}>
+				<Text variant="headline" numberOfLines={1}>
+					{title}
+				</Text>
+				<Text
+					variant="subhead"
+					tone="secondary"
+					style={{ fontVariant: ["tabular-nums"] }}
+				>
+					{subtitle}
+				</Text>
 			</View>
+			<Icon name={icons.chevronRight} size={16} color={palette.textTertiary} />
 		</PressableLink>
 	);
 }
 
-/** Audible's list glyph: the icon on a soft accent-tinted square. */
-function IconTile({ icon }: { icon: IconName }) {
-	const palette = usePalette();
-	return (
-		<View
-			style={{
-				width: 44,
-				height: 44,
-				borderRadius: radius.field,
-				borderCurve: "continuous",
-				backgroundColor: palette.accentSoft,
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		>
-			<Icon name={icon} size={22} color={palette.accent} />
-		</View>
-	);
-}
+type FanCover = {
+	key: string;
+	cover: string | null;
+	localUri?: string | null;
+	color?: string | null;
+	audio: boolean;
+};
 
-/** Up to three covers overlapping left to right, front one first. Fixed
- * 72×64 box so every library row aligns. */
-function CoverStack({
+/** Up to three covers overlapping left to right, the front one whole, in a
+ * fixed box so every card's text lines up. */
+function CoverFan({
 	covers,
-	audiobook,
+	fallback,
 }: {
-	covers: string[];
-	audiobook: boolean;
+	covers: FanCover[];
+	fallback: IconName;
 }) {
 	const palette = usePalette();
-	const unique = Array.from(new Set(covers.filter(Boolean))).slice(0, 3);
-	if (unique.length === 0) {
+	const front = covers.slice(0, 3);
+	if (front.length === 0) {
 		return (
 			<View
 				style={{
-					width: 72,
-					height: 64,
+					width: FAN_WIDTH,
+					height: FAN_HEIGHT,
 					borderRadius: radius.thumb,
 					borderCurve: "continuous",
 					backgroundColor: palette.surface,
@@ -260,40 +281,127 @@ function CoverStack({
 					justifyContent: "center",
 				}}
 			>
-				<Icon
-					name={audiobook ? icons.headphones : icons.book}
-					size={24}
-					color={palette.textSecondary}
-				/>
+				<Icon name={fallback} size={24} color={palette.textSecondary} />
 			</View>
 		);
 	}
-	const height = 64;
-	const width = audiobook ? height : Math.round(height / 1.5);
-	const step = (72 - width) / 2;
 	return (
-		<View style={{ width: 72, height }}>
-			{unique
-				.map((cover, index) => (
-					<View
-						key={cover}
-						style={{
-							position: "absolute",
-							left: index * step,
-							top: index * 3,
-							height: height - index * 6,
-							opacity: 1 - index * 0.2,
-							zIndex: 3 - index,
-						}}
-					>
-						<Cover
-							cover={cover}
-							width={Math.round(width * (1 - index * 0.094))}
-							shape={audiobook ? "audio" : "book"}
-						/>
-					</View>
-				))
+		<View style={{ width: FAN_WIDTH, height: FAN_HEIGHT }}>
+			{front
+				.map((item, index) => {
+					const height = FAN_HEIGHT - index * 8;
+					const width = item.audio ? height : Math.round(height / 1.5);
+					return (
+						<View
+							key={item.key}
+							style={{
+								position: "absolute",
+								left: index * 18,
+								top: index * 4,
+								opacity: 1 - index * 0.2,
+							}}
+						>
+							<Cover
+								cover={item.cover}
+								localUri={item.localUri}
+								color={item.color}
+								width={width}
+								shape={item.audio ? "audio" : "book"}
+							/>
+						</View>
+					);
+				})
 				.reverse()}
 		</View>
+	);
+}
+
+/** Browse destination: icon and label on a flat tile, two per row. */
+function BrowseTile({
+	href,
+	icon,
+	label,
+}: {
+	href: Href;
+	icon: IconName;
+	label: string;
+}) {
+	const palette = usePalette();
+	const screen = useWindowDimensions().width;
+	return (
+		<PressableLink
+			href={href}
+			android_ripple={{ color: palette.ripple }}
+			accessibilityRole="button"
+			accessibilityLabel={label}
+			style={({ pressed }) => ({
+				width: (screen - space.lg * 2 - GAP) / 2,
+				height: 60,
+				flexDirection: "row",
+				alignItems: "center",
+				gap: space.md,
+				paddingHorizontal: space.lg,
+				borderRadius: radius.card,
+				borderCurve: "continuous",
+				overflow: "hidden",
+				backgroundColor:
+					pressed && !IS_ANDROID
+						? palette.surfaceCardHover
+						: palette.surfaceCard,
+			})}
+		>
+			<Icon name={icon} size={22} color={palette.textSecondary} />
+			<Text variant="headline" numberOfLines={1} style={{ flex: 1 }}>
+				{label}
+			</Text>
+		</PressableLink>
+	);
+}
+
+/**
+ * Making and filling libraries, as Collections does it: one floating "+".
+ * Both actions ask which; uploading only once some library can take files
+ * (the web's create menu gates it the same way).
+ */
+function CreateFab({
+	canCreate,
+	canUpload,
+}: {
+	canCreate: boolean;
+	canUpload: boolean;
+}) {
+	const { orpc } = useApi();
+	const targets = useQuery({
+		...orpc.libraries.getUploadTargets.queryOptions(),
+		enabled: canUpload,
+		staleTime: 30_000,
+	});
+	const showUpload = canUpload && (targets.data ?? []).length > 0;
+	if (!canCreate && !showUpload) return null;
+	const onPress = async () => {
+		if (!canCreate) return router.push("/setup/upload");
+		if (!showUpload) return router.push("/setup/library");
+		const picked = await askChoice({
+			title: t("nav.create"),
+			options: [
+				{ id: "library", label: t("library.new"), icon: icons.shelf },
+				{ id: "upload", label: t("library.upload_books"), icon: icons.upload },
+			],
+		});
+		if (picked === "library") router.push("/setup/library");
+		else if (picked === "upload") router.push("/setup/upload");
+	};
+	return <Fab label={t("nav.create")} onPress={onPress} />;
+}
+
+/** Two library cards while the overview loads. */
+function LibrariesSkeleton() {
+	return (
+		<SkeletonPulse>
+			<View style={{ gap: GAP }}>
+				<Bone width="100%" height={ROW_HEIGHT} radius={radius.card} />
+				<Bone width="100%" height={ROW_HEIGHT} radius={radius.card} />
+			</View>
+		</SkeletonPulse>
 	);
 }

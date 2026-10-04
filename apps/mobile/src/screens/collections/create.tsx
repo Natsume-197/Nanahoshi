@@ -1,13 +1,15 @@
-import { Host, Switch } from "@expo/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, useColorScheme, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Button } from "@/components/button";
 import { Icon, type IconName, icons } from "@/components/icon";
-import { ErrorState, Spinner } from "@/components/states";
+import { SheetBody } from "@/components/sheet-body";
+import { FormSkeleton } from "@/components/skeleton";
+import { ErrorState } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
+import { Toggle } from "@/components/toggle";
 import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
@@ -136,7 +138,7 @@ export function EditCollection({ id }: { id: string }) {
 	const details = useQuery(
 		orpc.collections.getDetails.queryOptions({ input: { collectionId: id } }),
 	);
-	if (details.isPending) return <Spinner />;
+	if (details.isPending) return <FormSkeleton fields={2} />;
 	const collection = details.data?.collection;
 	if (details.error || !collection) {
 		return <ErrorState onRetry={() => details.refetch()} />;
@@ -197,43 +199,6 @@ function EditForm({
 	);
 }
 
-/** The sheet's content, as "Add to list" lays it out: a scroll view filling
- * the sheet, so it never shrinks when the keyboard goes away. */
-function SheetBody({
-	title,
-	description,
-	children,
-}: {
-	title: string;
-	description?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<ScrollView
-			keyboardShouldPersistTaps="handled"
-			automaticallyAdjustKeyboardInsets
-			contentContainerStyle={{
-				padding: space.lg,
-				paddingTop: space.xl,
-				gap: space.lg,
-				paddingBottom: space.xxl,
-			}}
-		>
-			<View style={{ gap: space.xs, marginBottom: space.sm }}>
-				<Text variant="title" accessibilityRole="header">
-					{title}
-				</Text>
-				{description ? (
-					<Text variant="subhead" tone="secondary">
-						{description}
-					</Text>
-				) : null}
-			</View>
-			{children}
-		</ScrollView>
-	);
-}
-
 function CollectionForm({
 	title,
 	description,
@@ -256,7 +221,6 @@ function CollectionForm({
 	onSubmit: (values: { name: string; isPublic: boolean }) => void;
 }) {
 	const palette = usePalette();
-	const scheme = useColorScheme();
 	const nameRef = useRef(initialName);
 	const [isPublic, setIsPublic] = useState(initialPublic);
 	const [nameMissing, setNameMissing] = useState(false);
@@ -301,12 +265,7 @@ function CollectionForm({
 							{t("collection.public_desc")}
 						</Text>
 					</View>
-					<Host
-						matchContents
-						colorScheme={scheme === "dark" ? "dark" : "light"}
-					>
-						<Switch value={isPublic} onValueChange={setIsPublic} />
-					</Host>
+					<Toggle value={isPublic} onValueChange={setIsPublic} />
 				</View>
 			) : null}
 			{message ? (

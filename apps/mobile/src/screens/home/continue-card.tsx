@@ -3,12 +3,15 @@ import { View } from "react-native";
 import { BookMenuTarget } from "@/components/book-menu";
 import { Cover } from "@/components/cover";
 import { PressableScale } from "@/components/pressable-scale";
+import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { mutedAccentSurface } from "@/lib/color";
 import { titleOrUntitled } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
-import { type MediaKind, routes } from "@/lib/routes";
-import { radius, shadows, sizes, usePalette } from "@/theme";
+import type { MediaKind } from "@/lib/routes";
+import { usePlayer } from "@/player/provider";
+import { radius, shadows, sizes, space, type, usePalette } from "@/theme";
 
 export type ContinueItem = {
 	uuid: string;
@@ -22,6 +25,15 @@ export type ContinueItem = {
 };
 
 const COVER_SLOT = sizes.resumeCover;
+const PADDING = 10;
+/** Tall enough for the fullest card (two-line title, author, meta), so every
+ * card in the rail is the same height. */
+const CARD_HEIGHT =
+	PADDING * 2 +
+	Math.max(
+		COVER_SLOT,
+		type.cardTitle.lineHeight * 2 + type.cardMeta.lineHeight * 2 + 2 * 2,
+	);
 
 /**
  * The web's resume card (BookCardShell, orientation="horizontal"): a 16pt
@@ -41,6 +53,18 @@ export function ContinueCard({
 	const ink = plate ? "#ffffff" : palette.text;
 	const meta = `${item.kind === "audiobook" ? t("home.format_audiobook") : t("home.format_book")} · ${t("home.percent_read", { percent: item.progress })}`;
 	const audio = item.kind === "audiobook";
+	const player = usePlayer();
+	// Like the web's resume card: straight into the reader or the player.
+	const resume = () => {
+		if (!audio)
+			return router.push({
+				pathname: "/reader/[uuid]",
+				params: { uuid: item.uuid },
+			});
+		haptics.tap();
+		if (player.getSnapshot().book?.uuid === item.uuid) player.toggle();
+		else void player.play(item.uuid);
+	};
 
 	return (
 		<BookMenuTarget
@@ -52,20 +76,23 @@ export function ContinueCard({
 				color: item.color,
 				subtitle: item.authors,
 			}}
-			style={{ width }}
+			// Fills the rail's row, so every card matches the tallest one.
+			style={{ width, flex: 1 }}
 		>
 			{(onLongPress) => (
 				<PressableScale
-					onPress={() => router.push(routes.title(item.kind, item.uuid))}
+					onPress={resume}
 					onLongPress={onLongPress}
 					accessibilityRole="button"
 					accessibilityLabel={`${titleOrUntitled(item.title)}, ${meta}`}
 					style={{
 						width,
+						flex: 1,
 						flexDirection: "row",
 						alignItems: "center",
 						gap: 10,
-						padding: 10,
+						minHeight: CARD_HEIGHT,
+						padding: PADDING,
 						borderRadius: radius.card,
 						borderCurve: "continuous",
 						backgroundColor: plate ?? palette.card,
@@ -115,5 +142,50 @@ export function ContinueCard({
 				</PressableScale>
 			)}
 		</BookMenuTarget>
+	);
+}
+
+/** The rail while progress loads: plates the size of the real cards. */
+export function ContinueSkeleton({ width }: { width: number }) {
+	const palette = usePalette();
+	return (
+		<SkeletonPulse>
+			<View
+				style={{
+					flexDirection: "row",
+					gap: space.lg,
+					paddingHorizontal: space.lg,
+					overflow: "hidden",
+				}}
+			>
+				{["a", "b"].map((key) => (
+					<View
+						key={key}
+						style={{
+							width,
+							height: CARD_HEIGHT,
+							flexDirection: "row",
+							alignItems: "center",
+							gap: 10,
+							padding: PADDING,
+							borderRadius: radius.card,
+							borderCurve: "continuous",
+							backgroundColor: palette.card,
+						}}
+					>
+						<Bone
+							width={Math.round(COVER_SLOT / 1.5)}
+							height={COVER_SLOT}
+							radius={palette.coverRadius}
+						/>
+						<View style={{ flex: 1, gap: 8 }}>
+							<Bone width="80%" height={11} />
+							<Bone width="50%" height={10} />
+							<Bone width="35%" height={10} />
+						</View>
+					</View>
+				))}
+			</View>
+		</SkeletonPulse>
 	);
 }

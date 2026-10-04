@@ -8,7 +8,9 @@ mock.module("expo-secure-store", () => ({
 	setItem: () => undefined,
 }));
 
-const { currentChapter, primaryAction } = await import("./detail-model");
+const { currentChapter, headerSolidProgress, primaryAction } = await import(
+	"./detail-model"
+);
 
 describe("primaryAction", () => {
 	test("an unread book just says Read", () => {
@@ -67,5 +69,27 @@ describe("currentChapter", () => {
 	});
 	test("nothing is current before listening starts", () => {
 		expect(currentChapter(chapters, 0)).toBe(-1);
+	});
+});
+
+describe("headerSolidProgress", () => {
+	const bar = { titleOffset: 500, barBottom: 80 };
+	test("stays transparent while the title is still visible below the bar", () => {
+		expect(headerSolidProgress({ ...bar, scrollY: 0 })).toBe(0);
+		expect(headerSolidProgress({ ...bar, scrollY: 420 })).toBe(0);
+	});
+	test("fades in while the title slides under the bar", () => {
+		const midway = headerSolidProgress({ ...bar, scrollY: 440 });
+		expect(midway).toBeGreaterThan(0);
+		expect(midway).toBeLessThan(1);
+	});
+	test("is fully solid once the title is under the bar", () => {
+		expect(headerSolidProgress({ ...bar, scrollY: 470 })).toBe(1);
+		expect(headerSolidProgress({ ...bar, scrollY: 9000 })).toBe(1);
+	});
+	test("stays transparent until the hero has been measured", () => {
+		expect(
+			headerSolidProgress({ titleOffset: null, barBottom: 80, scrollY: 9000 }),
+		).toBe(0);
 	});
 });

@@ -17,7 +17,10 @@ import {
 } from "../../session/reader-layout";
 import { createTextReaderSession } from "../../session/text-reader-session";
 import { ReaderLoadingOverlay } from "../../ui/chrome/reader-loading-overlay";
-import { handleReaderContentClick } from "../shared/reader-content-click";
+import {
+	handleReaderContentClick,
+	toggleChromeOnTap,
+} from "../shared/reader-content-click";
 import { applyReaderDocumentChrome } from "../shared/reader-document-chrome";
 import { isReaderOverlayEvent } from "../shared/reader-overlay-event";
 import { buildReaderClasses, buildReaderStyle } from "../shared/reader-style";
@@ -246,6 +249,7 @@ export function BookReaderPaginated({
 	initialPosition,
 	onPositionChange,
 	onSectionProgressChange,
+	onToggleChrome,
 	apiRef,
 }: BookReaderPaginatedProps) {
 	const scrollElRef = useRef<HTMLDivElement | null>(null);
@@ -292,6 +296,8 @@ export function BookReaderPaginated({
 	const navigationBlockedRef = useRef(navigationBlocked);
 	navigationBlockedRef.current = navigationBlocked;
 	// Live settings read by long-lived DOM handlers (no remount on change).
+	const toggleChromeRef = useRef(onToggleChrome);
+	toggleChromeRef.current = onToggleChrome;
 	const livePropsRef = useRef({
 		hideFurigana,
 		furiganaStyle,
@@ -662,8 +668,13 @@ export function BookReaderPaginated({
 		);
 		s.pageManager = pageManager;
 
-		const handleContentClick = (event: MouseEvent) =>
-			handleReaderContentClick(event, livePropsRef.current, navigateToSection);
+		const handleContentClick = (event: MouseEvent) => {
+			if (
+				handleReaderContentClick(event, livePropsRef.current, navigateToSection)
+			)
+				return;
+			toggleChromeOnTap(event, toggleChromeRef.current);
+		};
 		contentEl.addEventListener("click", handleContentClick);
 
 		// Late image loads reflow the columns: re-measure and keep position.

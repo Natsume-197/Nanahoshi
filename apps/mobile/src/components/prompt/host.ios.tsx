@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { radius, space, usePalette } from "@/theme";
 import { Icon, icons } from "../icon";
@@ -17,7 +17,7 @@ export function NoticeHost() {
 	const notice = useSyncExternalStore(notices.subscribe, notices.get);
 	return (
 		<View
-			pointerEvents="none"
+			pointerEvents="box-none"
 			style={{
 				position: "absolute",
 				left: space.lg,
@@ -32,6 +32,7 @@ export function NoticeHost() {
 					entering={FadeInDown.duration(220)}
 					exiting={FadeOutDown.duration(160)}
 					accessibilityLiveRegion="polite"
+					pointerEvents={notice.action ? "auto" : "none"}
 					style={{
 						flexDirection: "row",
 						alignItems: "center",
@@ -44,10 +45,28 @@ export function NoticeHost() {
 						boxShadow: "0 8px 24px rgba(0, 0, 0, 0.18)",
 					}}
 				>
-					<Icon name={icons.warning} size={16} color={palette.danger} />
+					{notice.action ? null : notice.info ? (
+						<Icon name={icons.checkCircle} size={16} color={palette.text} />
+					) : (
+						<Icon name={icons.warning} size={16} color={palette.danger} />
+					)}
 					<Text variant="subhead" style={{ flexShrink: 1 }}>
 						{notice.message}
 					</Text>
+					{notice.action ? (
+						<Pressable
+							accessibilityRole="button"
+							hitSlop={12}
+							onPress={() => notices.act(notice.id)}
+						>
+							<Text
+								variant="subhead"
+								style={{ color: palette.primary, fontWeight: "600" }}
+							>
+								{notice.action.label}
+							</Text>
+						</Pressable>
+					) : null}
 				</Animated.View>
 			) : null}
 		</View>

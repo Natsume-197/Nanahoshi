@@ -11,11 +11,17 @@ import { Icon, icons } from "./icon";
 export function SearchField({
 	placeholder,
 	onQuery,
+	onSubmit,
+	defaultValue,
 	autoFocus,
 	delay = 250,
 }: {
 	placeholder: string;
 	onQuery: (query: string) => void;
+	/** The search key: the query is final, worth remembering. */
+	onSubmit?: (query: string) => void;
+	/** Starting text; remount (key) to replace it. */
+	defaultValue?: string;
 	autoFocus?: boolean;
 	delay?: number;
 }) {
@@ -23,7 +29,7 @@ export function SearchField({
 	const inputRef = useRef<TextInput>(null);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// Only flips on empty ↔ non-empty, so typing doesn't re-render per key.
-	const [hasText, setHasText] = useState(false);
+	const [hasText, setHasText] = useState(!!defaultValue);
 
 	const schedule = (text: string) => {
 		if (text.length > 0 !== hasText) setHasText(text.length > 0);
@@ -52,10 +58,14 @@ export function SearchField({
 				placeholderTextColor={palette.textSecondary}
 				selectionColor={palette.accent}
 				cursorColor={palette.text}
+				defaultValue={defaultValue}
 				onChangeText={schedule}
+				onSubmitEditing={(event) => onSubmit?.(event.nativeEvent.text.trim())}
 				returnKeyType="search"
 				autoCapitalize="none"
 				autoCorrect={false}
+				spellCheck={false}
+				autoComplete="off"
 				autoFocus={autoFocus}
 				clearButtonMode="never"
 				underlineColorAndroid="transparent"

@@ -80,13 +80,20 @@ export function ShelfTitles({
 export const shelfTitle = (status: ShelfStatus, format: ShelfFormat) =>
 	shelfMeta(status, format).label;
 
-/** Titles of a publisher (books.listByEntity, as the web's publisher page). */
-export function PublisherTitles({ uuid }: { uuid: string }) {
+/** Titles of a genre, tag or publisher (books.listByEntity, as the web's
+ * entity pages). */
+export function EntityTitles({
+	kind,
+	uuid,
+}: {
+	kind: "genre" | "tag" | "publisher";
+	uuid: string;
+}) {
 	const { orpc } = useApi();
 	const titles = useInfiniteQuery(
 		orpc.books.listByEntity.infiniteOptions({
 			input: (cursor: number) => ({
-				kind: "publisher",
+				kind,
 				uuid,
 				cursor,
 				limit: PAGE,

@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useState } from "react";
-import { Linking, RefreshControl, ScrollView, View } from "react-native";
+import { Linking, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { DetailHero } from "@/components/detail-hero";
 import { byPrefix, LinkedNames } from "@/components/linked-names";
+import { RefreshControl } from "@/components/refresh-control";
 import { Shelf } from "@/components/shelf";
+import { useArrival } from "@/components/skeleton";
 import { ErrorState } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
 import {
@@ -17,6 +20,8 @@ import {
 import { t } from "@/lib/i18n";
 import { htmlToText } from "@/lib/plain-text";
 import { routes } from "@/lib/routes";
+import { bookDetailQueries } from "@/lib/title-queries";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space } from "@/theme";
 import { BookCopies, DuplicateNotice } from "./book-copies";
@@ -33,6 +38,7 @@ import {
 } from "./layout";
 import { Description, TagChips } from "./parts";
 import { TitleActions } from "./title-actions";
+import { useDetailHeader } from "./use-detail-header";
 
 type Tab = "overview" | "reading" | "file" | "copies";
 
@@ -41,16 +47,12 @@ type Tab = "overview" | "reading" | "file" | "copies";
  * facts in two columns, rails), reading history, file and copies.
  */
 export function BookDetail({ uuid }: { uuid: string }) {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
+	const queries = bookDetailQueries(orpc, uuid);
 	const [tab, setTab] = useState<Tab>("overview");
-	const book = useQuery(
-		orpc.books.getBookWithMetadata.queryOptions({ input: { uuid } }),
-	);
-	const progress = useQuery(
-		orpc.readingProgress.getProgress.queryOptions({
-			input: { bookUuid: uuid },
-		}),
-	);
+	const book = useQuery(queries.detail);
+	const progress = useQuery(queries.progress);
 	const similar = useQuery(
 		orpc.recommendations.similarToBook.queryOptions({
 			input: { bookUuid: uuid },
@@ -76,6 +78,11 @@ export function BookDetail({ uuid }: { uuid: string }) {
 		}),
 		enabled: authorUuids.length > 0,
 	});
+	const detailHeader = useDetailHeader(
+		book.data ? titleOrUntitled(book.data.title ?? book.data.filename) : "",
+	);
+
+	const arrival = useArrival(!!book.data);
 
 	if (book.isError) return <ErrorState onRetry={() => book.refetch()} />;
 	if (!book.data)
@@ -150,8 +157,13 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	return (
 		<>
 			<DetailHeaderMenu target={target} />
-			<ScrollView
-				contentContainerStyle={{ paddingBottom: space.xxl * 2 }}
+			{detailHeader.header}
+			<Animated.ScrollView
+				{...detailHeader.scrollProps}
+				entering={arrival}
+				contentContainerStyle={{
+					paddingBottom: space.xxl * 2 + miniPlayerInset,
+				}}
 				refreshControl={
 					<RefreshControl
 						refreshing={book.isRefetching}
@@ -164,6 +176,8 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			>
 				<DetailHero
 					uuid={uuid}
+					onTitleOffset={detailHeader.onTitleOffset}
+					scrollY={detailHeader.scrollY}
 					cover={data.cover}
 					color={data.mainColor}
 					shape="book"
@@ -206,6 +220,10 @@ export function BookDetail({ uuid }: { uuid: string }) {
 											...data.tags.map((tag) => ({
 												key: tag.uuid,
 												label: tag.name,
+												href: {
+													pathname: "/tag/[uuid]" as const,
+													params: { uuid: tag.uuid, name: tag.name },
+												},
 											})),
 										]}
 									/>
@@ -353,7 +371,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 						) : null}
 					</View>
 				) : null}
-			</ScrollView>
+			</Animated.ScrollView>
 		</>
 	);
 }

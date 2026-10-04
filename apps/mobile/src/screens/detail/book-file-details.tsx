@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { View } from "react-native";
 import { DetailPanel } from "@/components/detail-panel";
-import { ErrorState, Spinner } from "@/components/states";
+import { PanelSkeleton } from "@/components/skeleton";
+import { ErrorState } from "@/components/states";
 import type { ApiClient } from "@/lib/api";
 import { locale, t } from "@/lib/i18n";
 import { htmlToText } from "@/lib/plain-text";
@@ -83,7 +84,7 @@ export function BookFileDetails({ book }: { book: BookDetailData }) {
 				]}
 			/>
 			{original.isPending ? (
-				<Spinner />
+				<PanelSkeleton rows={6} />
 			) : original.isError ? (
 				<ErrorState onRetry={() => original.refetch()} />
 			) : (

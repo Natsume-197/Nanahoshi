@@ -7,10 +7,10 @@ import {
 	Text,
 } from "@expo/ui/jetpack-compose";
 import { size } from "@expo/ui/jetpack-compose/modifiers";
-import * as Haptics from "expo-haptics";
 import { createContext, type ReactNode, use, useRef, useState } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { titleOrUntitled } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
 import { usePalette } from "@/theme";
 import { ComposeMenuItems } from "../action-menu";
 import { ActionSheet } from "../action-menu/action-sheet";
@@ -77,9 +77,7 @@ export function BookMenuTarget({
 	return (
 		<View ref={source} collapsable={false} style={style}>
 			{children(() => {
-				void Haptics.performAndroidHapticsAsync(
-					Haptics.AndroidHaptics.Long_Press,
-				);
+				haptics.longPress();
 				open(target, source.current, presentation);
 			})}
 		</View>

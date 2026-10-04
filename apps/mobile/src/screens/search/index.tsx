@@ -1,7 +1,8 @@
 import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { useScrollToTop } from "expo-router";
+import { type ReactNode, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookMenuTarget } from "@/components/book-menu";
@@ -32,6 +33,8 @@ import {
 	hitKey,
 	useSearchHistory,
 } from "@/lib/search-history";
+import { usePrefetchTitle } from "@/lib/title-queries";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 
@@ -73,11 +76,17 @@ function isShown(hit: TopHit): hit is Hit {
 /** The web's /dashboard/search on a phone: the field, the type chips once a
  * query runs, ranked results as tall rows, and recent searches when empty. */
 export function Search() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc, client } = useApi();
 	const insets = useSafeAreaInsets();
+	const palette = usePalette();
+	const listRef = useRef<FlashListRef<Hit>>(null);
+	useScrollToTop(listRef);
 	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState<Filter>("all");
-	const { history, addHit, remove } = useSearchHistory();
+	const { history, addHit, addQuery, remove } = useSearchHistory();
+	// Picking a recent query remounts the field with it as its text.
+	const [field, setField] = useState({ key: 0, text: "" });
 	const active = query.length > 0;
 
 	const top = useQuery({
@@ -290,74 +299,85 @@ export function Search() {
 	};
 
 	return (
-		<FlashList
-			contentInsetAdjustmentBehavior={
-				process.env.EXPO_OS === "ios" ? "never" : "automatic"
-			}
-			data={active ? current.hits : []}
-			keyExtractor={hitKey}
-			getItemType={(hit) => hit.type}
-			keyboardShouldPersistTaps="handled"
-			keyboardDismissMode="on-drag"
-			contentContainerStyle={{
-				paddingHorizontal: space.xs,
-				paddingBottom: space.xxl,
-			}}
-			ItemSeparatorComponent={ResultDivider}
-			onEndReachedThreshold={0.6}
-			onEndReached={loadMore}
-			ListHeaderComponent={
-				// The web's search page has no visible title (its h1 is sr-only):
-				// the field sits right under the status bar.
-				<View
-					style={{
-						gap: space.lg,
-						paddingTop:
-							(process.env.EXPO_OS === "ios" ? 0 : insets.top) + space.md,
-						paddingBottom: space.md,
-					}}
-				>
-					<View style={{ paddingHorizontal: space.md }}>
-						<SearchField
-							placeholder={t("search.placeholder")}
-							onQuery={onQuery}
-						/>
-					</View>
-					{active && chips.length > 1 ? (
-						<View style={{ marginHorizontal: -space.xs }}>
-							<ChipRow value={filter} onChange={setFilter} options={chips} />
-						</View>
-					) : null}
+		<View style={{ flex: 1 }}>
+			{/* Pinned like the Play Store's field: results scroll beneath it and
+			    never carry it up under the status bar. */}
+			<View
+				style={{
+					gap: space.lg,
+					paddingTop:
+						(process.env.EXPO_OS === "ios" ? 0 : insets.top) + space.md,
+					paddingBottom: space.md,
+					backgroundColor: palette.background,
+				}}
+			>
+				<View style={{ paddingHorizontal: space.lg }}>
+					<SearchField
+						key={field.key}
+						defaultValue={field.text}
+						placeholder={t("search.placeholder")}
+						onQuery={onQuery}
+						onSubmit={addQuery}
+					/>
 				</View>
-			}
-			ListEmptyComponent={
-				!active ? (
-					<Recents
-						history={history}
-						onPick={(entry) => entry.kind === "hit" && addHit(entry.hit)}
-						onRemove={remove}
-					/>
-				) : current.query.isError ? (
-					<ErrorState onRetry={() => void current.query.refetch()} />
-				) : current.query.isPending ? (
-					<RowSkeleton count={6} />
-				) : (
-					<EmptyState
-						icon={icons.search}
-						title={t("search.no_results_title", { query })}
-						message={t("search.no_results_desc")}
-					/>
-				)
-			}
-			ListFooterComponent={
-				books.isFetchingNextPage || audiobooks.isFetchingNextPage ? (
-					<Spinner />
-				) : null
-			}
-			renderItem={({ item }) => (
-				<HitRow hit={item} onSelect={() => addHit(item)} />
-			)}
-		/>
+				{active && chips.length > 1 ? (
+					<ChipRow value={filter} onChange={setFilter} options={chips} />
+				) : null}
+			</View>
+			<FlashList
+				ref={listRef}
+				contentInsetAdjustmentBehavior={
+					process.env.EXPO_OS === "ios" ? "never" : "automatic"
+				}
+				data={active ? current.hits : []}
+				keyExtractor={hitKey}
+				getItemType={(hit) => hit.type}
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+				contentContainerStyle={{
+					paddingHorizontal: space.xs,
+					paddingBottom: space.xxl + miniPlayerInset,
+				}}
+				ItemSeparatorComponent={ResultDivider}
+				onEndReachedThreshold={0.6}
+				onEndReached={loadMore}
+				ListEmptyComponent={
+					!active ? (
+						<Recents
+							history={history}
+							onPick={(entry) => {
+								if (entry.kind === "hit") {
+									addHit(entry.hit);
+									return;
+								}
+								addQuery(entry.query);
+								setField((prev) => ({ key: prev.key + 1, text: entry.query }));
+								onQuery(entry.query);
+							}}
+							onRemove={remove}
+						/>
+					) : current.query.isError ? (
+						<ErrorState onRetry={() => void current.query.refetch()} />
+					) : current.query.isPending ? (
+						<RowSkeleton count={6} />
+					) : (
+						<EmptyState
+							icon={icons.search}
+							title={t("search.no_results_title", { query })}
+							message={t("search.no_results_desc")}
+						/>
+					)
+				}
+				ListFooterComponent={
+					books.isFetchingNextPage || audiobooks.isFetchingNextPage ? (
+						<Spinner />
+					) : null
+				}
+				renderItem={({ item }) => (
+					<HitRow hit={item} onSelect={() => addHit(item)} />
+				)}
+			/>
+		</View>
 	);
 }
 
@@ -370,6 +390,7 @@ function HitRow({
 	onSelect?: () => void;
 	trailing?: ReactNode;
 }) {
+	const prefetch = usePrefetchTitle();
 	const common = { onPress: onSelect, trailing };
 	switch (hit.type) {
 		case "book":
@@ -389,6 +410,9 @@ function HitRow({
 						<ResultRow
 							{...common}
 							href={routes.title(audio ? "audiobook" : "book", hit.uuid)}
+							onPressIn={() =>
+								prefetch(audio ? "audiobook" : "book", hit.uuid, hit.cover)
+							}
 							onLongPress={onLongPress}
 							artwork={
 								<CoverArt
@@ -478,7 +502,7 @@ function Recents({
 }) {
 	const palette = usePalette();
 	const entries = history.filter(
-		(entry) => entry.kind === "hit" && isShown(entry.hit),
+		(entry) => entry.kind === "query" || isShown(entry.hit),
 	);
 	if (entries.length === 0) {
 		return (
@@ -498,46 +522,62 @@ function Recents({
 			>
 				{t("search.recent_searches")}
 			</Text>
-			{entries.map((entry, index) =>
-				entry.kind === "hit" && isShown(entry.hit) ? (
+			{entries.map((entry, index) => {
+				const label =
+					entry.kind === "query"
+						? entry.query
+						: "name" in entry.hit
+							? entry.hit.name
+							: "title" in entry.hit
+								? (entry.hit.title ?? "")
+								: "";
+				const remove = (
+					<Pressable
+						android_ripple={{ color: palette.ripple }}
+						onPress={() => onRemove(entry)}
+						hitSlop={8}
+						accessibilityRole="button"
+						accessibilityLabel={t("search.remove_recent", { query: label })}
+						style={({ pressed }) => ({
+							width: 36,
+							height: 36,
+							borderRadius: 18,
+							alignItems: "center",
+							justifyContent: "center",
+							backgroundColor:
+								pressed && !IS_ANDROID ? palette.surface : "transparent",
+						})}
+					>
+						<Icon name={icons.close} size={16} color={palette.textSecondary} />
+					</Pressable>
+				);
+				return (
 					<View key={entryKey(entry)}>
 						{index > 0 ? <ResultDivider /> : null}
-						<HitRow
-							hit={entry.hit}
-							onSelect={() => onPick(entry)}
-							trailing={
-								<Pressable
-									android_ripple={{ color: palette.ripple }}
-									onPress={() => onRemove(entry)}
-									hitSlop={8}
-									accessibilityRole="button"
-									accessibilityLabel={t("search.remove_recent", {
-										query:
-											"name" in entry.hit
-												? entry.hit.name
-												: (entry.hit.title ?? ""),
-									})}
-									style={({ pressed }) => ({
-										width: 36,
-										height: 36,
-										borderRadius: 18,
-										alignItems: "center",
-										justifyContent: "center",
-										backgroundColor:
-											pressed && !IS_ANDROID ? palette.surface : "transparent",
-									})}
-								>
+						{entry.kind === "query" ? (
+							<ResultRow
+								compact
+								artwork={
 									<Icon
-										name={icons.close}
-										size={16}
+										name={icons.clock}
+										size={22}
 										color={palette.textSecondary}
 									/>
-								</Pressable>
-							}
-						/>
+								}
+								title={entry.query}
+								onPress={() => onPick(entry)}
+								trailing={remove}
+							/>
+						) : isShown(entry.hit) ? (
+							<HitRow
+								hit={entry.hit}
+								onSelect={() => onPick(entry)}
+								trailing={remove}
+							/>
+						) : null}
 					</View>
-				) : null,
-			)}
+				);
+			})}
 		</View>
 	);
 }

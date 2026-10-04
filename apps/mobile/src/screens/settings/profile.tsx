@@ -8,6 +8,7 @@ import { Button } from "@/components/button";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { icons } from "@/components/icon";
 import { showNotice } from "@/components/prompt";
+import { FormSkeleton } from "@/components/skeleton";
 import { ErrorState, Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
@@ -19,6 +20,7 @@ import {
 	UPLOAD_LIMIT_MB,
 	uploadProfileImage,
 } from "@/lib/profile-upload";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
 import { BannerCrop, type CropArea, type PickedImage } from "./banner-crop";
@@ -30,7 +32,8 @@ const AVATAR_SIZE = 88;
 export function ProfileSettingsScreen() {
 	const { orpc } = useApi();
 	const profile = useQuery(orpc.profile.getProfile.queryOptions());
-	if (profile.isPending) return <Spinner />;
+	if (profile.isPending)
+		return <FormSkeleton fields={3} avatar={AVATAR_SIZE} />;
 	if (profile.error || !profile.data) {
 		return <ErrorState onRetry={() => profile.refetch()} />;
 	}
@@ -54,6 +57,7 @@ function usernameError(username: string) {
 }
 
 function ProfileForm({ profile }: { profile: Profile }) {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc, client } = useApi();
 	const { serverUrl, auth } = useConnection();
 	const palette = usePalette();
@@ -178,7 +182,11 @@ function ProfileForm({ profile }: { profile: Profile }) {
 				contentInsetAdjustmentBehavior="automatic"
 				keyboardShouldPersistTaps="handled"
 				automaticallyAdjustKeyboardInsets
-				contentContainerStyle={{ padding: space.lg, gap: space.xl }}
+				contentContainerStyle={{
+					padding: space.lg,
+					paddingBottom: space.lg + miniPlayerInset,
+					gap: space.xl,
+				}}
 			>
 				{/* The profile's own top: banner, with the photo overlapping it. */}
 				<View style={{ paddingBottom: AVATAR_SIZE / 2 }}>

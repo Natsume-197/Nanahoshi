@@ -7,6 +7,7 @@ import {
 	type LanguagePreference,
 } from "@/lib/preferences";
 import { setResumeRoute } from "@/lib/resume-route";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { space } from "@/theme";
 
 /** A new language remounts the app's navigation (every screen reads its
@@ -18,6 +19,7 @@ function choose(preference: LanguagePreference) {
 }
 
 export function LanguageSettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const current = getLanguagePreference();
 	const options: { value: LanguagePreference; label: string }[] = [
 		{ value: "system", label: t("mobile.settings.language_system") },
@@ -26,7 +28,10 @@ export function LanguageSettingsScreen() {
 	return (
 		<ScrollView
 			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ padding: space.lg }}
+			contentContainerStyle={{
+				padding: space.lg,
+				paddingBottom: space.lg + miniPlayerInset,
+			}}
 		>
 			<GroupedList footer={t("settings.language.desc")}>
 				{options.map((option, index) => (

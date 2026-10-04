@@ -17,22 +17,27 @@ export function ResultRow({
 	ref,
 	href,
 	onPress,
+	onPressIn,
 	onLongPress,
 	artwork,
 	title,
 	subtitle,
 	meta,
 	trailing,
+	compact,
 }: {
 	ref?: Ref<View>;
 	href?: Href;
 	onPress?: () => void;
+	onPressIn?: () => void;
 	onLongPress?: PressableProps["onLongPress"];
 	artwork: ReactNode;
 	title: string;
 	subtitle?: string | null;
 	meta?: string;
 	trailing?: ReactNode;
+	/** One line, no artwork box: a past query among results. */
+	compact?: boolean;
 }) {
 	const palette = usePalette();
 	const row = (
@@ -40,6 +45,7 @@ export function ResultRow({
 			ref={ref}
 			android_ripple={{ color: palette.ripple }}
 			onLongPress={onLongPress}
+			onPressIn={onPressIn}
 			onPress={() => {
 				onPress?.();
 				if (href) router.push(href);
@@ -49,7 +55,7 @@ export function ResultRow({
 				flexDirection: "row",
 				alignItems: "center",
 				gap: space.lg,
-				minHeight: 128,
+				minHeight: compact ? 64 : 128,
 				paddingHorizontal: space.md,
 				paddingVertical: space.md,
 				borderRadius: radius.field,
@@ -61,7 +67,7 @@ export function ResultRow({
 			<View
 				style={{
 					width: SLOT,
-					height: SLOT,
+					height: compact ? 40 : SLOT,
 					alignItems: "center",
 					justifyContent: "center",
 				}}

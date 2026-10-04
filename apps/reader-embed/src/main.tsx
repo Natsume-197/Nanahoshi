@@ -7,6 +7,7 @@ import {
 	ReaderScreen,
 	type ReaderScreenBook,
 } from "@nanahoshi/reader/reader-screen";
+import { ReadingHistory } from "@nanahoshi/reader/sessions/reading-history";
 import type { StatsView } from "@nanahoshi/reader/sessions/stats-model";
 import { StatsPage } from "@nanahoshi/reader/stats/stats-page";
 import {
@@ -84,6 +85,8 @@ function StatsScreen({ initialView }: { initialView: StatsView }) {
 	const [view, setView] = useState(initialView);
 	return (
 		<StatsPage
+			// The app's header already names the page.
+			showTitle={false}
 			className="px-4 pt-4 pb-[calc(1.5rem+var(--safe-area-bottom))]"
 			view={view}
 			onViewChange={setView}
@@ -117,11 +120,27 @@ if (boot?.protocol !== READER_BRIDGE_PROTOCOL) {
 					initialPairUuid={boot.screen.readListenPairUuid}
 					host={host}
 				/>
+			) : boot.screen.kind === "history" ? (
+				<div className="px-4 pt-4 pb-[calc(1.5rem+var(--safe-area-bottom))]">
+					<ReadingHistory
+						bookUuid={boot.screen.bookUuid}
+						medium={boot.screen.medium}
+						amountChars={boot.screen.amountChars}
+						durationSeconds={boot.screen.durationSeconds}
+						chapters={boot.screen.chapters}
+					/>
+				</div>
 			) : (
 				<StatsScreen initialView={boot.screen.view} />
 			)}
 			<Toaster position="top-center" />
 		</QueryClientProvider>,
 	);
+	if (boot.screen.kind !== "reader" && boot.screen.background) {
+		document.documentElement.style.setProperty(
+			"--background",
+			boot.screen.background,
+		);
+	}
 	host.ready();
 }

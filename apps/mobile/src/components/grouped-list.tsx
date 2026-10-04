@@ -6,9 +6,7 @@ import { radius, space, usePalette } from "@/theme";
 import { Icon, type IconName, icons } from "./icon";
 import { Text } from "./text";
 
-/** The web's inset grouped list: one card surface, hairlines between rows
- * that start after the icon, a caret on navigable rows. `title` and `footer`
- * sit outside the card, as iOS Settings labels its sections. */
+/** Settings sections: one inset surface with hairlines between rows. */
 export function GroupedList({
 	title,
 	footer,
@@ -20,15 +18,18 @@ export function GroupedList({
 }) {
 	const palette = usePalette();
 	return (
-		<View style={{ gap: space.sm }}>
+		<View style={{ gap: IS_ANDROID ? space.md : space.sm }}>
 			{title ? (
 				<Text
-					variant="metaLabel"
+					variant={IS_ANDROID ? "label" : "metaLabel"}
 					tone="secondary"
 					accessibilityRole="header"
-					style={{ paddingHorizontal: space.lg }}
+					style={{
+						paddingHorizontal: IS_ANDROID ? space.xs : space.lg,
+						letterSpacing: IS_ANDROID ? 1 : 0,
+					}}
 				>
-					{title}
+					{IS_ANDROID ? title.toLocaleUpperCase() : title}
 				</Text>
 			) : null}
 			<View
@@ -89,34 +90,48 @@ export function GroupedRow({
 			{icon ? (
 				<Icon
 					name={icon}
-					size={20}
+					size={IS_ANDROID ? 22 : 20}
 					color={destructive ? palette.danger : palette.textSecondary}
 				/>
 			) : null}
 			<View
 				style={{
 					flex: 1,
-					minHeight: subtitle ? 60 : 48,
+					minHeight: IS_ANDROID
+						? subtitle || value
+							? 68
+							: 56
+						: subtitle
+							? 60
+							: 48,
 					flexDirection: "row",
 					alignItems: "center",
 					gap: space.md,
 					paddingRight: space.lg,
-					paddingVertical: subtitle ? space.sm : 0,
+					paddingVertical: subtitle || (IS_ANDROID && value) ? space.sm : 0,
 					borderTopWidth: first ? 0 : 1,
 					borderColor: palette.separator,
 				}}
 			>
 				<View style={{ flex: 1, gap: 2 }}>
-					<Text variant="subhead" style={{ color: ink }}>
+					<Text
+						variant={IS_ANDROID ? "body" : "subhead"}
+						style={{ color: ink }}
+					>
 						{label}
 					</Text>
 					{subtitle ? (
-						<Text variant="caption" tone="secondary">
+						<Text variant={IS_ANDROID ? "subhead" : "caption"} tone="secondary">
 							{subtitle}
 						</Text>
 					) : null}
+					{value && IS_ANDROID ? (
+						<Text variant="subhead" tone="secondary" numberOfLines={1}>
+							{value}
+						</Text>
+					) : null}
 				</View>
-				{value ? (
+				{value && !IS_ANDROID ? (
 					<Text
 						variant="subhead"
 						tone="secondary"
@@ -135,7 +150,7 @@ export function GroupedRow({
 					<Icon
 						name={icons.chevronRight}
 						size={16}
-						color={palette.textSecondary}
+						color={IS_ANDROID ? palette.textTertiary : palette.textSecondary}
 					/>
 				) : null}
 			</View>
@@ -162,8 +177,7 @@ export function GroupedRow({
 			accessibilityState={checked === undefined ? undefined : { checked }}
 			style={({ pressed }) => ({
 				...rowStyle,
-				backgroundColor:
-					pressed && !IS_ANDROID ? palette.surfaceCardHover : "transparent",
+				backgroundColor: pressed ? palette.surfaceCardHover : "transparent",
 			})}
 		>
 			{content}

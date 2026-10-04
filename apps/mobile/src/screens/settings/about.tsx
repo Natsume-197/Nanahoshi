@@ -5,18 +5,24 @@ import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { icons } from "@/components/icon";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useConnection } from "@/providers/app-provider";
 import { space } from "@/theme";
 
 const PROJECT_URL = "https://github.com/Natsume-197/Nanahoshi";
 
 export function AboutSettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { serverUrl } = useConnection();
 	const open = (url: string) => () => void WebBrowser.openBrowserAsync(url);
 	return (
 		<ScrollView
 			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ padding: space.lg, gap: space.xl }}
+			contentContainerStyle={{
+				padding: space.lg,
+				paddingBottom: space.lg + miniPlayerInset,
+				gap: space.xl,
+			}}
 		>
 			<View style={{ gap: space.xs, paddingHorizontal: space.sm }}>
 				<Text variant="title">Nanahoshi</Text>

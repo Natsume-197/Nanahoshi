@@ -31,6 +31,28 @@ export function ActionMenuButton({
 	const [open, setOpen] = useState(false);
 	return (
 		<View style={{ width: box, height: box }}>
+			{/* Under the button: a Compose host takes touches even with
+			    pointerEvents none. */}
+			<Host style={{ position: "absolute", inset: 0 }} pointerEvents="none">
+				<DropdownMenu
+					expanded={open}
+					onDismissRequest={() => setOpen(false)}
+					color={palette.card}
+				>
+					<DropdownMenu.Trigger>
+						<Box modifiers={[fillMaxSize()]} />
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Items>
+						<ComposeMenuItems
+							sections={sections}
+							onChoose={(item) => {
+								setOpen(false);
+								item.onPress();
+							}}
+						/>
+					</DropdownMenu.Items>
+				</DropdownMenu>
+			</Host>
 			<Pressable
 				accessibilityRole="button"
 				accessibilityLabel={label}
@@ -53,26 +75,6 @@ export function ActionMenuButton({
 			>
 				<Icon name={icon} size={size} color={color} />
 			</Pressable>
-			<Host style={{ position: "absolute", inset: 0 }} pointerEvents="none">
-				<DropdownMenu
-					expanded={open}
-					onDismissRequest={() => setOpen(false)}
-					color={palette.card}
-				>
-					<DropdownMenu.Trigger>
-						<Box modifiers={[fillMaxSize()]} />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Items>
-						<ComposeMenuItems
-							sections={sections}
-							onChoose={(item) => {
-								setOpen(false);
-								item.onPress();
-							}}
-						/>
-					</DropdownMenu.Items>
-				</DropdownMenu>
-			</Host>
 		</View>
 	);
 }

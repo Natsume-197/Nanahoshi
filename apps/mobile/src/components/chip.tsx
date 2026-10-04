@@ -1,4 +1,5 @@
 import { ScrollView } from "react-native";
+import { haptics } from "@/lib/haptics";
 import { radius, sizes, space, usePalette } from "@/theme";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
@@ -20,7 +21,10 @@ export function Chip({
 	const palette = usePalette();
 	return (
 		<PressableScale
-			onPress={onPress}
+			onPress={() => {
+				haptics.select();
+				onPress();
+			}}
 			accessibilityRole="button"
 			accessibilityState={{ selected }}
 			style={{

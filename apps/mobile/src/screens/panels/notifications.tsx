@@ -7,13 +7,16 @@ import {
 import { Stack } from "expo-router";
 import { FlatList, Pressable, View } from "react-native";
 import { Icon } from "@/components/icon";
-import { showNotice } from "@/components/prompt";
+import { icons } from "@/components/icon-names";
+import { askChoice, showNotice } from "@/components/prompt";
+import { RefreshControl } from "@/components/refresh-control";
 import { EmptyState, ErrorState, RowSkeleton } from "@/components/states";
 import { Text } from "@/components/text";
 import { formatRelativeTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { notificationContent } from "@/lib/notification-content";
 import { IS_ANDROID } from "@/lib/platform";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 
@@ -22,6 +25,7 @@ const PAGE = 20;
 /** Notifications as their own page (the web's phone layout, Storytel's too):
  * one row per finished task, unread ones marked, tap to mark read. */
 export function NotificationsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const queryClient = useQueryClient();
 	const palette = usePalette();
@@ -33,33 +37,84 @@ export function NotificationsScreen() {
 				last.length === PAGE ? last[last.length - 1]?.id : undefined,
 		}),
 	);
+	const refresh = () =>
+		queryClient.invalidateQueries({ queryKey: orpc.notifications.key() });
+	const onError = () => showNotice(t("mobile.error.action"));
 	const read = useMutation({
 		...orpc.notifications.markRead.mutationOptions(),
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: orpc.notifications.key() }),
-		onError: () => showNotice(t("common.error")),
+		onSuccess: refresh,
+		onError,
+	});
+	const readAll = useMutation({
+		...orpc.notifications.markAllRead.mutationOptions(),
+		onSuccess: refresh,
+		onError,
+	});
+	const remove = useMutation({
+		...orpc.notifications.delete.mutationOptions(),
+		onSuccess: refresh,
+		onError,
+	});
+	const removeAll = useMutation({
+		...orpc.notifications.deleteAll.mutationOptions(),
+		onSuccess: refresh,
+		onError,
 	});
 	const rows = notifications.data?.pages.flat() ?? [];
-	const unreadIds = rows
-		.filter((row) => row.readAt === null)
-		.map((row) => row.id)
-		.slice(0, 100);
-	const markAll = () => read.mutate({ ids: unreadIds });
+	const hasUnread = rows.some((row) => row.readAt === null);
+	const openMenu = async () => {
+		const answer = await askChoice({
+			title: t("notifications.title"),
+			options: [
+				...(hasUnread
+					? [
+							{
+								id: "read",
+								label: t("notifications.mark_all_read"),
+								icon: icons.checkCircle,
+							},
+						]
+					: []),
+				{
+					id: "delete",
+					label: t("notifications.delete_all"),
+					icon: icons.trash,
+					destructive: true,
+				},
+			],
+		});
+		if (answer === "read") readAll.mutate({});
+		if (answer === "delete") removeAll.mutate({});
+	};
+	const openRowMenu = async (id: number, title: string) => {
+		const answer = await askChoice({
+			title,
+			options: [
+				{
+					id: "delete",
+					label: t("notifications.delete"),
+					icon: icons.trash,
+					destructive: true,
+				},
+			],
+		});
+		if (answer === "delete") remove.mutate({ id });
+	};
 
 	return (
 		<>
 			<Stack.Screen
 				options={{
-					...(unreadIds.length === 0
-						? {}
+					...(rows.length === 0
+						? { headerRight: undefined, unstable_headerRightItems: undefined }
 						: process.env.EXPO_OS === "ios"
 							? {
 									unstable_headerRightItems: () => [
 										{
 											type: "button",
-											label: t("notifications.mark_all_read"),
-											icon: { type: "sfSymbol", name: "checkmark.circle" },
-											onPress: markAll,
+											label: t("aria.more_actions"),
+											icon: { type: "sfSymbol", name: "ellipsis.circle" },
+											onPress: () => void openMenu(),
 										},
 									],
 								}
@@ -67,8 +122,8 @@ export function NotificationsScreen() {
 									headerRight: () => (
 										<Pressable
 											accessibilityRole="button"
-											accessibilityLabel={t("notifications.mark_all_read")}
-											onPress={markAll}
+											accessibilityLabel={t("aria.more_actions")}
+											onPress={() => void openMenu()}
 											android_ripple={{
 												color: palette.ripple,
 												borderless: true,
@@ -82,7 +137,7 @@ export function NotificationsScreen() {
 											}}
 										>
 											<Icon
-												name={{ ios: "checkmark.circle", android: "done_all" }}
+												name={{ ios: "ellipsis.circle", android: "more_vert" }}
 												size={24}
 												color={palette.text}
 											/>
@@ -100,8 +155,12 @@ export function NotificationsScreen() {
 					data={rows}
 					keyExtractor={(item) => String(item.id)}
 					contentInsetAdjustmentBehavior="automatic"
-					refreshing={notifications.isRefetching}
-					onRefresh={() => void notifications.refetch()}
+					refreshControl={
+						<RefreshControl
+							refreshing={notifications.isRefetching}
+							onRefresh={() => void notifications.refetch()}
+						/>
+					}
 					onEndReached={() => {
 						if (notifications.hasNextPage && !notifications.isFetchingNextPage)
 							void notifications.fetchNextPage();
@@ -113,13 +172,17 @@ export function NotificationsScreen() {
 							message={t("notifications.empty_desc")}
 						/>
 					}
-					contentContainerStyle={{ paddingVertical: space.sm }}
+					contentContainerStyle={{
+						paddingVertical: space.sm,
+						paddingBottom: space.sm + miniPlayerInset,
+					}}
 					renderItem={({ item }) => (
 						<NotificationRow
 							data={item.payload as NotificationData}
 							createdAt={item.createdAt}
 							unread={item.readAt === null}
 							onPress={() => read.mutate({ ids: [item.id] })}
+							onLongPress={(title) => void openRowMenu(item.id, title)}
 						/>
 					)}
 				/>
@@ -133,11 +196,13 @@ function NotificationRow({
 	createdAt,
 	unread,
 	onPress,
+	onLongPress,
 }: {
 	data: NotificationData;
 	createdAt: string | Date;
 	unread: boolean;
 	onPress: () => void;
+	onLongPress: (title: string) => void;
 }) {
 	const palette = usePalette();
 	const content = notificationContent(data, t);
@@ -152,9 +217,12 @@ function NotificationRow({
 					? t("notifications.mark_read", { title: content.title })
 					: content.title
 			}
-			accessibilityState={{ disabled: !unread }}
-			disabled={!unread}
-			onPress={onPress}
+			accessibilityActions={[
+				{ name: "longpress", label: t("notifications.delete") },
+			]}
+			onAccessibilityAction={() => onLongPress(content.title)}
+			onPress={unread ? onPress : undefined}
+			onLongPress={() => onLongPress(content.title)}
 			android_ripple={{ color: palette.ripple }}
 			style={({ pressed }) => ({
 				flexDirection: "row",

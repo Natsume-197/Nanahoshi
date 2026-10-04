@@ -28,6 +28,8 @@ export interface ReaderHost {
 	coverUrl(filename: string, width: number): string;
 	/** Tint the surrounding chrome (status bar, browser UI); null restores the app color. */
 	setChromeColor(color: string | null): void;
+	/** Hide the system bars while reading; false brings them back (menu open, exit). */
+	setImmersive?(immersive: boolean): void;
 	notifyError(message: string): void;
 	/** False when the host already keeps book files on disk (mobile). */
 	cacheBookFiles?: boolean;

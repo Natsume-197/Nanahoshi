@@ -20,13 +20,20 @@ import type { Api } from "@/lib/api";
 import type { NanahoshiAuth } from "@/lib/auth-client";
 import { coverUrl } from "@/lib/covers";
 import { titleOrUntitled } from "@/lib/format";
+import { parseServerTime } from "@/lib/server-time";
+import { decodeActiveBook, encodeActiveBook } from "./active-book";
 import {
 	activeChapterIndex,
 	type Chapter,
 	clampSpeed,
-	JUMP_BACK,
-	JUMP_FORWARD,
+	DEFAULT_JUMP_BACK,
+	DEFAULT_JUMP_FORWARD,
+	extendSleep,
+	findNextInSeries,
+	type JumpAmount,
+	normalizeJumpAmount,
 	type SleepMode,
+	sleepFadeFactor,
 	smartRewind,
 } from "./timing";
 
@@ -107,9 +114,23 @@ export type PlayerSnapshot = {
 	sleep: SleepState | null;
 	error: boolean;
 	ended: boolean;
+	/** The finished-book card: shown when the book ends with nothing to
+	 * autoplay, until dismissed or playback moves on. */
+	endCard: boolean;
+	jumpBack: JumpAmount;
+	jumpForward: JumpAmount;
+	autoplayNext: boolean;
+	/** Next book of the series, resolved near the end of this one. */
+	upNext: { uuid: string; title: string | null } | null;
 };
 
 const SPEED_KEY = "nanahoshi.audio-speed";
+const JUMP_BACK_KEY = "nanahoshi.audio-jump-back";
+const JUMP_FORWARD_KEY = "nanahoshi.audio-jump-forward";
+const AUTOPLAY_NEXT_KEY = "nanahoshi.audio-autoplay-next";
+const ACTIVE_BOOK_KEY = "nanahoshi.audio-active-book";
+/** Up Next is looked up once this close to the end of the book. */
+const UP_NEXT_LEAD_SECONDS = 300;
 const SYNC_INTERVAL_MS = 45_000;
 const COMPLETION_THRESHOLD = 0.95;
 
@@ -119,6 +140,22 @@ type Deps = {
 	api: Api;
 	queryClient: QueryClient;
 };
+
+function readStored(key: string): string | null {
+	try {
+		return SecureStore.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+function writeStored(key: string, value: string) {
+	try {
+		SecureStore.setItem(key, value);
+	} catch {
+		// Preference only.
+	}
+}
 
 function readSpeed(): number {
 	try {
@@ -148,6 +185,15 @@ export class PlayerEngine {
 		sleep: null,
 		error: false,
 		ended: false,
+		endCard: false,
+		jumpBack: normalizeJumpAmount(readStored(JUMP_BACK_KEY), DEFAULT_JUMP_BACK),
+		jumpForward: normalizeJumpAmount(
+			readStored(JUMP_FORWARD_KEY),
+			DEFAULT_JUMP_FORWARD,
+		),
+		// On by default: series listeners expect the next book to follow.
+		autoplayNext: readStored(AUTOPLAY_NEXT_KEY) !== "0",
+		upNext: null,
 	};
 	private readonly listeners = new Set<() => void>();
 	private readonly player: AudioPlayer;
@@ -159,10 +205,15 @@ export class PlayerEngine {
 	private resumeAfterLoad = false;
 	private lastSyncAt: number | null = null;
 	private pausedAt: number | null = null;
+	/** When the loaded book was last heard, for smart rewind after a restore. */
+	private lastHeardAt: number | null = null;
+	/** Position the server last got; a paused book there has nothing new. */
+	private savedTime: number | null = null;
 	private lastTick = Date.now();
 	private completed = false;
 	private sessionReady = false;
 	private disposers: (() => void)[] = [];
+	private upNextFor: string | null = null;
 
 	constructor(private readonly deps: Deps) {
 		this.player = createAudioPlayer(null, {
@@ -199,6 +250,7 @@ export class PlayerEngine {
 			() => appState.remove(),
 			() => clearInterval(tick),
 		];
+		void this.restore();
 		return () => {
 			void this.sync();
 			for (const dispose of this.disposers) dispose();
@@ -208,6 +260,30 @@ export class PlayerEngine {
 	}
 
 	// ── loading ────────────────────────────────────────────────────────────
+	/**
+	 * Reopening the app brings back the book that was loaded, paused at its
+	 * saved position, as the web does after a reload. The pause counts from
+	 * the last listen, so smart rewind applies on the first play.
+	 */
+	private async restore() {
+		const uuid = decodeActiveBook(
+			readStored(ACTIVE_BOOK_KEY),
+			this.deps.serverUrl,
+		);
+		if (!uuid || this.snapshot.book || this.snapshot.loadingUuid) return;
+		await this.play(uuid, { autoplay: false });
+		const after = this.getSnapshot();
+		if (!after.book) {
+			// Kept: offline looks the same as a deleted book, and the next
+			// launch retries silently.
+			this.set({ error: false });
+			return;
+		}
+		if (after.book.uuid === uuid && !after.playing) {
+			this.pausedAt = this.lastHeardAt;
+		}
+	}
+
 	/**
 	 * Start (or resume) an audiobook from where the server says we left it.
 	 * Read & Listen loads it paused (autoplay false) and starts it itself.
@@ -257,26 +333,34 @@ export class PlayerEngine {
 					? clampSpeed(serverRate)
 					: this.snapshot.rate;
 			// A finished book starts over rather than sitting on its last second.
-			const saved = pickStartPosition(
-				progress
-					? {
-							time: progress.currentTimeSeconds ?? 0,
-							updatedAt: progress.lastListenedAt
-								? Date.parse(progress.lastListenedAt)
-								: null,
-						}
-					: null,
-				local ? readLocalPosition(uuid) : null,
+			const serverSaved = progress
+				? {
+						time: progress.currentTimeSeconds ?? 0,
+						updatedAt: parseServerTime(progress.lastListenedAt),
+					}
+				: null;
+			const localSaved = local ? readLocalPosition(uuid) : null;
+			const saved = pickStartPosition(serverSaved, localSaved);
+			const heard = [serverSaved?.updatedAt, localSaved?.updatedAt].filter(
+				(at): at is number => typeof at === "number" && Number.isFinite(at),
 			);
+			this.lastHeardAt = heard.length > 0 ? Math.max(...heard) : null;
 			const finished = !saved.fromLocal && progress?.status === "completed";
 			const start = finished || saved.time >= duration - 5 ? 0 : saved.time;
 			this.completed = false;
+			this.upNextFor = null;
+			this.pausedAt = null;
+			this.savedTime = start;
+			writeStored(ACTIVE_BOOK_KEY, encodeActiveBook(this.deps.serverUrl, uuid));
+			this.player.volume = 1;
 			this.set({
 				book,
 				loadingUuid: null,
 				time: start,
 				rate,
 				ended: false,
+				endCard: false,
+				upNext: null,
 				sleep: null,
 			});
 			this.player.setActiveForLockScreen(true, this.lockScreenMetadata(book), {
@@ -305,8 +389,13 @@ export class PlayerEngine {
 	private lockScreenMetadata(book: PlayerBook) {
 		return {
 			title: book.title,
-			artist: book.authors.join(", "),
-			albumTitle: book.narrators.join(", ") || undefined,
+			// Many audiobooks only credit narrators; never leave the line blank.
+			artist: book.authors.join(", ") || book.narrators.join(", "),
+			// Only beside an author: as the fallback artist they'd show twice.
+			albumTitle:
+				book.authors.length > 0
+					? book.narrators.join(", ") || undefined
+					: undefined,
 			artworkUrl:
 				(this.localFiles ? localCoverUri(book.uuid) : null) ??
 				coverUrl(this.deps.serverUrl, book.cover, 512) ??
@@ -340,8 +429,7 @@ export class PlayerEngine {
 	resume = () => {
 		if (!this.snapshot.book) return;
 		if (this.snapshot.ended) {
-			void this.seek(0, true);
-			this.set({ ended: false });
+			this.replay();
 			return;
 		}
 		const rewind = this.pausedAt
@@ -374,7 +462,7 @@ export class PlayerEngine {
 		while (index > 0 && this.offsets[index] > target) index--;
 		index = Math.max(0, index);
 		const within = target - (this.offsets[index] ?? 0);
-		this.set({ time: target, ended: false });
+		this.set({ time: target, ended: false, endCard: false });
 		if (index !== this.fileIndex || !this.player.isLoaded) {
 			await this.loadFile(index, within, autoplay);
 		} else {
@@ -385,8 +473,63 @@ export class PlayerEngine {
 	};
 
 	skip = (seconds: number) => void this.seek(this.snapshot.time + seconds);
-	back = () => this.skip(-JUMP_BACK);
-	forward = () => this.skip(JUMP_FORWARD);
+	back = () => this.skip(-this.snapshot.jumpBack);
+	forward = () => this.skip(this.snapshot.jumpForward);
+
+	setJumpBack = (seconds: JumpAmount) => {
+		this.set({ jumpBack: seconds });
+		writeStored(JUMP_BACK_KEY, String(seconds));
+	};
+
+	setJumpForward = (seconds: JumpAmount) => {
+		this.set({ jumpForward: seconds });
+		writeStored(JUMP_FORWARD_KEY, String(seconds));
+	};
+
+	setAutoplayNext = (enabled: boolean) => {
+		this.set({ autoplayNext: enabled });
+		writeStored(AUTOPLAY_NEXT_KEY, enabled ? "1" : "0");
+	};
+
+	/** From the top of the book, playing. */
+	replay = () => {
+		this.set({ ended: false, endCard: false });
+		void this.seek(0, true);
+	};
+
+	dismissEndCard = () => this.set({ endCard: false });
+
+	/** Start the next book of the series from its beginning. */
+	playNextInSeries = async (): Promise<boolean> => {
+		const next = this.snapshot.upNext ?? (await this.resolveUpNext());
+		if (!next) return false;
+		await this.play(next.uuid);
+		return this.snapshot.book?.uuid === next.uuid;
+	};
+
+	private async resolveUpNext() {
+		const book = this.snapshot.book;
+		if (!book?.seriesUuid) return null;
+		if (this.upNextFor === book.uuid) return this.snapshot.upNext;
+		this.upNextFor = book.uuid;
+		try {
+			// The listing comes back in reading order; never re-sort it.
+			const list = await this.deps.api.client.audiobooks.listBySeries({
+				seriesUuid: book.seriesUuid,
+			});
+			if (this.snapshot.book?.uuid !== book.uuid) return null;
+			const found = findNextInSeries(book.uuid, list);
+			const upNext = found
+				? { uuid: found.uuid, title: found.title ?? null }
+				: null;
+			this.set({ upNext });
+			return upNext;
+		} catch {
+			// A hint only; let a later tick try again.
+			this.upNextFor = null;
+			return null;
+		}
+	}
 
 	prevChapter = () => {
 		const chapters = this.snapshot.book?.chapters ?? [];
@@ -417,17 +560,29 @@ export class PlayerEngine {
 	};
 
 	setSleep = (mode: SleepMode | null) => {
+		this.player.volume = 1;
 		this.set({
 			sleep: mode ? { mode, remaining: this.sleepRemaining(mode) } : null,
 		});
 	};
 
+	/** Five more minutes, as a plain countdown. */
+	extendSleep = () => {
+		const sleep = this.snapshot.sleep;
+		if (!sleep) return;
+		this.player.volume = 1;
+		this.set({ sleep: extendSleep(sleep.remaining) });
+	};
+
 	/** Close the player: save the position, drop the lock screen card. */
 	stop = async () => {
 		this.player.pause();
+		writeStored(ACTIVE_BOOK_KEY, "");
+		this.pausedAt = null;
 		await this.sync();
 		this.player.clearLockScreenControls();
-		this.player.replace(null);
+		// Never replace(null): Android's native replace rejects null and the
+		// unhandled rejection crashes the app. fileIndex -1 forces a reload.
 		this.fileIndex = -1;
 		this.offsets = [];
 		this.localFiles = null;
@@ -438,6 +593,8 @@ export class PlayerEngine {
 			time: 0,
 			sleep: null,
 			ended: false,
+			endCard: false,
+			upNext: null,
 			error: false,
 		});
 	};
@@ -459,6 +616,20 @@ export class PlayerEngine {
 			return;
 		}
 		if (!status.isLoaded) return;
+		// Paused or resumed outside the app's buttons (lock screen, headset,
+		// a call): smart rewind still applies, like the web's play event.
+		if (!status.playing && this.snapshot.playing && this.pausedAt === null) {
+			this.pausedAt = Date.now();
+		} else if (status.playing && !this.snapshot.playing) {
+			const rewind = this.pausedAt
+				? smartRewind(Date.now() - this.pausedAt, this.snapshot.time)
+				: 0;
+			this.pausedAt = null;
+			if (rewind > 0) {
+				void this.seek(this.snapshot.time - rewind, true);
+				return;
+			}
+		}
 		this.set({
 			playing: status.playing,
 			buffering: status.isBuffering && !status.playing,
@@ -476,6 +647,12 @@ export class PlayerEngine {
 		}
 		this.set({ playing: false, ended: true, time: book.duration, sleep: null });
 		void this.sync("completed");
+		void this.finishBook(book.uuid);
+	}
+
+	private async finishBook(uuid: string) {
+		if (this.snapshot.autoplayNext && (await this.playNextInSeries())) return;
+		if (this.snapshot.book?.uuid === uuid) this.set({ endCard: true });
 	}
 
 	/** Once a second: sleep timer countdown and the periodic progress save. */
@@ -492,10 +669,20 @@ export class PlayerEngine {
 			if (remaining <= 0) {
 				this.set({ sleep: null });
 				this.pause();
+				this.player.volume = 1;
 			} else {
+				this.player.volume = sleepFadeFactor(remaining);
 				this.set({ sleep: { ...sleep, remaining } });
 			}
 		}
+		const book = this.snapshot.book;
+		if (
+			playing &&
+			book?.seriesUuid &&
+			this.snapshot.autoplayNext &&
+			book.duration - this.snapshot.time < UP_NEXT_LEAD_SECONDS
+		)
+			void this.resolveUpNext();
 		if (
 			playing &&
 			this.lastSyncAt !== null &&
@@ -527,6 +714,11 @@ export class PlayerEngine {
 		const book = this.snapshot.book;
 		if (!book) return this.syncQueue;
 		const time = this.snapshot.time;
+		// Backgrounding the app with a book paused would stamp it "listened
+		// now" server side: wrong for Continue's order and smart rewind.
+		if (!status && !this.snapshot.playing && time === this.savedTime)
+			return this.syncQueue;
+		this.savedTime = time;
 		const now = Date.now();
 		const listened =
 			this.lastSyncAt === null ? 0 : Math.floor((now - this.lastSyncAt) / 1000);

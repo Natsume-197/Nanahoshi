@@ -10,11 +10,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { nextAppBarOffset, settleAppBarOffset } from "@/lib/app-bar-scroll";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { useApi, useConnection } from "@/providers/app-provider";
+import { usePickServer } from "@/screens/panels/servers";
 import { usePalette } from "@/theme";
 
 /** A compact 56dp top bar (64 on tablets for the search field). */
@@ -65,6 +67,7 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 	const { auth, serverUrl } = useConnection();
 	const { orpc } = useApi();
 	const active = auth.useActiveOrganization();
+	const pickServer = usePickServer();
 	const unread = useQuery({
 		...orpc.notifications.unreadCount.queryOptions(),
 		refetchInterval: 60_000,
@@ -100,11 +103,15 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 					slide,
 				]}
 			>
-				<ServerSwitcher
-					name={name}
-					logo={logo}
-					onPress={() => router.push("/servers")}
-				/>
+				{active.isPending ? (
+					<ServerSwitcherSkeleton />
+				) : (
+					<ServerSwitcher
+						name={name}
+						logo={logo}
+						onPress={() => void pickServer()}
+					/>
+				)}
 				{wide ? <SearchField /> : null}
 				<View style={{ flexDirection: "row", marginLeft: "auto" }}>
 					<Action
@@ -135,6 +142,26 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 				]}
 			/>
 		</>
+	);
+}
+
+/** The server's logo and name before the active server resolves, so the
+ * bar never flashes "Select server". */
+function ServerSwitcherSkeleton() {
+	return (
+		<SkeletonPulse>
+			<View
+				style={{
+					minHeight: 44,
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 10,
+				}}
+			>
+				<Bone width={28} height={28} radius={8} />
+				<Bone width={128} height={16} />
+			</View>
+		</SkeletonPulse>
 	);
 }
 

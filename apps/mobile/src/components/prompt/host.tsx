@@ -12,6 +12,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { usePalette } from "@/theme";
 import { ActionSheet } from "../action-menu/action-sheet";
 import { choices, notices } from "./index";
+import type { Notice } from "./store";
 
 /** The open question as the Material sheet the ⋮ menus use. Mount once. */
 export function ChoiceHost() {
@@ -22,7 +23,7 @@ export function ChoiceHost() {
 		<ActionSheet
 			key={request.title}
 			header={
-				<Column modifiers={[fillMaxWidth(), padding(24, 4, 24, 16)]}>
+				<Column modifiers={[fillMaxWidth(), padding(16, 4, 16, 16)]}>
 					<Text color={palette.text} style={{ typography: "titleMedium" }}>
 						{request.title}
 					</Text>
@@ -41,7 +42,9 @@ export function ChoiceHost() {
 				request.options.map((option) => ({
 					id: option.id,
 					label: option.label,
+					icon: option.icon,
 					destructive: option.destructive,
+					selected: option.selected,
 					onPress: () => choices.answer(option.id),
 				})),
 			]}
@@ -50,19 +53,33 @@ export function ChoiceHost() {
 	);
 }
 
-/** Material Snackbars for notices; sits where the page's bottom strips go. */
+/**
+ * Material Snackbars for notices; sits where the page's bottom strips go.
+ * Mounted only while a notice shows: a Compose host swallows every touch in
+ * its box, and an idle one sat over the mini player.
+ */
 export function NoticeHost() {
+	const notice = useSyncExternalStore(notices.subscribe, notices.get);
+	if (!notice) return null;
+	return <NoticeSnackbar key={notice.id} notice={notice} />;
+}
+
+function NoticeSnackbar({ notice }: { notice: Notice }) {
 	const palette = usePalette();
 	const host = useRef<SnackbarHostRef>(null);
-	useMountEffect(() =>
-		notices.subscribe((notice) => {
-			if (notice)
-				void host.current?.showSnackbar({
-					message: notice.message,
-					duration: "short",
-				});
-		}),
-	);
+	useMountEffect(() => {
+		void host.current
+			?.showSnackbar({
+				message: notice.message,
+				actionLabel: notice.action?.label,
+				duration: notice.action ? "long" : "short",
+			})
+			.then((result) => {
+				if (result === "actionPerformed") notices.act(notice.id);
+			})
+			// The host unmounts when the notice expires, which rejects the call.
+			.catch(() => undefined);
+	});
 	return (
 		<Host
 			pointerEvents="box-none"
@@ -73,6 +90,7 @@ export function NoticeHost() {
 				<Snackbar
 					containerColor={palette.text}
 					contentColor={palette.background}
+					actionContentColor={palette.background}
 				/>
 			</SnackbarHost>
 		</Host>

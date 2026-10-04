@@ -19,6 +19,10 @@ export const routes = {
 		pathname: "/narrator/[uuid]",
 		params: { uuid },
 	}),
+	user: (username: string): Href => ({
+		pathname: "/user/[username]",
+		params: { username },
+	}),
 	collection: (id: string | number): Href => ({
 		pathname: "/collection/[id]",
 		params: { id: String(id) },

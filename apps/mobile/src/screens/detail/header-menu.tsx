@@ -51,7 +51,6 @@ export function DetailHeaderMenu({ target }: { target: BookTarget }) {
 		<>
 			<Stack.Screen
 				options={{
-					title: "",
 					unstable_headerRightItems: ios
 						? () => [
 								{

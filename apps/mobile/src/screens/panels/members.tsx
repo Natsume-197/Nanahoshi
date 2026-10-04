@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { SectionList, View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, SectionList, View } from "react-native";
+import { RefreshControl } from "@/components/refresh-control";
 import { EmptyState, ErrorState, RowSkeleton } from "@/components/states";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
+import { IS_ANDROID } from "@/lib/platform";
+import { routes } from "@/lib/routes";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 
@@ -20,6 +25,7 @@ const PRESENCE_DOT: Record<string, string> = {
 /** Friends activity as its own page: who's online (and what they're reading
  * or listening to) above who's offline, like the web's members list. */
 export function MembersScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const members = useQuery({
 		...orpc.members.withPresence.queryOptions(),
@@ -53,9 +59,13 @@ export function MembersScreen() {
 					keyExtractor={(item) => item.id}
 					contentInsetAdjustmentBehavior="automatic"
 					stickySectionHeadersEnabled={false}
-					refreshing={members.isRefetching}
-					onRefresh={() => void members.refetch()}
-					contentContainerStyle={{ paddingBottom: space.lg }}
+					refreshControl={
+						<RefreshControl
+							refreshing={members.isRefetching}
+							onRefresh={() => void members.refetch()}
+						/>
+					}
+					contentContainerStyle={{ paddingBottom: space.lg + miniPlayerInset }}
 					ListEmptyComponent={
 						<EmptyState
 							icon={{ ios: "person.2", android: "group" }}
@@ -94,6 +104,7 @@ function SectionTitle({ children }: { children: string }) {
 type Member = {
 	id: string;
 	name: string;
+	username?: string | null;
 	image?: string | null;
 	state: string;
 	book?: { title?: string | null } | null;
@@ -113,20 +124,26 @@ function MemberRow({ member }: { member: Member }) {
 					? `${t(`members.${member.state}`)} · ${member.book.title}`
 					: t(`members.${member.state}`);
 	return (
-		<View
-			accessible
+		<Pressable
+			accessibilityRole="button"
 			accessibilityLabel={`${member.name}, ${activity}`}
-			style={{
+			disabled={!member.username}
+			onPress={() =>
+				member.username && router.push(routes.user(member.username))
+			}
+			android_ripple={{ color: palette.ripple }}
+			style={({ pressed }) => ({
 				flexDirection: "row",
 				alignItems: "center",
 				gap: space.lg,
 				paddingHorizontal: space.lg,
 				paddingVertical: space.sm,
 				minHeight: 64,
-				opacity: member.state === "offline" ? 0.6 : 1,
-			}}
+				backgroundColor:
+					pressed && !IS_ANDROID ? palette.surface : "transparent",
+			})}
 		>
-			<View>
+			<View style={{ opacity: member.state === "offline" ? 0.6 : 1 }}>
 				<View
 					style={{
 						width: 44,
@@ -166,7 +183,13 @@ function MemberRow({ member }: { member: Member }) {
 					/>
 				) : null}
 			</View>
-			<View style={{ flex: 1, gap: 2 }}>
+			<View
+				style={{
+					flex: 1,
+					gap: 2,
+					opacity: member.state === "offline" ? 0.6 : 1,
+				}}
+			>
 				<Text variant="body" numberOfLines={1} style={{ fontWeight: "600" }}>
 					{member.name}
 				</Text>
@@ -174,6 +197,6 @@ function MemberRow({ member }: { member: Member }) {
 					{activity}
 				</Text>
 			</View>
-		</View>
+		</Pressable>
 	);
 }

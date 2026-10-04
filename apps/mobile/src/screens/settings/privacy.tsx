@@ -1,15 +1,16 @@
-import { Host, Switch } from "@expo/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ScrollView, useColorScheme } from "react-native";
+import { ScrollView } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { showNotice } from "@/components/prompt";
+import { Toggle } from "@/components/toggle";
 import { t } from "@/lib/i18n";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space } from "@/theme";
 
 export function PrivacySettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
-	const scheme = useColorScheme();
 	const queryClient = useQueryClient();
 	const privacy = useQuery(orpc.profile.getPrivacy.queryOptions());
 	const update = useMutation({
@@ -34,7 +35,10 @@ export function PrivacySettingsScreen() {
 	return (
 		<ScrollView
 			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ padding: space.lg }}
+			contentContainerStyle={{
+				padding: space.lg,
+				paddingBottom: space.lg + miniPlayerInset,
+			}}
 		>
 			<GroupedList footer={t("settings.privacy.desc")}>
 				<GroupedRow
@@ -43,17 +47,12 @@ export function PrivacySettingsScreen() {
 					subtitle={t("settings.privacy.share_activity_desc")}
 					disabled={privacy.isPending}
 					trailing={
-						<Host
-							matchContents
-							colorScheme={scheme === "dark" ? "dark" : "light"}
-						>
-							<Switch
-								value={shareReadingActivity}
-								onValueChange={(checked) =>
-									update.mutate({ shareReadingActivity: checked })
-								}
-							/>
-						</Host>
+						<Toggle
+							value={shareReadingActivity}
+							onValueChange={(checked) =>
+								update.mutate({ shareReadingActivity: checked })
+							}
+						/>
 					}
 				/>
 			</GroupedList>

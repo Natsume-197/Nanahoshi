@@ -45,4 +45,28 @@ describe("notices", () => {
 		await Bun.sleep(15);
 		expect(store.get()).toBeNull();
 	});
+
+	test("an action notice stays longer and runs its action once", async () => {
+		const store = createNoticeStore(20);
+		let undone = 0;
+		store.show("hidden", { label: "Undo", onPress: () => undone++ });
+		await Bun.sleep(30);
+		const notice = store.get();
+		expect(notice?.action?.label).toBe("Undo");
+		store.act(notice?.id ?? -1);
+		store.act(notice?.id ?? -1);
+		expect(undone).toBe(1);
+		expect(store.get()).toBeNull();
+	});
+
+	test("acting on a replaced notice does nothing", () => {
+		const store = createNoticeStore(20);
+		let undone = 0;
+		store.show("old", { label: "Undo", onPress: () => undone++ });
+		const stale = store.get()?.id ?? -1;
+		store.show("new");
+		store.act(stale);
+		expect(undone).toBe(0);
+		expect(store.get()?.message).toBe("new");
+	});
 });

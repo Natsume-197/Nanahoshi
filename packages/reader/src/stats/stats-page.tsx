@@ -28,11 +28,14 @@ export function StatsPage({
 	view,
 	onViewChange,
 	className,
+	showTitle = true,
 }: {
 	view: StatsView;
 	onViewChange: (view: StatsView) => void;
 	/** The app's page gutter. */
 	className?: string;
+	/** Off where the host's own header already names the page. */
+	showTitle?: boolean;
 }) {
 	const [timeZone] = useState(
 		() => Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -48,7 +51,11 @@ export function StatsPage({
 			className={cn(className, "@container mx-auto w-full max-w-6xl space-y-8")}
 		>
 			<header className="flex flex-wrap items-center justify-between gap-4">
-				<h1 className="font-bold text-3xl tracking-tight">{m.stats_title()}</h1>
+				{showTitle ? (
+					<h1 className="font-bold text-3xl tracking-tight">
+						{m.stats_title()}
+					</h1>
+				) : null}
 				<Segmented
 					label={m.stats_view_label()}
 					value={view}

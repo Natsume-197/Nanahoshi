@@ -6,6 +6,7 @@ import { icons } from "@/components/icon";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import {
+	JumpButton,
 	PlayPauseGlyph,
 	TransportButton,
 	usePlayLabel,
@@ -93,12 +94,7 @@ export function ReadListenBar({
 					size={20}
 					onPress={() => onCommand("toggle-seek")}
 				/>
-				<TransportButton
-					icon={icons.jumpBack}
-					label={t("audiobook.player_back_seconds", { seconds: 10 })}
-					color={palette.text}
-					onPress={player.back}
-				/>
+				<JumpButton direction="back" color={palette.text} />
 				<TransportButton
 					icon={icons.play}
 					label={playLabel}
@@ -108,12 +104,7 @@ export function ReadListenBar({
 				>
 					<PlayPauseGlyph size={30} color={palette.text} />
 				</TransportButton>
-				<TransportButton
-					icon={icons.jumpForward}
-					label={t("audiobook.player_forward_seconds", { seconds: 30 })}
-					color={palette.text}
-					onPress={player.forward}
-				/>
+				<JumpButton direction="forward" color={palette.text} />
 				<TransportButton
 					icon={icons.readListen}
 					label={t("read_listen.disable_reader")}

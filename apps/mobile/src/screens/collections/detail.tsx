@@ -110,14 +110,22 @@ export function CollectionDetail({ id }: { id: string }) {
 					query
 						? t("settings.no_matches")
 						: invalid
-							? t("collection.unavailable_title")
+							? t(
+									collection?.isOwner
+										? "collection.detail_rules_repair_title"
+										: "collection.unavailable_title",
+								)
 							: t("collection.detail_empty_title")
 				}
 				emptyMessage={
 					query
 						? t("collection.detail_empty_search_desc")
 						: invalid
-							? t("collection.detail_unavailable_desc")
+							? t(
+									collection?.isOwner
+										? "collection.detail_rules_repair_desc"
+										: "collection.detail_unavailable_desc",
+								)
 							: collection?.kind === "dynamic"
 								? t("collection.detail_empty_dynamic_desc")
 								: t("collection.detail_empty_manual_desc")
@@ -134,7 +142,7 @@ export function CollectionDetail({ id }: { id: string }) {
 						>
 							<Text variant="subhead" tone="secondary" selectable>
 								{[
-									t("collection.subtitle", { count: total }),
+									t("media.item_count", { count: total }),
 									collection.description,
 								]
 									.filter(Boolean)

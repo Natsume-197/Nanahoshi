@@ -42,3 +42,42 @@ export function handleReaderContentClick(
 	}
 	return true;
 }
+
+/**
+ * A tap in the middle of the page on a touch screen opens the reader menu, as
+ * in Kindle or Play Books. Desktop keeps ttu's behaviour (the top strip), and
+ * a tap that ends a text selection never counts.
+ */
+export function isChromeTap({
+	x,
+	left,
+	width,
+	coarsePointer,
+	selecting,
+}: {
+	x: number;
+	left: number;
+	width: number;
+	coarsePointer: boolean;
+	selecting: boolean;
+}) {
+	if (!coarsePointer || selecting || width <= 0) return false;
+	const position = (x - left) / width;
+	return position >= 0.3 && position <= 0.7;
+}
+
+/** Runs `toggle` when a content click that nothing else claimed is a chrome tap. */
+export function toggleChromeOnTap(
+	event: MouseEvent,
+	toggle: (() => void) | undefined,
+) {
+	if (!toggle) return;
+	const tap = isChromeTap({
+		x: event.clientX,
+		left: 0,
+		width: window.innerWidth,
+		coarsePointer: window.matchMedia?.("(pointer: coarse)").matches ?? false,
+		selecting: !(document.getSelection()?.isCollapsed ?? true),
+	});
+	if (tap) toggle();
+}

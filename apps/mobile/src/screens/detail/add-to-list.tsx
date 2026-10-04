@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Haptics from "expo-haptics";
 import { Pressable, ScrollView, View } from "react-native";
 import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
+import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
 import { type ShelfStatus, shelfMeta } from "@/lib/shelves";
@@ -57,7 +57,7 @@ export function useAddToList(uuid: string, kind: "ebook" | "audiobook") {
 	});
 
 	const pickShelf = (bucket: ShelfStatus) => {
-		void Haptics.selectionAsync();
+		haptics.select();
 		if (current.bucket === bucket) {
 			if (kind === "audiobook") removeAudio.mutate({ bookUuid: uuid });
 			else removeBook.mutate({ bookUuid: uuid });
@@ -79,7 +79,7 @@ export function useAddToList(uuid: string, kind: "ebook" | "audiobook") {
 		id: string;
 		inCollection: boolean;
 	}) => {
-		void Haptics.selectionAsync();
+		haptics.select();
 		membership.mutate({
 			collectionId: collection.id,
 			bookUuid: uuid,

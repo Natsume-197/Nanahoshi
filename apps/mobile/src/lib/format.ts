@@ -1,4 +1,6 @@
 import { locale, t } from "./i18n";
+import { knownLanguageName } from "./language-names";
+import { parseServerTime } from "./server-time";
 
 type Named = { name?: string | null };
 
@@ -48,6 +50,8 @@ export function titleOrUntitled(title: string | null | undefined) {
 /** Hermes ships only part of Intl on Android; fall back to the raw code. */
 export function languageName(code: string | null | undefined) {
 	if (!code) return null;
+	const known = knownLanguageName(code, locale);
+	if (known) return known;
 	try {
 		if (typeof Intl.DisplayNames !== "function") return code.toUpperCase();
 		return (
@@ -61,7 +65,8 @@ export function languageName(code: string | null | undefined) {
 /** "ahora mismo" / "hace 5 minutos" / "hace 3 horas" / a date after a week —
  * the web's formatRelativeTime. */
 export function formatRelativeTime(iso: string | Date, now = Date.now()) {
-	const date = new Date(iso);
+	const date = new Date(parseServerTime(iso) ?? Number.NaN);
+	if (Number.isNaN(date.getTime())) return "";
 	const seconds = Math.floor((now - date.getTime()) / 1000);
 	if (seconds < 60) return t("time.just_now");
 	const minutes = Math.floor(seconds / 60);

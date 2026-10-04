@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
 	useAnimatedStyle,
@@ -13,43 +13,70 @@ import { Cover } from "@/components/cover";
 import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
-import { IS_ANDROID } from "@/lib/platform";
+import { HAS_TAB_ACCESSORY, IS_ANDROID } from "@/lib/platform";
 import { space, usePalette } from "@/theme";
-import { PlayPauseGlyph, TransportButton, usePlayLabel } from "./controls";
+import {
+	JumpButton,
+	PlayPauseGlyph,
+	TransportButton,
+	usePlayLabel,
+} from "./controls";
 import type { PlayerBook } from "./engine";
 import { usePlayer, usePlayerState } from "./provider";
 import { activeChapterIndex } from "./timing";
 
-/** Fixed strip height (the web's --mobile-player-height, 4.25rem). */
-export const MINI_PLAYER_HEIGHT = 68;
+/** The floating card (Spotify's mini player): its height, and the air
+ * around it so the page shows on every side. */
+export const MINI_PLAYER_HEIGHT = 60;
+const CARD_INSET = 8;
+
+/** Room a scrolling page leaves at its end so the floating card never
+ * covers its last row. */
+export function useMiniPlayerInset() {
+	const shown = usePlayerState((s) => s.book !== null);
+	return shown && !HAS_TAB_ACCESSORY ? MINI_PLAYER_HEIGHT + CARD_INSET * 2 : 0;
+}
 
 const openPlayer = () => router.push("/player");
 const SPRING = { damping: 24, stiffness: 260 };
 
+/** The card is a neutral surface of the app's theme: a cover-tinted one
+ * clashed with the pages around it. */
+function useCardInk() {
+	const palette = usePalette();
+	return {
+		surface: palette.surfaceCard,
+		edge: palette.separator,
+		text: palette.text,
+		secondary: palette.textSecondary,
+		track: palette.separator,
+		ripple: palette.ripple,
+	};
+}
+
 /**
- * The web's mobile player strip: on the chrome surface right above the tab
- * bar, cover + title / author / chapter, then only two controls (jump back,
- * play) — the strip is a handle first: tap it or swipe it up for the full
- * player, swipe it down to stop. A 2pt progress line with chapter ticks runs along its bottom.
- * iOS 26 hosts the same controls in the tab bar's own accessory instead.
+ * The mini player as a floating card over the tab bar (Spotify's layout): cover + title / author or chapter, then jump back and play. Tap
+ * it or swipe it up for the full player, swipe it down to stop. A thin
+ * progress line runs along its bottom edge. iOS 26 hosts the same controls in
+ * the tab bar's own accessory instead.
  */
 export function MiniPlayer() {
 	const book = usePlayerState((s) => s.book);
 	if (!book) return null;
-	return <Strip book={book} />;
+	return <Card book={book} />;
 }
 
-function Strip({ book }: { book: PlayerBook }) {
-	const palette = usePalette();
+function Card({ book }: { book: PlayerBook }) {
 	const player = usePlayer();
 	const playLabel = usePlayLabel();
+	const cardInk = useCardInk();
 	const offset = useSharedValue(0);
 	const style = useAnimatedStyle(() => ({
 		transform: [{ translateY: offset.get() }],
 		opacity: 1 - Math.max(0, offset.get()) / MINI_PLAYER_HEIGHT,
 	}));
 	const stop = () => void player.stop();
-	// The strip follows the finger: up opens the player (YouTube Music,
+	// The card follows the finger: up opens the player (YouTube Music,
 	// Spotify), down puts it away and stops playback.
 	const swipe = Gesture.Pan()
 		.activeOffsetY([-12, 12])
@@ -66,6 +93,7 @@ function Strip({ book }: { book: PlayerBook }) {
 			} else if (y > MINI_PLAYER_HEIGHT / 2 || event.velocityY > 800) {
 				offset.set(
 					withTiming(MINI_PLAYER_HEIGHT, { duration: 160 }, (finished) => {
+						"worklet";
 						if (finished) scheduleOnRN(stop);
 					}),
 				);
@@ -75,47 +103,50 @@ function Strip({ book }: { book: PlayerBook }) {
 		});
 
 	return (
-		<GestureDetector gesture={swipe}>
-			<Animated.View
-				style={[
-					{
-						height: MINI_PLAYER_HEIGHT,
-						backgroundColor: palette.chrome,
-						borderTopWidth: 1,
-						borderColor: palette.separator,
-					},
-					style,
-				]}
-			>
-				<Pressable
-					accessibilityRole="button"
-					accessibilityLabel={t("audiobook.player_expand")}
-					accessibilityHint={book.title}
-					accessibilityActions={[
-						{ name: "dismiss", label: t("audiobook.player_stop") },
+		<View
+			style={{
+				paddingHorizontal: CARD_INSET,
+				paddingBottom: CARD_INSET / 2,
+			}}
+		>
+			<GestureDetector gesture={swipe}>
+				<Animated.View
+					style={[
+						{
+							height: MINI_PLAYER_HEIGHT,
+							borderRadius: 8,
+							borderCurve: "continuous",
+							overflow: "hidden",
+							backgroundColor: cardInk.surface,
+							borderWidth: StyleSheet.hairlineWidth,
+							borderColor: cardInk.edge,
+							boxShadow: "0 4px 14px rgba(0, 0, 0, 0.12)",
+						},
+						style,
 					]}
-					onAccessibilityAction={(event) => {
-						if (event.nativeEvent.actionName === "dismiss") stop();
-					}}
-					onPress={openPlayer}
-					android_ripple={{ color: palette.ripple }}
-					style={({ pressed }) => ({
-						flex: 1,
-						flexDirection: "row",
-						alignItems: "center",
-						gap: space.sm,
-						paddingHorizontal: space.sm,
-						backgroundColor:
-							pressed && !IS_ANDROID ? palette.surface : "transparent",
-					})}
 				>
-					<View
-						style={{
+					<Pressable
+						accessibilityRole="button"
+						accessibilityLabel={t("audiobook.player_expand")}
+						accessibilityHint={book.title}
+						accessibilityActions={[
+							{ name: "dismiss", label: t("audiobook.player_stop") },
+						]}
+						onAccessibilityAction={(event) => {
+							if (event.nativeEvent.actionName === "dismiss") stop();
+						}}
+						onPress={openPlayer}
+						android_ripple={{ color: cardInk.ripple }}
+						style={({ pressed }) => ({
 							flex: 1,
 							flexDirection: "row",
 							alignItems: "center",
-							gap: 10,
-						}}
+							gap: space.sm,
+							paddingLeft: space.sm,
+							paddingRight: space.xs,
+							backgroundColor:
+								pressed && !IS_ANDROID ? cardInk.ripple : "transparent",
+						})}
 					>
 						<Cover
 							cover={book.cover}
@@ -125,41 +156,41 @@ function Strip({ book }: { book: PlayerBook }) {
 							rounded={4}
 						/>
 						<TrackMeta book={book} />
-					</View>
-					<TransportButton
-						icon={icons.jumpBack}
-						label={t("audiobook.player_back_seconds", { seconds: 10 })}
-						color={palette.text}
-						size={22}
-						onPress={player.back}
-					/>
-					<TransportButton
-						icon={icons.play}
-						label={playLabel}
-						color={palette.text}
-						onPress={player.toggle}
-					>
-						<PlayPauseGlyph size={26} color={palette.text} />
-					</TransportButton>
-				</Pressable>
-				<ProgressLine book={book} />
-			</Animated.View>
-		</GestureDetector>
+						<JumpButton direction="back" color={cardInk.text} size={22} />
+						<TransportButton
+							icon={icons.play}
+							label={playLabel}
+							color={cardInk.text}
+							onPress={player.toggle}
+						>
+							<PlayPauseGlyph size={26} color={cardInk.text} />
+						</TransportButton>
+					</Pressable>
+					<ProgressLine book={book} />
+				</Animated.View>
+			</GestureDetector>
+		</View>
 	);
 }
 
-/** Title, then author and the current chapter — the web strip's three lines. */
+/** Title, then the current chapter (or the author before chapters load). */
 function TrackMeta({ book }: { book: PlayerBook }) {
 	const palette = usePalette();
+	const cardInk = useCardInk();
 	const chapterIndex = usePlayerState((s) =>
 		activeChapterIndex(book.chapters, s.time),
 	);
 	const error = usePlayerState((s) => s.error);
-	const chapter = chapterLabel(book, chapterIndex);
-	const authors = book.authors.join(", ");
+	const line =
+		chapterLabel(book, chapterIndex) ??
+		(book.authors.join(", ") || book.narrators.join(", "));
 	return (
-		<View style={{ flex: 1 }}>
-			<Text variant="label" numberOfLines={1}>
+		<View style={{ flex: 1, marginLeft: 2 }}>
+			<Text
+				variant="label"
+				numberOfLines={1}
+				style={{ color: cardInk.text, fontWeight: "600" }}
+			>
 				{book.title}
 			</Text>
 			{error ? (
@@ -171,30 +202,20 @@ function TrackMeta({ book }: { book: PlayerBook }) {
 					<Text
 						variant="caption"
 						numberOfLines={1}
-						style={{ color: palette.danger, flexShrink: 1 }}
+						style={{ color: cardInk.secondary, flexShrink: 1 }}
 					>
 						{t("audiobook.playback_error")}
 					</Text>
 				</View>
-			) : (
-				<>
-					{authors ? (
-						<Text variant="caption" tone="secondary" numberOfLines={1}>
-							{authors}
-						</Text>
-					) : null}
-					{chapter ? (
-						<Text
-							variant="caption"
-							tone="tertiary"
-							numberOfLines={1}
-							style={{ fontSize: 11, lineHeight: 14 }}
-						>
-							{chapter}
-						</Text>
-					) : null}
-				</>
-			)}
+			) : line ? (
+				<Text
+					variant="caption"
+					numberOfLines={1}
+					style={{ color: cardInk.secondary }}
+				>
+					{line}
+				</Text>
+			) : null}
 		</View>
 	);
 }
@@ -207,10 +228,10 @@ function chapterLabel(book: PlayerBook, index: number) {
 	);
 }
 
-/** Book progress with a tick at each chapter start. The fill scales instead of
- * resizing, so the 4×/s updates composite without relaying out the ticks. */
+/** Whole-book progress as one unbroken line inside the card's bottom edge.
+ * The fill scales instead of resizing, so the 4×/s updates only composite. */
 function ProgressLine({ book }: { book: PlayerBook }) {
-	const palette = usePalette();
+	const cardInk = useCardInk();
 	const fraction = usePlayerState((s) =>
 		book.duration > 0
 			? Math.min(1, Math.round((s.time / book.duration) * 1000) / 1000)
@@ -219,8 +240,13 @@ function ProgressLine({ book }: { book: PlayerBook }) {
 	return (
 		<View
 			style={{
+				position: "absolute",
+				left: space.sm,
+				right: space.sm,
+				bottom: 0,
 				height: 2,
-				backgroundColor: palette.separator,
+				borderRadius: 1,
+				backgroundColor: cardInk.track,
 				overflow: "hidden",
 			}}
 		>
@@ -230,24 +256,9 @@ function ProgressLine({ book }: { book: PlayerBook }) {
 					inset: 0,
 					transformOrigin: "left",
 					transform: [{ scaleX: fraction }],
-					backgroundColor: palette.text,
+					backgroundColor: cardInk.text,
 				}}
 			/>
-			{book.duration > 0 && book.chapters.length <= 60
-				? book.chapters.slice(1).map((chapter) => (
-						<View
-							key={chapter.index}
-							style={{
-								position: "absolute",
-								top: 0,
-								bottom: 0,
-								width: 2,
-								left: `${(chapter.startTime / book.duration) * 100}%`,
-								backgroundColor: palette.chrome,
-							}}
-						/>
-					))
-				: null}
 		</View>
 	);
 }
@@ -295,14 +306,7 @@ export function PlayerAccessory() {
 				{inline ? null : <AccessorySubtitle book={book} />}
 			</View>
 			{inline ? null : (
-				<TransportButton
-					icon={icons.jumpBack}
-					label={t("audiobook.player_back_seconds", { seconds: 10 })}
-					color={palette.text}
-					size={20}
-					box={40}
-					onPress={player.back}
-				/>
+				<JumpButton direction="back" color={palette.text} size={20} box={40} />
 			)}
 			<TransportButton
 				icon={icons.play}

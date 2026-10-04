@@ -6,6 +6,7 @@ import type { MenuItem } from "./types";
 export function ActionSheet(_props: {
 	sections: MenuItem[][];
 	header?: ReactNode;
+	tone?: unknown;
 	onClose: () => void;
 }) {
 	return null;

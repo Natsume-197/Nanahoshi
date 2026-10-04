@@ -26,7 +26,8 @@ export interface ReaderInsets {
 	left: number;
 }
 
-/** What the page shows: a book in the reader, or the reading statistics. */
+/** What the page shows: a book in the reader, the reading statistics, or
+ * one title's history. */
 export type ReaderBootScreen =
 	| {
 			kind: "reader";
@@ -35,7 +36,22 @@ export type ReaderBootScreen =
 			/** Open straight into Read & Listen with this pairing. */
 			readListenPairUuid?: string;
 	  }
-	| { kind: "stats"; view: "all" | "reading" | "listening" };
+	| {
+			kind: "stats";
+			view: "all" | "reading" | "listening";
+			/** The app's page colour, so the page doesn't sit a shade off it. */
+			background?: string;
+	  }
+	| {
+			/** One title's reading or listening history, with its goal. */
+			kind: "history";
+			bookUuid: string;
+			medium: "reading" | "listening";
+			amountChars?: number | null;
+			durationSeconds?: number | null;
+			chapters?: { title: string | null; startTime: number }[];
+			background?: string;
+	  };
 
 export interface ReaderBootConfig {
 	protocol: typeof READER_BRIDGE_PROTOCOL;
@@ -83,6 +99,8 @@ export type ReaderToHostMessage =
 	| { type: "play-audiobook"; uuid: string }
 	/** Reader background, for the status and navigation bars; null = app default. */
 	| { type: "chrome-color"; color: string | null }
+	/** Reading without the menu: hide the status and navigation bars. */
+	| { type: "immersive"; immersive: boolean }
 	| { type: "invalidate"; target: "reading-progress" | "recommendations" }
 	| ({ type: "audio" } & ReaderAudioCommand)
 	/** Read & Listen started (or changed) in the reader; null when it ended. */

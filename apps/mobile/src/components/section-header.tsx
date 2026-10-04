@@ -23,7 +23,7 @@ export function SectionHeader({
 			style={{
 				flexDirection: "row",
 				alignItems: "center",
-				justifyContent: "space-between",
+				gap: space.xs,
 				paddingHorizontal: gutter,
 				minHeight: 44,
 			}}

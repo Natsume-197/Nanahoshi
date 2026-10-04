@@ -7,8 +7,15 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
+import Animated, {
+	Extrapolation,
+	interpolate,
+	type SharedValue,
+	useAnimatedStyle,
+	useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { coverUrl } from "@/lib/covers";
+import { coverUrl, HERO_BACKDROP_WIDTH, heroCoverWidth } from "@/lib/covers";
 import { useConnection } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 import { Cover } from "./cover";
@@ -30,6 +37,8 @@ export function DetailHero({
 	people,
 	actions,
 	uuid,
+	onTitleOffset,
+	scrollY,
 }: {
 	cover: string | null;
 	color: string | null;
@@ -39,6 +48,10 @@ export function DetailHero({
 	people?: ReactNode;
 	actions: ReactNode;
 	uuid: string;
+	/** Where the title block starts in the page's scroll content. */
+	onTitleOffset?: (y: number) => void;
+	/** The page's scroll offset, for the parallax and the pull-down stretch. */
+	scrollY?: SharedValue<number>;
 }) {
 	const palette = usePalette();
 	const dark = useColorScheme() === "dark";
@@ -46,32 +59,68 @@ export function DetailHero({
 	const { serverUrl } = useConnection();
 	const { width: screen } = useWindowDimensions();
 	const gutter = screen >= 1024 ? 32 : screen >= 768 ? 24 : 16;
-	const coverWidth =
-		shape === "audio"
-			? Math.min(screen >= 640 ? 280 : 240, screen - 96)
-			: Math.min(screen >= 640 ? 240 : 200, screen - 150);
+	const coverWidth = heroCoverWidth(screen, shape);
 	// Blur the rendered backdrop on Android 12+, bypassing Expo Image
 	// bitmap blur limits. Older Android versions retain the image fallback.
 	const nativeBlur =
 		Platform.OS === "android" && Number(Platform.Version) >= 31;
-	const backdrop = coverUrl(serverUrl, cover, 200);
+	const backdrop = coverUrl(serverUrl, cover, HERO_BACKDROP_WIDTH);
 	const bg = palette.background;
 	const top = insets.top + 64;
 	const coverHeight = shape === "audio" ? coverWidth : coverWidth * 1.5;
 	const washHeight = top + coverHeight + space.xl;
+	const still = useSharedValue(0);
+	const scroll = scrollY ?? still;
+	// Pulled down (iOS bounce), the wash stays pinned and stretches to fill
+	// the gap; scrolled up, it drifts slower than the page.
+	const washStyle = useAnimatedStyle(() => {
+		const y = scroll.get();
+		if (y < 0)
+			return {
+				transform: [{ translateY: y }, { scale: 1 - y / washHeight }],
+			};
+		return { transform: [{ translateY: y * 0.4 }, { scale: 1 }] };
+	});
+	// The cover shrinks toward its top edge and fades as it leaves, so it never
+	// drifts onto the title below it.
+	const coverStyle = useAnimatedStyle(() => {
+		const y = scroll.get();
+		return {
+			opacity: interpolate(
+				y,
+				[0, coverHeight * 0.85],
+				[1, 0],
+				Extrapolation.CLAMP,
+			),
+			transform: [
+				{
+					scale: interpolate(
+						y,
+						[-160, 0, coverHeight],
+						[1.06, 1, 0.88],
+						Extrapolation.CLAMP,
+					),
+				},
+			],
+		};
+	});
 
 	return (
 		<View>
-			<View
+			<Animated.View
 				pointerEvents="none"
-				style={{
-					position: "absolute",
-					top: 0,
-					left: 0,
-					right: 0,
-					height: washHeight,
-					overflow: "hidden",
-				}}
+				style={[
+					{
+						position: "absolute",
+						top: 0,
+						left: 0,
+						right: 0,
+						height: washHeight,
+						overflow: "hidden",
+						transformOrigin: "top",
+					},
+					washStyle,
+				]}
 			>
 				{backdrop ? (
 					<View
@@ -112,7 +161,7 @@ export function DetailHero({
 						experimental_backgroundImage: `linear-gradient(to bottom, ${bg}00 0%, ${bg}26 35%, ${bg}73 60%, ${bg}c2 80%, ${bg}f0 93%, ${bg} 100%)`,
 					}}
 				/>
-			</View>
+			</Animated.View>
 
 			<View
 				style={{
@@ -124,15 +173,19 @@ export function DetailHero({
 					gap: space.xl,
 				}}
 			>
-				<View
-					style={{
-						alignSelf: "center",
-						borderRadius: palette.coverRadius,
-						borderCurve: "continuous",
-						boxShadow: dark
-							? "0 20px 40px -12px rgba(0, 0, 0, 0.75)"
-							: "0 20px 40px -16px rgba(0, 0, 0, 0.5)",
-					}}
+				<Animated.View
+					style={[
+						{
+							alignSelf: "center",
+							borderRadius: palette.coverRadius,
+							borderCurve: "continuous",
+							transformOrigin: "top",
+							boxShadow: dark
+								? "0 20px 40px -12px rgba(0, 0, 0, 0.75)"
+								: "0 20px 40px -16px rgba(0, 0, 0, 0.5)",
+						},
+						coverStyle,
+					]}
 				>
 					<PressableScale
 						disabled={!cover}
@@ -151,9 +204,13 @@ export function DetailHero({
 							recyclingKey={uuid}
 						/>
 					</PressableScale>
-				</View>
+				</Animated.View>
 
-				<View style={{ gap: space.md, marginTop: space.sm }}>
+				<View
+					style={{ gap: space.md, marginTop: space.sm }}
+					// The hero opens the page, so this y is the scroll offset.
+					onLayout={(event) => onTitleOffset?.(event.nativeEvent.layout.y)}
+				>
 					<View style={{ gap: space.xs }}>
 						<Text
 							variant="largeTitle"

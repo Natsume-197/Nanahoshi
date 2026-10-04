@@ -1,10 +1,10 @@
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { openAddToList } from "@/components/add-to-list/open";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
+import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { usePlayer, usePlayerState } from "@/player/provider";
 import { useReadListenEntry } from "@/reader/read-listen-entry";
@@ -65,7 +65,7 @@ export function TitleActions({
 							pathname: "/reader/[uuid]",
 							params: { uuid },
 						});
-					void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+					haptics.tap();
 					if (current) player.toggle();
 					else void player.play(uuid);
 				}}

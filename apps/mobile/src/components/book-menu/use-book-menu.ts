@@ -1,14 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { askChoice, showNotice } from "@/components/prompt";
+import { Share } from "react-native";
+import { askChoice, showNotice, showUndo } from "@/components/prompt";
 import { type TitleDownloadState, useExports } from "@/downloads/provider";
 import { useDownloadActions } from "@/downloads/use-download-actions";
 import { useCan } from "@/lib/abilities";
 import { titleOrUntitled } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { titleWebUrl } from "@/lib/web-links";
 import { usePlayer, usePlayerState } from "@/player/provider";
-import { useApi } from "@/providers/app-provider";
+import { useApi, useConnection } from "@/providers/app-provider";
 import type { MenuItem } from "../action-menu/types";
 import { openAddToList } from "../add-to-list/open";
 import {
@@ -58,6 +61,7 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		isPlaying,
 		canLike: can("like", "create"),
 		canDelete: can("book", "delete"),
+		canEditMetadata: can("book", "editMetadata"),
 		download: downloadMenuState(download.status.state, download.allowed),
 		canExport: can(audio ? "audiobook" : "book", "download"),
 	};
@@ -72,9 +76,15 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		cancelDownload: t("mobile.downloads.cancel"),
 		removeDownload: t("mobile.downloads.remove"),
 		exportFile: t("mobile.export.action"),
+		sendToKindle: t("book.send_to_kindle"),
+		shareLink: t("mobile.share.link"),
 		removeContinueReading: t("book.remove_continue_reading"),
 		removeContinueListening: t("book.remove_continue_listening"),
 		notInterested: t("recs.not_interested"),
+		editMetadata: t("book.edit_metadata"),
+		fixMatch: t("match.action"),
+		enrichMetadata: t("book.enrich_metadata"),
+		restoreMetadata: t("book.restore_metadata"),
 		delete: t("book.delete_permanently"),
 	});
 	const run = useBookMenuRunner(target, state.liked, download);
@@ -93,6 +103,7 @@ function useBookMenuRunner(
 	>,
 ) {
 	const { orpc, client } = useApi();
+	const { serverUrl } = useConnection();
 	const queryClient = useQueryClient();
 	const player = usePlayer();
 	const exports = useExports();
@@ -125,6 +136,18 @@ function useBookMenuRunner(
 		removeDownload: download.remove,
 		exportFile: () =>
 			exports.start(target.kind, bookUuid, titleOrUntitled(target.title)),
+		sendToKindle: () =>
+			router.push({ pathname: "/kindle/[uuid]", params: { uuid: bookUuid } }),
+		shareLink: () => {
+			const url = titleWebUrl(serverUrl, target.kind, bookUuid);
+			const title = titleOrUntitled(target.title);
+			// iOS shares `url` as a link; Android only reads `message`.
+			return Share.share(
+				process.env.EXPO_OS === "ios"
+					? { url, title }
+					: { message: url, title },
+			);
+		},
 		removeFromContinue: async () => {
 			if (audio)
 				await client.listeningProgress.saveProgress({
@@ -147,6 +170,45 @@ function useBookMenuRunner(
 			await queryClient.invalidateQueries({
 				queryKey: orpc.recommendations.key(),
 			});
+			showUndo(t("recs.not_interested_toast"), () => {
+				void client.recommendations
+					.undoNotInterested({ bookUuid })
+					.then(() =>
+						queryClient.invalidateQueries({
+							queryKey: orpc.recommendations.key(),
+						}),
+					)
+					.catch(() => showNotice(t("mobile.error.action")));
+			});
+		},
+		editMetadata: () =>
+			router.push({
+				pathname: "/edit-metadata/[uuid]",
+				params: { uuid: bookUuid, kind: target.kind },
+			}),
+		fixMatch: () =>
+			router.push({
+				pathname: "/fix-match/[uuid]",
+				params: { uuid: bookUuid, kind: target.kind },
+			}),
+		enrichMetadata: async () => {
+			const result = await client.books
+				.enrichFromAmazon({ uuid: bookUuid })
+				.catch(() => null);
+			if (!result) return showNotice(t("toast.metadata_fetch_failed"));
+			if (!result.success) return showNotice(t("toast.metadata_none_found"));
+			haptics.success();
+			await queryClient.invalidateQueries();
+		},
+		restoreMetadata: async () => {
+			const result = await (audio
+				? client.audiobooks.restoreOriginalMetadata({ uuid: bookUuid })
+				: client.books.restoreOriginalMetadata({ uuid: bookUuid })
+			).catch(() => null);
+			if (!result) return showNotice(t("toast.metadata_restore_failed"));
+			if (!result.success) return showNotice(t("toast.metadata_none_original"));
+			haptics.success();
+			await queryClient.invalidateQueries();
 		},
 		delete: async () => {
 			const answer = await askChoice({

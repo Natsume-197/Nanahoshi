@@ -33,3 +33,13 @@ function snapDown(master: number) {
 	for (const dim of ALLOWED_DIMS) if (dim <= master) best = dim;
 	return best;
 }
+
+/** The detail hero's blurred wash only needs a small image. */
+export const HERO_BACKDROP_WIDTH = 200;
+
+/** The detail hero's cover width, shared with the prefetch on press. */
+export function heroCoverWidth(screen: number, shape: "book" | "audio") {
+	return shape === "audio"
+		? Math.min(screen >= 640 ? 280 : 240, screen - 96)
+		: Math.min(screen >= 640 ? 240 : 200, screen - 150);
+}

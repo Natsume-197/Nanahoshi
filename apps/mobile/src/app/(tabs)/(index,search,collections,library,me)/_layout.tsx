@@ -1,12 +1,17 @@
-import { router } from "expo-router";
+import { router, useNavigation, usePathname } from "expo-router";
 import { Stack } from "expo-router/stack";
 import { View } from "react-native";
 import { NoticeHost } from "@/components/prompt/host";
 import { ExportProgressBar } from "@/downloads/export-progress-bar";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY } from "@/lib/platform";
 import { MiniPlayer } from "@/player/mini-player";
 import { fonts, radius, usePalette } from "@/theme";
+
+/** Sheets and modals the floating mini player would sit on top of. */
+const OVERLAY_ROUTE =
+	/^\/(servers|join|kindle\/|edit-metadata\/|fix-match\/|add-to-list\/|collection\/(new|edit|dynamic))/;
 
 const ROOT_TITLES: Record<string, () => string> = {
 	index: () => t("nav.home"),
@@ -24,6 +29,15 @@ export default function TabStack({ segment }: { segment: string }) {
 	const palette = usePalette();
 	const ios = process.env.EXPO_OS === "ios";
 	const root = segment.match(/\((.*)\)/)?.[1] ?? "index";
+	const navigation = useNavigation();
+	const overlay = OVERLAY_ROUTE.test(usePathname());
+	// Re-tapping the active tab returns to its root. Native tabs mean to do it
+	// themselves but can't find this stack inside the wrapper below.
+	useMountEffect(() =>
+		navigation.addListener("tabPress" as never, () => {
+			if (navigation.isFocused() && router.canDismiss()) router.dismissAll();
+		}),
+	);
 	// Quick tasks over the page (add to list, create or edit a collection):
 	// one native sheet, half height first, full on drag.
 	const listSheet = {
@@ -37,8 +51,8 @@ export default function TabStack({ segment }: { segment: string }) {
 	};
 
 	return (
-		// The mini player sits under each tab's stack, so it rests right on top
-		// of the native tab bar and every screen ends above it.
+		// The mini player floats over each tab's stack, right on top of the
+		// native tab bar; pages pad their end with useMiniPlayerInset.
 		<View style={{ flex: 1, backgroundColor: palette.background }}>
 			<Stack
 				screenOptions={{
@@ -142,6 +156,10 @@ export default function TabStack({ segment }: { segment: string }) {
 				/>
 				<Stack.Screen name="stats" options={{ title: t("nav.stats") }} />
 				<Stack.Screen
+					name="tasks"
+					options={{ title: t("settings.nav.tasks") }}
+				/>
+				<Stack.Screen
 					name="downloads"
 					options={{ title: t("mobile.downloads.title") }}
 				/>
@@ -177,6 +195,7 @@ export default function TabStack({ segment }: { segment: string }) {
 				<Stack.Screen name="author/[uuid]" />
 				<Stack.Screen name="collection/[id]" />
 				<Stack.Screen name="genre/[uuid]" />
+				<Stack.Screen name="tag/[uuid]" />
 				{/* Creating and editing a collection: the same native sheet as
 				    "Add to list"; swiping down cancels. */}
 				<Stack.Screen name="collection/new" options={listSheet} />
@@ -190,11 +209,27 @@ export default function TabStack({ segment }: { segment: string }) {
 					name="collection/dynamic/[id]"
 					options={{ presentation: "modal" }}
 				/>
+				{/* Metadata editing and matching: long forms, whole screen. */}
+				<Stack.Screen
+					name="edit-metadata/[uuid]"
+					options={{ presentation: "modal" }}
+				/>
+				<Stack.Screen
+					name="fix-match/[uuid]"
+					options={{ presentation: "modal" }}
+				/>
 				{/* Shelf + lists picker: a native sheet over the detail page. */}
 				<Stack.Screen name="add-to-list/[uuid]" options={listSheet} />
+				<Stack.Screen name="kindle/[uuid]" options={listSheet} />
+				<Stack.Screen name="join" options={listSheet} />
 			</Stack>
-			<ExportProgressBar />
-			{HAS_TAB_ACCESSORY ? null : <MiniPlayer />}
+			<View
+				pointerEvents="box-none"
+				style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
+			>
+				<ExportProgressBar />
+				{HAS_TAB_ACCESSORY || overlay ? null : <MiniPlayer />}
+			</View>
 			<NoticeHost />
 		</View>
 	);

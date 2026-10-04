@@ -1,7 +1,13 @@
+import type { IconName } from "../icon-names";
+
 export type ChoiceOption = {
 	id: string;
 	label: string;
+	/** Android's sheet shows it; the iOS action sheet has no icons. */
+	icon?: IconName;
 	destructive?: boolean;
+	/** The current value, when the question picks one of several. */
+	selected?: boolean;
 };
 
 export type ChoiceRequest = {
@@ -49,9 +55,18 @@ export function createChoiceStore() {
 	};
 }
 
-export type Notice = { id: number; message: string };
+export type NoticeAction = { label: string; onPress: () => void };
 
-/** The latest notice, cleared after `duration` unless a newer one replaced it. */
+export type Notice = {
+	id: number;
+	message: string;
+	action?: NoticeAction;
+	/** A confirmation rather than a failure. */
+	info?: boolean;
+};
+
+/** The latest notice, cleared after `duration` unless a newer one replaced it.
+ * One with an action stays twice as long, so there is time to reach it. */
 export function createNoticeStore(duration = 3500) {
 	let notice: Notice | null = null;
 	let next = 0;
@@ -61,17 +76,30 @@ export function createNoticeStore(duration = 3500) {
 		for (const listener of listeners) listener(notice);
 	};
 	return {
-		show(message: string) {
-			notice = { id: ++next, message };
+		show(message: string, action?: NoticeAction, info?: boolean) {
+			notice = { id: ++next, message, action, info };
 			if (timer) clearTimeout(timer);
-			timer = setTimeout(() => {
-				notice = null;
-				timer = null;
-				emit();
-			}, duration);
+			timer = setTimeout(
+				() => {
+					notice = null;
+					timer = null;
+					emit();
+				},
+				action ? duration * 2 : duration,
+			);
 			emit();
 		},
 		get: () => notice,
+		/** Runs the notice's action once and clears it. */
+		act(id: number) {
+			if (notice?.id !== id) return;
+			const action = notice.action;
+			notice = null;
+			if (timer) clearTimeout(timer);
+			timer = null;
+			emit();
+			action?.onPress();
+		},
 		subscribe(listener: (notice: Notice | null) => void) {
 			listeners.add(listener);
 			return () => {

@@ -9,7 +9,8 @@ import {
 	type ReadListenBarState,
 } from "@nanahoshi/reader-bridge";
 import { useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { NavigationBar } from "expo-navigation-bar";
+import { router, useIsFocused } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useRef, useState } from "react";
 import { AppState, useColorScheme, View } from "react-native";
@@ -55,9 +56,16 @@ export function EmbedWebView({
 	const palette = usePalette();
 	const scheme = useColorScheme();
 	const insets = useSafeAreaInsets();
+	// Hidden system bars report zero insets. The page keeps the ones from while
+	// they showed, so opening the menu never reflows the book.
+	const [immersive, setImmersive] = useState(false);
+	// A route opened from the reader (a link, the player) stacks on top of it
+	// while it stays mounted; the bars come back for that screen.
+	const focused = useIsFocused();
+	const hideBars = immersive && focused;
 	// Read through refs: the bridge callbacks are created once, on mount.
 	const insetsRef = useRef(insets);
-	insetsRef.current = insets;
+	if (!immersive) insetsRef.current = insets;
 	const webview = useRef<WebView>(null);
 	const [lightStatusBar, setLightStatusBar] = useState(scheme === "dark");
 	// Read & Listen's controls, shown in a native bar under the page.
@@ -178,6 +186,9 @@ export function EmbedWebView({
 						deliver({ type: "insets", insets: toInsets() });
 						pushAudioState();
 						return;
+					case "immersive":
+						setImmersive(message.immersive);
+						return;
 					case "chrome-color":
 						setLightStatusBar(
 							message.color === null
@@ -228,7 +239,10 @@ export function EmbedWebView({
 			// Rotation and split screen change the insets; the page pads by them.
 			onLayout={() => deliver({ type: "insets", insets: toInsets() })}
 		>
-			<StatusBar style={lightStatusBar ? "light" : "dark"} />
+			<StatusBar style={lightStatusBar ? "light" : "dark"} hidden={hideBars} />
+			{/* Reading goes full screen, as in Play Books; the menu brings the
+			    bars back. */}
+			<NavigationBar hidden={hideBars} />
 			<WebView
 				ref={webview}
 				source={{ uri: page.pageUri }}

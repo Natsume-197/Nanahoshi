@@ -1,4 +1,5 @@
 import { useFonts } from "expo-font";
+import { NavigationBar } from "expo-navigation-bar";
 import { router } from "expo-router";
 import {
 	DarkTheme,
@@ -28,6 +29,13 @@ import { fontSources, palettes } from "@/theme";
 SplashScreen.preventAutoHideAsync();
 applyStoredAppearance();
 
+const SETUP_ROUTES = ["setup/server", "setup/library", "setup/upload"];
+const SETUP_OPTIONS = {
+	presentation: "fullScreenModal",
+	animation: "slide_from_bottom",
+	gestureEnabled: false,
+} as const;
+
 export default function RootLayout() {
 	const scheme = useColorScheme();
 	const [fontsLoaded] = useFonts(fontSources);
@@ -53,6 +61,8 @@ export default function RootLayout() {
 			<ThemeProvider value={theme}>
 				<AppProvider>
 					<StatusBar style="auto" />
+					{/* The app's default; only the focused reader hides it. */}
+					<NavigationBar hidden={false} />
 					{/* Every screen reads its strings while rendering, so a new
 					    language remounts the navigation (playback and cache stay). */}
 					{fontsLoaded ? <RootNavigator key={locale} /> : null}
@@ -117,6 +127,11 @@ function Navigator({ signedIn, ready }: { signedIn: boolean; ready: boolean }) {
 							contentStyle: { backgroundColor: "transparent" },
 						}}
 					/>
+					{/* Guided setup (server, library, upload): full screen, one
+					    question at a time; each flow steps back on its own. */}
+					{SETUP_ROUTES.map((name) => (
+						<Stack.Screen key={name} name={name} options={SETUP_OPTIONS} />
+					))}
 					{/* Full screen with no swipe-back: horizontal swipes turn pages. */}
 					<Stack.Screen
 						name="reader/[uuid]"

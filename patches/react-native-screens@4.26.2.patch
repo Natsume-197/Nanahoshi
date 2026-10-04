@@ -2,7 +2,7 @@ diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance
 index 10cd91b..57ce71b 100644
 --- a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt
 +++ b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt
-@@ -3,6 +3,7 @@ package com.swmansion.rnscreens.gamma.tabs.appearance
+@@ -3,6 +3,7 @@
  import android.annotation.SuppressLint
  import android.content.Context
  import android.content.res.ColorStateList
@@ -10,7 +10,7 @@ index 10cd91b..57ce71b 100644
  import android.graphics.drawable.StateListDrawable
  import android.util.TypedValue
  import android.view.MenuItem
-@@ -80,7 +81,10 @@ internal class TabsAppearanceApplicator(
+@@ -80,7 +81,10 @@
                  ?: resolveColorAttr(context, R.attr.colorOnSurfaceVariant)
  
          val iconColors = intArrayOf(iconDisabledColor, iconSelectedColor, iconFocusedColor, iconNormalColor)
@@ -22,7 +22,7 @@ index 10cd91b..57ce71b 100644
  
          // LabelVisibilityMode
          // From docs: can be one of LABEL_VISIBILITY_AUTO, LABEL_VISIBILITY_SELECTED, LABEL_VISIBILITY_LABELED, or LABEL_VISIBILITY_UNLABELED
-@@ -106,8 +110,17 @@ internal class TabsAppearanceApplicator(
+@@ -106,8 +110,20 @@
              tabBarAppearance?.tabBarItemActiveIndicatorColor
                  ?: resolveColorAttr(context, R.attr.colorSecondaryContainer)
  
@@ -33,8 +33,11 @@ index 10cd91b..57ce71b 100644
 +
 +        // Nanahoshi patch: without the indicator pill, Material 3's 80dp bar is
 +        // mostly empty padding; use the compact 64dp bar the web has instead.
++        // The menu view carries its own 80dp minimum, so both must shrink.
 +        if (!indicatorEnabled) {
-+            bottomNavigationView.minimumHeight = PixelUtil.toPixelFromDIP(64f).toInt()
++            val compactHeight = PixelUtil.toPixelFromDIP(64f).toInt()
++            bottomNavigationView.minimumHeight = compactHeight
++            (bottomNavigationView.menuView as? android.view.View)?.minimumHeight = compactHeight
 +            bottomNavigationView.setItemPaddingTop(PixelUtil.toPixelFromDIP(10f).toInt())
 +            bottomNavigationView.setItemPaddingBottom(PixelUtil.toPixelFromDIP(10f).toInt())
 +            bottomNavigationView.setActiveIndicatorLabelPadding(PixelUtil.toPixelFromDIP(2f).toInt())

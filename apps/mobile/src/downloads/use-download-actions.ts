@@ -1,5 +1,5 @@
-import * as Haptics from "expo-haptics";
 import { useCan } from "@/lib/abilities";
+import { haptics } from "@/lib/haptics";
 import { usePlayer } from "@/player/provider";
 import { canDownloadTitle, type DownloadKind } from "./model";
 import { useActiveServerId, useDownloads, useTitleDownload } from "./provider";
@@ -19,16 +19,16 @@ export function useDownloadActions(
 
 	const start = () => {
 		if (!serverId) return;
-		void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+		haptics.tap();
 		downloads.download(kind, uuid, serverId);
 	};
 	// No confirmations: each is one tap to undo, and the state shows at once.
 	const cancel = () => {
-		void Haptics.selectionAsync();
+		haptics.select();
 		downloads.cancel(uuid);
 	};
 	const remove = async () => {
-		void Haptics.selectionAsync();
+		haptics.select();
 		// Its files are about to go from under the player.
 		if (player.getSnapshot().book?.uuid === uuid) await player.stop();
 		if (serverId) downloads.remove(kind, serverId, uuid);

@@ -1,4 +1,4 @@
-import { BottomSheet, Host } from "@expo/ui";
+import { BottomSheet, RNHostView } from "@expo/ui";
 import { useState } from "react";
 import {
 	ActivityIndicator,
@@ -52,7 +52,7 @@ export function OptionSheet({
 }) {
 	const palette = usePalette();
 	const insets = useSafeAreaInsets();
-	const { height } = useWindowDimensions();
+	const { width, height } = useWindowDimensions();
 	const [query, setQuery] = useState("");
 	const needle = query.toLocaleLowerCase(locale);
 	const visible = onQuery
@@ -68,15 +68,19 @@ export function OptionSheet({
 	const empty = visible.every((section) => section.options.length === 0);
 
 	return (
-		<Host style={{ position: "absolute" }}>
-			<BottomSheet
-				isPresented
-				onDismiss={onClose}
-				snapPoints={["half", "full"]}
-				containerColor={palette.card}
-			>
+		<BottomSheet
+			isPresented
+			onDismiss={onClose}
+			snapPoints={["half", "full"]}
+			containerColor={palette.card}
+			contentPadding={0}
+		>
+			{/* Hosted, not bare: RN views set straight into the Compose sheet
+			    drew but never received a press. */}
+			<RNHostView matchContents>
 				<View
 					style={{
+						width,
 						paddingHorizontal: space.lg,
 						paddingBottom: insets.bottom + space.lg,
 						gap: space.md,
@@ -180,7 +184,7 @@ export function OptionSheet({
 						)}
 					</ScrollView>
 				</View>
-			</BottomSheet>
-		</Host>
+			</RNHostView>
+		</BottomSheet>
 	);
 }

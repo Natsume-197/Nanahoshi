@@ -69,3 +69,68 @@ export function shade(
 	const [r, g, b] = rgb.map((channel) => Math.round(channel * (1 - amount)));
 	return `rgb(${r}, ${g}, ${b})`;
 }
+
+function hsl(rgb: [number, number, number]): [number, number, number] {
+	const [r, g, b] = rgb.map((channel) => channel / 255);
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	const l = (max + min) / 2;
+	const d = max - min;
+	if (d === 0) return [0, 0, l];
+	const s = d / (1 - Math.abs(2 * l - 1));
+	const h =
+		max === r
+			? ((g - b) / d + (g < b ? 6 : 0)) * 60
+			: max === g
+				? ((b - r) / d + 2) * 60
+				: ((r - g) / d + 4) * 60;
+	return [h, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number): [number, number, number] {
+	const k = (n: number) => (n + h / 30) % 12;
+	const a = s * Math.min(l, 1 - l);
+	const f = (n: number) =>
+		l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+	return [f(0), f(8), f(4)].map((value) => Math.round(value * 255)) as [
+		number,
+		number,
+		number,
+	];
+}
+
+export type AmbientScene = {
+	base: string;
+	glow: [number, number, number];
+	accent: [number, number, number];
+	/** Glow opacity: bright hues (yellow) get less so every cover lands
+	 * equally lit. */
+	strength: number;
+};
+
+/**
+ * Samsung Now Brief's backdrop from one cover colour: a near-black base of
+ * its hue and two soft glows. The glows keep the colour's own saturation
+ * (darkening a gold to a fixed lightness turned it brown); only lightness is
+ * clamped so near-black and near-white covers still glow. The second glow is
+ * a neighbouring hue, turned away from yellow so browns don't go olive.
+ */
+export function ambientScene(color: string | null | undefined): AmbientScene {
+	const rgb = color ? channels(color) : null;
+	const [h, s, l] = rgb ? hsl(rgb) : [230, 0.25, 0.45];
+	const glowL = Math.min(0.62, Math.max(0.4, l));
+	// Yellow fading into black passes through olive; amber stays golden.
+	const glowHue = h >= 45 && h <= 75 ? 40 : h;
+	// Capped: a neon cover colour glowing at full chroma shouts over the art.
+	const glowS = Math.min(0.7, s);
+	const glow = fromHsl(glowHue, glowS, glowL);
+	// A dark yellow reads as olive: keep the base nearly neutral there.
+	const yellowish = h >= 45 && h <= 110;
+	const [r, g, b] = fromHsl(h, Math.min(yellowish ? 0.12 : 0.35, s), 0.1);
+	return {
+		base: `rgb(${r}, ${g}, ${b})`,
+		glow,
+		accent: fromHsl((glowHue + 325) % 360, glowS * 0.8, glowL),
+		strength: Math.min(1, 0.55 / Math.sqrt(relativeLuminance(glow) || 0.01)),
+	};
+}

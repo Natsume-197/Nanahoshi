@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { Pressable, ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { Icon, icons } from "@/components/icon";
@@ -8,7 +8,9 @@ import { Text } from "@/components/text";
 import { useAppearancePreference } from "@/lib/appearance";
 import { getLanguagePreference, t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
+import { IS_ANDROID } from "@/lib/platform";
 import { LANGUAGE_NAMES } from "@/lib/preferences";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
 
@@ -22,60 +24,79 @@ const APPEARANCE_LABELS = {
  * top, then account, preferences and about. Server administration stays on
  * the web. */
 export function SettingsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const appearance = useAppearancePreference();
 	const language = getLanguagePreference();
 	return (
-		<ScrollView
-			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ padding: space.lg, gap: space.xl }}
-		>
-			<ProfileCard />
-			<GroupedList title={t("settings.group.account")}>
-				<GroupedRow
-					first
-					icon={icons.account}
-					label={t("settings.nav.profile")}
-					href="/settings/profile"
-				/>
-				<GroupedRow
-					icon={icons.link}
-					label={t("settings.nav.account")}
-					href="/settings/account"
-				/>
-				<GroupedRow
-					icon={icons.privacy}
-					label={t("settings.nav.privacy")}
-					href="/settings/privacy"
-				/>
-			</GroupedList>
-			<GroupedList title={t("settings.group.preferences")}>
-				<GroupedRow
-					first
-					icon={icons.appearance}
-					label={t("settings.nav.appearance")}
-					value={APPEARANCE_LABELS[appearance]()}
-					href="/settings/appearance"
-				/>
-				<GroupedRow
-					icon={icons.globe}
-					label={t("settings.nav.language")}
-					value={
-						language === "system"
-							? t("mobile.settings.language_system")
-							: LANGUAGE_NAMES[language]
-					}
-					href="/settings/language"
-				/>
-			</GroupedList>
-			<GroupedList>
-				<GroupedRow
-					first
-					icon={icons.info}
-					label={t("settings.nav.about")}
-					href="/settings/about"
-				/>
-			</GroupedList>
-		</ScrollView>
+		<>
+			{IS_ANDROID ? <Stack.Screen options={{ title: "" }} /> : null}
+			<ScrollView
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerStyle={{
+					padding: space.lg,
+					paddingBottom: space.lg + miniPlayerInset,
+					gap: space.xl,
+				}}
+			>
+				{IS_ANDROID ? (
+					<Text
+						variant="largeTitle"
+						accessibilityRole="header"
+						style={{ marginBottom: space.sm }}
+					>
+						{t("nav.settings")}
+					</Text>
+				) : null}
+				<ProfileCard />
+				{/* The profile card above already heads this group; a "Cuenta" title
+			    over a "Cuenta" row read twice. */}
+				<GroupedList>
+					<GroupedRow
+						first
+						icon={icons.account}
+						label={t("settings.nav.profile")}
+						href="/settings/profile"
+					/>
+					<GroupedRow
+						icon={icons.link}
+						label={t("settings.nav.account")}
+						href="/settings/account"
+					/>
+					<GroupedRow
+						icon={icons.privacy}
+						label={t("settings.nav.privacy")}
+						href="/settings/privacy"
+					/>
+				</GroupedList>
+				<GroupedList title={t("settings.group.preferences")}>
+					<GroupedRow
+						first
+						icon={icons.appearance}
+						label={t("settings.nav.appearance")}
+						value={APPEARANCE_LABELS[appearance]()}
+						href="/settings/appearance"
+					/>
+					<GroupedRow
+						icon={icons.globe}
+						label={t("settings.nav.language")}
+						value={
+							language === "system"
+								? t("mobile.settings.language_system")
+								: LANGUAGE_NAMES[language]
+						}
+						href="/settings/language"
+					/>
+				</GroupedList>
+				<GroupedList>
+					<GroupedRow
+						first
+						icon={icons.info}
+						label={t("settings.nav.about")}
+						href="/settings/about"
+					/>
+				</GroupedList>
+			</ScrollView>
+		</>
 	);
 }
 
@@ -102,10 +123,9 @@ function ProfileCard() {
 				borderRadius: radius.card,
 				borderCurve: "continuous",
 				overflow: "hidden",
-				backgroundColor:
-					pressed && process.env.EXPO_OS === "ios"
-						? palette.surfaceCardHover
-						: palette.surfaceCard,
+				backgroundColor: pressed
+					? palette.surfaceCardHover
+					: palette.surfaceCard,
 			})}
 		>
 			<View
@@ -139,7 +159,11 @@ function ProfileCard() {
 					</Text>
 				) : null}
 			</View>
-			<Icon name={icons.chevronRight} size={16} color={palette.textSecondary} />
+			<Icon
+				name={icons.chevronRight}
+				size={16}
+				color={IS_ANDROID ? palette.textTertiary : palette.textSecondary}
+			/>
 		</Pressable>
 	);
 }

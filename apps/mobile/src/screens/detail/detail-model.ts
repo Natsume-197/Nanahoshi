@@ -45,3 +45,27 @@ export function currentChapter(
 		(chapter) => position >= chapter.startTime && position < chapter.endTime,
 	);
 }
+
+/** Scroll distance over which the detail bar fades in, from the moment the
+ * hero title's top meets the bar's bottom edge. */
+const HEADER_FADE = 40;
+
+/**
+ * How solid the floating detail bar is, 0–1: it fades in as the hero title
+ * (`titleOffset`, in scroll content) slides under it. Runs per scroll frame
+ * on the UI thread.
+ */
+export function headerSolidProgress({
+	scrollY,
+	titleOffset,
+	barBottom,
+}: {
+	scrollY: number;
+	titleOffset: number | null;
+	barBottom: number;
+}) {
+	"worklet";
+	if (titleOffset === null) return 0;
+	const past = scrollY + barBottom - titleOffset;
+	return Math.min(1, Math.max(0, past / HEADER_FADE));
+}

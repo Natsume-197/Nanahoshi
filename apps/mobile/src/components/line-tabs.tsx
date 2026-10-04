@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, View } from "react-native";
+import { haptics } from "@/lib/haptics";
 import { sizes, space, usePalette } from "@/theme";
 import { Text } from "./text";
 
@@ -33,7 +34,10 @@ export function LineTabs<T extends string>({
 						key={option.value}
 						accessibilityRole="tab"
 						accessibilityState={{ selected: active }}
-						onPress={() => onChange(option.value)}
+						onPress={() => {
+							if (!active) haptics.select();
+							onChange(option.value);
+						}}
 						style={{
 							flex: scrollable ? undefined : 1,
 							minHeight: scrollable ? 56 : sizes.control,

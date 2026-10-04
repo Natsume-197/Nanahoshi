@@ -12,9 +12,15 @@ const labels = {
 	cancelDownload: "Cancel download",
 	removeDownload: "Remove download",
 	exportFile: "Export file…",
+	sendToKindle: "Send to Kindle",
+	shareLink: "Share link",
 	removeContinueReading: "Remove from Continue reading",
 	removeContinueListening: "Remove from Continue listening",
 	notInterested: "Not interested",
+	editMetadata: "Edit metadata",
+	fixMatch: "Fix match",
+	enrichMetadata: "Find metadata",
+	restoreMetadata: "Restore original",
 	delete: "Delete",
 };
 const base: BookMenuState = {
@@ -23,6 +29,7 @@ const base: BookMenuState = {
 	isPlaying: false,
 	canLike: true,
 	canDelete: false,
+	canEditMetadata: false,
 	download: null,
 	canExport: false,
 };
@@ -32,7 +39,7 @@ const titles = (sections: ReturnType<typeof buildBookMenu>) =>
 test("a book offers details and list actions, nothing to play", () => {
 	expect(titles(buildBookMenu({ kind: "book" }, base, labels))).toEqual([
 		["Details"],
-		["Like", "Add to list"],
+		["Like", "Add to list", "Share link"],
 	]);
 });
 
@@ -55,7 +62,7 @@ test("state and permissions decide the optional actions", () => {
 	);
 	expect(titles(sections)).toEqual([
 		["Listen", "Details"],
-		["Unlike", "Add to list", "Remove from Continue listening"],
+		["Unlike", "Add to list", "Share link", "Remove from Continue listening"],
 		["Not interested"],
 		["Delete"],
 	]);
@@ -64,7 +71,7 @@ test("state and permissions decide the optional actions", () => {
 		titles(
 			buildBookMenu({ kind: "book" }, { ...base, canLike: false }, labels),
 		)[1],
-	).toEqual(["Add to list"]);
+	).toEqual(["Add to list", "Share link"]);
 });
 
 test("the download action follows what's on the phone", () => {
@@ -72,10 +79,15 @@ test("the download action follows what's on the phone", () => {
 		buildBookMenu({ kind: "book" }, { ...base, download }, labels)[1].map(
 			(action) => action.label,
 		);
-	expect(library("none")).toEqual(["Like", "Add to list", "Download"]);
+	expect(library("none")).toEqual([
+		"Like",
+		"Add to list",
+		"Download",
+		"Share link",
+	]);
 	expect(library("active")).toContain("Cancel download");
 	expect(library("done")).toContain("Remove download");
-	expect(library(null)).toEqual(["Like", "Add to list"]);
+	expect(library(null)).toEqual(["Like", "Add to list", "Share link"]);
 });
 
 test("exporting the file sits beside the offline download, gated on its own", () => {
@@ -85,7 +97,12 @@ test("exporting the file sits beside the offline download, gated on its own", ()
 		labels,
 	)[1].map((action) => action.label);
 	// Can't keep it offline, may still take the file: the two are separate.
-	expect(library).toEqual(["Like", "Add to list", "Export file…"]);
+	expect(library).toEqual([
+		"Like",
+		"Add to list",
+		"Export file…",
+		"Share link",
+	]);
 });
 
 test("on the title's own page the menu drops what the page's buttons do", () => {
@@ -94,5 +111,38 @@ test("on the title's own page the menu drops what the page's buttons do", () => 
 		{ ...base, download: "none" },
 		labels,
 	);
-	expect(titles(sections)).toEqual([["Like"]]);
+	expect(titles(sections)).toEqual([["Like", "Share link"]]);
+});
+
+test("only an ebook the user may download can go to a Kindle", () => {
+	const library = (kind: "book" | "audiobook", canExport: boolean) =>
+		buildBookMenu({ kind }, { ...base, canExport }, labels)[1].map(
+			(action) => action.label,
+		);
+	expect(library("book", true)).toContain("Send to Kindle");
+	expect(library("book", false)).not.toContain("Send to Kindle");
+	expect(library("audiobook", true)).not.toContain("Send to Kindle");
+});
+
+test("metadata tools sit above delete, only for those who may edit", () => {
+	const sections = (kind: "book" | "audiobook") =>
+		titles(
+			buildBookMenu(
+				{ kind, onDetailPage: true },
+				{ ...base, canEditMetadata: true, canDelete: true },
+				labels,
+			),
+		);
+	expect(sections("book").slice(-2)).toEqual([
+		["Edit metadata", "Fix match", "Find metadata", "Restore original"],
+		["Delete"],
+	]);
+	expect(sections("audiobook").at(-2)).toEqual([
+		"Edit metadata",
+		"Fix match",
+		"Restore original",
+	]);
+	expect(
+		titles(buildBookMenu({ kind: "book" }, base, labels)).flat(),
+	).not.toContain("Edit metadata");
 });

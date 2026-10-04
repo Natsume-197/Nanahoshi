@@ -121,5 +121,7 @@ export interface BaseReaderProps {
 	/** The engine's canonical reading coordinate; never infer it from scroll. */
 	onPositionChange: (position: ReaderPosition) => void;
 	onSectionProgressChange: (progress: Map<string, SectionWithProgress>) => void;
+	/** Show or hide the reader menu (a centre tap on touch screens). */
+	onToggleChrome?: () => void;
 	apiRef: (api: BookReaderApi | null) => void;
 }

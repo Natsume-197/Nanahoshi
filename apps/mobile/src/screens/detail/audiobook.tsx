@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { View } from "react-native";
+import Animated from "react-native-reanimated";
 import { DetailHero } from "@/components/detail-hero";
 import { byPrefix, LinkedNames } from "@/components/linked-names";
+import { RefreshControl } from "@/components/refresh-control";
 import { Shelf } from "@/components/shelf";
+import { useArrival } from "@/components/skeleton";
 import { ErrorState } from "@/components/states";
 import { Text } from "@/components/text";
 import type { TileItem } from "@/components/title-tile";
@@ -18,6 +21,8 @@ import {
 import { t } from "@/lib/i18n";
 import { htmlToText } from "@/lib/plain-text";
 import { routes } from "@/lib/routes";
+import { audiobookDetailQueries } from "@/lib/title-queries";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 import {
@@ -38,6 +43,7 @@ import {
 } from "./layout";
 import { Description, TagChips } from "./parts";
 import { TitleActions } from "./title-actions";
+import { useDetailHeader } from "./use-detail-header";
 
 type Tab = "overview" | "chapters" | "listening" | "technical";
 
@@ -52,16 +58,12 @@ const clock = (seconds: number) => {
 /** Audiobook detail: the book page's layout plus the chapter list, which is
  * what a listener scans before pressing play. */
 export function AudiobookDetail({ uuid }: { uuid: string }) {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
+	const queries = audiobookDetailQueries(orpc, uuid);
 	const [tab, setTab] = useState<Tab>("overview");
-	const audiobook = useQuery(
-		orpc.audiobooks.getDetails.queryOptions({ input: { uuid } }),
-	);
-	const progress = useQuery(
-		orpc.listeningProgress.getProgress.queryOptions({
-			input: { bookUuid: uuid },
-		}),
-	);
+	const audiobook = useQuery(queries.detail);
+	const progress = useQuery(queries.progress);
 	const seriesUuid = audiobook.data?.series?.uuid;
 	const series = useQuery({
 		...orpc.audiobooks.listBySeries.queryOptions({
@@ -77,6 +79,11 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 		}),
 		enabled: authorUuids.length > 0,
 	});
+	const detailHeader = useDetailHeader(
+		audiobook.data ? titleOrUntitled(audiobook.data.title) : "",
+	);
+
+	const arrival = useArrival(!!audiobook.data);
 
 	if (audiobook.isError)
 		return <ErrorState onRetry={() => audiobook.refetch()} />;
@@ -141,8 +148,13 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 	return (
 		<>
 			<DetailHeaderMenu target={target} />
-			<ScrollView
-				contentContainerStyle={{ paddingBottom: space.xxl * 2 }}
+			{detailHeader.header}
+			<Animated.ScrollView
+				{...detailHeader.scrollProps}
+				entering={arrival}
+				contentContainerStyle={{
+					paddingBottom: space.xxl * 2 + miniPlayerInset,
+				}}
 				refreshControl={
 					<RefreshControl
 						refreshing={audiobook.isRefetching}
@@ -155,6 +167,8 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 			>
 				<DetailHero
 					uuid={uuid}
+					onTitleOffset={detailHeader.onTitleOffset}
+					scrollY={detailHeader.scrollY}
 					cover={data.cover}
 					color={data.mainColor}
 					shape="audio"
@@ -216,6 +230,10 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 											...data.tags.map((tag) => ({
 												key: tag.uuid,
 												label: tag.name,
+												href: {
+													pathname: "/tag/[uuid]" as const,
+													params: { uuid: tag.uuid, name: tag.name },
+												},
 											})),
 										]}
 									/>
@@ -304,7 +322,7 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 						/>
 					</View>
 				) : null}
-			</ScrollView>
+			</Animated.ScrollView>
 		</>
 	);
 }

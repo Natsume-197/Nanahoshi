@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/text";
+import { haptics } from "@/lib/haptics";
 import { space, usePalette } from "@/theme";
 
 // One flat page, Fable-style: sections split by hairlines, no cards.
@@ -121,12 +122,16 @@ export function DetailTabs<T extends string>({
 	onChange: (value: T) => void;
 }) {
 	const palette = usePalette();
+	const gutter = useDetailGutter();
 	return (
 		<View style={{ borderBottomWidth: 1, borderColor: palette.separator }}>
+			{/* Scrolls out to the screen edge, so a fourth tab runs off the side
+			    instead of being cut at the page gutter. */}
 			<ScrollView
 				horizontal
 				showsHorizontalScrollIndicator={false}
-				contentContainerStyle={{ gap: space.xl }}
+				style={{ marginHorizontal: -gutter }}
+				contentContainerStyle={{ gap: space.xl, paddingHorizontal: gutter }}
 				accessibilityRole="tablist"
 			>
 				{options.map((option) => {
@@ -136,7 +141,10 @@ export function DetailTabs<T extends string>({
 							key={option.value}
 							accessibilityRole="tab"
 							accessibilityState={{ selected: active }}
-							onPress={() => onChange(option.value)}
+							onPress={() => {
+								if (!active) haptics.select();
+								onChange(option.value);
+							}}
 							style={{ minHeight: 48, justifyContent: "center" }}
 						>
 							<Text

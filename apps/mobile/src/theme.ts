@@ -30,6 +30,8 @@ const light = {
 	coverEdge: "rgba(0,0,0,0.10)",
 	skeleton: "#f0f0f2",
 	danger: "#dc2626",
+	/** --warning: locked metadata fields. */
+	warning: "#905300",
 	/** Android press ripple on rows and icon buttons. */
 	ripple: "rgba(0,0,0,0.08)",
 	/** --radius 0.5rem → rounded-md covers. */
@@ -37,8 +39,8 @@ const light = {
 };
 
 const dark: typeof light = {
-	background: "#1f1f20",
-	chrome: "#161617",
+	background: "#19191a",
+	chrome: "#111112",
 	card: "#272729",
 	surfaceCard: "#272729",
 	surfaceCardHover: "#343436",
@@ -58,6 +60,7 @@ const dark: typeof light = {
 	coverEdge: "rgba(255,255,255,0.10)",
 	skeleton: "#2d2c2e",
 	danger: "#ef4444",
+	warning: "#efa831",
 	ripple: "rgba(255,255,255,0.10)",
 	/** Dark theme's --radius is 0.2rem, so covers are nearly square. */
 	coverRadius: 2.5,

@@ -41,6 +41,7 @@ export const icons = {
 		android: "logout",
 	},
 	sort: { ios: "arrow.up.arrow.down", android: "swap_vert" },
+	expand: { ios: "chevron.down", android: "expand_more" },
 	grid: { ios: "square.grid.2x2", android: "grid_view" },
 	list: { ios: "list.bullet", android: "view_list" },
 	clock: { ios: "clock", android: "schedule" },
@@ -51,8 +52,9 @@ export const icons = {
 	folder: { ios: "folder", android: "folder" },
 	filter: { ios: "line.3.horizontal.decrease", android: "filter_list" },
 	check: { ios: "checkmark", android: "check" },
-	more: { ios: "ellipsis", android: "more_horiz" },
-	// iOS keeps the horizontal ellipsis: SF Symbols has no vertical one.
+	// Android overflow menus are always the vertical ⋮; SF Symbols has only
+	// the horizontal ellipsis.
+	more: { ios: "ellipsis", android: "more_vert" },
 	moreVertical: { ios: "ellipsis", android: "more_vert" },
 	trash: { ios: "trash", android: "delete" },
 	info: { ios: "info.circle", android: "info" },
@@ -68,9 +70,12 @@ export const icons = {
 	followText: { ios: "scope", android: "my_location" },
 	seekFromText: { ios: "cursorarrow.click", android: "ads_click" },
 	// Settings.
+	stats: { ios: "chart.bar", android: "bar_chart" },
 	settings: { ios: "gearshape", android: "settings" },
 	account: { ios: "person.crop.circle", android: "account_circle" },
 	privacy: { ios: "lock", android: "lock" },
+	locked: { ios: "lock.fill", android: "lock" },
+	unlocked: { ios: "lock.open", android: "lock_open" },
 	appearance: { ios: "circle.lefthalf.filled", android: "contrast" },
 	link: { ios: "link", android: "link" },
 	device: { ios: "iphone", android: "smartphone" },
@@ -87,6 +92,14 @@ export const icons = {
 	downloaded: { ios: "arrow.down.circle.fill", android: "download_done" },
 	offline: { ios: "wifi.slash", android: "cloud_off" },
 	retry: { ios: "arrow.clockwise", android: "refresh" },
-	share: { ios: "square.and.arrow.up", android: "ios_share" },
+	share: { ios: "square.and.arrow.up", android: "share" },
+	send: { ios: "paperplane", android: "send" },
 	whatsNew: { ios: "sparkles", android: "new_releases" },
+	mail: { ios: "envelope", android: "mail" },
+	key: { ios: "key", android: "key" },
+	upload: { ios: "arrow.up.doc", android: "upload_file" },
+	checkCircle: { ios: "checkmark.circle.fill", android: "check_circle" },
+	circle: { ios: "circle", android: "radio_button_unchecked" },
+	tasks: { ios: "checklist", android: "checklist" },
+	newServer: { ios: "plus.rectangle.on.rectangle", android: "add_to_queue" },
 } satisfies Record<string, IconName>;

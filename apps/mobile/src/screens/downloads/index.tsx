@@ -12,12 +12,14 @@ import { useDownloadActions } from "@/downloads/use-download-actions";
 import { joinNames } from "@/lib/format";
 import { locale, t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { usePlayer } from "@/player/provider";
 import { space, usePalette } from "@/theme";
 
 /** Everything on this phone for the active server: what opens without a
  * network, what's still arriving, and how much room it takes. */
 export function DownloadsScreen() {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { titles, jobs } = useDownloadedTitles();
 	const used = titles.reduce((sum, title) => sum + title.bytes, 0);
 
@@ -26,7 +28,10 @@ export function DownloadsScreen() {
 			data={titles}
 			keyExtractor={(item) => `${item.kind}:${item.uuid}`}
 			contentInsetAdjustmentBehavior="automatic"
-			contentContainerStyle={{ paddingVertical: space.sm }}
+			contentContainerStyle={{
+				paddingVertical: space.sm,
+				paddingBottom: space.sm + miniPlayerInset,
+			}}
 			ListHeaderComponent={
 				titles.length > 0 ? (
 					<Text

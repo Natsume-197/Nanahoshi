@@ -24,8 +24,14 @@ export type BookMenuActionId =
 	| "cancelDownload"
 	| "removeDownload"
 	| "exportFile"
+	| "sendToKindle"
+	| "shareLink"
 	| "removeFromContinue"
 	| "notInterested"
+	| "editMetadata"
+	| "fixMatch"
+	| "enrichMetadata"
+	| "restoreMetadata"
 	| "delete";
 
 export type BookMenuAction = {
@@ -41,6 +47,7 @@ export type BookMenuState = {
 	isPlaying: boolean;
 	canLike: boolean;
 	canDelete: boolean;
+	canEditMetadata: boolean;
 	/** Where the title stands on this phone; null when it can't be downloaded. */
 	download: "none" | "active" | "done" | null;
 	/** The server's download permission: the real file, off the phone. */
@@ -58,9 +65,15 @@ type Labels = Record<
 	| "cancelDownload"
 	| "removeDownload"
 	| "exportFile"
+	| "sendToKindle"
+	| "shareLink"
 	| "removeContinueReading"
 	| "removeContinueListening"
 	| "notInterested"
+	| "editMetadata"
+	| "fixMatch"
+	| "enrichMetadata"
+	| "restoreMetadata"
 	| "delete",
 	string
 >;
@@ -123,6 +136,14 @@ export function buildBookMenu(
 			label: labels.exportFile,
 			icon: icons.share,
 		});
+	// The server mails the file itself, so it's gated like a download.
+	if (state.canExport && !audio)
+		library.push({
+			id: "sendToKindle",
+			label: labels.sendToKindle,
+			icon: icons.send,
+		});
+	library.push({ id: "shareLink", label: labels.shareLink, icon: icons.link });
 	if (state.inProgress)
 		library.push({
 			id: "removeFromContinue",
@@ -139,6 +160,26 @@ export function buildBookMenu(
 				id: "notInterested",
 				label: labels.notInterested,
 				icon: icons.notInterested,
+			},
+		]);
+	if (state.canEditMetadata)
+		sections.push([
+			{ id: "editMetadata", label: labels.editMetadata, icon: icons.edit },
+			{ id: "fixMatch", label: labels.fixMatch, icon: icons.search },
+			// Audiobooks refresh through their match; ebooks can ask the sources.
+			...(audio
+				? []
+				: [
+						{
+							id: "enrichMetadata" as const,
+							label: labels.enrichMetadata,
+							icon: icons.whatsNew,
+						},
+					]),
+			{
+				id: "restoreMetadata",
+				label: labels.restoreMetadata,
+				icon: icons.retry,
 			},
 		]);
 	if (state.canDelete)

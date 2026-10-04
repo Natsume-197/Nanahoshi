@@ -1,4 +1,3 @@
-import { Host, Switch } from "@expo/ui";
 import {
 	applyTemplate,
 	countRules,
@@ -26,22 +25,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useRef, useState } from "react";
-import {
-	ActivityIndicator,
-	Pressable,
-	ScrollView,
-	useColorScheme,
-	View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { Button } from "@/components/button";
 import { Cover } from "@/components/cover";
+import { HeaderButton } from "@/components/header-button";
 import { Icon, icons } from "@/components/icon";
 import { MenuSelect } from "@/components/menu-select";
 import { OptionSheet } from "@/components/option-sheet";
 import { askChoice, showNotice } from "@/components/prompt";
-import { ErrorState, Spinner } from "@/components/states";
+import { FormSkeleton } from "@/components/skeleton";
+import { ErrorState } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
+import { Toggle } from "@/components/toggle";
 import { useCan } from "@/lib/abilities";
 import { locale, t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
@@ -96,7 +92,7 @@ export function EditDynamicCollection({ id }: { id: string }) {
 		...orpc.collections.updateDefinition.mutationOptions(),
 		onError: () => showNotice(t("toast.collection_update_failed")),
 	});
-	if (details.isPending) return <Spinner />;
+	if (details.isPending) return <FormSkeleton fields={3} />;
 	const collection = details.data?.collection;
 	if (
 		details.error ||
@@ -155,7 +151,6 @@ function DynamicCollectionEditor({
 	onSubmit: (value: Submission) => Promise<void>;
 }) {
 	const palette = usePalette();
-	const scheme = useColorScheme();
 	const navigation = useNavigation();
 	const can = useCan();
 	const [baseline] = useState(
@@ -313,12 +308,7 @@ function DynamicCollectionEditor({
 									{t("collection.dynamic_public_help")}
 								</Text>
 							</View>
-							<Host
-								matchContents
-								colorScheme={scheme === "dark" ? "dark" : "light"}
-							>
-								<Switch value={isPublic} onValueChange={setIsPublic} />
-							</Host>
+							<Toggle value={isPublic} onValueChange={setIsPublic} />
 						</View>
 					) : null}
 					{isPublic &&
@@ -392,39 +382,6 @@ function DynamicCollectionEditor({
 				/>
 			) : null}
 		</>
-	);
-}
-
-function HeaderButton({
-	label,
-	strong,
-	busy,
-	onPress,
-}: {
-	label: string;
-	strong?: boolean;
-	busy?: boolean;
-	onPress: () => void;
-}) {
-	const palette = usePalette();
-	if (busy) return <ActivityIndicator color={palette.text} />;
-	return (
-		<Pressable
-			onPress={onPress}
-			hitSlop={10}
-			accessibilityRole="button"
-			style={{ paddingHorizontal: space.xs }}
-		>
-			<Text
-				variant="body"
-				style={{
-					color: strong ? palette.accent : palette.text,
-					fontWeight: strong ? "600" : "400",
-				}}
-			>
-				{label}
-			</Text>
-		</Pressable>
 	);
 }
 

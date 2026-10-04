@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { AddToListHost } from "@/components/add-to-list/host";
 import { BookMenuProvider } from "@/components/book-menu";
@@ -20,12 +21,21 @@ import { fonts, type, usePalette } from "@/theme";
  * Library · Me. Each tab keeps its own stack; re-tapping pops to its root. */
 export default function TabsLayout() {
 	const palette = usePalette();
+	const pathname = usePathname();
 	const { orpc } = useApi();
 	const { serverUrl, auth } = useConnection();
 	const active = auth.useActiveOrganization();
 	const session = auth.useSession();
 	const profile = useQuery(orpc.profile.getProfile.queryOptions());
 	const playing = usePlayerState((s) => s.book !== null);
+	const hideTabs = ![
+		"/",
+		"/index",
+		"/search",
+		"/collections",
+		"/library",
+		"/me",
+	].includes(pathname);
 	const avatar = mediaUrl(
 		serverUrl,
 		profile.data?.image ?? session.data?.user.image,
@@ -51,6 +61,7 @@ export default function TabsLayout() {
 		// Long-press any title, anywhere in the tabs, for its actions menu.
 		<BookMenuProvider key={active.data?.id ?? "default"}>
 			<NativeTabs
+				hidden={hideTabs}
 				{...(process.env.EXPO_OS === "ios"
 					? // Scrolling tucks the bar away, and the player into it, as in Music.
 						{ minimizeBehavior: "onScrollDown" as const }

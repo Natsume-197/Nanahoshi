@@ -41,9 +41,9 @@ export function CollectionRow({
 				alignItems: "center",
 				gap: 20,
 				minHeight: 112,
+				// Full-bleed list row: the padding lines the mosaic up with the
+				// page gutter and the press state spans the screen.
 				padding: space.lg,
-				borderRadius: radius.field,
-				borderCurve: "continuous",
 				backgroundColor:
 					pressed && !IS_ANDROID ? palette.surfaceCardHover : "transparent",
 			})}

@@ -1,9 +1,10 @@
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { RefreshControl, View } from "react-native";
+import { View } from "react-native";
 import { ChipRow } from "@/components/chip";
 import { icons } from "@/components/icon";
+import { RefreshControl } from "@/components/refresh-control";
 import { SeriesTile, type SeriesTileItem } from "@/components/series-tile";
 import { SortButton } from "@/components/sort-button";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/states";
 import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
 import { t } from "@/lib/i18n";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space } from "@/theme";
 
@@ -22,6 +24,7 @@ type Sort = "recent" | "name" | "books";
 const PAGE = 30;
 
 export function SeriesList({ initialFormat }: { initialFormat?: Format }) {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const formats = useQuery(
 		orpc.books.availableFormats.queryOptions({ staleTime: 60_000 }),
@@ -84,7 +87,7 @@ export function SeriesList({ initialFormat }: { initialFormat?: Format }) {
 			keyExtractor={(item) => item.uuid}
 			contentContainerStyle={{
 				paddingHorizontal: space.lg - gap / 2,
-				paddingBottom: space.xxl,
+				paddingBottom: space.xxl + miniPlayerInset,
 			}}
 			onEndReachedThreshold={0.6}
 			onEndReached={() => {

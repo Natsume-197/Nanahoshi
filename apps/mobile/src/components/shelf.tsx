@@ -1,7 +1,9 @@
 import type { Href } from "expo-router";
-import { FlatList, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { sizes, space } from "@/theme";
 import { SectionHeader } from "./section-header";
+import { useArrival } from "./skeleton";
 import { ShelfSkeleton } from "./states";
 import { type TileItem, TitleTile } from "./title-tile";
 
@@ -14,8 +16,11 @@ export function Shelf({
 	onMore,
 	items,
 	loading,
+	audio,
 	detail = false,
 }: {
+	/** Audiobook-only row: square placeholders before the items arrive. */
+	audio?: boolean;
 	detail?: boolean;
 	title: string;
 	href?: Href;
@@ -32,12 +37,13 @@ export function Shelf({
 				: 16
 		: space.lg;
 	const tileWidth = detail ? (width >= 768 ? 140 : 120) : SHELF_TILE_WIDTH;
+	const arrival = useArrival(!loading && !!items);
 	if (!loading && (!items || items.length === 0)) return null;
 	// A row of nothing but square artwork uses the square frame, as on the web.
 	const allSquare =
-		!!items &&
-		items.length > 0 &&
-		items.every((item) => item.kind === "audiobook");
+		items && items.length > 0
+			? items.every((item) => item.kind === "audiobook")
+			: !!audio;
 
 	return (
 		<View style={{ gap: space.lg }}>
@@ -48,9 +54,10 @@ export function Shelf({
 				onPress={onMore}
 			/>
 			{loading || !items ? (
-				<ShelfSkeleton width={tileWidth} audio={allSquare} />
+				<ShelfSkeleton width={tileWidth} audio={allSquare} gutter={gutter} />
 			) : (
-				<FlatList
+				<Animated.FlatList
+					entering={arrival}
 					horizontal
 					data={items}
 					keyExtractor={(item) => `${item.kind}:${item.uuid}`}

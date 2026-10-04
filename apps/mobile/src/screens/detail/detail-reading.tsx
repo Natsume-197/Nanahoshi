@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { View } from "react-native";
+import { Button } from "@/components/button";
 import { DetailPanel } from "@/components/detail-panel";
 import { ProgressBar } from "@/components/progress-bar";
-import { ErrorState, Spinner } from "@/components/states";
+import { Bone, PanelSkeleton, SkeletonPulse } from "@/components/skeleton";
+import { ErrorState } from "@/components/states";
 import { Text } from "@/components/text";
 import { formatDuration } from "@/lib/format";
 import { locale, t } from "@/lib/i18n";
@@ -27,9 +30,48 @@ export function DetailReading({
 			},
 		}),
 	);
-	if (history.isPending) return <Spinner />;
+	if (history.isPending)
+		return (
+			<View style={{ gap: space.xxl }}>
+				<SkeletonPulse>
+					<View style={{ gap: space.lg }}>
+						<Bone width={96} height={32} />
+						<Bone width="100%" height={6} radius={3} />
+					</View>
+				</SkeletonPulse>
+				<PanelSkeleton rows={4} />
+			</View>
+		);
 	if (history.isError) return <ErrorState onRetry={() => history.refetch()} />;
 	const data = history.data;
+	const current = data.runs.find((run) => run.id === data.runId);
+	// The goal, its calendar and the pace live on the full history page.
+	const openHistory = (
+		<Button
+			variant="secondary"
+			label={
+				current?.state === "finished"
+					? t("reading_view_history")
+					: current?.goalDate
+						? t("reading_goal_summary", {
+								date: new Date(
+									`${current.goalDate}T12:00:00Z`,
+								).toLocaleDateString(locale, {
+									timeZone: "UTC",
+									day: "numeric",
+									month: "short",
+								}),
+							})
+						: t("reading_goal_set")
+			}
+			onPress={() =>
+				router.push({
+					pathname: "/history/[uuid]",
+					params: { uuid, kind: audio ? "audiobook" : "book" },
+				})
+			}
+		/>
+	);
 	if (!data.sessions.length)
 		return (
 			<View style={{ gap: space.md, paddingVertical: space.xxl }}>
@@ -39,6 +81,7 @@ export function DetailReading({
 				<Text tone="secondary" style={{ lineHeight: 26 }}>
 					{t(audio ? "listening_empty_hint" : "reading_empty_hint")}
 				</Text>
+				<View style={{ marginTop: space.md }}>{openHistory}</View>
 			</View>
 		);
 	return (
@@ -48,6 +91,7 @@ export function DetailReading({
 					{data.position == null ? "—" : `${Math.round(data.position * 100)}%`}
 				</Text>
 				<ProgressBar value={(data.position ?? 0) * 100} height={6} />
+				{openHistory}
 				<DetailPanel
 					title={t("reading_time")}
 					rows={[

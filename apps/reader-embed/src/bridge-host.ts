@@ -87,6 +87,7 @@ export function connectNativeHost(boot: ReaderBootConfig) {
 		coverUrl: (filename, width) =>
 			`${boot.serverUrl}/api/data/covers/${filename}?width=${width}&quality=${COVER_QUALITY}`,
 		setChromeColor: (color) => send({ type: "chrome-color", color }),
+		setImmersive: (immersive) => send({ type: "immersive", immersive }),
 		notifyError: (message) => toast.error(message),
 		openAppRoute: (href) => send({ type: "navigate", href }),
 		usePlayAudiobook: () => (uuid) => send({ type: "play-audiobook", uuid }),

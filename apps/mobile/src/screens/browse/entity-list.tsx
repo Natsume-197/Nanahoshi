@@ -2,12 +2,13 @@ import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { Href } from "expo-router";
 import { useState } from "react";
-import { RefreshControl, View } from "react-native";
+import { View } from "react-native";
 import { Cover } from "@/components/cover";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { MediaRow } from "@/components/media-row";
 import { Monogram } from "@/components/monogram";
 import { PressableLink } from "@/components/pressable-link";
+import { RefreshControl } from "@/components/refresh-control";
 import { SearchField } from "@/components/search-field";
 import {
 	EmptyState,
@@ -19,6 +20,7 @@ import { Text } from "@/components/text";
 import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
 
@@ -43,6 +45,7 @@ const META: Record<EntityKind, { icon: IconName; placeholderKey: string }> = {
 /** Authors, narrators, publishers and genres share one screen: a filter
  * field and a paged list of rows, alphabetical. */
 export function EntityList({ kind }: { kind: EntityKind }) {
+	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const [query, setQuery] = useState("");
 	const input = (cursor: number) => ({
@@ -147,7 +150,7 @@ export function EntityList({ kind }: { kind: EntityKind }) {
 			keyboardDismissMode="on-drag"
 			keyExtractor={(row) => row.uuid}
 			contentContainerStyle={{
-				paddingBottom: space.xxl,
+				paddingBottom: space.xxl + miniPlayerInset,
 				paddingHorizontal: people ? space.lg / 2 : 0,
 			}}
 			onEndReachedThreshold={0.6}

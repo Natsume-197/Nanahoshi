@@ -204,7 +204,17 @@ export function ReaderScreen({
 	// Ref so the custom-theme preview resolves themes saved in the same tick
 	// (the dialog commits the theme colors and selects the theme back to back).
 	const customThemesRef = useRef(customThemes);
-	const [showHeader, setShowHeader] = useState(false);
+	const [showHeader, setShowHeaderState] = useState(false);
+	const showHeaderRef = useRef(false);
+	// The system bars follow the reader menu: hidden while reading, back with
+	// the menu (hosts without immersive mode ignore it).
+	const setShowHeader = (next: boolean | ((open: boolean) => boolean)) => {
+		const open =
+			typeof next === "function" ? next(showHeaderRef.current) : next;
+		showHeaderRef.current = open;
+		setShowHeaderState(open);
+		readerHost().setImmersive?.(!open);
+	};
 	const [tocOpen, setTocOpen] = useState(false);
 	const [galleryOpen, setGalleryOpen] = useState(false);
 	const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
@@ -679,9 +689,11 @@ export function ReaderScreen({
 		readerHost().setChromeColor(
 			getReaderTheme(settings.theme, customThemesRef.current).backgroundColor,
 		);
+		readerHost().setImmersive?.(true);
 		return () => {
 			document.body.classList.remove("reader-route-font");
 			readerHost().setChromeColor(null);
+			readerHost().setImmersive?.(false);
 		};
 	});
 

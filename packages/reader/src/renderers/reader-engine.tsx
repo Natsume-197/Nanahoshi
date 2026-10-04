@@ -163,6 +163,7 @@ export function ReaderEngine({
 		initialPosition,
 		onPositionChange,
 		onSectionProgressChange,
+		onToggleChrome,
 		apiRef: controllerRef,
 	};
 
