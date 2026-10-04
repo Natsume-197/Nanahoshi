@@ -361,14 +361,7 @@ export function EmbedWebView({
 			    background must not touch them. Reading goes full screen, as in
 			    Play Books; the menu brings the bars back. */}
 			{visible && shown ? (
-				<>
-					<StatusBar
-						style={lightStatusBar ? "light" : "dark"}
-						hidden={hideBars}
-						animated
-					/>
-					<NavigationBar hidden={hideBars} />
-				</>
+				<ReaderSystemBars hidden={hideBars} lightStatusBar={lightStatusBar} />
 			) : null}
 			<WebView
 				ref={webview}
@@ -396,5 +389,28 @@ export function EmbedWebView({
 				/>
 			) : null}
 		</View>
+	);
+}
+
+function ReaderSystemBars({
+	hidden,
+	lightStatusBar,
+}: {
+	hidden: boolean;
+	lightStatusBar: boolean;
+}) {
+	// expo-navigation-bar stores the last applied value as its default, so a
+	// reader closed full screen would leave the system bar hidden (and the tab
+	// bar padded for it) on unmount. Put the bar back by hand.
+	useMountEffect(() => () => NavigationBar.setHidden(false));
+	return (
+		<>
+			<StatusBar
+				style={lightStatusBar ? "light" : "dark"}
+				hidden={hidden}
+				animated
+			/>
+			<NavigationBar hidden={hidden} />
+		</>
 	);
 }

@@ -45,3 +45,17 @@ index 10cd91b..57ce71b 100644
          bottomNavigationView.itemActiveIndicatorColor = ColorStateList.valueOf(activeIndicatorColor)
      }
  
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/TabsContainer.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/TabsContainer.kt
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/TabsContainer.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/TabsContainer.kt
+@@ -386,7 +386,9 @@
+         }
+     }
+ 
+-    override fun getInterfaceInsets(): EdgeInsets = EdgeInsets(0.0f, 0.0f, 0.0f, bottomNavigationView.height.toFloat())
++    // A hidden bar keeps its last height; screens attaching under it must not pad for it.
++    override fun getInterfaceInsets(): EdgeInsets =
++        EdgeInsets(0.0f, 0.0f, 0.0f, if (tabBarHidden) 0.0f else bottomNavigationView.height.toFloat())
+ 
+     override fun getResolvedUiNightMode() = colorSchemeCoordinator.getResolvedUiNightMode()
+ 
