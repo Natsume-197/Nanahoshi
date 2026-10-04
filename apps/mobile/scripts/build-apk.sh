@@ -25,6 +25,12 @@ export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 
 bun run reader:bundle
 
+# Bun skips Skia's postinstall, which copies its prebuilt binaries into libs/.
+skia=node_modules/@shopify/react-native-skia
+if [ ! -d "$skia/libs/android" ]; then
+	node "$skia/scripts/install-libs.js"
+fi
+
 if [ "$clean" = 1 ] || [ ! -d android ]; then
 	bunx expo prebuild -p android --clean
 fi
