@@ -120,6 +120,7 @@ export function useReadingTracker(options: Options) {
 	const reportPosition = useCallback((position: number) => {
 		const clock = runtime.current?.isOwner() ? runtime.current.clock : null;
 		if (!clock || position === clock.position) return;
+		clock.characterCount = latest.current.bookCharCount || null;
 		clock.move(
 			Math.max(0, Math.min(1, position)),
 			jumpRef.current,
@@ -419,6 +420,7 @@ export function useReadingTracker(options: Options) {
 			else {
 				const pos = latest.current.getPosition();
 				if (pos !== null && pos !== clock.position) {
+					clock.characterCount = latest.current.bookCharCount || null;
 					clock.move(
 						pos,
 						jumpRef.current,

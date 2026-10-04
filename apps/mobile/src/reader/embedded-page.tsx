@@ -9,7 +9,13 @@ import { readerPageQuery } from "./reader-page";
 
 /** A web page of the reader's (stats, a title's history) under the app's
  * header, rendered by the embedded reader page. */
-export function EmbeddedPage({ screen }: { screen: ReaderBootScreen }) {
+export function EmbeddedPage({
+	screen,
+	onContentHeight,
+}: {
+	screen: ReaderBootScreen;
+	onContentHeight?: (height: number) => void;
+}) {
 	const palette = usePalette();
 	const { auth } = useConnection();
 	const session = auth.useSession().data;
@@ -30,6 +36,7 @@ export function EmbeddedPage({ screen }: { screen: ReaderBootScreen }) {
 					serverId={serverId}
 					page={page.data}
 					fullScreen={false}
+					onContentHeight={onContentHeight}
 				/>
 			) : (
 				<Spinner />

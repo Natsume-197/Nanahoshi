@@ -1,7 +1,7 @@
 import type { ORPCErrorJSON } from "@orpc/client";
 
 /** Bumped when either side changes a message shape; the host refuses a mismatch. */
-export const READER_BRIDGE_PROTOCOL = 1;
+export const READER_BRIDGE_PROTOCOL = 3;
 
 /** Set by the host before the page's scripts run. */
 export const READER_BOOT_GLOBAL = "__NANAHOSHI_READER_BOOT__";
@@ -41,6 +41,8 @@ export type ReaderBootScreen =
 			view: "all" | "reading" | "listening";
 			/** The app's page colour, so the page doesn't sit a shade off it. */
 			background?: string;
+			/** Inside a native list: the page reports its height and never scrolls. */
+			fitContent?: boolean;
 	  }
 	| {
 			/** One title's reading or listening history, with its goal. */
@@ -55,9 +57,12 @@ export type ReaderBootScreen =
 
 export interface ReaderBootConfig {
 	protocol: typeof READER_BRIDGE_PROTOCOL;
-	screen: ReaderBootScreen;
+	/** Absent for a page booted ahead of time: it waits for "open". */
+	screen?: ReaderBootScreen;
 	userId: string;
-	serverId: string;
+	serverId?: string;
+	/** Painted before anything renders, so the page never flashes another colour. */
+	background?: string;
 	/** Origin of the Nanahoshi server, for cover and media URLs. */
 	serverUrl: string;
 	locale: string;
@@ -101,10 +106,16 @@ export type ReaderToHostMessage =
 	| { type: "chrome-color"; color: string | null }
 	/** Reading without the menu: hide the status and navigation bars. */
 	| { type: "immersive"; immersive: boolean }
+	/** The page's height, for a host that sizes the WebView to it. */
+	| { type: "content-height"; height: number }
 	| { type: "invalidate"; target: "reading-progress" | "recommendations" }
 	| ({ type: "audio" } & ReaderAudioCommand)
 	/** Read & Listen started (or changed) in the reader; null when it ended. */
 	| { type: "read-listen-bar"; bar: ReadListenBarState | null }
+	/** Answers "back": whether a panel closed, or the screen should be left. */
+	| { type: "back-result"; handled: boolean }
+	/** Answers "close": the page has unmounted and its last saves are answered. */
+	| { type: "closed" }
 	| { type: "error"; message: string };
 
 export type HostToReaderMessage =
@@ -117,6 +128,13 @@ export type HostToReaderMessage =
 	  }
 	| { type: "insets"; insets: ReaderInsets }
 	| { type: "visibility"; state: "visible" | "hidden" }
+	/** Shows a screen on a page booted ahead of time. */
+	| { type: "open"; screen: ReaderBootScreen; serverId: string }
+	/** The system Back: close the open panel, if any. */
+	| { type: "back" }
+	/** The screen is leaving: unmount so the reader saves, as a web exit does.
+	 * The page then waits for the next "open". */
+	| { type: "close" }
 	| { type: "audio-state"; state: ReaderAudioState }
 	/** A Read & Listen control pressed in the app's player bar. */
 	| {

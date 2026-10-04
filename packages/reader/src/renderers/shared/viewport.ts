@@ -32,22 +32,28 @@ export function readerColumnHeight(
 		: vh;
 }
 
-/** CSS height for a fixed vertical reading column. The player reserve is
- * outside the reading area, so subtract it after applying the configured cap:
- * otherwise a capped column keeps its pre-player height and consumes the
- * vertical padding that should remain visible above the player. */
+/** CSS height for a fixed vertical reading column. The route is shorter than
+ * the viewport by the reserve (the player, or the bottom safe area without
+ * one), so subtract it after applying the configured cap: otherwise the column
+ * runs past the route and its last line is clipped. */
 export function readerColumnHeightCss(
 	viewportHeightPx: number,
 	secondDimensionMaxValue: number,
-	reservePlayerSpace: boolean,
 ): string {
-	const cappedHeight = secondDimensionMaxValue
+	const height = secondDimensionMaxValue
 		? Math.min(secondDimensionMaxValue, viewportHeightPx)
 		: viewportHeightPx;
-	if (!reservePlayerSpace) return `${cappedHeight}px`;
+	return wholePixels(
+		`max(0px, calc(${height}px - var(--reader-player-reserve-current)))`,
+	);
+}
 
-	const playerSafeHeight = `max(0px, calc(${viewportHeightPx}px - var(--reader-player-reserve-current)))`;
-	return secondDimensionMaxValue
-		? `max(0px, calc(min(${secondDimensionMaxValue}px, ${viewportHeightPx}px) - var(--reader-player-reserve-current)))`
-		: playerSafeHeight;
+/** Rounds a CSS length down to whole pixels. Pages advance by the integer
+ * clientHeight, so a fractional page (a 15.14px safe area) drifts a little
+ * further on every turn until the first line is clipped. */
+export function wholePixels(length: string): string {
+	return typeof CSS !== "undefined" &&
+		CSS.supports?.("height", "round(down, 1.5px, 1px)")
+		? `round(down, ${length}, 1px)`
+		: length;
 }

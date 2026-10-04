@@ -55,6 +55,8 @@ export function PdfSearchPanel({
 	const [scannedPages, setScannedPages] = useState(0);
 	const [searchError, setSearchError] = useState<string>();
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	// EmbedPDF activates the first match by itself; only a match the reader picks may move the page.
+	const picked = useRef(false);
 
 	const normalizedQuery = query.trim();
 	const activeResult = searchState.results[searchState.activeResultIndex];
@@ -90,6 +92,7 @@ export function PdfSearchPanel({
 		words = wholeWord,
 	) => {
 		cancelSearch();
+		picked.current = false;
 		if (!search) return;
 		search.setFlags([
 			...(caseSensitive ? [MatchFlag.MatchCase] : []),
@@ -126,13 +129,14 @@ export function PdfSearchPanel({
 	const attachActiveResult = useCallback(
 		(button: HTMLButtonElement | null) => {
 			if (!button || !activeResult || searchState.activeResultIndex < 0) return;
-			goToPage(activeResult.pageIndex + 1);
+			if (picked.current) goToPage(activeResult.pageIndex + 1);
 			button.scrollIntoView?.({ block: "nearest" });
 		},
 		[activeResult, goToPage, searchState.activeResultIndex],
 	);
 
 	const move = (direction: -1 | 1) => {
+		picked.current = true;
 		if (direction < 0) search?.previousResult();
 		else search?.nextResult();
 	};
@@ -305,7 +309,11 @@ export function PdfSearchPanel({
 							variant="ghost"
 							aria-current={active ? "true" : undefined}
 							className="mb-1 h-auto w-full items-start whitespace-normal px-3 py-2.5 text-left"
-							onClick={() => search?.goToResult(index)}
+							onClick={() => {
+								picked.current = true;
+								search?.goToResult(index);
+								goToPage(result.pageIndex + 1);
+							}}
 						>
 							<span className="min-w-0">
 								<span className="mb-1 block font-medium text-[0.6875rem] uppercase tracking-wide opacity-45">

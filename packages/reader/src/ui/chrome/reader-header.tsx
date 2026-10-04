@@ -18,6 +18,7 @@ import {
 	useState,
 } from "react";
 import { m } from "../../i18n/paraglide/messages";
+import { BackDismiss } from "../../interaction/back-dismiss";
 import type { ReaderTheme } from "../../presentation/settings";
 import { ReadListenIcon } from "../read-listen-icon";
 
@@ -190,6 +191,7 @@ export function ReaderHeader({
 
 	return (
 		<>
+			{moreOpen && <BackDismiss onDismiss={() => setMoreOpen(false)} />}
 			{/* Outside the translated bar: a transform would shrink `fixed inset-0` to the bar. */}
 			{moreOpen && (
 				<button

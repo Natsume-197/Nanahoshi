@@ -14,6 +14,7 @@ import { createPdfSections } from "./document/pdf-source";
 import type { ReaderPosition, SectionWithProgress } from "./document/types";
 import { readerApi, readerHost } from "./host/reader-host";
 import { m } from "./i18n/paraglide/messages";
+import { BackDismiss } from "./interaction/back-dismiss";
 import { useBookLoader } from "./interaction/use-book-loader";
 import { useReaderKeybinds } from "./interaction/use-reader-keybinds";
 import { useReaderSync } from "./interaction/use-reader-sync";
@@ -689,7 +690,6 @@ export function ReaderScreen({
 		readerHost().setChromeColor(
 			getReaderTheme(settings.theme, customThemesRef.current).backgroundColor,
 		);
-		readerHost().setImmersive?.(true);
 		return () => {
 			document.body.classList.remove("reader-route-font");
 			readerHost().setChromeColor(null);
@@ -898,6 +898,8 @@ export function ReaderScreen({
 				<ReaderLoadingScreen
 					state={loadState}
 					reservePlayerSpace={reservePlayerSpace}
+					backgroundColor={theme.backgroundColor}
+					color={theme.fontColor}
 				/>
 			</>
 		);
@@ -977,6 +979,17 @@ export function ReaderScreen({
 			}
 		>
 			{readerSync}
+			<EnterImmersive />
+			{tocOpen && <BackDismiss onDismiss={() => setTocOpen(false)} />}
+			{quickSettingsOpen && <BackDismiss onDismiss={closeQuickSettings} />}
+			{galleryOpen && (
+				<BackDismiss
+					onDismiss={() => {
+						restoreDocumentScrollbar(settings.theme);
+						setGalleryOpen(false);
+					}}
+				/>
+			)}
 			<FocusReaderScrollContainer
 				key={readListenActive ? "read-listen" : "reader"}
 				containerRef={readerSurfaceRef}
@@ -1180,4 +1193,10 @@ export function ReaderScreen({
 			)}
 		</main>
 	);
+}
+
+/** The system bars hide once the book shows, not while it loads. */
+function EnterImmersive() {
+	useMountEffect(() => readerHost().setImmersive?.(true));
+	return null;
 }

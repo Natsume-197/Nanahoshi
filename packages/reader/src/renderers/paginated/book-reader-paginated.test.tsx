@@ -118,8 +118,8 @@ describe("vertical page padding", () => {
 		expect(viewport).toEqual({ width: 936, height: 700 });
 	});
 
-	test("centres a capped page in the player-safe vertical area", () => {
-		expect(paginatedReaderFrameStyle(32, true, 800, true)).toEqual({
+	test("centres a page inside the route, above the player or bottom safe area", () => {
+		expect(paginatedReaderFrameStyle(32, true, 800)).toEqual({
 			paddingLeft: "32px",
 			paddingRight: "32px",
 			height: "max(0px, calc(800px - var(--reader-player-reserve-current)))",
@@ -185,7 +185,6 @@ describe("BookReaderPaginated image section navigation", () => {
 				navigationBlocked={false}
 				avoidPageBreak={false}
 				pageColumns={1}
-				reservePlayerSpace={true}
 				sections={[
 					{
 						reference: "nanahoshi-epub-p-001",
@@ -335,7 +334,6 @@ describe("BookReaderPaginated image section navigation", () => {
 				navigationBlocked={false}
 				avoidPageBreak={false}
 				pageColumns={1}
-				reservePlayerSpace={false}
 				sections={[
 					{
 						reference: "nanahoshi-epub-cover",
@@ -484,7 +482,6 @@ describe("BookReaderPaginated wheel navigation", () => {
 				navigationBlocked={false}
 				avoidPageBreak={false}
 				pageColumns={1}
-				reservePlayerSpace={false}
 				sections={[
 					{
 						reference: "nanahoshi-epub-p-001",
@@ -556,7 +553,6 @@ test("lazy narration navigation wins over startup and an older pending chapter",
 				verticalMode={false}
 				theme={getReaderTheme(defaultReaderSettings.theme)}
 				lazyBook={lazyBook}
-				reservePlayerSpace={false}
 				navigationBlocked={false}
 				sections={[0, 1].map((index) => ({
 					reference: `nanahoshi-epub-${index}`,
@@ -622,7 +618,6 @@ test("loads the initial page after an effect cleanup and restart", async () => {
 			htmlContent='<div id="nanahoshi-epub-0"><p>本文です。</p></div>'
 			verticalMode={false}
 			theme={getReaderTheme(defaultReaderSettings.theme)}
-			reservePlayerSpace={false}
 			navigationBlocked={false}
 			sections={[
 				{

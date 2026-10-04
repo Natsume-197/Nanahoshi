@@ -4,6 +4,11 @@
 	overscroll-behavior: contain;
 }
 
+.nanahoshi-pdf-viewport [data-reader-pdf-page] {
+	/* biome-ignore lint/complexity/noImportantStyles: EmbedPDF's pointer mode sets an inline touch-action: none on every page, which blocks finger scrolling. */
+	touch-action: pan-x pan-y pinch-zoom !important;
+}
+
 .nanahoshi-pdf-scroller {
 	min-width: 100%;
 	min-height: 100%;

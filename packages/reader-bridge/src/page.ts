@@ -27,6 +27,13 @@ export interface ReaderPageBridge {
 	): Promise<unknown>;
 	onInsets(listener: (insets: ReaderInsets) => void): () => void;
 	onVisibility(listener: (state: "visible" | "hidden") => void): () => void;
+	onClose(listener: () => void): () => void;
+	onOpen(
+		listener: (message: Extract<HostToReaderMessage, { type: "open" }>) => void,
+	): () => void;
+	onBack(listener: () => void): () => void;
+	/** Resolves once no call has been waiting for the host for `quietMs`. */
+	drained(quietMs?: number): Promise<void>;
 	onAudioState(listener: (state: ReaderAudioState) => void): () => void;
 	onReadListenCommand(
 		listener: (command: ReadListenCommand) => void,
@@ -43,6 +50,12 @@ export function createReaderPageBridge(
 	const visibilityListeners = new Set<(state: "visible" | "hidden") => void>();
 	const audioListeners = new Set<(state: ReaderAudioState) => void>();
 	const commandListeners = new Set<(command: ReadListenCommand) => void>();
+	const closeListeners = new Set<() => void>();
+	const backListeners = new Set<() => void>();
+	const openListeners = new Set<
+		(message: Extract<HostToReaderMessage, { type: "open" }>) => void
+	>();
+	let lastSettled = Date.now();
 
 	const send = (message: ReaderToHostMessage) => post(JSON.stringify(message));
 
@@ -54,6 +67,7 @@ export function createReaderPageBridge(
 					const request = pending.get(message.id);
 					if (!request) return;
 					pending.delete(message.id);
+					lastSettled = Date.now();
 					if (message.ok) request.resolve(decodeRpcPayload(message.payload));
 					else request.reject(decodeRpcError(message.error));
 					return;
@@ -70,6 +84,15 @@ export function createReaderPageBridge(
 				case "read-listen-command":
 					for (const listener of commandListeners) listener(message.command);
 					return;
+				case "close":
+					for (const listener of closeListeners) listener();
+					return;
+				case "back":
+					for (const listener of backListeners) listener();
+					return;
+				case "open":
+					for (const listener of openListeners) listener(message);
+					return;
 			}
 		},
 		call(path, input, signal) {
@@ -79,6 +102,7 @@ export function createReaderPageBridge(
 				// The host keeps working after an abort; only the caller stops waiting.
 				const abort = () => {
 					pending.delete(id);
+					lastSettled = Date.now();
 					reject(signal?.reason);
 				};
 				signal?.addEventListener("abort", abort, { once: true });
@@ -107,6 +131,27 @@ export function createReaderPageBridge(
 		onVisibility(listener) {
 			visibilityListeners.add(listener);
 			return () => visibilityListeners.delete(listener);
+		},
+		onOpen(listener) {
+			openListeners.add(listener);
+			return () => openListeners.delete(listener);
+		},
+		onBack(listener) {
+			backListeners.add(listener);
+			return () => backListeners.delete(listener);
+		},
+		onClose(listener) {
+			closeListeners.add(listener);
+			return () => closeListeners.delete(listener);
+		},
+		// A finished save may chain another call (sessions, presence), so wait for quiet.
+		async drained(quietMs = 150) {
+			const since = Date.now();
+			while (
+				pending.size > 0 ||
+				Date.now() - Math.max(lastSettled, since) < quietMs
+			)
+				await new Promise((resolve) => setTimeout(resolve, 25));
 		},
 		onAudioState(listener) {
 			audioListeners.add(listener);

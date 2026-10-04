@@ -225,3 +225,102 @@ test("the finished summary retains its final position while the reader navigates
 	f.clock.start(0.8);
 	expect(f.clock.snapshot().startPosition).toBe(0.8);
 });
+
+describe("skimming", () => {
+	// 100k characters: one page of 0.005 is 500 characters.
+	function reading() {
+		const f = fixture();
+		f.clock.characterCount = 100_000;
+		f.clock.start(0.1);
+		f.advance(60_000);
+		f.clock.move(0.105);
+		return f;
+	}
+	const characters = (f: ReturnType<typeof fixture>) =>
+		Math.round(f.clock.snapshot().observedProgress * 100_000);
+
+	test("flicking ten pages ahead and back to the spot adds nothing", () => {
+		const f = reading();
+		for (let page = 1; page <= 10; page++) {
+			f.advance(300);
+			f.clock.move(0.105 + page * 0.005);
+		}
+		f.advance(500);
+		f.clock.move(0.105, true);
+		f.clock.tick(5);
+		expect(characters(f)).toBe(500);
+		expect(
+			f.segments.filter(
+				(s) =>
+					s.kind === "reading" &&
+					(s.startPosition ?? 0) >= 0.105 &&
+					(s.endPosition ?? 0) > (s.startPosition ?? 0),
+			),
+		).toEqual([]);
+	});
+
+	test("skimmed pages count once they are actually read", () => {
+		const f = reading();
+		f.advance(300);
+		f.clock.move(0.11);
+		f.advance(300);
+		f.clock.move(0.115);
+		f.clock.move(0.105, true);
+		f.advance(40_000);
+		f.clock.move(0.11);
+		f.advance(40_000);
+		f.clock.move(0.115);
+		expect(characters(f)).toBe(1500);
+	});
+
+	test("the first page turned after starting or resuming still counts", () => {
+		const f = fixture();
+		f.clock.characterCount = 100_000;
+		f.clock.start(0.1);
+		f.clock.move(0.105);
+		f.clock.pause(false);
+		f.clock.resume();
+		f.clock.move(0.11);
+		expect(characters(f)).toBe(1000);
+	});
+
+	test("scrolling a few lines in small steps after reading them counts in full", () => {
+		const f = reading();
+		f.advance(20_000);
+		for (let step = 1; step <= 20; step++) {
+			f.advance(16);
+			f.clock.move(0.105 + step * 0.00002);
+		}
+		expect(characters(f)).toBe(540);
+	});
+
+	test("a burst after a long pause gets through only what was banked", () => {
+		const f = reading();
+		f.advance(120_000);
+		// Ten 100-character pages, three seconds in all.
+		for (let page = 1; page <= 10; page++) {
+			f.advance(300);
+			f.clock.move(0.105 + page * 0.001);
+		}
+		const burst = characters(f) - 500;
+		expect(burst).toBeGreaterThan(0);
+		expect(burst).toBeLessThanOrEqual(600 + 3 * 50);
+	});
+
+	test("a whole spread turned after reading it counts even past the bank limit", () => {
+		const f = reading();
+		f.advance(60_000);
+		f.clock.move(0.125);
+		expect(characters(f)).toBe(2500);
+	});
+
+	test("a book without a character count is never judged skimmed", () => {
+		const f = fixture();
+		f.clock.start(0.1);
+		f.advance(60_000);
+		f.clock.move(0.105);
+		f.advance(100);
+		f.clock.move(0.11);
+		expect(Math.round(f.clock.snapshot().observedProgress * 1000)).toBe(10);
+	});
+});

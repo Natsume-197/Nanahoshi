@@ -106,4 +106,32 @@ describe("the reader page's native host", () => {
 	test("the app keeps book files, so the reader does not duplicate them", () => {
 		expect(readerHost().cacheBookFiles).toBe(false);
 	});
+
+	test("a page inside a native list tells the app its height as it changes", () => {
+		let notify = () => {};
+		const original = globalThis.ResizeObserver;
+		globalThis.ResizeObserver = class {
+			constructor(callback: () => void) {
+				notify = callback;
+			}
+			observe() {}
+			disconnect() {}
+		} as unknown as typeof ResizeObserver;
+		const element = document.createElement("div");
+		let height = 900.4;
+		element.getBoundingClientRect = () => ({ height }) as DOMRect;
+
+		const stop = host.reportHeight(element);
+		notify();
+		notify();
+		height = 1200;
+		notify();
+		stop?.();
+		globalThis.ResizeObserver = original;
+
+		expect(posted.filter((m) => m.type === "content-height")).toEqual([
+			{ type: "content-height", height: 901 },
+			{ type: "content-height", height: 1200 },
+		]);
+	});
 });

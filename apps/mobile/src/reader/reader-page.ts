@@ -1,7 +1,7 @@
 import { Asset } from "expo-asset";
 import { Directory, File, Paths } from "expo-file-system";
 
-// Built from apps/reader-embed by `bun run reader:bundle`.
+// Built from apps/mobile/reader-embed by `bun run reader:bundle`.
 const READER_PAGE = require("../../assets/reader/reader.html");
 
 /** Query options for the page, shared by every screen that embeds it. */

@@ -31,7 +31,6 @@ import {
 	buildReaderClasses,
 	buildReaderStyle,
 } from "../shared/reader-style";
-import { readerColumnHeightCss } from "../shared/viewport";
 import { CharacterStatsCalculator } from "./character-stats-calculator";
 import {
 	horizontalMouseWheel,
@@ -303,11 +302,8 @@ export function BookReaderContinuous({
 		const columnHeight = maxHeight
 			? Math.min(maxHeight, viewportHeight)
 			: viewportHeight;
-		const column = readerColumnHeightCss(
-			viewportHeight,
-			livePropsRef.current.secondDimensionMaxValue,
-			false,
-		);
+		// Measured on the route, which already ends above the player or safe area.
+		const column = `${columnHeight}px`;
 		// Vertical auto margins collapse to zero in this continuous document flow.
 		// Centre the capped column explicitly inside the player-safe viewport so
 		// physical top and bottom padding stay equal.
@@ -868,13 +864,7 @@ export function BookReaderContinuous({
 	const childHeight =
 		typeof window === "undefined"
 			? "0px"
-			: verticalMode
-				? readerColumnHeightCss(
-						getViewportHeight(),
-						secondDimensionMaxValue,
-						false,
-					)
-				: `${getColumnHeight(secondDimensionMaxValue)}px`;
+			: `${getColumnHeight(secondDimensionMaxValue)}px`;
 
 	const containerStyle: CSSProperties = {
 		...buildReaderStyle({

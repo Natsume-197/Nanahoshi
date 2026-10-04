@@ -174,7 +174,6 @@ export function ReaderEngine({
 				lazyBook={lazyBook}
 				avoidPageBreak={readerSettings.avoidPageBreak}
 				pageColumns={readerSettings.pageColumns}
-				reservePlayerSpace={reservePlayerSpace}
 			/>
 		);
 	}

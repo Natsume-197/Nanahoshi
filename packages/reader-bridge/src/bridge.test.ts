@@ -129,4 +129,64 @@ describe("reader bridge", () => {
 			{ type: "navigate", href: "/dashboard/books/b1" },
 		]);
 	});
+
+	test("drains the saves a close starts, including ones chained after them", async () => {
+		const saved: string[] = [];
+		let finish!: () => void;
+		const { page, rpc } = connect({
+			readingProgress: {
+				getProgress: ({ bookUuid }: { bookUuid: string }) =>
+					new Promise((resolve) => {
+						finish = () => {
+							saved.push(bookUuid);
+							resolve(null);
+						};
+					}),
+			},
+		});
+		page.onClose(() => {
+			// Like an unmount hook: the save starts a microtask later.
+			void Promise.resolve().then(() =>
+				rpc.readingProgress
+					.getProgress({ bookUuid: "progress" })
+					.then(() =>
+						rpc.readingProgress.getProgress({ bookUuid: "presence" }),
+					),
+			);
+		});
+
+		page.receive({ type: "close" });
+		let drained = false;
+		const done = page.drained(50).then(() => {
+			drained = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 80));
+		expect(drained).toBe(false);
+		finish();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(drained).toBe(false);
+		finish();
+		await done;
+
+		expect(saved).toEqual(["progress", "presence"]);
+	});
+
+	test("a page booted ahead of time receives the screen it is opened with", () => {
+		const { page } = connect({});
+		const opened: unknown[] = [];
+		page.onOpen((message) => opened.push(message));
+		const screen = {
+			kind: "reader" as const,
+			uuid: "b1",
+			book: { title: "安達としまむら3", filename: "b1.epub" },
+		};
+
+		page.receive(
+			JSON.parse(
+				JSON.stringify({ type: "open", screen, serverId: "s1" }),
+			) as HostToReaderMessage,
+		);
+
+		expect(opened).toEqual([{ type: "open", screen, serverId: "s1" }]);
+	});
 });

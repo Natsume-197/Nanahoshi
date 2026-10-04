@@ -3,10 +3,10 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-@import "../../../packages/ui/src/styles/theme.css";
+@import "../../../../packages/ui/src/styles/theme.css";
 
-@source "../../../packages/ui/src";
-@source "../../../packages/reader/src";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/reader/src";
 
 html,
 body {

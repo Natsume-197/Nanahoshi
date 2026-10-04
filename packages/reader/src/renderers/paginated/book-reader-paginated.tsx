@@ -28,6 +28,7 @@ import {
 	readerColumnHeightCss,
 	viewportHeight,
 	viewportWidth,
+	wholePixels,
 } from "../shared/viewport";
 import { PageManagerPaginated } from "./page-manager-paginated";
 import { SectionCharacterStatsCalculator } from "./section-stats-calculator";
@@ -39,7 +40,6 @@ const PAGE_GAP = 40;
 interface BookReaderPaginatedProps extends BaseReaderProps {
 	avoidPageBreak: boolean;
 	pageColumns: number;
-	reservePlayerSpace: boolean;
 	lazyBook?: LazyHtmlBook;
 }
 
@@ -120,27 +120,24 @@ export function computeViewport(
 	return { width, height };
 }
 
-export function getPaginatedPageHeight(
-	viewportHeightPx: number,
-	reservePlayerSpace: boolean,
-) {
-	return reservePlayerSpace
-		? `max(0px, calc(${viewportHeightPx}px - var(--reader-player-reserve-current)))`
-		: `${viewportHeightPx}px`;
+/** The route ends above the reserve (player or bottom safe area); so must the page. */
+export function getPaginatedPageHeight(viewportHeightPx: number) {
+	return wholePixels(
+		`max(0px, calc(${viewportHeightPx}px - var(--reader-player-reserve-current)))`,
+	);
 }
 
 export function paginatedReaderFrameStyle(
 	horizontalPadding: number,
 	verticalMode: boolean,
 	viewportHeightPx: number,
-	reservePlayerSpace: boolean,
 ): CSSProperties {
 	return {
 		paddingLeft: `${horizontalPadding}px`,
 		paddingRight: `${horizontalPadding}px`,
 		...(verticalMode
 			? {
-					height: getPaginatedPageHeight(viewportHeightPx, reservePlayerSpace),
+					height: getPaginatedPageHeight(viewportHeightPx),
 					display: "flex",
 					alignItems: "center",
 				}
@@ -243,7 +240,6 @@ export function BookReaderPaginated({
 	navigationBlocked,
 	avoidPageBreak,
 	pageColumns,
-	reservePlayerSpace,
 	lazyBook,
 	sections,
 	initialPosition,
@@ -675,7 +671,8 @@ export function BookReaderPaginated({
 				return;
 			toggleChromeOnTap(event, toggleChromeRef.current);
 		};
-		contentEl.addEventListener("click", handleContentClick);
+		// On the page, not the text: the gap between two columns is where a centre tap lands.
+		scrollEl.addEventListener("click", handleContentClick);
 
 		// Late image loads reflow the columns: re-measure and keep position.
 		const handleResourceLoad = () => {
@@ -858,7 +855,7 @@ export function BookReaderPaginated({
 			clearTimeout(s.recalcTimer);
 			clearTimeout(s.resizeTimer);
 			clearPreparedSections();
-			contentEl.removeEventListener("click", handleContentClick);
+			scrollEl.removeEventListener("click", handleContentClick);
 			contentEl.removeEventListener("load", handleResourceLoad, true);
 			scrollEl.removeEventListener("touchstart", handleTouchStart);
 			scrollEl.removeEventListener("touchend", handleTouchEnd);
@@ -885,12 +882,8 @@ export function BookReaderPaginated({
 	const { width, height } = viewport;
 	const columnCount = verticalMode ? 1 : pageColumns || Math.ceil(width / 1000);
 	const pageHeight = verticalMode
-		? readerColumnHeightCss(
-				viewportHeight(),
-				secondDimensionMaxValue,
-				reservePlayerSpace,
-			)
-		: getPaginatedPageHeight(height, reservePlayerSpace);
+		? readerColumnHeightCss(viewportHeight(), secondDimensionMaxValue)
+		: getPaginatedPageHeight(height);
 
 	const scrollElStyle: CSSProperties = {
 		...buildReaderStyle({
@@ -948,7 +941,6 @@ export function BookReaderPaginated({
 					horizontalPadding,
 					verticalMode,
 					viewportHeight(),
-					reservePlayerSpace,
 				)}
 			>
 				<div

@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "bun run --cwd ../../packages/reader generate:i18n && vite build",
+		"build": "bun run --cwd ../../../packages/reader generate:i18n && vite build",
 		"dev": "vite",
 		"check-types": "tsc --noEmit"
 	},

@@ -85,6 +85,7 @@ import {
 	dampWheelZoom,
 } from "./pdf-zoom-stability";
 import "./pdf-reader.css";
+import { BackDismiss } from "../../interaction/back-dismiss";
 
 const PDF_PROGRESS_REPORT_DELAY_MS = 100;
 // PDF pages are commonly light even when the reader chrome is dark. This
@@ -678,6 +679,10 @@ function PdfDocumentViewport({
 					setNavigatorOpen(false);
 				}}
 			/>
+			{navigatorOpen && (
+				<BackDismiss onDismiss={() => setNavigatorOpen(false)} />
+			)}
+			{searchOpen && <BackDismiss onDismiss={() => setSearchOpen(false)} />}
 			{searchOpen && (
 				<PdfSearchPanel
 					documentId={documentId}
