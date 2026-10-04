@@ -17,9 +17,16 @@ const APP_BAR_HEIGHT = 56;
  * The detail bar floats transparent over the cover, then fades solid and
  * slides the title in as the hero's title scrolls under it (Play Store). iOS
  * keeps its own scroll-edge treatment. Scroll is tracked on the UI thread,
- * and also drives the hero's parallax.
+ * and also drives the hero's parallax. `overImage` keeps the bar see-through
+ * for a pinned image behind it (the profile banner) and writes in white.
  */
-export function useDetailHeader(title: string) {
+export function useDetailHeader(
+	title: string,
+	{
+		overImage = false,
+		subtitle,
+	}: { overImage?: boolean; subtitle?: string } = {},
+) {
 	const palette = usePalette();
 	const insets = useSafeAreaInsets();
 	const scrollY = useSharedValue(0);
@@ -53,29 +60,44 @@ export function useDetailHeader(title: string) {
 			options={{
 				title: "",
 				headerStyle: { backgroundColor: "transparent" },
-				headerBackground: () => (
-					<Animated.View
-						style={[
-							StyleSheet.absoluteFill,
-							{ backgroundColor: palette.background },
-							backgroundStyle,
-						]}
-					/>
-				),
+				...(overImage && { headerTintColor: "#ffffff" }),
+				headerBackground: () =>
+					overImage ? null : (
+						<Animated.View
+							style={[
+								StyleSheet.absoluteFill,
+								{ backgroundColor: palette.background },
+								backgroundStyle,
+							]}
+						/>
+					),
 				headerTitle: () => (
-					<Animated.Text
-						numberOfLines={1}
-						style={[
-							{
-								color: palette.text,
+					<Animated.View style={titleStyle}>
+						<Animated.Text
+							numberOfLines={1}
+							style={{
+								color: overImage ? "#ffffff" : palette.text,
 								fontFamily: fonts["600"],
 								fontSize: 20,
-							},
-							titleStyle,
-						]}
-					>
-						{title}
-					</Animated.Text>
+							}}
+						>
+							{title}
+						</Animated.Text>
+						{subtitle ? (
+							<Animated.Text
+								numberOfLines={1}
+								style={{
+									color: overImage
+										? "rgba(255,255,255,0.8)"
+										: palette.textSecondary,
+									fontFamily: fonts["400"],
+									fontSize: 14,
+								}}
+							>
+								{subtitle}
+							</Animated.Text>
+						) : null}
+					</Animated.View>
 				),
 			}}
 		/>
@@ -84,6 +106,7 @@ export function useDetailHeader(title: string) {
 	return {
 		header,
 		scrollY,
+		barBottom,
 		scrollProps: { onScroll, scrollEventThrottle: 16 },
 		onTitleOffset: (y: number) => {
 			titleOffset.set(y);
