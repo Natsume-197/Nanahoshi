@@ -58,7 +58,7 @@ type AppBarScroll = ReturnType<typeof useAppBarScroll>;
 
 /**
  * Home's top bar on Android: the server switcher (logo, name, chevron) leading,
- * friends and notifications trailing. It slides away while you read down and
+ * downloads, friends and notifications trailing. It slides away while you read down and
  * returns the moment you scroll up. It keeps the page's own color throughout.
  */
 export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
@@ -118,6 +118,11 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 				)}
 				{wide ? <SearchField /> : null}
 				<View style={{ flexDirection: "row", marginLeft: "auto" }}>
+					<Action
+						label={t("mobile.downloads.title")}
+						icon={icons.download}
+						onPress={() => router.push("/downloads")}
+					/>
 					<Action
 						label={t("aria.friends_activity")}
 						icon={{ ios: "person.2", android: "group" }}

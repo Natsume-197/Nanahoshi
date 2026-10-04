@@ -68,6 +68,12 @@ export default function TabStack({ segment }: { segment: string }) {
 								},
 								{
 									type: "button",
+									label: t("mobile.downloads.title"),
+									icon: { type: "sfSymbol", name: "arrow.down.circle" },
+									onPress: () => router.push("/downloads"),
+								},
+								{
+									type: "button",
 									label: t("aria.friends_activity"),
 									icon: { type: "sfSymbol", name: "person.2" },
 									onPress: () => router.push("/friends"),

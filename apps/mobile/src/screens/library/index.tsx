@@ -13,7 +13,6 @@ import { RefreshControl } from "@/components/refresh-control";
 import { Section } from "@/components/section";
 import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
-import { useDownloadedTitles } from "@/downloads/provider";
 import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
@@ -147,7 +146,6 @@ export function Library() {
 							);
 						})
 					)}
-					<DownloadsRow />
 				</Section>
 			</ScrollView>
 			{canCreate || canUpload ? (
@@ -162,32 +160,6 @@ const SECTION_PADDING = { paddingTop: space.xl, paddingHorizontal: space.lg };
 const ROW_HEIGHT = 88;
 const FAN_HEIGHT = 64;
 const FAN_WIDTH = 84;
-
-/** Titles saved on this phone, as one more library: only when there are
- * some. */
-function DownloadsRow() {
-	const { titles } = useDownloadedTitles();
-	if (titles.length === 0) return null;
-	return (
-		<CardRow
-			href="/downloads"
-			title={t("mobile.downloads.title")}
-			subtitle={t("media.item_count", { count: titles.length })}
-			art={
-				<CoverFan
-					fallback={icons.downloaded}
-					covers={titles.map((title) => ({
-						key: `${title.kind}:${title.uuid}`,
-						cover: title.cover,
-						localUri: title.localCover,
-						color: title.color,
-						audio: title.kind === "audiobook",
-					}))}
-				/>
-			}
-		/>
-	);
-}
 
 /** The flat card every block on the page shares: covers, title, count. */
 function CardRow({
@@ -248,7 +220,6 @@ function CardRow({
 type FanCover = {
 	key: string;
 	cover: string | null;
-	localUri?: string | null;
 	color?: string | null;
 	audio: boolean;
 };
@@ -299,7 +270,6 @@ function CoverFan({
 						>
 							<Cover
 								cover={item.cover}
-								localUri={item.localUri}
 								color={item.color}
 								width={width}
 								shape={item.audio ? "audio" : "book"}
