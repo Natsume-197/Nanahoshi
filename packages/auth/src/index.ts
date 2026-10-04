@@ -1,4 +1,5 @@
 import { apiKey } from "@better-auth/api-key";
+import { expo } from "@better-auth/expo";
 import { db } from "@nanahoshi/db";
 import * as schema from "@nanahoshi/db/schema/auth";
 import {
@@ -234,7 +235,14 @@ const authConfig = {
 		provider: "pg",
 		schema,
 	}),
-	trustedOrigins: [env.CORS_ORIGIN],
+	// The native app (apps/mobile) signs in from its own URL scheme; Expo Go
+	// during development reports an exp:// origin instead.
+	trustedOrigins: [
+		env.CORS_ORIGIN,
+		"nanahoshi://",
+		"nanahoshi://*",
+		...(process.env.NODE_ENV === "production" ? [] : ["exp://**"]),
+	],
 	emailAndPassword: {
 		enabled: true,
 	},
@@ -470,6 +478,7 @@ const authConfig = {
 			},
 		}),
 	plugins: [
+		expo(),
 		organization({
 			ac,
 			roles: {

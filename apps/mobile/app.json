@@ -1,0 +1,54 @@
+{
+	"expo": {
+		"name": "Nanahoshi",
+		"slug": "nanahoshi",
+		"version": "0.1.0",
+		"orientation": "portrait",
+		"icon": "./assets/images/icon.png",
+		"scheme": "nanahoshi",
+		"userInterfaceStyle": "automatic",
+		"ios": {
+			"bundleIdentifier": "app.nanahoshi.mobile",
+			"supportsTablet": true
+		},
+		"android": {
+			"package": "app.nanahoshi.mobile",
+			"adaptiveIcon": {
+				"backgroundColor": "#1f1f20",
+				"foregroundImage": "./assets/images/adaptive-icon.png"
+			},
+			"softwareKeyboardLayoutMode": "resize",
+			"usesCleartextTraffic": true
+		},
+		"plugins": [
+			"expo-router",
+			"expo-secure-store",
+			[
+				"expo-splash-screen",
+				{
+					"backgroundColor": "#f7f7f8",
+					"image": "./assets/images/splash-icon.png",
+					"imageWidth": 96,
+					"dark": {
+						"backgroundColor": "#1f1f20"
+					}
+				}
+			],
+			"expo-localization",
+			"expo-font",
+			[
+				"expo-audio",
+				{
+					"microphonePermission": false,
+					"enableBackgroundPlayback": true
+				}
+			],
+			"expo-sharing",
+			"expo-build-properties"
+		],
+		"experiments": {
+			"typedRoutes": true,
+			"reactCompiler": true
+		}
+	}
+}

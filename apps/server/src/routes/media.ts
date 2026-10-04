@@ -72,7 +72,67 @@ const ANIMATED_AVATAR_EXTENSIONS: Record<string, string> = {
 	webp: "webp",
 };
 
+type TabAvatarVariant = "jpeg" | "png";
+
+/** `?format=jpeg` is the square 64px thumb; `?format=png&shape=circle` is a
+ * round one with transparent corners, since an Android tab bar icon can't be
+ * clipped on the device. */
+export function tabAvatarVariant(
+	format: string | undefined,
+	shape: string | undefined,
+): TabAvatarVariant | null {
+	if (format === "jpeg") return "jpeg";
+	if (format === "png" && shape === "circle") return "png";
+	return null;
+}
+
+export async function renderTabAvatar(
+	source: string | Buffer,
+	variant: TabAvatarVariant,
+): Promise<Buffer> {
+	if (variant === "jpeg")
+		return sharp(source)
+			.resize(64, 64, { fit: "cover" })
+			.jpeg({ quality: 82 })
+			.toBuffer();
+	const size = 96;
+	const mask = Buffer.from(
+		`<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}"/></svg>`,
+	);
+	return sharp(source)
+		.resize(size, size, { fit: "cover" })
+		.ensureAlpha()
+		.composite([{ input: mask, blend: "dest-in" }])
+		.png()
+		.toBuffer();
+}
+
 export function mountMediaStatic(app: Hono) {
+	// Native tab bars on Android cannot decode the AVIF files used for avatars.
+	// Keep the normal static URL untouched and expose small variants for
+	// native chrome that cannot attach the image decoder used by expo-image.
+	app.get("/api/data/avatars/*", async (c, next) => {
+		const variant = tabAvatarVariant(
+			c.req.query("format"),
+			c.req.query("shape"),
+		);
+		if (!variant) return next();
+		const filename = path.basename(c.req.path);
+		try {
+			const image = await renderTabAvatar(
+				path.join(avatarsDir, filename),
+				variant,
+			);
+			return new Response(image, {
+				headers: {
+					"content-type": `image/${variant}`,
+					"cache-control": "public, max-age=3600",
+				},
+			});
+		} catch {
+			return c.notFound();
+		}
+	});
 	app.use(
 		"/api/data/avatars/*",
 		serveStatic({

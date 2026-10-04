@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@import "../../../packages/ui/src/styles/theme.css";
+
+@source "../../../packages/ui/src";
+@source "../../../packages/reader/src";
+
+html,
+body {
+	overscroll-behavior: none;
+}

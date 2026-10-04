@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { DynamicCollectionDefinitionSchema } from "@nanahoshi/api/routers/collections/collection-rules";
 import {
 	DYNAMIC_COLLECTION_TEMPLATES,
 	emptyDynamicCollectionDefinition,
-} from "./dynamic-collection-templates";
+} from "../collection-rule-templates";
+import { DynamicCollectionDefinitionSchema } from "../collection-rules";
 
 describe("Dynamic Collection templates", () => {
 	test("all shipped templates are valid persisted V1 definitions", () => {

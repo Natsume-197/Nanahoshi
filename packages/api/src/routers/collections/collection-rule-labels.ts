@@ -2,7 +2,7 @@ import type {
 	CollectionRuleField,
 	CollectionRuleOperator,
 	CollectionSortField,
-} from "@nanahoshi/api/routers/collections/collection-rules";
+} from "./collection-rules";
 
 type SupportedLocale = "en" | "es" | "ja";
 

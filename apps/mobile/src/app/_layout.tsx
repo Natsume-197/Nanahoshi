@@ -1,0 +1,176 @@
+import { useFonts } from "expo-font";
+import { router } from "expo-router";
+import {
+	DarkTheme,
+	DefaultTheme,
+	ThemeProvider,
+} from "expo-router/react-navigation";
+import { Stack } from "expo-router/stack";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useDownloads, useExports } from "@/downloads/provider";
+import { useMountEffect } from "@/hooks/use-mount-effect";
+import { applyStoredAppearance } from "@/lib/appearance";
+import type { NanahoshiAuth } from "@/lib/auth-client";
+import { keepGatewayOpen } from "@/lib/gateway";
+import { useLocale } from "@/lib/i18n";
+import { takeResumeRoute } from "@/lib/resume-route";
+import { usePlayer } from "@/player/provider";
+import {
+	AppProvider,
+	useConnection,
+	useMaybeConnection,
+} from "@/providers/app-provider";
+import { fontSources, palettes } from "@/theme";
+
+SplashScreen.preventAutoHideAsync();
+applyStoredAppearance();
+
+export default function RootLayout() {
+	const scheme = useColorScheme();
+	const [fontsLoaded] = useFonts(fontSources);
+	const locale = useLocale();
+	const base = scheme === "dark" ? DarkTheme : DefaultTheme;
+	const palette = scheme === "dark" ? palettes.dark : palettes.light;
+	// Navigation chrome takes the same canvas as the screens, so a push never
+	// flashes the library's default white/black between two graphite screens.
+	const theme = {
+		...base,
+		colors: {
+			...base.colors,
+			background: palette.background,
+			card: palette.background,
+			text: palette.text,
+			border: palette.separator,
+			primary: palette.accent,
+		},
+	};
+
+	return (
+		<GestureHandlerRootView style={{ flex: 1 }}>
+			<ThemeProvider value={theme}>
+				<AppProvider>
+					<StatusBar style="auto" />
+					{/* Every screen reads its strings while rendering, so a new
+					    language remounts the navigation (playback and cache stay). */}
+					{fontsLoaded ? <RootNavigator key={locale} /> : null}
+				</AppProvider>
+			</ThemeProvider>
+		</GestureHandlerRootView>
+	);
+}
+
+function RootNavigator() {
+	const connection = useMaybeConnection();
+	if (!connection) return <Navigator signedIn={false} ready />;
+	return <SessionNavigator auth={connection.auth} />;
+}
+
+function SessionNavigator({ auth }: { auth: NanahoshiAuth }) {
+	const { data, isPending } = auth.useSession();
+	return (
+		<>
+			{/* Signing out must not leave someone else's book playing. */}
+			{!data && !isPending ? <StopPlayback /> : null}
+			{data ? <StayOnline /> : null}
+			<Navigator signedIn={!!data} ready={!isPending} />
+		</>
+	);
+}
+
+function Navigator({ signedIn, ready }: { signedIn: boolean; ready: boolean }) {
+	// Hold the splash until we know which side of the sign-in door we're on,
+	// so a signed-in cold start never flashes the sign-in screen.
+	if (!ready) return null;
+
+	return (
+		<>
+			<HideSplash />
+			<Stack screenOptions={{ headerShown: false }}>
+				<Stack.Protected guard={signedIn}>
+					<Stack.Screen name="(tabs)" />
+					{/* The expanded player rises from the mini player. iOS: a page
+					    sheet the system swipes down, as in Music and Podcasts.
+					    Android: dragged down by the player itself, over the app. */}
+					<Stack.Screen
+						name="player"
+						options={
+							process.env.EXPO_OS === "ios"
+								? { presentation: "modal", gestureEnabled: true }
+								: {
+										// Transparent so the app shows through while it's dragged down.
+										presentation: "transparentModal",
+										animation: "slide_from_bottom",
+										contentStyle: { backgroundColor: "transparent" },
+									}
+						}
+					/>
+					{/* A cover up close: fades over the page, dragged down to close. */}
+					<Stack.Screen
+						name="cover"
+						options={{
+							presentation: "transparentModal",
+							animation: "fade",
+							gestureEnabled: false,
+							contentStyle: { backgroundColor: "transparent" },
+						}}
+					/>
+					{/* Full screen with no swipe-back: horizontal swipes turn pages. */}
+					<Stack.Screen
+						name="reader/[uuid]"
+						options={{ animation: "fade", gestureEnabled: false }}
+					/>
+				</Stack.Protected>
+				<Stack.Protected guard={!signedIn}>
+					<Stack.Screen name="(auth)" />
+				</Stack.Protected>
+			</Stack>
+			{signedIn ? <ResumeRoute /> : null}
+		</>
+	);
+}
+
+/** Puts the user back where a remount (language change) took them from. */
+function ResumeRoute() {
+	useMountEffect(() => {
+		const route = takeResumeRoute();
+		if (!route) return;
+		const frame = requestAnimationFrame(() => {
+			for (const [index, href] of route.entries()) {
+				if (index === 0) router.navigate(href);
+				else router.push(href);
+			}
+		});
+		return () => cancelAnimationFrame(frame);
+	});
+	return null;
+}
+
+function StayOnline() {
+	const { serverUrl, auth } = useConnection();
+	useMountEffect(() =>
+		keepGatewayOpen({ serverUrl, getCookie: () => auth.getCookie() }),
+	);
+	return null;
+}
+
+function StopPlayback() {
+	const player = usePlayer();
+	const downloads = useDownloads();
+	const exports = useExports();
+	useMountEffect(() => {
+		void player.stop();
+		downloads.cancelAll();
+		exports.dismiss();
+	});
+	return null;
+}
+
+function HideSplash() {
+	useMountEffect(() => {
+		SplashScreen.hide();
+	});
+	return null;
+}

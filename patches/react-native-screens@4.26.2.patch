@@ -1,0 +1,44 @@
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt
+index 10cd91b..57ce71b 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/appearance/TabsAppearanceApplicator.kt
+@@ -3,6 +3,7 @@ package com.swmansion.rnscreens.gamma.tabs.appearance
+ import android.annotation.SuppressLint
+ import android.content.Context
+ import android.content.res.ColorStateList
++import android.graphics.Color
+ import android.graphics.drawable.StateListDrawable
+ import android.util.TypedValue
+ import android.view.MenuItem
+@@ -80,7 +81,10 @@ internal class TabsAppearanceApplicator(
+                 ?: resolveColorAttr(context, R.attr.colorOnSurfaceVariant)
+ 
+         val iconColors = intArrayOf(iconDisabledColor, iconSelectedColor, iconFocusedColor, iconNormalColor)
+-        bottomNavigationView.itemIconTintList = ColorStateList(states, iconColors)
++        // Nanahoshi patch: a fully transparent icon color means the icons come
++        // pre-colored (e.g. a profile photo), so leave them untinted.
++        val untintedIcons = tabBarAppearance?.normal?.tabBarItemIconColor?.let { Color.alpha(it) == 0 } == true
++        bottomNavigationView.itemIconTintList = if (untintedIcons) null else ColorStateList(states, iconColors)
+ 
+         // LabelVisibilityMode
+         // From docs: can be one of LABEL_VISIBILITY_AUTO, LABEL_VISIBILITY_SELECTED, LABEL_VISIBILITY_LABELED, or LABEL_VISIBILITY_UNLABELED
+@@ -106,8 +110,17 @@ internal class TabsAppearanceApplicator(
+             tabBarAppearance?.tabBarItemActiveIndicatorColor
+                 ?: resolveColorAttr(context, R.attr.colorSecondaryContainer)
+ 
+-        bottomNavigationView.isItemActiveIndicatorEnabled =
+-            tabBarAppearance?.tabBarItemActiveIndicatorEnabled ?: true
++        val indicatorEnabled = tabBarAppearance?.tabBarItemActiveIndicatorEnabled ?: true
++        bottomNavigationView.isItemActiveIndicatorEnabled = indicatorEnabled
++
++        // Nanahoshi patch: without the indicator pill, Material 3's 80dp bar is
++        // mostly empty padding; use the compact 64dp bar the web has instead.
++        if (!indicatorEnabled) {
++            bottomNavigationView.minimumHeight = PixelUtil.toPixelFromDIP(64f).toInt()
++            bottomNavigationView.setItemPaddingTop(PixelUtil.toPixelFromDIP(10f).toInt())
++            bottomNavigationView.setItemPaddingBottom(PixelUtil.toPixelFromDIP(10f).toInt())
++            bottomNavigationView.setActiveIndicatorLabelPadding(PixelUtil.toPixelFromDIP(2f).toInt())
++        }
+         bottomNavigationView.itemActiveIndicatorColor = ColorStateList.valueOf(activeIndicatorColor)
+     }
+ 

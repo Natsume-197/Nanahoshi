@@ -1,4 +1,26 @@
 import {
+	countRules,
+	DATE_FIELDS,
+	defaultRule,
+	defaultValue,
+	ENTITY_FIELDS,
+	type EntityField,
+	isRuleComplete,
+	NUMBER_FIELDS,
+	PRESENCE_OPERATORS,
+} from "@nanahoshi/api/routers/collections/collection-rule-editing";
+import {
+	COLLECTION_FIELD_GROUPS,
+	fieldLabel,
+	operatorLabel,
+	templateLabel,
+	valueLabel,
+} from "@nanahoshi/api/routers/collections/collection-rule-labels";
+import {
+	DYNAMIC_COLLECTION_TEMPLATES,
+	emptyDynamicCollectionDefinition,
+} from "@nanahoshi/api/routers/collections/collection-rule-templates";
+import {
 	COLLECTION_ENUM_VALUES,
 	COLLECTION_FIELD_OPERATORS,
 	COLLECTION_RULE_LIMITS,
@@ -13,6 +35,40 @@ import {
 	type DynamicCollectionDefinitionV1,
 	isPersonalizedCollectionDefinition,
 } from "@nanahoshi/api/routers/collections/collection-rules";
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import {
+	Field,
+	FieldContent,
+	FieldDescription,
+	FieldError,
+	FieldGroup,
+	FieldLabel,
+} from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@nanahoshi/ui/components/popover";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectLabel,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Textarea } from "@nanahoshi/ui/components/textarea";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@nanahoshi/ui/components/toggle-group";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	Books,
 	CaretDown,
@@ -34,109 +90,12 @@ import { useBlocker } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { Fragment, useState } from "react";
 import { CollectionArtwork } from "@/components/shared/collection-card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-	Field,
-	FieldContent,
-	FieldDescription,
-	FieldError,
-	FieldGroup,
-	FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectLabel,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useDebounce } from "@/hooks/use-debounce";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
-import {
-	COLLECTION_FIELD_GROUPS,
-	fieldLabel,
-	operatorLabel,
-	templateLabel,
-	valueLabel,
-} from "./dynamic-collection-labels";
-import {
-	DYNAMIC_COLLECTION_TEMPLATES,
-	emptyDynamicCollectionDefinition,
-} from "./dynamic-collection-templates";
 
-const PRESENCE_OPERATORS = new Set([
-	"isMissing",
-	"isPresent",
-	"isTrue",
-	"isFalse",
-	"isUnknown",
-]);
-const ENTITY_FIELDS = new Set([
-	"author",
-	"narrator",
-	"publisher",
-	"series",
-	"genre",
-	"tag",
-	"library",
-	"manualCollection",
-]);
-const DATE_FIELDS = new Set([
-	"addedAt",
-	"lastModifiedAt",
-	"publishedDate",
-	"startedAt",
-	"completedAt",
-	"lastActivityAt",
-]);
-const NUMBER_FIELDS = new Set([
-	"seriesPosition",
-	"fileSizeMb",
-	"publishedYear",
-	"pageCount",
-	"durationMinutes",
-	"communityRating",
-	"communityRatingCount",
-	"progressPercent",
-]);
 const LOCAL_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-const countRules = (group: CollectionRuleGroup): number =>
-	group.children.reduce(
-		(total, child) => total + (child.kind === "group" ? countRules(child) : 1),
-		0,
-	);
-
-const defaultRule = (
-	field: CollectionRuleField = "title",
-): CollectionFieldRule => {
-	const operator = COLLECTION_FIELD_OPERATORS[
-		field
-	][0] as CollectionRuleOperator;
-	return {
-		kind: "rule",
-		field,
-		operator,
-		value: defaultValue(field, operator),
-	};
-};
 
 type EditorProps = {
 	open: boolean;
@@ -1324,16 +1283,6 @@ function RuleValueInput({
 	);
 }
 
-type EntityField =
-	| "author"
-	| "narrator"
-	| "publisher"
-	| "series"
-	| "genre"
-	| "tag"
-	| "library"
-	| "manualCollection";
-
 function EntityRuleInput({
 	field,
 	value,
@@ -1598,57 +1547,4 @@ function fieldGroupLabel(group: string) {
 		default:
 			return m["collection.dynamic_group_personal"]();
 	}
-}
-
-function isRuleComplete(rule: CollectionFieldRule) {
-	if (PRESENCE_OPERATORS.has(rule.operator)) return true;
-	if (rule.operator === "between") {
-		if (
-			!rule.value ||
-			typeof rule.value !== "object" ||
-			Array.isArray(rule.value)
-		)
-			return false;
-		if (DATE_FIELDS.has(rule.field)) {
-			return (
-				"from" in rule.value &&
-				"to" in rule.value &&
-				Boolean(rule.value.from) &&
-				Boolean(rule.value.to)
-			);
-		}
-		return (
-			"min" in rule.value &&
-			"max" in rule.value &&
-			Number.isFinite(rule.value.min) &&
-			Number.isFinite(rule.value.max)
-		);
-	}
-	if (rule.operator === "withinLast") {
-		return Boolean(
-			rule.value &&
-				typeof rule.value === "object" &&
-				!Array.isArray(rule.value) &&
-				"amount" in rule.value &&
-				rule.value.amount > 0,
-		);
-	}
-	if (Array.isArray(rule.value)) return rule.value.length > 0;
-	if (typeof rule.value === "string") return rule.value.trim().length > 0;
-	return typeof rule.value === "number" && Number.isFinite(rule.value);
-}
-
-function defaultValue(
-	field: CollectionRuleField,
-	operator: CollectionRuleOperator,
-): CollectionRuleValue | undefined {
-	if (PRESENCE_OPERATORS.has(operator)) return undefined;
-	if (operator === "between")
-		return DATE_FIELDS.has(field) ? { from: "", to: "" } : { min: 0, max: 0 };
-	if (operator === "withinLast") return { amount: 30, unit: "day" };
-	if (ENTITY_FIELDS.has(field)) return [];
-	if (["includesAny", "includesAll", "excludesAll"].includes(operator))
-		return [];
-	if (NUMBER_FIELDS.has(field)) return 0;
-	return "";
 }

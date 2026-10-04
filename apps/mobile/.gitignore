@@ -1,0 +1,20 @@
+node_modules/
+.expo/
+dist/
+ios/
+android/
+expo-env.d.ts
+.env*.local
+.env.eas-simulator
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.screens/
+
+# Built from apps/reader-embed by `bun run reader:bundle`.
+assets/reader/
+
+# Local build experiments.
+.probe/

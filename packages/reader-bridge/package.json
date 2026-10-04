@@ -1,0 +1,19 @@
+{
+	"name": "@nanahoshi/reader-bridge",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@orpc/client": "catalog:"
+	},
+	"devDependencies": {
+		"@nanahoshi/config": "workspace:*",
+		"@types/bun": "catalog:",
+		"typescript": "^7.0.2"
+	}
+}

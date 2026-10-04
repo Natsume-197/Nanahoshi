@@ -1,0 +1,92 @@
+import type { SFSymbol } from "expo-symbols";
+
+/**
+ * One icon family per platform: SF Symbols on iOS, Material Symbols on Android.
+ * Callers name both so neither platform falls back to a missing glyph.
+ */
+export type IconName = {
+	ios: SFSymbol;
+	android: string;
+};
+
+export const icons = {
+	back: { ios: "chevron.left", android: "arrow_back" },
+	chevronRight: { ios: "chevron.right", android: "chevron_right" },
+	search: { ios: "magnifyingglass", android: "search" },
+	close: { ios: "xmark.circle.fill", android: "cancel" },
+	dismiss: { ios: "xmark", android: "close" },
+	play: { ios: "play.fill", android: "play_arrow" },
+	pause: { ios: "pause.fill", android: "pause" },
+	stop: { ios: "stop.circle", android: "stop_circle" },
+	jumpBack: { ios: "gobackward.10", android: "replay_10" },
+	jumpForward: { ios: "goforward.30", android: "forward_30" },
+	prevChapter: { ios: "backward.end.fill", android: "skip_previous" },
+	nextChapter: { ios: "forward.end.fill", android: "skip_next" },
+	collapse: { ios: "chevron.down", android: "keyboard_arrow_down" },
+	sleep: { ios: "moon.zzz", android: "bedtime" },
+	chapters: { ios: "list.bullet", android: "format_list_bulleted" },
+	speed: { ios: "gauge.with.dots.needle.50percent", android: "speed" },
+	book: { ios: "book.fill", android: "menu_book" },
+	headphones: { ios: "headphones", android: "headphones" },
+	heart: { ios: "heart", android: "favorite_border" },
+	heartFill: { ios: "heart.fill", android: "favorite" },
+	series: { ios: "square.stack", android: "stacks" },
+	author: { ios: "person", android: "person" },
+	narrator: { ios: "mic", android: "mic" },
+	genre: { ios: "theatermasks", android: "theater_comedy" },
+	collection: { ios: "rectangle.stack", android: "collections_bookmark" },
+	server: { ios: "server.rack", android: "dns" },
+	signOut: {
+		ios: "rectangle.portrait.and.arrow.right",
+		android: "logout",
+	},
+	sort: { ios: "arrow.up.arrow.down", android: "swap_vert" },
+	grid: { ios: "square.grid.2x2", android: "grid_view" },
+	list: { ios: "list.bullet", android: "view_list" },
+	clock: { ios: "clock", android: "schedule" },
+	globe: { ios: "globe", android: "language" },
+	pages: { ios: "doc.text", android: "description" },
+	shelf: { ios: "books.vertical", android: "shelves" },
+	warning: { ios: "exclamationmark.triangle", android: "warning" },
+	folder: { ios: "folder", android: "folder" },
+	filter: { ios: "line.3.horizontal.decrease", android: "filter_list" },
+	check: { ios: "checkmark", android: "check" },
+	more: { ios: "ellipsis", android: "more_horiz" },
+	// iOS keeps the horizontal ellipsis: SF Symbols has no vertical one.
+	moreVertical: { ios: "ellipsis", android: "more_vert" },
+	trash: { ios: "trash", android: "delete" },
+	info: { ios: "info.circle", android: "info" },
+	remove: { ios: "xmark.circle", android: "cancel" },
+	notInterested: { ios: "hand.thumbsdown", android: "thumb_down" },
+	edit: { ios: "pencil", android: "edit" },
+	bookmark: { ios: "bookmark", android: "bookmark" },
+	plus: { ios: "plus", android: "add" },
+	catalog: { ios: "text.book.closed", android: "auto_stories" },
+	publisher: { ios: "building.2", android: "apartment" },
+	// Read & Listen: the mode itself, following the narration, tap-to-seek.
+	readListen: { ios: "waveform", android: "graphic_eq" },
+	followText: { ios: "scope", android: "my_location" },
+	seekFromText: { ios: "cursorarrow.click", android: "ads_click" },
+	// Settings.
+	settings: { ios: "gearshape", android: "settings" },
+	account: { ios: "person.crop.circle", android: "account_circle" },
+	privacy: { ios: "lock", android: "lock" },
+	appearance: { ios: "circle.lefthalf.filled", android: "contrast" },
+	link: { ios: "link", android: "link" },
+	device: { ios: "iphone", android: "smartphone" },
+	desktop: { ios: "desktopcomputer", android: "computer" },
+	moveUp: { ios: "arrow.up", android: "arrow_upward" },
+	moveDown: { ios: "arrow.down", android: "arrow_downward" },
+	photo: { ios: "photo", android: "image" },
+	code: {
+		ios: "chevron.left.forwardslash.chevron.right",
+		android: "code",
+	},
+	bug: { ios: "ant", android: "bug_report" },
+	download: { ios: "arrow.down.circle", android: "download" },
+	downloaded: { ios: "arrow.down.circle.fill", android: "download_done" },
+	offline: { ios: "wifi.slash", android: "cloud_off" },
+	retry: { ios: "arrow.clockwise", android: "refresh" },
+	share: { ios: "square.and.arrow.up", android: "ios_share" },
+	whatsNew: { ios: "sparkles", android: "new_releases" },
+} satisfies Record<string, IconName>;
