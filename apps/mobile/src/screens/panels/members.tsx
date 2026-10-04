@@ -120,18 +120,13 @@ function MemberRow({ member }: { member: Member }) {
 	const { serverUrl } = useConnection();
 	const image = mediaUrl(serverUrl, member.image);
 	const dot = PRESENCE_DOT[member.state];
-	const activity =
-		member.state === "offline"
-			? t("mobile.members.offline")
-			: member.state === "online" || member.state === "away"
-				? t(`status.${member.state}`)
-				: member.book?.title
-					? `${t(`members.${member.state}`)} · ${member.book.title}`
-					: t(`members.${member.state}`);
+	const activity = member.book?.title;
 	return (
 		<Pressable
 			accessibilityRole="button"
-			accessibilityLabel={`${member.name}, ${activity}`}
+			accessibilityLabel={
+				activity ? `${member.name}, ${activity}` : member.name
+			}
 			disabled={!member.username}
 			onPress={() =>
 				member.username && router.push(routes.user(member.username))
@@ -198,9 +193,11 @@ function MemberRow({ member }: { member: Member }) {
 				<Text variant="body" numberOfLines={1} style={{ fontWeight: "600" }}>
 					{member.name}
 				</Text>
-				<Text variant="caption" tone="secondary" numberOfLines={1}>
-					{activity}
-				</Text>
+				{activity ? (
+					<Text variant="caption" tone="secondary" numberOfLines={1}>
+						{activity}
+					</Text>
+				) : null}
 			</View>
 		</Pressable>
 	);
