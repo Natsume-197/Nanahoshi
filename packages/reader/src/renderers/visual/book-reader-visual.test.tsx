@@ -1,6 +1,7 @@
 import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, spyOn, test } from "bun:test";
 import { act, cleanup, render } from "@testing-library/react";
+import { useState } from "react";
 import {
 	defaultReaderSettings,
 	getReaderTheme,
@@ -121,3 +122,37 @@ for (const layout of ["horizontal-strip", "vertical-strip"] as const) {
 		});
 	}
 }
+
+// The reader screen passes a fresh apiRef each render and re-renders when a
+// controller arrives; republishing on identity change looped forever (#185).
+test("a host that re-renders on every published controller can open a visual book", () => {
+	let published = 0;
+	function Host() {
+		const [, setRevision] = useState(0);
+		return (
+			<BookReaderVisual
+				htmlContent={
+					'<div id="page-0"><img width="600" height="800" src="test.png"></div>'
+				}
+				theme={getReaderTheme(defaultReaderSettings.theme)}
+				layout="single-page"
+				language="ja"
+				readingDirection="rtl"
+				sections={[
+					{ reference: "page-0", charactersWeight: 1, startCharacter: 0 },
+				]}
+				onPositionChange={() => {}}
+				onSectionProgressChange={() => {}}
+				onToggleChrome={() => {}}
+				apiRef={(api) => {
+					if (!api) return;
+					published += 1;
+					setRevision((revision) => revision + 1);
+				}}
+			/>
+		);
+	}
+	const view = render(<Host />);
+	expect(view.container.querySelector("img")).not.toBeNull();
+	expect(published).toBe(1);
+});

@@ -426,51 +426,73 @@ export function BookReaderVisual({
 		}
 	}
 
-	const attachCanvas = useCallback(
-		(canvas: HTMLDivElement | null) => {
-			canvasRef.current = canvas;
-			if (!canvas) return;
-			const api: BookReaderApi = {
-				nextPage,
-				prevPage: previousPage,
-				navigateToSection(reference) {
-					const index = pages.findIndex((page) => page.reference === reference);
-					if (index < 0) return;
-					if (strip) scrollToStripPage(index);
-					else setAnchorPage(index);
-				},
-				getPosition() {
-					const exploredCharCount = exploredCountForPage(
-						sections,
-						anchorRef.current,
-					);
-					const section = sections[anchorRef.current];
-					return {
-						exploredCharCount,
-						progress: anchorRef.current / Math.max(sections.length, 1),
-						modifiedAt: Date.now(),
-						locator: section
-							? { sectionReference: section.reference, characterOffset: 0 }
-							: undefined,
-					};
-				},
-				scrollToPosition(position) {
-					const index = sectionIndexForCount(
-						sections,
-						position.exploredCharCount,
-					);
-					if (strip) scrollToStripPage(index);
-					else setAnchorPage(index);
-				},
-				relayout() {
-					setViewport({ width: viewportWidth(), height: viewportHeight() });
-				},
-			};
-			apiRef(api);
-			return () => apiRef(null);
-		},
-		[apiRef, strip, nextPage, pages, previousPage, scrollToStripPage, sections],
-	);
+	// The host passes a fresh apiRef every render and re-renders on each publish,
+	// so the controller is published once per canvas and reads the latest closures.
+	const latestRef = useRef({
+		apiRef,
+		nextPage,
+		previousPage,
+		pages,
+		sections,
+		strip,
+		scrollToStripPage,
+	});
+	latestRef.current = {
+		apiRef,
+		nextPage,
+		previousPage,
+		pages,
+		sections,
+		strip,
+		scrollToStripPage,
+	};
+
+	const attachCanvas = useCallback((canvas: HTMLDivElement | null) => {
+		canvasRef.current = canvas;
+		if (!canvas) return;
+		const latest = () => latestRef.current;
+		const api: BookReaderApi = {
+			nextPage: () => latest().nextPage(),
+			prevPage: () => latest().previousPage(),
+			navigateToSection(reference) {
+				const { pages, strip, scrollToStripPage } = latest();
+				const index = pages.findIndex((page) => page.reference === reference);
+				if (index < 0) return;
+				if (strip) scrollToStripPage(index);
+				else setAnchorPage(index);
+			},
+			getPosition() {
+				const { sections } = latest();
+				const exploredCharCount = exploredCountForPage(
+					sections,
+					anchorRef.current,
+				);
+				const section = sections[anchorRef.current];
+				return {
+					exploredCharCount,
+					progress: anchorRef.current / Math.max(sections.length, 1),
+					modifiedAt: Date.now(),
+					locator: section
+						? { sectionReference: section.reference, characterOffset: 0 }
+						: undefined,
+				};
+			},
+			scrollToPosition(position) {
+				const { sections, strip, scrollToStripPage } = latest();
+				const index = sectionIndexForCount(
+					sections,
+					position.exploredCharCount,
+				);
+				if (strip) scrollToStripPage(index);
+				else setAnchorPage(index);
+			},
+			relayout() {
+				setViewport({ width: viewportWidth(), height: viewportHeight() });
+			},
+		};
+		latest().apiRef(api);
+		return () => latest().apiRef(null);
+	}, []);
 
 	const updateStripAnchor = useCallback(() => {
 		const reader = readerRef.current;
