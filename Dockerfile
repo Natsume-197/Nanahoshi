@@ -11,6 +11,8 @@ WORKDIR /app
 
 FROM base AS manifests
 COPY bun.lock package.json ./
+# bun install requires every patchedDependencies file, even for mobile-only packages.
+COPY patches/ patches/
 COPY apps/server/package.json apps/server/
 COPY apps/mobile/reader-embed/package.json apps/mobile/reader-embed/
 COPY apps/web/package.json apps/web/
