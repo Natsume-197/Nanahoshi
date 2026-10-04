@@ -97,9 +97,10 @@ function group(
 }
 
 /**
- * Sections become the platform's menu groups (UIMenu inline / dividers).
- * Sharing and the metadata tools fold into pages of their own so the first
- * page stays short.
+ * Sections become the platform's menu groups (UIMenu inline / dividers), by
+ * intent: open it, your library, take it elsewhere, tools, delete. Sharing
+ * and the metadata tools fold into pages of their own so the first page
+ * stays short.
  */
 export function buildBookMenu(
 	target: Pick<BookTarget, "kind" | "recommendation" | "onDetailPage">,
@@ -118,29 +119,47 @@ export function buildBookMenu(
 	if (!page)
 		open.push({ id: "details", label: labels.details, icon: icons.info });
 
-	const library: BookMenuEntry[] = [];
+	// How it sits in your library.
+	const mine: BookMenuEntry[] = [];
 	if (!page)
-		library.push({
+		mine.push({
 			id: "addToList",
 			label: labels.addToList,
 			icon: icons.bookmark,
 		});
+	if (state.inProgress)
+		mine.push({
+			id: "removeFromContinue",
+			label: audio
+				? labels.removeContinueListening
+				: labels.removeContinueReading,
+			icon: icons.remove,
+		});
+	if (target.recommendation)
+		mine.push({
+			id: "notInterested",
+			label: labels.notInterested,
+			icon: icons.notInterested,
+		});
+
+	// Taking it elsewhere: onto the phone, or out of the app.
+	const take: BookMenuEntry[] = [];
 	// The page's header has its own download button.
 	if (!page) {
 		if (state.download === "none")
-			library.push({
+			take.push({
 				id: "download",
 				label: labels.download,
 				icon: icons.download,
 			});
 		else if (state.download === "active")
-			library.push({
+			take.push({
 				id: "cancelDownload",
 				label: labels.cancelDownload,
 				icon: icons.remove,
 			});
 		else if (state.download === "done")
-			library.push({
+			take.push({
 				id: "removeDownload",
 				label: labels.removeDownload,
 				icon: icons.downloaded,
@@ -162,23 +181,9 @@ export function buildBookMenu(
 			label: labels.sendToKindle,
 			icon: icons.send,
 		});
-	library.push(...group("share", labels.share, icons.share, share));
-	if (state.inProgress)
-		library.push({
-			id: "removeFromContinue",
-			label: audio
-				? labels.removeContinueListening
-				: labels.removeContinueReading,
-			icon: icons.remove,
-		});
-	if (target.recommendation)
-		library.push({
-			id: "notInterested",
-			label: labels.notInterested,
-			icon: icons.notInterested,
-		});
+	take.push(...group("share", labels.share, icons.share, share));
 
-	const sections = [open, library].filter((section) => section.length > 0);
+	const sections = [open, mine, take].filter((section) => section.length > 0);
 	if (state.canEditMetadata)
 		sections.push(
 			group("metadata", labels.metadata, icons.edit, [

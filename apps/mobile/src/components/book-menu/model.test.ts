@@ -46,7 +46,8 @@ const page = (sections: BookMenuEntry[][], id: string) => {
 test("a book offers details and list actions, nothing to play", () => {
 	expect(titles(buildBookMenu({ kind: "book" }, base, labels))).toEqual([
 		["Details"],
-		["Add to list", "Share link"],
+		["Add to list"],
+		["Share link"],
 	]);
 });
 
@@ -69,27 +70,23 @@ test("state and permissions decide the optional actions", () => {
 	);
 	expect(titles(sections)).toEqual([
 		["Listen", "Details"],
-		[
-			"Add to list",
-			"Share link",
-			"Remove from Continue listening",
-			"Not interested",
-		],
+		["Add to list", "Remove from Continue listening", "Not interested"],
+		["Share link"],
 		["Delete"],
 	]);
-	const remove = sections[2][0];
+	const remove = sections[3][0];
 	expect("destructive" in remove && remove.destructive).toBe(true);
 });
 
 test("the download action follows what's on the phone", () => {
-	const library = (download: BookMenuState["download"]) =>
-		buildBookMenu({ kind: "book" }, { ...base, download }, labels)[1].map(
+	const take = (download: BookMenuState["download"]) =>
+		buildBookMenu({ kind: "book" }, { ...base, download }, labels)[2].map(
 			label,
 		);
-	expect(library("none")).toEqual(["Add to list", "Download", "Share link"]);
-	expect(library("active")).toContain("Cancel download");
-	expect(library("done")).toContain("Remove download");
-	expect(library(null)).toEqual(["Add to list", "Share link"]);
+	expect(take("none")).toEqual(["Download", "Share link"]);
+	expect(take("active")).toContain("Cancel download");
+	expect(take("done")).toContain("Remove download");
+	expect(take(null)).toEqual(["Share link"]);
 });
 
 test("sharing folds into its own page once there's more than the link", () => {
@@ -99,11 +96,7 @@ test("sharing folds into its own page once there's more than the link", () => {
 		labels,
 	);
 	// Offline download stays on the first page; the file and Kindle go in Share.
-	expect(sections[1].map(label)).toEqual([
-		"Add to list",
-		"Download",
-		"Share ›",
-	]);
+	expect(sections[2].map(label)).toEqual(["Download", "Share ›"]);
 	expect(page(sections, "share")).toEqual([
 		"Share link",
 		"Export file…",
