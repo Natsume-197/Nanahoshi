@@ -23,7 +23,7 @@ export function useSwitchServer() {
 			if (result.error) throw new Error(result.error.message);
 			await queryClient.cancelQueries();
 			queryClient.clear();
-			router.dismissAll();
+			if (router.canDismiss()) router.dismissAll();
 			router.replace("/(tabs)/(index)");
 		},
 		onError: () => showNotice(t("toast.switch_server_failed")),
