@@ -1,6 +1,7 @@
 import { router, useNavigation, usePathname } from "expo-router";
 import { Stack } from "expo-router/stack";
 import { View } from "react-native";
+import { DepthScreen } from "@/components/depth-screen";
 import { NoticeHost } from "@/components/prompt/host";
 import { ExportProgressBar } from "@/downloads/export-progress-bar";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -57,6 +58,12 @@ export default function TabStack({ segment }: { segment: string }) {
 		// native tab bar; pages pad their end with useMiniPlayerInset.
 		<View style={{ flex: 1, backgroundColor: palette.background }}>
 			<Stack
+				// Pages sink back while a title's card rises over them.
+				screenLayout={({ children, route, navigation }) => (
+					<DepthScreen route={route} navigation={navigation}>
+						{children}
+					</DepthScreen>
+				)}
 				screenOptions={{
 					unstable_headerRightItems: ios
 						? () => [
@@ -118,6 +125,8 @@ export default function TabStack({ segment }: { segment: string }) {
 					name="book/[uuid]"
 					options={{
 						title: "",
+						// Rises as a card over the page it was opened from (Fable).
+						animation: "slide_from_bottom",
 						headerTransparent: true,
 						headerStyle: { backgroundColor: "transparent" },
 						headerShadowVisible: false,
@@ -127,6 +136,8 @@ export default function TabStack({ segment }: { segment: string }) {
 					name="audiobook/[uuid]"
 					options={{
 						title: "",
+						// Rises as a card over the page it was opened from (Fable).
+						animation: "slide_from_bottom",
 						headerTransparent: true,
 						headerStyle: { backgroundColor: "transparent" },
 						headerShadowVisible: false,

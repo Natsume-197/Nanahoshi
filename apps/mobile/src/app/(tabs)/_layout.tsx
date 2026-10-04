@@ -4,6 +4,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useState } from "react";
 import { AddToListHost } from "@/components/add-to-list/host";
 import { BookMenuProvider } from "@/components/book-menu";
+import { useCardClosing } from "@/components/depth-screen";
 import { FormSheetHost } from "@/components/form-sheet/host";
 import { ChoiceHost } from "@/components/prompt/host";
 import {
@@ -47,6 +48,8 @@ export default function TabsLayout() {
 		"/library",
 		"/me",
 	].includes(pathname);
+	// Back from a title: the bar returns once its card has gone down.
+	const cardClosing = useCardClosing();
 	const avatar = mediaUrl(
 		serverUrl,
 		profile.data?.image ?? session.data?.user.image,
@@ -72,7 +75,7 @@ export default function TabsLayout() {
 		// Long-press any title, anywhere in the tabs, for its actions menu.
 		<BookMenuProvider key={org.epoch}>
 			<NativeTabs
-				hidden={hideTabs}
+				hidden={hideTabs || cardClosing}
 				screenListeners={{ tabPress: haptics.tab }}
 				{...(process.env.EXPO_OS === "ios"
 					? // Scrolling tucks the bar away, and the player into it, as in Music.
