@@ -13,17 +13,21 @@ const all = () => true;
 describe("collectionActions", () => {
 	it("gives the owner edit and visibility, with delete set apart", () => {
 		expect(collectionActions(mine, all)).toEqual([
+			["offline"],
 			["edit", "visibility"],
 			["delete"],
 		]);
 	});
 
-	it("gives nothing on someone else's collection", () => {
-		expect(collectionActions({ ...mine, isOwner: false }, all)).toEqual([]);
+	it("lets anyone keep someone else's collection offline, nothing more", () => {
+		expect(collectionActions({ ...mine, isOwner: false }, all)).toEqual([
+			["offline"],
+		]);
 	});
 
 	it("leaves a dynamic collection's visibility to its rules", () => {
 		expect(collectionActions({ ...mine, kind: "dynamic" }, all)).toEqual([
+			["offline"],
 			["edit"],
 			["delete"],
 		]);
@@ -31,6 +35,9 @@ describe("collectionActions", () => {
 
 	it("drops what the member's role doesn't allow", () => {
 		const onlyDelete = (_: string, action: string) => action === "delete";
-		expect(collectionActions(mine, onlyDelete)).toEqual([["delete"]]);
+		expect(collectionActions(mine, onlyDelete)).toEqual([
+			["offline"],
+			["delete"],
+		]);
 	});
 });

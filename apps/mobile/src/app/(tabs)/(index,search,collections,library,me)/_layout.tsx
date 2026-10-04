@@ -174,6 +174,10 @@ export default function TabStack({ segment }: { segment: string }) {
 					options={{ title: t("settings.nav.about") }}
 				/>
 				<Stack.Screen
+					name="settings/downloads"
+					options={{ title: t("mobile.downloads.title") }}
+				/>
+				<Stack.Screen
 					name="settings/developer"
 					options={{ title: t("mobile.settings.developer") }}
 				/>

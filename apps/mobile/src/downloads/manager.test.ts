@@ -6,6 +6,11 @@ type FakeFile = { path: string };
 const files = new Set<string>();
 const entries = new Map<string, DownloadEntry>();
 const fetched: string[] = [];
+let free = 10 * 1024 ** 3;
+const smartStates = new Map<
+	string,
+	{ collections: never[]; dismissed: string[] }
+>();
 let network: (
 	url: string,
 	target: FakeFile,
@@ -58,6 +63,13 @@ mock.module("./files", () => ({
 	},
 	saveAudiobookMeta: () => undefined,
 	saveBookMeta: () => undefined,
+	freeSpace: () => free,
+	readSmartState: (serverId: string) =>
+		smartStates.get(serverId) ?? { collections: [], dismissed: [] },
+	writeSmartState: (
+		serverId: string,
+		state: { collections: never[]; dismissed: string[] },
+	) => smartStates.set(serverId, state),
 }));
 mock.module("@/lib/covers", () => ({ coverUrl: () => null }));
 mock.module("@/lib/format", () => ({
@@ -153,6 +165,8 @@ function settled(manager: InstanceType<typeof DownloadManager>) {
 beforeEach(() => {
 	files.clear();
 	entries.clear();
+	smartStates.clear();
+	free = 10 * 1024 ** 3;
 	fetched.length = 0;
 	network = async (url) => {
 		fetched.push(url);
@@ -240,4 +254,42 @@ test("a book the reader opened shows up once, without replacing a download", () 
 	manager.recordOpenedBook("s1", "x", { title: "Again", cover: null } as never);
 	expect(entries.get("book/s1/x")?.title).toBe("Opened");
 	expect(manager.getSnapshot().version).toBe(before + 1);
+});
+
+test("a download keeps why it came and the series it belongs to", async () => {
+	const manager = createManager();
+	manager.download("book", "v2", "s1", [{ type: "series" }]);
+	await settled(manager);
+	expect(entries.get("book/s1/v2")).toMatchObject({
+		reasons: [{ type: "series" }],
+		finishedAt: null,
+	});
+});
+
+test("a smart download waits rather than fill the phone; yours doesn't", async () => {
+	free = 512 * 1024 ** 2;
+	const manager = createManager();
+	manager.download("book", "auto", "s1", [{ type: "want" }]);
+	manager.download("book", "mine", "s1");
+	await settled(manager);
+	expect(entries.has("book/s1/auto")).toBe(false);
+	expect(entries.get("book/s1/mine")?.complete).toBe(true);
+});
+
+test("what you delete stays deleted until you download it again", async () => {
+	const manager = createManager();
+	manager.download("book", "a", "s1", [{ type: "reading" }]);
+	await settled(manager);
+	manager.remove("book", "s1", "a");
+	expect(manager.isDismissed("s1", "a")).toBe(true);
+	manager.download("book", "a", "s1");
+	expect(manager.isDismissed("s1", "a")).toBe(false);
+});
+
+test("smart downloads clearing a title don't count as you deleting it", async () => {
+	const manager = createManager();
+	manager.download("book", "a", "s1", [{ type: "series" }]);
+	await settled(manager);
+	manager.remove("book", "s1", "a", { byUser: false });
+	expect(manager.isDismissed("s1", "a")).toBe(false);
 });

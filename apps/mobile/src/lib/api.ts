@@ -18,6 +18,9 @@ export function createQueryClient() {
 	});
 }
 
+/** A call that succeeded: which procedure, with what input. */
+export type ApiCall = { path: readonly string[]; input: unknown };
+
 /**
  * Same oRPC surface the web app uses. React Native has no cookie jar, so the
  * session cookie better-auth keeps in SecureStore is attached by hand.
@@ -27,8 +30,18 @@ export function createApi(
 	auth: NanahoshiAuth,
 	onUnauthorized: () => void,
 ) {
+	const callListeners = new Set<(call: ApiCall) => void>();
 	const link = new RPCLink({
 		url: `${baseURL}/rpc`,
+		// Every caller (screens, the player, the reader's bridge) goes through
+		// here, so what it saved can be watched in one place.
+		interceptors: [
+			async ({ path, input, next }) => {
+				const output = await next();
+				for (const listener of callListeners) listener({ path, input });
+				return output;
+			},
+		],
 		headers: async () => {
 			const cookie = await auth.getCookie();
 			return cookie ? { Cookie: cookie } : {};
@@ -40,7 +53,17 @@ export function createApi(
 		},
 	});
 	const client: RouterClient<AppRouter> = createORPCClient(link);
-	return { client, orpc: createTanstackQueryUtils(client) };
+	return {
+		client,
+		orpc: createTanstackQueryUtils(client),
+		/** Hears every successful call; returns the unsubscribe. */
+		onCall(listener: (call: ApiCall) => void) {
+			callListeners.add(listener);
+			return () => {
+				callListeners.delete(listener);
+			};
+		},
+	};
 }
 
 export type Api = ReturnType<typeof createApi>;

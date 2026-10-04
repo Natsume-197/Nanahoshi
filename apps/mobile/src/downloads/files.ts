@@ -2,7 +2,12 @@ import type { ReaderBootBook } from "@nanahoshi/reader-bridge";
 import { Directory, File, Paths } from "expo-file-system";
 import { assertNetwork } from "@/lib/simulated-offline";
 import type { PlayerBook } from "@/player/engine";
-import type { DownloadEntry, DownloadKind, SavedPosition } from "./model";
+import {
+	type DownloadEntry,
+	type DownloadKind,
+	type SavedPosition,
+	safeFileName,
+} from "./model";
 
 // Everything lives in the document directory: the reader page sits there too,
 // so the WebView may read the books beside it, and the OS never evicts it.
@@ -75,7 +80,10 @@ export function localBookFile(
 	uuid: string,
 	filename: string,
 ) {
-	return new File(titleDirectory("book", serverId, uuid), filename);
+	return new File(
+		titleDirectory("book", serverId, uuid),
+		safeFileName(filename),
+	);
 }
 
 export const hasFile = (file: File) => file.exists && (file.size ?? 0) > 0;
@@ -270,9 +278,31 @@ export function removeDownload(
 	if (directory.exists) directory.delete();
 }
 
+/** Smart downloads' choices for one server: the collections kept offline,
+ * and titles the user deleted (never brought back by a shelf). */
+export type SmartState = {
+	collections: { id: string; name: string }[];
+	dismissed: string[];
+};
+
+const smartFile = (serverId: string) =>
+	new File(Paths.document, "smart", `${serverId}.json`);
+
+export function readSmartState(serverId: string): SmartState {
+	const saved = readJson<Partial<SmartState>>(smartFile(serverId));
+	return {
+		collections: saved?.collections ?? [],
+		dismissed: saved?.dismissed ?? [],
+	};
+}
+
+export function writeSmartState(serverId: string, state: SmartState) {
+	writeJson(smartFile(serverId), state);
+}
+
 /** Signing out (or leaving the server) removes this account's titles. */
 export function clearDownloads() {
-	for (const root of Object.values(ROOTS)) {
+	for (const root of [...Object.values(ROOTS), "smart"]) {
 		const directory = new Directory(Paths.document, root);
 		if (directory.exists) directory.delete();
 	}

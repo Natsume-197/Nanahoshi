@@ -10,6 +10,8 @@ import { SearchField } from "@/components/search-field";
 import { Text } from "@/components/text";
 import { TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
+import { useCollectionOffline } from "@/downloads/offline-collections";
+import { useActiveServerId, useDownloadedTitles } from "@/downloads/provider";
 import { joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
@@ -148,6 +150,7 @@ export function CollectionDetail({ id }: { id: string }) {
 									.filter(Boolean)
 									.join(" · ")}
 							</Text>
+							<OfflineStatus collectionId={id} total={total} />
 							{!collection.isOwner ? (
 								<Text variant="label" tone="secondary">
 									@{collection.ownerUsername}
@@ -167,5 +170,37 @@ export function CollectionDetail({ id }: { id: string }) {
 				<ActionSheet sections={actions} onClose={() => setMenuOpen(false)} />
 			) : null}
 		</>
+	);
+}
+
+/** Kept offline: how much of the collection is already on the phone. */
+function OfflineStatus({
+	collectionId,
+	total,
+}: {
+	collectionId: string;
+	total: number;
+}) {
+	const palette = usePalette();
+	const serverId = useActiveServerId();
+	const offline = useCollectionOffline(serverId, collectionId);
+	const { titles } = useDownloadedTitles();
+	if (!offline) return null;
+	const onPhone = titles.filter(
+		(title) =>
+			title.complete &&
+			title.reasons?.some(
+				(reason) => reason.type === "collection" && reason.id === collectionId,
+			),
+	).length;
+	return (
+		<View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+			<Icon name={icons.downloaded} size={16} color={palette.textSecondary} />
+			<Text variant="label" tone="secondary">
+				{onPhone >= total
+					? t("mobile.collections.offline_ready")
+					: t("mobile.collections.offline_progress", { done: onPhone, total })}
+			</Text>
+		</View>
 	);
 }

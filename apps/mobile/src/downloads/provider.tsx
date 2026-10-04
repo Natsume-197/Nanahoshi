@@ -7,15 +7,19 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import type { Api } from "@/lib/api";
 import type { NanahoshiAuth } from "@/lib/auth-client";
+import { usePlayer } from "@/player/provider";
 import { ExportManager } from "./export";
 import { listDownloads, readEntry } from "./files";
 import { DownloadManager, type DownloadsSnapshot } from "./manager";
 import { type DownloadKind, sortEntries } from "./model";
+import { SmartDownloads } from "./smart-engine";
 
 const DownloadsContext = createContext<DownloadManager | null>(null);
 const ExportsContext = createContext<ExportManager | null>(null);
+const SmartContext = createContext<SmartDownloads | null>(null);
 
 /** One manager per server connection, like the player. */
 export function DownloadsProvider({
@@ -36,11 +40,33 @@ export function DownloadsProvider({
 	const [exports] = useState(
 		() => new ExportManager({ serverUrl, auth, api, queryClient }),
 	);
+	const player = usePlayer();
+	const [smart] = useState(
+		() =>
+			new SmartDownloads({
+				api,
+				auth,
+				manager,
+				inUse: () => player.getSnapshot().book?.uuid ?? null,
+			}),
+	);
+	useMountEffect(() => smart.start());
 	return (
 		<DownloadsContext value={manager}>
-			<ExportsContext value={exports}>{children}</ExportsContext>
+			<ExportsContext value={exports}>
+				<SmartContext value={smart}>{children}</SmartContext>
+			</ExportsContext>
 		</DownloadsContext>
 	);
+}
+
+export function useSmartDownloadsEngine(): SmartDownloads {
+	const smart = use(SmartContext);
+	if (!smart)
+		throw new Error(
+			"useSmartDownloadsEngine must be used inside DownloadsProvider",
+		);
+	return smart;
 }
 
 export function useDownloads(): DownloadManager {

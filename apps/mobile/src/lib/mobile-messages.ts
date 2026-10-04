@@ -40,6 +40,28 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.offline.page_desc":
 			"This page needs a connection. Your downloads still open.",
 		"mobile.offline.see_downloads": "See downloads",
+		"mobile.smart.title": "Smart downloads",
+		"mobile.smart.origin_series": "Next in series",
+		"mobile.smart.origin_reading": "Reading",
+		"mobile.smart.origin_listening": "Listening",
+		"mobile.smart.origin_want_read": "Want to read",
+		"mobile.smart.origin_want_listen": "Want to listen",
+		"mobile.smart.clears_in": "leaves in {count} d",
+		"mobile.smart.clears_today": "leaves today",
+		"mobile.smart.keep": "Keep",
+		"mobile.smart.desc":
+			"Keeps what you're reading on this phone: the next volume of a series, your Reading shelf and the newest of Want to read.",
+		"mobile.smart.footer":
+			"Finished titles leave after 7 days. What you download yourself is never removed.",
+		"mobile.smart.cellular": "Use mobile data",
+		"mobile.smart.cellular_desc": "Off: smart downloads wait for Wi-Fi.",
+		"mobile.smart.on_short": "Smart on",
+		"mobile.smart.off_short": "Smart off",
+		"mobile.collections.offline_on": "Keep offline",
+		"mobile.collections.offline_ready": "Available offline",
+		"mobile.collections.offline_progress":
+			"Offline · {done} of {total} on this phone",
+		"mobile.collections.offline_off": "Stop keeping offline",
 		"mobile.downloads.no_books": "No books downloaded",
 		"mobile.downloads.no_audiobooks": "No audiobooks downloaded",
 		"mobile.offline.go_to_downloads": "Go to downloads",
@@ -289,6 +311,29 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.offline.page_desc":
 			"Esta página necesita conexión. Tus descargas siguen abriéndose.",
 		"mobile.offline.see_downloads": "Ver descargas",
+		"mobile.smart.title": "Descargas inteligentes",
+		"mobile.smart.origin_series": "Siguiente de la serie",
+		"mobile.smart.origin_reading": "Leyendo",
+		"mobile.smart.origin_listening": "Escuchando",
+		"mobile.smart.origin_want_read": "Quiero leer",
+		"mobile.smart.origin_want_listen": "Quiero escuchar",
+		"mobile.smart.clears_in": "se borra en {count} d",
+		"mobile.smart.clears_today": "se borra hoy",
+		"mobile.smart.keep": "Conservar",
+		"mobile.smart.desc":
+			"Mantiene en este teléfono lo que estás leyendo: el siguiente volumen de una serie, tu estante Leyendo y lo último de Quiero leer.",
+		"mobile.smart.footer":
+			"Lo que terminas se borra a los 7 días. Lo que descargas tú nunca se borra solo.",
+		"mobile.smart.cellular": "Usar datos móviles",
+		"mobile.smart.cellular_desc":
+			"Desactivado: las descargas inteligentes esperan al Wi-Fi.",
+		"mobile.smart.on_short": "Inteligentes activadas",
+		"mobile.smart.off_short": "Inteligentes desactivadas",
+		"mobile.collections.offline_on": "Disponible sin conexión",
+		"mobile.collections.offline_ready": "Disponible sin conexión",
+		"mobile.collections.offline_progress":
+			"Sin conexión · {done} de {total} en este teléfono",
+		"mobile.collections.offline_off": "Quitar de sin conexión",
 		"mobile.downloads.no_books": "No hay libros descargados",
 		"mobile.downloads.no_audiobooks": "No hay audiolibros descargados",
 		"mobile.offline.go_to_downloads": "Ir a descargas",
@@ -549,6 +594,29 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.offline.page_desc":
 			"このページには接続が必要です。ダウンロード済みの作品は開けます。",
 		"mobile.offline.see_downloads": "ダウンロードを見る",
+		"mobile.smart.title": "スマートダウンロード",
+		"mobile.smart.origin_series": "シリーズの次巻",
+		"mobile.smart.origin_reading": "読んでいる",
+		"mobile.smart.origin_listening": "聴いている",
+		"mobile.smart.origin_want_read": "読みたい",
+		"mobile.smart.origin_want_listen": "聴きたい",
+		"mobile.smart.clears_in": "{count}日後に削除",
+		"mobile.smart.clears_today": "今日削除",
+		"mobile.smart.keep": "保存する",
+		"mobile.smart.desc":
+			"読んでいる作品をこの端末に保存します：シリーズの次巻、「読んでいる」棚、「読みたい」の最新作品。",
+		"mobile.smart.footer":
+			"読み終えた作品は7日後に削除されます。自分でダウンロードした作品は自動で削除されません。",
+		"mobile.smart.cellular": "モバイルデータを使用",
+		"mobile.smart.cellular_desc":
+			"オフ：スマートダウンロードはWi-Fiを待ちます。",
+		"mobile.smart.on_short": "スマート オン",
+		"mobile.smart.off_short": "スマート オフ",
+		"mobile.collections.offline_on": "オフラインで保存",
+		"mobile.collections.offline_ready": "オフラインで利用可能",
+		"mobile.collections.offline_progress":
+			"オフライン · {total}件中{done}件を保存済み",
+		"mobile.collections.offline_off": "オフライン保存を解除",
 		"mobile.downloads.no_books": "ダウンロード済みの本はありません",
 		"mobile.downloads.no_audiobooks":
 			"ダウンロード済みのオーディオブックはありません",

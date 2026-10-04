@@ -5,6 +5,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
+import { useSmartDownloads } from "@/downloads/smart-settings";
 import { useAppearancePreference } from "@/lib/appearance";
 import { useDeveloperMode } from "@/lib/developer-mode";
 import { getLanguagePreference, t } from "@/lib/i18n";
@@ -30,6 +31,7 @@ export function SettingsScreen() {
 	const appearance = useAppearancePreference();
 	const language = getLanguagePreference();
 	const developer = useDeveloperMode();
+	const smart = useSmartDownloads();
 	const offline = useSimulatedOffline();
 	return (
 		<>
@@ -89,6 +91,14 @@ export function SettingsScreen() {
 								: LANGUAGE_NAMES[language]
 						}
 						href="/settings/language"
+					/>
+					<GroupedRow
+						icon={icons.download}
+						label={t("mobile.downloads.title")}
+						value={
+							smart ? t("mobile.smart.on_short") : t("mobile.smart.off_short")
+						}
+						href="/settings/downloads"
 					/>
 				</GroupedList>
 				<GroupedList>

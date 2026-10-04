@@ -14,7 +14,22 @@ export type DownloadEntry = {
 	/** false while files are still arriving (or the download was cut off). */
 	complete: boolean;
 	savedAt: number;
+	/** Why the title is on the phone. Missing on downloads from before smart
+	 * downloads: those count as the user's own (see smart.ts). */
+	reasons?: DownloadReason[];
+	/** When the user last finished (or reopened a finished) copy. */
+	finishedAt?: number | null;
+	/** For "next in series"; null when the title has none. */
+	seriesUuid?: string | null;
 };
+
+/** Why a title is on the phone. Only "manual" is the user's own choice. */
+export type DownloadReason =
+	| { type: "manual" }
+	| { type: "series" }
+	| { type: "reading" }
+	| { type: "want" }
+	| { type: "collection"; id: string; name: string };
 
 export type DownloadJobStatus = "queued" | "downloading" | "failed";
 
@@ -57,6 +72,12 @@ export function byteFraction(written: number, total: number): number {
 export function audioFileName(index: number, serverFilename: string): string {
 	const match = /\.([a-z0-9]{1,5})$/i.exec(serverFilename);
 	return `${index}${match ? `.${match[1].toLowerCase()}` : ""}`;
+}
+
+/** A server filename as it can sit on the phone: Android builds a URI from
+ * the path and rejects brackets and the like ("[Author] Title.azw3"). */
+export function safeFileName(filename: string): string {
+	return filename.replace(/[[\]{}|\\^`<>#%"?]/g, "_");
 }
 
 export type SavedPosition = { time: number; updatedAt: number };

@@ -6,15 +6,18 @@ export type CollectionTarget = {
 	isOwner: boolean;
 };
 
-export type CollectionAction = "edit" | "visibility" | "delete";
+export type CollectionAction = "offline" | "edit" | "visibility" | "delete";
 
-/** Which actions a collection offers, grouped into menu sections. Only the
- * owner gets any; a dynamic collection's visibility lives with its rules. */
+/** Which actions a collection offers, grouped into menu sections. Anyone can
+ * keep one on the phone; only the owner manages it, and a dynamic
+ * collection's visibility lives with its rules. */
 export function collectionActions(
 	collection: CollectionTarget | null | undefined,
 	can: (resource: string, action: string) => boolean,
 ): CollectionAction[][] {
-	if (!collection?.isOwner) return [];
+	if (!collection) return [];
+	const phone: CollectionAction[] = ["offline"];
+	if (!collection.isOwner) return [phone];
 	const manage: CollectionAction[] = [];
 	if (can("collection", "update")) manage.push("edit");
 	if (collection.kind === "manual" && can("collection", "makePublic")) {
@@ -23,5 +26,5 @@ export function collectionActions(
 	const danger: CollectionAction[] = can("collection", "delete")
 		? ["delete"]
 		: [];
-	return [manage, danger].filter((section) => section.length > 0);
+	return [phone, manage, danger].filter((section) => section.length > 0);
 }

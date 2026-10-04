@@ -2,6 +2,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { openFormSheet } from "@/components/form-sheet/open";
 import { askChoice, showNotice } from "@/components/prompt";
+import {
+	setCollectionOffline,
+	useCollectionOffline,
+} from "@/downloads/offline-collections";
+import {
+	useActiveServerId,
+	useSmartDownloadsEngine,
+} from "@/downloads/provider";
 import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
@@ -25,6 +33,9 @@ export function useCollectionMenu(
 	const { orpc, client } = useApi();
 	const queryClient = useQueryClient();
 	const can = useCan();
+	const serverId = useActiveServerId();
+	const smart = useSmartDownloadsEngine();
+	const offline = useCollectionOffline(serverId, collection?.id ?? "");
 	const refresh = () =>
 		queryClient.invalidateQueries({ queryKey: orpc.collections.key() });
 
@@ -47,6 +58,18 @@ export function useCollectionMenu(
 	if (!collection) return [];
 	const { id, name, isPublic, kind } = collection;
 	const items: Record<CollectionAction, MenuItem> = {
+		offline: {
+			id: "offline",
+			label: offline
+				? t("mobile.collections.offline_off")
+				: t("mobile.collections.offline_on"),
+			icon: offline ? icons.downloaded : icons.download,
+			onPress: () => {
+				if (!serverId) return;
+				setCollectionOffline(serverId, { id, name }, !offline);
+				smart.schedule();
+			},
+		},
 		edit: {
 			id: "edit",
 			label: t("common.edit"),

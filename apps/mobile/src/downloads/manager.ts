@@ -10,13 +10,16 @@ import {
 	coverFile,
 	downloadInto,
 	ensureBookFile,
+	freeSpace,
 	hasFile,
 	readEntry,
+	readSmartState,
 	removeDownload,
 	saveAudiobookMeta,
 	saveBookMeta,
 	trackFile,
 	writeEntry,
+	writeSmartState,
 } from "./files";
 import {
 	audioFileName,
@@ -24,8 +27,12 @@ import {
 	type DownloadEntry,
 	type DownloadJob,
 	type DownloadKind,
+	type DownloadReason,
 	weightedProgress,
 } from "./model";
+import { MIN_FREE_BYTES, reasonKey } from "./smart";
+
+const MANUAL: DownloadReason[] = [{ type: "manual" }];
 
 export type DownloadsSnapshot = {
 	jobs: Readonly<Record<string, DownloadJob>>;
@@ -81,6 +88,8 @@ export class DownloadManager {
 	private readonly listeners = new Set<() => void>();
 	private readonly queue: string[] = [];
 	private readonly aborts = new Map<string, AbortController>();
+	/** Why each queued title was asked for, written into its entry. */
+	private readonly reasons = new Map<string, DownloadReason[]>();
 	private running = false;
 
 	constructor(private readonly deps: Deps) {}
@@ -109,9 +118,18 @@ export class DownloadManager {
 		this.emit({ version: this.snapshot.version + 1 });
 	}
 
-	download(kind: DownloadKind, uuid: string, serverId: string) {
+	download(
+		kind: DownloadKind,
+		uuid: string,
+		serverId: string,
+		reasons: DownloadReason[] = MANUAL,
+	) {
 		const current = this.snapshot.jobs[uuid];
 		if (current && current.status !== "failed") return;
+		// Asking for it again by hand lifts an earlier "don't bring it back".
+		if (reasons.some((reason) => reason.type === "manual"))
+			this.setDismissed(serverId, uuid, false);
+		this.reasons.set(uuid, reasons);
 		this.setJob(uuid, { kind, serverId, status: "queued", progress: 0 });
 		this.queue.push(uuid);
 		void this.drain();
@@ -123,6 +141,7 @@ export class DownloadManager {
 		const index = this.queue.indexOf(uuid);
 		if (index >= 0) this.queue.splice(index, 1);
 		this.aborts.get(uuid)?.abort();
+		this.reasons.delete(uuid);
 		this.setJob(uuid, null);
 		if (job) {
 			removeDownload(job.kind, job.serverId, uuid);
@@ -135,10 +154,64 @@ export class DownloadManager {
 		for (const uuid of Object.keys(this.snapshot.jobs)) this.cancel(uuid);
 	}
 
-	remove(kind: DownloadKind, serverId: string, uuid: string) {
+	/** `byUser`: smart downloads won't bring this title back on their own. */
+	remove(
+		kind: DownloadKind,
+		serverId: string,
+		uuid: string,
+		{ byUser = true }: { byUser?: boolean } = {},
+	) {
 		if (this.snapshot.jobs[uuid]) this.cancel(uuid);
 		removeDownload(kind, serverId, uuid);
+		if (byUser) this.setDismissed(serverId, uuid, true);
 		this.diskChanged();
+	}
+
+	/** Rewrites a title's entry (reasons, finish date) without touching files. */
+	updateEntry(
+		kind: DownloadKind,
+		serverId: string,
+		uuid: string,
+		patch: Partial<
+			Pick<DownloadEntry, "reasons" | "finishedAt" | "seriesUuid">
+		>,
+	) {
+		const entry = readEntry(kind, serverId, uuid);
+		if (!entry) return;
+		writeEntry({ ...entry, ...patch });
+		this.diskChanged();
+	}
+
+	/** Why a queued or running title was asked for. */
+	pendingReasons(uuid: string): DownloadReason[] | null {
+		return this.reasons.get(uuid) ?? null;
+	}
+
+	isDismissed(serverId: string, uuid: string) {
+		return readSmartState(serverId).dismissed.includes(uuid);
+	}
+
+	private setDismissed(serverId: string, uuid: string, dismissed: boolean) {
+		const state = readSmartState(serverId);
+		const has = state.dismissed.includes(uuid);
+		if (has === dismissed) return;
+		writeSmartState(serverId, {
+			...state,
+			dismissed: dismissed
+				? [...state.dismissed, uuid]
+				: state.dismissed.filter((item) => item !== uuid),
+		});
+	}
+
+	/** The reasons a fresh download writes, joined with any it had before. */
+	private reasonsFor(uuid: string, previous: DownloadEntry | null) {
+		const asked = this.reasons.get(uuid) ?? MANUAL;
+		const before = previous?.reasons ?? [];
+		const keys = new Set(before.map(reasonKey));
+		return [
+			...before,
+			...asked.filter((reason) => !keys.has(reasonKey(reason))),
+		];
 	}
 
 	/** Called by the reader after it fetched a book for the first time. */
@@ -165,6 +238,15 @@ export class DownloadManager {
 			for (let uuid = this.queue.shift(); uuid; uuid = this.queue.shift()) {
 				const job = this.snapshot.jobs[uuid];
 				if (!job) continue;
+				const automatic = !(this.reasons.get(uuid) ?? MANUAL).some(
+					(reason) => reason.type === "manual",
+				);
+				// Smart downloads never fill the phone; the next sync tries again.
+				if (automatic && freeSpace() < MIN_FREE_BYTES) {
+					this.reasons.delete(uuid);
+					this.setJob(uuid, null);
+					continue;
+				}
 				const abort = new AbortController();
 				this.aborts.set(uuid, abort);
 				this.setJob(uuid, { ...job, status: "downloading" });
@@ -178,6 +260,7 @@ export class DownloadManager {
 						this.setJob(uuid, { ...job, status: "failed" });
 				} finally {
 					this.aborts.delete(uuid);
+					this.reasons.delete(uuid);
 					this.diskChanged();
 				}
 			}
@@ -230,6 +313,7 @@ export class DownloadManager {
 		]);
 		stopIfCancelled(signal);
 		const meta = bootBookFrom(book);
+		const previous = readEntry("book", serverId, uuid);
 		const entry: DownloadEntry = {
 			kind: "book",
 			uuid,
@@ -239,7 +323,12 @@ export class DownloadManager {
 			cover: book.cover ?? null,
 			color: details?.mainColor ?? null,
 			complete: false,
-			savedAt: Date.now(),
+			savedAt: previous?.savedAt ?? Date.now(),
+			reasons: this.reasonsFor(uuid, previous),
+			finishedAt: previous?.finishedAt ?? null,
+			seriesUuid: details
+				? (details.series?.uuid ?? null)
+				: previous?.seriesUuid,
 		};
 		writeEntry(entry);
 		saveBookMeta(serverId, uuid, meta);
@@ -295,6 +384,9 @@ export class DownloadManager {
 			color: book.color,
 			complete: false,
 			savedAt: previous?.savedAt ?? Date.now(),
+			reasons: this.reasonsFor(uuid, previous),
+			finishedAt: previous?.finishedAt ?? null,
+			seriesUuid: details.series?.uuid ?? null,
 		};
 		writeEntry(entry);
 		saveAudiobookMeta(serverId, { ...book, tracks });

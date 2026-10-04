@@ -10,6 +10,7 @@ import {
 	exportProgress,
 	formatBytes,
 	pickStartPosition,
+	safeFileName,
 	savedLocationLabel,
 	sortEntries,
 	weightedProgress,
@@ -181,4 +182,12 @@ test("a source that runs short stops the copy instead of looping", async () => {
 		yieldToUi: async () => {},
 	});
 	expect(copied).toBe(0);
+});
+
+test("book filenames lose what Android's file URIs reject", () => {
+	expect(safeFileName("[辻村深月] かがみの孤城.azw3")).toBe(
+		"_辻村深月_ かがみの孤城.azw3",
+	);
+	expect(safeFileName("Dune #1 {draft}.epub")).toBe("Dune _1 _draft_.epub");
+	expect(safeFileName("Plain title.epub")).toBe("Plain title.epub");
 });

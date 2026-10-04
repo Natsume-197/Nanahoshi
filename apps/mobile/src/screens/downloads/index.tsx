@@ -8,8 +8,13 @@ import { ProgressBar } from "@/components/progress-bar";
 import { EmptyState } from "@/components/states";
 import { Text } from "@/components/text";
 import { freeSpace, type ListedDownload } from "@/downloads/files";
-import { type DownloadJob, formatBytes } from "@/downloads/model";
-import { useDownloadedTitles } from "@/downloads/provider";
+import {
+	type DownloadJob,
+	type DownloadReason,
+	formatBytes,
+} from "@/downloads/model";
+import { useDownloadedTitles, useDownloads } from "@/downloads/provider";
+import { daysUntilCleared, keepForever, smartOrigin } from "@/downloads/smart";
 import { useDownloadActions } from "@/downloads/use-download-actions";
 import { joinNames } from "@/lib/format";
 import { locale, t } from "@/lib/i18n";
@@ -97,6 +102,7 @@ function DownloadRow({
 }) {
 	const palette = usePalette();
 	const player = usePlayer();
+	const manager = useDownloads();
 	const { start, cancel, remove } = useDownloadActions(
 		item.kind,
 		item.uuid,
@@ -123,6 +129,25 @@ function DownloadRow({
 	]
 		.filter(Boolean)
 		.join(" · ");
+
+	const origin = smartOrigin(item);
+	const daysLeft = origin ? daysUntilCleared(item, Date.now()) : null;
+	const smartLine = origin
+		? [
+				originLabel(origin, audio),
+				daysLeft !== null
+					? daysLeft === 0
+						? t("mobile.smart.clears_today")
+						: t("mobile.smart.clears_in", { count: daysLeft })
+					: null,
+			]
+				.filter(Boolean)
+				.join(" · ")
+		: null;
+	const keep = () =>
+		manager.updateEntry(item.kind, item.serverId, item.uuid, {
+			reasons: keepForever(item),
+		});
 
 	const open = () => {
 		if (active) return;
@@ -170,6 +195,36 @@ function DownloadRow({
 				>
 					{status ?? detail}
 				</Text>
+				{smartLine && !status ? (
+					<View
+						style={{
+							flexDirection: "row",
+							alignItems: "center",
+							gap: space.sm,
+						}}
+					>
+						<Icon
+							name={origin?.type === "collection" ? icons.folder : icons.smart}
+							size={14}
+							color={palette.textTertiary}
+						/>
+						<Text
+							variant="caption"
+							tone="tertiary"
+							numberOfLines={1}
+							style={{ flexShrink: 1 }}
+						>
+							{smartLine}
+						</Text>
+						{daysLeft !== null ? (
+							<Pressable accessibilityRole="button" onPress={keep} hitSlop={8}>
+								<Text variant="caption" style={{ fontWeight: "600" }}>
+									{t("mobile.smart.keep")}
+								</Text>
+							</Pressable>
+						) : null}
+					</View>
+				) : null}
 				{job?.status === "downloading" ? (
 					<ProgressBar value={job.progress * 100} />
 				) : null}
@@ -197,4 +252,25 @@ function DownloadRow({
 			</Pressable>
 		</Pressable>
 	);
+}
+
+function originLabel(origin: DownloadReason, audio: boolean): string {
+	switch (origin.type) {
+		case "collection":
+			return origin.name;
+		case "series":
+			return t("mobile.smart.origin_series");
+		case "reading":
+			return t(
+				audio ? "mobile.smart.origin_listening" : "mobile.smart.origin_reading",
+			);
+		case "want":
+			return t(
+				audio
+					? "mobile.smart.origin_want_listen"
+					: "mobile.smart.origin_want_read",
+			);
+		default:
+			return "";
+	}
 }

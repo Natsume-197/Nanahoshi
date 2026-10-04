@@ -59,3 +59,21 @@ diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/
  
      override fun getResolvedUiNightMode() = colorSchemeCoordinator.getResolvedUiNightMode()
  
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/CustomBottomNavigationView.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/CustomBottomNavigationView.kt
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/CustomBottomNavigationView.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/container/CustomBottomNavigationView.kt
+@@ -23,6 +23,14 @@
+         this.actionOrigin = null
+     }
+ 
++    // A GONE view keeps its last bounds and React Native's touch targeting
++    // ignores visibility, so the hidden bar swallowed touches meant for the
++    // page under it. Collapse it; showing it again lays it out afresh.
++    override fun setVisibility(visibility: Int) {
++        super.setVisibility(visibility)
++        if (visibility == GONE) layout(left, bottom, right, bottom)
++    }
++
+     override fun setSelectedItemId(itemId: Int) {
+         if (this.actionOrigin == null) {
+             this.actionOrigin = TabsActionOrigin.USER
