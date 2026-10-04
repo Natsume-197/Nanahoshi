@@ -90,8 +90,10 @@ export function Home() {
 			}}
 		/>
 	);
-	// No network, or a server that doesn't answer: downloads still open.
-	const offline = !useIsOnline() || libraries.isError;
+	// No network, or a server that never answered: downloads still open. A
+	// failed refresh keeps what it already showed.
+	const offline =
+		!useIsOnline() || (libraries.isError && libraries.data === undefined);
 	const content = offline ? (
 		<HomeOffline />
 	) : (

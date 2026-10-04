@@ -5,6 +5,7 @@ import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/react-query";
 import type { NanahoshiAuth } from "./auth-client";
+import { shouldRetry } from "./query-retry";
 
 export function createQueryClient() {
 	return new QueryClient({
@@ -12,7 +13,7 @@ export function createQueryClient() {
 			queries: {
 				staleTime: 5 * 60_000,
 				gcTime: 24 * 60 * 60_000,
-				retry: 1,
+				retry: shouldRetry,
 			},
 		},
 	});
