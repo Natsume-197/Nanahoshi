@@ -12,7 +12,6 @@ export type QueueName =
 	| "ranobedb-import"
 	| "cover-ingest"
 	| "recommendations"
-	| "bookmeter-sync"
 	| "read-listen-match-analysis"
 	| "read-listen-generation";
 
@@ -121,14 +120,6 @@ export const TASK_REGISTRY = {
 		queue: "recommendations",
 		scope: "server",
 		modifiesContent: false,
-		notifyOnFinish: true,
-	},
-	"bookmeter-sync": {
-		defaultLabel: "Syncing Bookmeter shelves",
-		queue: "bookmeter-sync",
-		scope: "server",
-		// Imported shelf rows should show up without a manual refresh.
-		modifiesContent: true,
 		notifyOnFinish: true,
 	},
 	"read-listen-generation": {

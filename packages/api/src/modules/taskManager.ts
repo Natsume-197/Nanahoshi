@@ -4,7 +4,6 @@ import {
 	lazySubscriber,
 	removeFromBucket,
 } from "../infrastructure/queue/pubsub";
-import { bookmeterSyncQueue } from "../infrastructure/queue/queues/bookmeter-sync.queue";
 import { coverIngestQueue } from "../infrastructure/queue/queues/cover-ingest.queue";
 import { fileEventQueue } from "../infrastructure/queue/queues/file-event.queue";
 import { metadataEnrichQueue } from "../infrastructure/queue/queues/metadata-enrich.queue";
@@ -43,8 +42,6 @@ function queueForName(name: QueueName): Queue {
 			return coverIngestQueue;
 		case "recommendations":
 			return recommendationsQueue;
-		case "bookmeter-sync":
-			return bookmeterSyncQueue;
 		case "read-listen-generation":
 			return readListenGenerationQueue;
 		case "read-listen-match-analysis":

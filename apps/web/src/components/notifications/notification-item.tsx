@@ -1,4 +1,6 @@
 import type { NotificationData } from "@nanahoshi/api/routers/notifications/notification.model";
+import { Button } from "@nanahoshi/ui/components/button";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowsClockwise,
 	BookOpen,
@@ -16,8 +18,6 @@ import {
 	Upload,
 	XCircle,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatRelativeTime } from "@/utils/format";
 import type { client } from "@/utils/orpc";
@@ -43,7 +43,6 @@ const PLAIN_TITLES: Record<string, () => string> = {
 	"recommendations-rebuild-global":
 		m["notifications.task_recommendations_rebuild_global"],
 	"recommendations-feeds": m["notifications.task_recommendations_feeds"],
-	"bookmeter-sync": m["notifications.task_bookmeter_sync"],
 	"read-listen-generation": m["notifications.task_read_listen_generation"],
 };
 
@@ -69,8 +68,6 @@ const SENTENCE_TITLES: Record<string, (subject: string) => string> = {
 		m["notifications.task_metadata_enrich_sentence"]({ subject }),
 	"metadata-enrich-retry": (subject) =>
 		m["notifications.task_metadata_enrich_retry_sentence"]({ subject }),
-	"bookmeter-sync": (subject) =>
-		m["notifications.task_bookmeter_sync_sentence"]({ subject }),
 	"read-listen-generation": (subject) =>
 		m["notifications.task_read_listen_generation_sentence"]({ subject }),
 };
@@ -89,7 +86,6 @@ const TASK_ICONS: Record<string, Icon> = {
 	"recommendations-rebuild": ArrowsClockwise,
 	"recommendations-rebuild-global": ArrowsClockwise,
 	"recommendations-feeds": ArrowsClockwise,
-	"bookmeter-sync": BookOpen,
 	"read-listen-generation": BookOpen,
 };
 
@@ -183,7 +179,6 @@ const WHOLE_LABEL_SUBJECTS = new Set(["read-listen-generation"]);
 // Task types whose label carries no usable subject: the subject is fixed.
 const FIXED_SUBJECTS: Record<string, string> = {
 	"ranobedb-import": "RanobeDB",
-	"bookmeter-sync": "Bookmeter",
 };
 
 /**

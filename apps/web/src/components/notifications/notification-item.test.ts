@@ -47,9 +47,6 @@ describe("notification presentation", () => {
 
 	it("uses fixed subjects for label-less task types", () => {
 		expect(
-			notificationSubject("bookmeter-sync", "Syncing Bookmeter shelves"),
-		).toBe("Bookmeter");
-		expect(
 			notificationSubject("ranobedb-import", "Importing RanobeDB database"),
 		).toBe("RanobeDB");
 	});

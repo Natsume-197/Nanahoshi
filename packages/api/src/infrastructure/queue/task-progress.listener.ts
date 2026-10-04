@@ -8,7 +8,6 @@ import {
 } from "../../modules/taskManager";
 import type { QueueName } from "../../modules/tasks/task-registry";
 import { readListenRepository } from "../../routers/read-listen/read-listen.repository";
-import { bookmeterSyncQueue } from "./queues/bookmeter-sync.queue";
 import { coverIngestQueue } from "./queues/cover-ingest.queue";
 import { fileEventQueue } from "./queues/file-event.queue";
 import { metadataEnrichQueue } from "./queues/metadata-enrich.queue";
@@ -38,7 +37,6 @@ const TRACKED_QUEUES: { name: QueueName; queue: Queue }[] = [
 	{ name: "ranobedb-import", queue: ranobedbImportQueue },
 	{ name: "cover-ingest", queue: coverIngestQueue },
 	{ name: "recommendations", queue: recommendationsQueue },
-	{ name: "bookmeter-sync", queue: bookmeterSyncQueue },
 	{ name: "read-listen-generation", queue: readListenGenerationQueue },
 	{ name: "read-listen-match-analysis", queue: readListenMatchAnalysisQueue },
 ];

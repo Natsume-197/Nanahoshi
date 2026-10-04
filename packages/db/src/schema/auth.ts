@@ -39,11 +39,6 @@ export const user = pgTable("user", {
 	shareReadingActivity: boolean("share_reading_activity")
 		.default(true)
 		.notNull(),
-	// Bookmeter integration: numeric user id of the linked bookmeter.com profile.
-	bookmeterUserId: text("bookmeter_user_id"),
-	bookmeterLastSyncedAt: timestamp("bookmeter_last_synced_at"),
-	// JSON summary of the last sync ({fetched, matched, added}) for settings UI.
-	bookmeterLastSyncResult: text("bookmeter_last_sync_result"),
 });
 
 export const session = pgTable(

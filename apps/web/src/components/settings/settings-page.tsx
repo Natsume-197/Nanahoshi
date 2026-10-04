@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	ArrowLeft,
 	Buildings,
@@ -9,7 +10,6 @@ import {
 	LockKey,
 	MonitorPlay,
 	PaintBrush,
-	PlugsConnected,
 	Shield,
 	Translate,
 	User,
@@ -24,7 +24,6 @@ import { AppearanceSettings } from "@/components/settings/sections/appearance";
 import { DataBackupsSettings } from "@/components/settings/sections/data-backups";
 import { HonomiyaSettings } from "@/components/settings/sections/honomiya";
 import { InstanceActivitySettings } from "@/components/settings/sections/instance-activity";
-import { IntegrationsSettings } from "@/components/settings/sections/integrations";
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { AdminLogs } from "@/components/settings/sections/logs";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
@@ -43,7 +42,6 @@ import type {
 	SettingsNavIcon,
 } from "@/components/settings/settings-sidebar-nav";
 import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
-import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/use-session";
 import { m } from "@/paraglide/messages";
 
@@ -51,7 +49,6 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	profile: User,
 	account: Shield,
 	privacy: LockKey,
-	integrations: PlugsConnected,
 	appearance: PaintBrush,
 	language: Translate,
 	about: Info,
@@ -71,7 +68,6 @@ const LABELS: Record<SettingsSection, () => string> = {
 	profile: m["settings.nav.profile"],
 	account: m["settings.nav.account"],
 	privacy: m["settings.nav.privacy"],
-	integrations: m["settings.nav.integrations"],
 	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
 	about: m["settings.nav.about"],
@@ -110,12 +106,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const groups: SettingsNavGroup[] = [
 		{
 			label: m["settings.group.account"](),
-			items: [
-				item("profile"),
-				item("account"),
-				item("privacy"),
-				item("integrations"),
-			],
+			items: [item("profile"), item("account"), item("privacy")],
 		},
 		{
 			label: m["settings.group.preferences"](),
@@ -257,8 +248,6 @@ function SettingsContent({
 			return <AccountSettings />;
 		case "privacy":
 			return <PrivacySettings />;
-		case "integrations":
-			return <IntegrationsSettings />;
 		case "appearance":
 			return <AppearanceSettings onCustomize={onCustomizeTheme} />;
 		case "language":

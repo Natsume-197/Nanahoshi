@@ -23,7 +23,6 @@ export const workersInitializer: RuntimeInitializer = {
 			sendToKindle,
 			scheduledScan,
 			recommendations,
-			bookmeterSync,
 			readListenMatchAnalysis,
 			readListenGeneration,
 		] = await Promise.all([
@@ -35,7 +34,6 @@ export const workersInitializer: RuntimeInitializer = {
 			import("@nanahoshi/api/infrastructure/workers/send-to-kindle.worker"),
 			import("@nanahoshi/api/infrastructure/workers/scheduled-scan.worker"),
 			import("@nanahoshi/api/infrastructure/workers/recommendations.worker"),
-			import("@nanahoshi/api/infrastructure/workers/bookmeter-sync.worker"),
 			import(
 				"@nanahoshi/api/infrastructure/workers/read-listen-match-analysis.worker"
 			),
@@ -53,7 +51,6 @@ export const workersInitializer: RuntimeInitializer = {
 			sendToKindle.sendToKindleWorker,
 			scheduledScan.scheduledScanWorker,
 			recommendations.recommendationsWorker,
-			bookmeterSync.bookmeterSyncWorker,
 			readListenMatchAnalysis.readListenMatchAnalysisWorker,
 			readListenGeneration.readListenGenerationWorker,
 		];
@@ -108,11 +105,11 @@ export const workersInitializer: RuntimeInitializer = {
 			}),
 		);
 
-		const { registerBookmeterSchedule } = await import(
-			"@nanahoshi/api/modules/bookmeter/bookmeter.scheduler"
+		const { removeRetiredQueues } = await import(
+			"@nanahoshi/api/infrastructure/queue/retired-queues"
 		);
-		await registerBookmeterSchedule().catch((err) =>
-			logger.error({ err }, "[Workers] Failed to register bookmeter schedule"),
+		await removeRetiredQueues().catch((err) =>
+			logger.error({ err }, "[Workers] Failed to remove retired queues"),
 		);
 
 		const { reconcileRecommendationSchedules } = await import(
