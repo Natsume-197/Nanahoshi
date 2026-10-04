@@ -14,6 +14,8 @@ import { motion } from "@/theme";
  * Reanimated CSS transition to scale 0.97 on press-in, 120 ms, strong
  * ease-out. No shared value — two state flips per press, never per frame.
  * `style` shapes the scaled box; the Pressable itself stays unstyled.
+ * Cards in scrolling lists pass `scaleOnPress={false}`: a finger dragging
+ * the list would otherwise squeeze every card it lands on.
  */
 export function PressableScale({
 	ref,
@@ -21,9 +23,11 @@ export function PressableScale({
 	style,
 	onPressIn,
 	onPressOut,
+	scaleOnPress = true,
 	...props
 }: Omit<PressableProps, "style" | "children"> & {
 	ref?: Ref<View>;
+	scaleOnPress?: boolean;
 	children: ReactNode;
 	style?: StyleProp<ViewStyle>;
 }) {
@@ -46,7 +50,7 @@ export function PressableScale({
 				style={[
 					style,
 					{
-						transform: [{ scale: pressed ? 0.97 : 1 }],
+						transform: [{ scale: pressed && scaleOnPress ? 0.97 : 1 }],
 						transitionProperty: "transform",
 						transitionDuration: motion.press,
 						transitionTimingFunction: motion.easeOut,

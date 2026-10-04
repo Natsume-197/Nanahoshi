@@ -7,8 +7,10 @@ import { Cover } from "./cover";
 import { Icon, type IconName, icons } from "./icon";
 import { Text } from "./text";
 
-/** Every artwork sits in the same 112pt slot so titles align down the list. */
-const SLOT = 112;
+/** Every artwork starts at the row's edge in the same slot, so covers line
+ * up with the page gutter and titles align down the list. */
+const SLOT = 80;
+const SLOT_HEIGHT = 112;
 
 /** The web's search result row: artwork slot, a two-line semibold title, a
  * muted subtitle, a small meta line ("Book", "Author · 12 books") and a
@@ -66,9 +68,10 @@ export function ResultRow({
 		>
 			<View
 				style={{
-					width: SLOT,
-					height: compact ? 40 : SLOT,
-					alignItems: "center",
+					// A past query is just its icon, not a cover-sized gap.
+					width: compact ? 24 : SLOT,
+					height: compact ? 40 : SLOT_HEIGHT,
+					alignItems: "flex-start",
 					justifyContent: "center",
 				}}
 			>
@@ -101,14 +104,14 @@ export function ResultRow({
 	return row;
 }
 
-/** Hairline between rows, inset to the row's rounded press area. */
+/** Hairline between rows, on the same edges as the row's content. */
 export function ResultDivider() {
 	const palette = usePalette();
 	return (
 		<View
 			style={{
 				height: 1,
-				marginHorizontal: space.lg,
+				marginHorizontal: space.md,
 				backgroundColor: palette.separator,
 				opacity: 0.6,
 			}}
@@ -167,24 +170,23 @@ export function SeriesDeck({ covers }: { covers: string[] }) {
 	const unique = Array.from(new Set(covers.filter(Boolean))).slice(0, 3);
 	if (unique.length === 0)
 		return <CoverArt cover={null} fallback={icons.series} />;
-	const deckWidth = 64 + (unique.length - 1) * 16;
-	const deckHeight = 98 + (unique.length - 1) * 7;
-	const left = (SLOT - deckWidth) / 2;
-	const bottom = (SLOT - deckHeight) / 2;
+	const deckWidth = 56 + (unique.length - 1) * 12;
+	const deckHeight = 84 + (unique.length - 1) * 6;
+	const bottom = (SLOT_HEIGHT - deckHeight) / 2;
 	return (
-		<View style={{ width: SLOT, height: SLOT }}>
+		<View style={{ width: deckWidth, height: SLOT_HEIGHT }}>
 			{unique.map((cover, index) => (
 				<View
 					key={cover}
 					style={{
 						position: "absolute",
-						left: left + index * 16,
-						bottom: bottom + index * 7,
+						left: index * 12,
+						bottom: bottom + index * 6,
 						zIndex: unique.length - index,
 						boxShadow: shadows.raised,
 					}}
 				>
-					<Cover cover={cover} width={64} shape="book" />
+					<Cover cover={cover} width={56} shape="book" />
 				</View>
 			))}
 		</View>

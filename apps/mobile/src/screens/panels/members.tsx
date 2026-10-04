@@ -60,10 +60,7 @@ export function MembersScreen() {
 					contentInsetAdjustmentBehavior="automatic"
 					stickySectionHeadersEnabled={false}
 					refreshControl={
-						<RefreshControl
-							refreshing={members.isRefetching}
-							onRefresh={() => void members.refetch()}
-						/>
+						<RefreshControl onRefresh={() => members.refetch()} />
 					}
 					contentContainerStyle={{ paddingBottom: space.lg + miniPlayerInset }}
 					ListEmptyComponent={

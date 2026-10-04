@@ -12,7 +12,12 @@ import { Pressable, View } from "react-native";
 import { usePalette } from "@/theme";
 import { Icon } from "../icon";
 import { MaterialIcon } from "./material-icon";
-import type { ActionMenuButtonProps, MenuItem } from "./types";
+import {
+	type ActionMenuButtonProps,
+	flattenMenu,
+	type MenuEntry,
+	type MenuItem,
+} from "./types";
 
 export type { ActionMenuButtonProps, MenuItem } from "./types";
 
@@ -84,11 +89,11 @@ export function ComposeMenuItems({
 	sections,
 	onChoose,
 }: {
-	sections: MenuItem[][];
+	sections: MenuEntry[][];
 	onChoose: (item: MenuItem) => void;
 }) {
 	const palette = usePalette();
-	return sections.flatMap((section, index) => [
+	return flattenMenu(sections).flatMap((section, index) => [
 		index > 0 ? (
 			<HorizontalDivider
 				key={`divider-${section[0].id}`}

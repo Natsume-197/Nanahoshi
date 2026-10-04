@@ -1,9 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
-import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useRef, useState } from "react";
 import { Text as NativeText } from "react-native";
 import { Button } from "@/components/button";
+import { useFormSheet } from "@/components/form-sheet/open";
 import { showNotice } from "@/components/prompt";
 import { SheetBody } from "@/components/sheet-body";
 import { Text } from "@/components/text";
@@ -21,6 +21,7 @@ const AMAZON_APPROVE_URL = "https://www.amazon.com/sendtokindle/email";
 export function SendToKindle({ uuid }: { uuid: string }) {
 	const { client } = useApi();
 	const palette = usePalette();
+	const { finish } = useFormSheet();
 	const initial = lastKindleEmail.read();
 	const emailRef = useRef(initial);
 	const [problem, setProblem] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export function SendToKindle({ uuid }: { uuid: string }) {
 		onSuccess: async (_data, kindleEmail) => {
 			await lastKindleEmail.write(kindleEmail).catch(() => undefined);
 			haptics.success();
-			router.back();
+			finish();
 		},
 		onError: (error) =>
 			showNotice(

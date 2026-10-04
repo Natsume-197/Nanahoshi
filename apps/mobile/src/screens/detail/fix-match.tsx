@@ -21,14 +21,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Button } from "@/components/button";
 import { Chip } from "@/components/chip";
 import { HeaderButton } from "@/components/header-button";
 import { Icon, icons } from "@/components/icon";
 import { showNotice } from "@/components/prompt";
 import { RowSkeleton } from "@/components/skeleton";
-import { ErrorState } from "@/components/states";
+import { ErrorState, Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { formatDuration } from "@/lib/format";
@@ -514,7 +514,7 @@ function CandidateRow({
 					))}
 			</View>
 			{busy ? (
-				<ActivityIndicator color={palette.text} />
+				<Spinner inline tone="primary" />
 			) : (
 				<Icon
 					name={icons.chevronRight}

@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
-import type { MenuItem } from "./types";
+import type { MenuEntry } from "./types";
 
 /** iOS shows actions as a UIMenu on their own trigger (ActionMenuButton), so
  * there is no detached sheet to mount. */
 export function ActionSheet(_props: {
-	sections: MenuItem[][];
+	sections: MenuEntry[][];
 	header?: ReactNode;
-	tone?: unknown;
 	onClose: () => void;
 }) {
 	return null;

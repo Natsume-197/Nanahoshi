@@ -1,12 +1,8 @@
-import { Host } from "@expo/ui";
 import {
 	Box,
 	Column,
 	IconButton,
 	LazyColumn,
-	ListItem,
-	ModalBottomSheet,
-	type ModalBottomSheetRef,
 	Row,
 	SegmentedButton,
 	SingleChoiceSegmentedButtonRow,
@@ -15,7 +11,6 @@ import {
 	useNativeState,
 } from "@expo/ui/jetpack-compose";
 import {
-	clickable,
 	fillMaxWidth,
 	padding,
 	size,
@@ -24,12 +19,15 @@ import {
 import { useRef, useState } from "react";
 import { MaterialIcon } from "@/components/action-menu/material-icon";
 import { icons } from "@/components/icon";
+import { Sheet } from "@/components/sheet";
+import { SheetMeta, SheetRow, SheetTitle } from "@/components/sheet/rows";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { type AudioBookmark, useBookmarks } from "./bookmarks";
+import { bookmarkLines } from "./bookmarks-model";
+import { chapterName, chapterNameAt } from "./chapter-name";
 import type { PlayerBook } from "./engine";
 import { useSheetInk } from "./ink";
-import { chapterName } from "./player-panels";
 import { usePlayer, usePlayerState } from "./provider";
 import { useTimeScope } from "./time-scope";
 import { activeChapterIndex, clock, clockIn } from "./timing";
@@ -72,61 +70,50 @@ function ListSheet({
 	onClose: () => void;
 }) {
 	const tone = useSheetInk();
-	const sheet = useRef<ModalBottomSheetRef>(null);
 	const bookmarks = useBookmarks(book.uuid);
 	const hasChapters = book.chapters.length > 0;
-	// A jump closes the sheet: the listener wants to hear the moment picked.
-	const jumpAndClose = async (jump: () => void) => {
-		haptics.select();
-		jump();
-		await sheet.current?.hide();
-		onClose();
-	};
 	return (
-		<Host style={{ position: "absolute", width: 1, height: 1 }}>
-			<ModalBottomSheet
-				ref={sheet}
-				onDismissRequest={onClose}
-				containerColor={tone.sheet}
-				contentColor={tone.text}
-			>
-				<Column modifiers={[fillMaxWidth()]}>
-					{hasChapters ? (
-						<SingleChoiceSegmentedButtonRow
-							modifiers={[fillMaxWidth(), padding(16, 0, 16, 12)]}
-						>
-							<TabButton
-								label={t("audiobook.player_chapters")}
-								selected={tab === "chapters"}
-								onPress={() => onTab("chapters")}
-							/>
-							<TabButton
-								label={
-									bookmarks.list.length > 0
-										? `${t("audiobook.player_bookmarks")} · ${bookmarks.list.length}`
-										: t("audiobook.player_bookmarks")
-								}
-								selected={tab === "bookmarks"}
-								onPress={() => onTab("bookmarks")}
-							/>
-						</SingleChoiceSegmentedButtonRow>
-					) : (
-						<Text
-							color={tone.text}
-							style={{ typography: "titleLarge" }}
-							modifiers={[padding(24, 4, 24, 12)]}
-						>
-							{t("audiobook.player_bookmarks")}
-						</Text>
-					)}
-					{tab === "chapters" && hasChapters ? (
-						<ChapterList book={book} onJump={jumpAndClose} />
-					) : (
-						<BookmarkList book={book} onJump={jumpAndClose} />
-					)}
-				</Column>
-			</ModalBottomSheet>
-		</Host>
+		<Sheet color={tone.sheet} onClose={onClose}>
+			{(dismiss) => {
+				// A jump closes the sheet: the listener wants to hear the moment picked.
+				const jumpAndClose = (jump: () => void) => {
+					haptics.select();
+					jump();
+					dismiss();
+				};
+				return (
+					<Column modifiers={[fillMaxWidth()]}>
+						{hasChapters ? (
+							<SingleChoiceSegmentedButtonRow
+								modifiers={[fillMaxWidth(), padding(16, 0, 16, 12)]}
+							>
+								<TabButton
+									label={t("audiobook.player_chapters")}
+									selected={tab === "chapters"}
+									onPress={() => onTab("chapters")}
+								/>
+								<TabButton
+									label={
+										bookmarks.list.length > 0
+											? `${t("audiobook.player_bookmarks")} · ${bookmarks.list.length}`
+											: t("audiobook.player_bookmarks")
+									}
+									selected={tab === "bookmarks"}
+									onPress={() => onTab("bookmarks")}
+								/>
+							</SingleChoiceSegmentedButtonRow>
+						) : (
+							<SheetTitle>{t("audiobook.player_bookmarks")}</SheetTitle>
+						)}
+						{tab === "chapters" && hasChapters ? (
+							<ChapterList book={book} onJump={jumpAndClose} />
+						) : (
+							<BookmarkList book={book} onJump={jumpAndClose} />
+						)}
+					</Column>
+				);
+			}}
+		</Sheet>
 	);
 }
 
@@ -184,40 +171,23 @@ function ChapterList({
 	return (
 		<LazyColumn contentPadding={{ bottom: 24 }} modifiers={[fillMaxWidth()]}>
 			{from > 0 ? (
-				<ListItem
-					colors={{ containerColor: tone.sheet }}
-					modifiers={[clickable(() => setFrom(0))]}
-				>
-					<ListItem.LeadingContent>
-						<MaterialIcon name={earlier} tint={tone.muted} />
-					</ListItem.LeadingContent>
-					<ListItem.HeadlineContent>
-						<Text color={tone.muted} style={{ typography: "bodyLarge" }}>
-							{t("mobile.player.earlier_chapters", { count: from })}
-						</Text>
-					</ListItem.HeadlineContent>
-				</ListItem>
+				<SheetRow
+					icon={earlier}
+					iconTint={tone.muted}
+					title={t("mobile.player.earlier_chapters", { count: from })}
+					titleColor={tone.muted}
+					onPress={() => setFrom(0)}
+				/>
 			) : null}
 			{shown.map((chapter, offset) => {
 				const index = from + offset;
 				const active = index === current;
-				const color = active
-					? tone.text
-					: index < current
-						? tone.muted
-						: tone.soft;
 				return (
-					<ListItem
+					<SheetRow
 						key={chapter.index}
-						colors={{ containerColor: active ? tone.chip : tone.sheet }}
-						modifiers={[
-							clickable(() =>
-								onJump(() => void player.seek(chapter.startTime, true)),
-							),
-						]}
-					>
-						<ListItem.LeadingContent>
-							{/* Fixed box: the icon and the numbers keep the titles aligned. */}
+						background={active ? tone.chip : tone.sheet}
+						leading={
+							// Fixed box: the icon and the numbers keep the titles aligned.
 							<Box contentAlignment="center" modifiers={[size(24, 24)]}>
 								{active ? (
 									<MaterialIcon name={playing} tint={tone.text} />
@@ -227,26 +197,22 @@ function ChapterList({
 									</Text>
 								)}
 							</Box>
-						</ListItem.LeadingContent>
-						<ListItem.HeadlineContent>
-							<Text
-								color={color}
-								maxLines={1}
-								overflow="ellipsis"
-								style={{
-									typography: "bodyLarge",
-									fontWeight: active ? "600" : undefined,
-								}}
-							>
-								{chapterName(chapter, index)}
-							</Text>
-						</ListItem.HeadlineContent>
-						<ListItem.TrailingContent>
-							<Text color={tone.muted} style={{ typography: "labelMedium" }}>
+						}
+						title={chapterName(chapter, index)}
+						titleColor={
+							active ? tone.text : index < current ? tone.muted : tone.soft
+						}
+						bold={active}
+						singleLine
+						trailing={
+							<SheetMeta>
 								{clock(chapter.endTime - chapter.startTime)}
-							</Text>
-						</ListItem.TrailingContent>
-					</ListItem>
+							</SheetMeta>
+						}
+						onPress={() =>
+							onJump(() => void player.seek(chapter.startTime, true))
+						}
+					/>
 				);
 			})}
 		</LazyColumn>
@@ -267,35 +233,19 @@ function BookmarkList({
 	const [editing, setEditing] = useState<string | null>(null);
 	const scope = useTimeScope();
 	const at = (seconds: number) => clockIn(book.chapters, seconds, scope);
-	const chapterAt = (at: number) => {
-		const index = activeChapterIndex(book.chapters, at);
-		return index >= 0 ? chapterName(book.chapters[index], index) : null;
-	};
+	const chapterAt = (at: number) => chapterNameAt(book.chapters, at);
 	return (
 		<LazyColumn contentPadding={{ bottom: 24 }} modifiers={[fillMaxWidth()]}>
-			<ListItem
-				colors={{ containerColor: tone.sheet }}
-				modifiers={[
-					clickable(() => {
-						haptics.release();
-						bookmarks.add(time);
-					}),
-				]}
-			>
-				<ListItem.LeadingContent>
-					<MaterialIcon name={addBookmark} tint={tone.text} />
-				</ListItem.LeadingContent>
-				<ListItem.HeadlineContent>
-					<Text color={tone.text} style={{ typography: "bodyLarge" }}>
-						{t("audiobook.player_bookmark_add")}
-					</Text>
-				</ListItem.HeadlineContent>
-				<ListItem.TrailingContent>
-					<Text color={tone.muted} style={{ typography: "labelMedium" }}>
-						{at(time)}
-					</Text>
-				</ListItem.TrailingContent>
-			</ListItem>
+			<SheetRow
+				icon={addBookmark}
+				iconTint={tone.text}
+				title={t("audiobook.player_bookmark_add")}
+				trailing={<SheetMeta>{at(time)}</SheetMeta>}
+				onPress={() => {
+					haptics.release();
+					bookmarks.add(time);
+				}}
+			/>
 			{bookmarks.list.length === 0 ? (
 				<Text
 					color={tone.muted}
@@ -352,43 +302,15 @@ function BookmarkRow({
 	onRemove: () => void;
 }) {
 	const tone = useSheetInk();
-	const title = bookmark.label || chapter || time;
-	// Older bookmarks stored the chapter as their label; don't say it twice.
-	const detail = [
-		time,
-		bookmark.label && chapter !== bookmark.label ? chapter : null,
-	]
-		.filter(Boolean)
-		.join(" · ");
+	const lines = bookmarkLines(bookmark, chapter, time);
 	return (
-		<ListItem
-			colors={{ containerColor: tone.sheet }}
-			modifiers={[clickable(onSeek)]}
-		>
-			<ListItem.LeadingContent>
-				<MaterialIcon name={icons.bookmark} tint={tone.soft} />
-			</ListItem.LeadingContent>
-			<ListItem.HeadlineContent>
-				<Text
-					color={tone.text}
-					maxLines={1}
-					overflow="ellipsis"
-					style={{ typography: "bodyLarge" }}
-				>
-					{title}
-				</Text>
-			</ListItem.HeadlineContent>
-			<ListItem.SupportingContent>
-				<Text
-					color={tone.muted}
-					maxLines={1}
-					overflow="ellipsis"
-					style={{ typography: "bodyMedium" }}
-				>
-					{detail}
-				</Text>
-			</ListItem.SupportingContent>
-			<ListItem.TrailingContent>
+		<SheetRow
+			icon={icons.bookmark}
+			iconTint={tone.soft}
+			title={lines.title}
+			subtitle={[time, lines.chapter].filter(Boolean).join(" · ")}
+			singleLine
+			trailing={
 				<Row verticalAlignment="center">
 					<IconButton onClick={onEdit}>
 						<MaterialIcon name={icons.edit} tint={tone.muted} size={20} />
@@ -397,8 +319,9 @@ function BookmarkRow({
 						<MaterialIcon name={icons.trash} tint={tone.muted} size={20} />
 					</IconButton>
 				</Row>
-			</ListItem.TrailingContent>
-		</ListItem>
+			}
+			onPress={onSeek}
+		/>
 	);
 }
 

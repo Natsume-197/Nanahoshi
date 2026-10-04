@@ -2,7 +2,6 @@ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { useColorScheme, useWindowDimensions, View } from "react-native";
 import Animated, {
-	Easing,
 	FadeIn,
 	FadeInDown,
 	type SharedValue,
@@ -24,7 +23,7 @@ import {
 	skipIntro,
 	slideAt,
 } from "@/lib/welcome-intro";
-import { radius, space } from "@/theme";
+import { EASE_OUT, radius, space } from "@/theme";
 import { PaperButton } from "./entry-parts";
 import { PaceMock, ReadListenMock } from "./intro-mockups";
 import {
@@ -325,6 +324,6 @@ function Segment({
 
 /** Heading, line, then the button arrive one after another. */
 export const rise = (step: number) =>
-	FadeInDown.duration(420)
-		.delay(260 + step * 70)
-		.easing(Easing.out(Easing.cubic));
+	FadeInDown.duration(280)
+		.delay(200 + step * 50)
+		.easing(EASE_OUT);

@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Icon, icons } from "@/components/icon";
 import { PillButton } from "@/components/pill-button";
+import { Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -214,7 +215,7 @@ function Discovery({
 						</Text>
 					</Pressable>
 				) : (
-					<ActivityIndicator size="small" color={palette.textTertiary} />
+					<Spinner inline tone="tertiary" />
 				)}
 			</View>
 			{servers.length === 0 ? (

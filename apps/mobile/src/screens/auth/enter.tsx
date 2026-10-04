@@ -8,7 +8,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { takeServerConnected } from "@/lib/auth-entry";
 import { t } from "@/lib/i18n";
 import { useMaybeConnection } from "@/providers/app-provider";
-import { radius, space } from "@/theme";
+import { neutralRipple, radius, space } from "@/theme";
 import { PaperButton, ServerRow, SignInOptions } from "./entry-parts";
 import { rise } from "./welcome";
 import {
@@ -121,7 +121,7 @@ function BackButton({ paper, onPress }: { paper: Paper; onPress: () => void }) {
 			accessibilityRole="button"
 			accessibilityLabel={t("mobile.enter.tour")}
 			hitSlop={8}
-			android_ripple={{ color: "rgba(127,127,127,0.18)", borderless: true }}
+			android_ripple={{ color: neutralRipple, borderless: true }}
 			style={({ pressed }) => ({
 				width: 44,
 				height: 44,

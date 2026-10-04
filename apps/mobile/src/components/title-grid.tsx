@@ -17,7 +17,6 @@ const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<TileItem>);
 type Paged = {
 	isPending: boolean;
 	isError: boolean;
-	isRefetching: boolean;
 	isFetchingNextPage: boolean;
 	hasNextPage: boolean;
 	fetchNextPage: () => unknown;
@@ -76,12 +75,7 @@ export function TitleGrid({
 				if (query.hasNextPage && !query.isFetchingNextPage)
 					void query.fetchNextPage();
 			}}
-			refreshControl={
-				<RefreshControl
-					refreshing={query.isRefetching && !query.isFetchingNextPage}
-					onRefresh={() => void query.refetch()}
-				/>
-			}
+			refreshControl={<RefreshControl onRefresh={() => query.refetch()} />}
 			ListEmptyComponent={
 				empty !== undefined ? (
 					<View style={{ marginHorizontal: -(space.lg - gap / 2) }}>

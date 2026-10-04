@@ -2003,7 +2003,8 @@
 		"continue_discord": "Continuar con Discord",
 		"create_account_email": "Crear una cuenta con correo en su lugar",
 		"link_discord_required": "Este servidor comprueba tu pertenencia a Discord. Vincula tu cuenta de Discord para continuar.",
-		"link_discord": "Vincular Discord"
+		"link_discord": "Vincular Discord",
+		"open_in_app": "Abrir en la app"
 	},
 	"scroll": {
 		"left": "Desplazar a la izquierda",

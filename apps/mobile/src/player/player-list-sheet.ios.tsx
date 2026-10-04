@@ -1,6 +1,7 @@
-import { BottomSheet, RNHostView } from "@expo/ui";
+import { RNHostView } from "@expo/ui";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Sheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
@@ -28,12 +29,7 @@ export function PlayerListSheet({
 	const { width, height } = useWindowDimensions();
 	const hasChapters = book.chapters.length > 0;
 	return (
-		<BottomSheet
-			isPresented={tab !== null}
-			onDismiss={onClose}
-			containerColor={tone.sheet}
-			contentPadding={0}
-		>
+		<Sheet open={tab !== null} color={tone.sheet} onClose={onClose}>
 			<RNHostView matchContents>
 				<View
 					style={{
@@ -93,6 +89,6 @@ export function PlayerListSheet({
 					) : null}
 				</View>
 			</RNHostView>
-		</BottomSheet>
+		</Sheet>
 	);
 }

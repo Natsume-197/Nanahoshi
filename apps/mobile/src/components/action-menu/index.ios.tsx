@@ -6,7 +6,11 @@ import {
 	clipShape,
 	frame,
 } from "@expo/ui/swift-ui/modifiers";
-import type { ActionMenuButtonProps } from "./types";
+import {
+	type ActionMenuButtonProps,
+	isMenuGroup,
+	type MenuItem,
+} from "./types";
 
 export type { ActionMenuButtonProps, MenuItem } from "./types";
 
@@ -44,18 +48,39 @@ export function ActionMenuButton({
 			>
 				{sections.map((section) => (
 					<Section key={section[0].id}>
-						{section.map((item) => (
-							<Button
-								key={item.id}
-								label={item.label}
-								systemImage={item.icon.ios}
-								role={item.destructive ? "destructive" : undefined}
-								onPress={item.onPress}
-							/>
-						))}
+						{section.map((entry) =>
+							isMenuGroup(entry) ? (
+								<Menu
+									key={entry.id}
+									label={entry.label}
+									systemImage={entry.icon.ios}
+								>
+									{entry.sections.map((inner) => (
+										<Section key={inner[0].id}>
+											{inner.map((item) => (
+												<ItemButton key={item.id} item={item} />
+											))}
+										</Section>
+									))}
+								</Menu>
+							) : (
+								<ItemButton key={entry.id} item={entry} />
+							),
+						)}
 					</Section>
 				))}
 			</Menu>
 		</Host>
+	);
+}
+
+function ItemButton({ item }: { item: MenuItem }) {
+	return (
+		<Button
+			label={item.label}
+			systemImage={item.icon.ios}
+			role={item.destructive ? "destructive" : undefined}
+			onPress={item.onPress}
+		/>
 	);
 }

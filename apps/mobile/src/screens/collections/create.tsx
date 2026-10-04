@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { Button } from "@/components/button";
+import { useFormSheet } from "@/components/form-sheet/open";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { SheetBody } from "@/components/sheet-body";
 import { FormSkeleton } from "@/components/skeleton";
@@ -19,6 +19,7 @@ import { radius, space, usePalette } from "@/theme";
 /** The web's "Create collection" dialog as a native sheet: first manual or
  * dynamic, then the manual form here, or the rules editor for dynamic. */
 export function CreateCollection() {
+	const { finish } = useFormSheet();
 	const [step, setStep] = useState<"choose" | "manual">("choose");
 	if (step === "choose") {
 		return (
@@ -34,7 +35,7 @@ export function CreateCollection() {
 					title={t("collection.create_dynamic_title")}
 					description={t("collection.create_dynamic_desc")}
 					// The rules editor needs the whole screen, not this sheet.
-					onPress={() => router.replace("/collection/dynamic/new")}
+					onPress={() => finish("/collection/dynamic/new")}
 				/>
 			</SheetBody>
 		);
@@ -45,15 +46,17 @@ export function CreateCollection() {
 function CreateManual() {
 	const { orpc } = useApi();
 	const queryClient = useQueryClient();
+	const { finish } = useFormSheet();
 	const create = useMutation({
 		...orpc.collections.create.mutationOptions(),
 		onSuccess: async (created) => {
 			await queryClient.invalidateQueries({ queryKey: orpc.collections.key() });
 			// Finish the task and land on what was made; back returns to the list.
-			router.dismissTo("/collections");
-			if (created && typeof created === "object" && "id" in created) {
-				router.push(routes.collection(String(created.id)));
-			}
+			finish(
+				created && typeof created === "object" && "id" in created
+					? routes.collection(String(created.id))
+					: undefined,
+			);
 		},
 	});
 
@@ -159,6 +162,7 @@ function EditForm({
 	const { orpc, client } = useApi();
 	const queryClient = useQueryClient();
 	const can = useCan();
+	const { finish } = useFormSheet();
 	const showPublic =
 		collection.kind === "manual" && can("collection", "makePublic");
 	const save = useMutation({
@@ -181,7 +185,7 @@ function EditForm({
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: orpc.collections.key() });
-			router.back();
+			finish();
 		},
 	});
 

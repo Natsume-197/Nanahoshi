@@ -94,12 +94,7 @@ export function SeriesList({ initialFormat }: { initialFormat?: Format }) {
 				if (query.hasNextPage && !query.isFetchingNextPage)
 					void query.fetchNextPage();
 			}}
-			refreshControl={
-				<RefreshControl
-					refreshing={query.isRefetching && !query.isFetchingNextPage}
-					onRefresh={() => query.refetch()}
-				/>
-			}
+			refreshControl={<RefreshControl onRefresh={() => query.refetch()} />}
 			ListHeaderComponent={
 				<View
 					style={{

@@ -17,6 +17,7 @@ export default function AuthLayout() {
 			<Stack.Screen name="welcome" options={{ animation: "fade" }} />
 			<Stack.Screen name="enter" />
 			<Stack.Screen name="sign-in" />
+			<Stack.Screen name="sign-up" />
 			<Stack.Screen name="connect" />
 		</Stack>
 	);

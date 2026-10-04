@@ -11,7 +11,7 @@ import { Text } from "@/components/text";
 import type { Api } from "@/lib/api";
 import type { NanahoshiAuth } from "@/lib/auth-client";
 import { t } from "@/lib/i18n";
-import { radius, space } from "@/theme";
+import { neutralRipple, radius, space } from "@/theme";
 import { type Paper, SECTION_GAP } from "./welcome-paper";
 
 /** This server's ways in: providers as soft pills, email filled, then
@@ -114,7 +114,7 @@ export function ServerRow({
 			]
 				.filter(Boolean)
 				.join(", ")}
-			android_ripple={{ color: "rgba(127,127,127,0.18)" }}
+			android_ripple={{ color: neutralRipple }}
 			style={({ pressed }) => ({
 				flexDirection: "row",
 				alignItems: "center",
@@ -214,7 +214,7 @@ export function PaperButton({
 			onPress={onPress}
 			accessibilityRole="button"
 			accessibilityLabel={label}
-			android_ripple={{ color: "rgba(127,127,127,0.18)" }}
+			android_ripple={{ color: neutralRipple }}
 			style={({ pressed }) => ({
 				height: plain ? 46 : 54,
 				flexDirection: "row",

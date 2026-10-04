@@ -25,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Button } from "@/components/button";
 import { Cover } from "@/components/cover";
 import { HeaderButton } from "@/components/header-button";
@@ -33,8 +33,9 @@ import { Icon, icons } from "@/components/icon";
 import { MenuSelect } from "@/components/menu-select";
 import { OptionSheet } from "@/components/option-sheet";
 import { askChoice, showNotice } from "@/components/prompt";
+import { Section } from "@/components/section";
 import { FormSkeleton } from "@/components/skeleton";
-import { ErrorState } from "@/components/states";
+import { ErrorState, Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { Toggle } from "@/components/toggle";
@@ -385,32 +386,6 @@ function DynamicCollectionEditor({
 	);
 }
 
-function Section({
-	title,
-	description,
-	children,
-}: {
-	title: string;
-	description?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<View style={{ gap: space.md }}>
-			<View style={{ gap: space.xs }}>
-				<Text variant="section" accessibilityRole="header">
-					{title}
-				</Text>
-				{description ? (
-					<Text variant="subhead" tone="secondary">
-						{description}
-					</Text>
-				) : null}
-			</View>
-			{children}
-		</View>
-	);
-}
-
 /** How many titles match right now, with a few covers and names. */
 function Preview({
 	definition,
@@ -447,7 +422,7 @@ function Preview({
 			<View
 				style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}
 			>
-				<ActivityIndicator color={palette.textSecondary} />
+				<Spinner inline />
 				<Text variant="subhead" tone="secondary">
 					{t("collection.dynamic_preview_updating")}
 				</Text>

@@ -40,6 +40,16 @@ export type BookMenuAction = {
 	destructive?: boolean;
 };
 
+/** A row that opens its own page in the sheet. */
+export type BookMenuGroup = {
+	id: "share" | "metadata";
+	label: string;
+	icon: IconName;
+	sections: BookMenuAction[][];
+};
+
+export type BookMenuEntry = BookMenuAction | BookMenuGroup;
+
 export type BookMenuState = {
 	inProgress: boolean;
 	isPlaying: boolean;
@@ -69,19 +79,36 @@ type Labels = Record<
 	| "fixMatch"
 	| "enrichMetadata"
 	| "restoreMetadata"
-	| "delete",
+	| "delete"
+	| "share"
+	| "metadata",
 	string
 >;
 
-/** Sections become the platform's menu groups (UIMenu inline / dividers). */
+/** A page of one action is just that action: no point tapping into it. */
+function group(
+	id: BookMenuGroup["id"],
+	label: string,
+	icon: IconName,
+	actions: BookMenuAction[],
+): BookMenuEntry[] {
+	if (actions.length <= 1) return actions;
+	return [{ id, label, icon, sections: [actions] }];
+}
+
+/**
+ * Sections become the platform's menu groups (UIMenu inline / dividers).
+ * Sharing and the metadata tools fold into pages of their own so the first
+ * page stays short.
+ */
 export function buildBookMenu(
 	target: Pick<BookTarget, "kind" | "recommendation" | "onDetailPage">,
 	state: BookMenuState,
 	labels: Labels,
-): BookMenuAction[][] {
+): BookMenuEntry[][] {
 	const audio = target.kind === "audiobook";
 	const page = !!target.onDetailPage;
-	const open: BookMenuAction[] = [];
+	const open: BookMenuEntry[] = [];
 	if (audio && !page)
 		open.push({
 			id: "play",
@@ -91,7 +118,7 @@ export function buildBookMenu(
 	if (!page)
 		open.push({ id: "details", label: labels.details, icon: icons.info });
 
-	const library: BookMenuAction[] = [];
+	const library: BookMenuEntry[] = [];
 	if (!page)
 		library.push({
 			id: "addToList",
@@ -119,20 +146,23 @@ export function buildBookMenu(
 				icon: icons.downloaded,
 			});
 	}
+	const share: BookMenuAction[] = [
+		{ id: "shareLink", label: labels.shareLink, icon: icons.link },
+	];
 	if (state.canExport)
-		library.push({
+		share.push({
 			id: "exportFile",
 			label: labels.exportFile,
 			icon: icons.share,
 		});
 	// The server mails the file itself, so it's gated like a download.
 	if (state.canExport && !audio)
-		library.push({
+		share.push({
 			id: "sendToKindle",
 			label: labels.sendToKindle,
 			icon: icons.send,
 		});
-	library.push({ id: "shareLink", label: labels.shareLink, icon: icons.link });
+	library.push(...group("share", labels.share, icons.share, share));
 	if (state.inProgress)
 		library.push({
 			id: "removeFromContinue",
@@ -141,36 +171,36 @@ export function buildBookMenu(
 				: labels.removeContinueReading,
 			icon: icons.remove,
 		});
+	if (target.recommendation)
+		library.push({
+			id: "notInterested",
+			label: labels.notInterested,
+			icon: icons.notInterested,
+		});
 
 	const sections = [open, library].filter((section) => section.length > 0);
-	if (target.recommendation)
-		sections.push([
-			{
-				id: "notInterested",
-				label: labels.notInterested,
-				icon: icons.notInterested,
-			},
-		]);
 	if (state.canEditMetadata)
-		sections.push([
-			{ id: "editMetadata", label: labels.editMetadata, icon: icons.edit },
-			{ id: "fixMatch", label: labels.fixMatch, icon: icons.search },
-			// Audiobooks refresh through their match; ebooks can ask the sources.
-			...(audio
-				? []
-				: [
-						{
-							id: "enrichMetadata" as const,
-							label: labels.enrichMetadata,
-							icon: icons.whatsNew,
-						},
-					]),
-			{
-				id: "restoreMetadata",
-				label: labels.restoreMetadata,
-				icon: icons.retry,
-			},
-		]);
+		sections.push(
+			group("metadata", labels.metadata, icons.edit, [
+				{ id: "editMetadata", label: labels.editMetadata, icon: icons.edit },
+				{ id: "fixMatch", label: labels.fixMatch, icon: icons.search },
+				// Audiobooks refresh through their match; ebooks can ask the sources.
+				...(audio
+					? []
+					: [
+							{
+								id: "enrichMetadata" as const,
+								label: labels.enrichMetadata,
+								icon: icons.whatsNew,
+							},
+						]),
+				{
+					id: "restoreMetadata",
+					label: labels.restoreMetadata,
+					icon: icons.retry,
+				},
+			]),
+		);
 	if (state.canDelete)
 		sections.push([
 			{

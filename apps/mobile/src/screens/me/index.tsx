@@ -1,49 +1,34 @@
-import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
-import { useState } from "react";
-import {
-	Platform,
-	useColorScheme,
-	useWindowDimensions,
-	View,
-} from "react-native";
+import { useRef, useState } from "react";
+import { Pressable, useWindowDimensions, View } from "react-native";
 import Animated, {
-	Extrapolation,
-	interpolate,
 	type SharedValue,
-	useAnimatedScrollHandler,
 	useAnimatedStyle,
-	useSharedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, IconButton } from "@/components/button";
 import { ChipRow } from "@/components/chip";
-import { CollectionCard } from "@/components/collection-card";
-import { Icon, icons } from "@/components/icon";
+import { Icon, type IconName, icons } from "@/components/icon";
 import { LineTabs } from "@/components/line-tabs";
 import { askChoice } from "@/components/prompt";
-import { Shelf } from "@/components/shelf";
-import { ErrorState, ShelfSkeleton } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Text } from "@/components/text";
 import { TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
 import { clearDownloads } from "@/downloads/files";
-import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
-import { formatCount, joinNames } from "@/lib/format";
+import { joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { IS_ANDROID } from "@/lib/platform";
-import { routes } from "@/lib/routes";
 import { useApi, useConnection, useServer } from "@/providers/app-provider";
-import { radius, sizes, space, usePalette } from "@/theme";
-import { buildRails } from "./profile-model";
+import { useDetailHeader } from "@/screens/detail/use-detail-header";
+import { space, usePalette } from "@/theme";
 
-type Tab = "overview" | "books" | "audiobooks";
+type Tab = "books" | "audiobooks";
 type BookStatus = "completed" | "reading" | "backlog" | "want_to_read";
 type AudioStatus = "listening" | "completed" | "backlog" | "want_to_listen";
 const PAGE = 40;
-const RAIL = 12;
 const AVATAR = 96;
 
 const BOOK_SECTIONS: { status: BookStatus; label: () => string }[] = [
@@ -74,7 +59,7 @@ function toTile(row: ShelfRow, kind: TileItem["kind"]): TileItem {
 		title: row.title,
 		cover: row.cover,
 		color: row.mainColor ?? null,
-		subtitle: joinNames(row.authors ?? [], 1),
+		subtitle: joinNames(row.authors ?? []),
 	};
 }
 
@@ -92,8 +77,8 @@ export function Me() {
 }
 
 /** The web's profile page (/dashboard/user/$username): banner, avatar and
- * name, then Overview / Books / Audiobooks; your own one's ⋯ menu carries
- * the account actions. Another member's is read-only. */
+ * name, then Books / Audiobooks; your own one's ⋯ menu carries the account
+ * actions. Another member's is read-only. */
 export function Profile({ username: requested }: { username?: string }) {
 	const { orpc } = useApi();
 	const own = useQuery(orpc.profile.getProfile.queryOptions());
@@ -108,20 +93,17 @@ export function Profile({ username: requested }: { username?: string }) {
 	});
 	const profile = isOwn ? own : other;
 	const username = profile.data?.username ?? "";
-	const [tab, setTab] = useState<Tab>("overview");
+	const [tab, setTab] = useState<Tab>("books");
 	const [bookStatus, setBookStatus] = useState<BookStatus | "all">("all");
 	const [audioStatus, setAudioStatus] = useState<AudioStatus | "all">("all");
-	const scrollY = useSharedValue(0);
-	const onScroll = useAnimatedScrollHandler({
-		onScroll: (event) => {
-			scrollY.set(event.contentOffset.y);
-		},
-	});
-	const viewShelf = (next: "books" | "audiobooks", status: string) => {
-		if (next === "books") setBookStatus(status as BookStatus | "all");
-		else setAudioStatus(status as AudioStatus | "all");
-		setTab(next);
-	};
+	const name =
+		profile.data?.name?.trim() ||
+		profile.data?.displayUsername ||
+		profile.data?.username ||
+		"";
+	// The book detail's bar: transparent over the banner, solid with the name
+	// once the name scrolls under it.
+	const bar = useDetailHeader(name);
 
 	const books = useInfiniteQuery({
 		...orpc.bookShelf.getPublicShelfPaginated.infiniteOptions({
@@ -162,16 +144,14 @@ export function Profile({ username: requested }: { username?: string }) {
 					total: books.data?.pages[0]?.total,
 					count: (n: number) => t("media.book_count", { count: n }),
 				}
-			: tab === "audiobooks"
-				? {
-						query: audiobooks,
-						items: (
-							audiobooks.data?.pages.flatMap((page) => page.items) ?? []
-						).map((row) => toTile(row, "audiobook")),
-						total: audiobooks.data?.pages[0]?.total,
-						count: (n: number) => t("media.audiobook_count", { count: n }),
-					}
-				: null;
+			: {
+					query: audiobooks,
+					items: (
+						audiobooks.data?.pages.flatMap((page) => page.items) ?? []
+					).map((row) => toTile(row, "audiobook")),
+					total: audiobooks.data?.pages[0]?.total,
+					count: (n: number) => t("media.audiobook_count", { count: n }),
+				};
 
 	const filters =
 		tab === "books" ? (
@@ -186,7 +166,7 @@ export function Profile({ username: requested }: { username?: string }) {
 					})),
 				]}
 			/>
-		) : tab === "audiobooks" ? (
+		) : (
 			<ChipRow
 				value={audioStatus}
 				onChange={setAudioStatus}
@@ -198,7 +178,7 @@ export function Profile({ username: requested }: { username?: string }) {
 					})),
 				]}
 			/>
-		) : null;
+		);
 
 	const emptyTitle = t(
 		tab === "audiobooks" ? "shelves.empty_title" : "library_page.empty_title",
@@ -217,33 +197,22 @@ export function Profile({ username: requested }: { username?: string }) {
 
 	return (
 		<View style={{ flex: 1 }}>
-			{/* The banner runs under a see-through bar (iOS; Android hides it). */}
+			{/* The banner runs under a see-through bar. */}
 			<Stack.Screen
 				options={{
 					title: "",
+					headerShown: true,
 					headerTransparent: true,
 					headerStyle: { backgroundColor: "transparent" },
+					headerShadowVisible: false,
 				}}
 			/>
+			{bar.header}
+			{isOwn ? <ProfileBar username={username} /> : null}
 			<TitleGrid
-				onScroll={onScroll}
-				items={grid?.items ?? []}
-				query={
-					grid?.query ?? {
-						isPending: false,
-						isError: false,
-						isRefetching: profile.isRefetching,
-						isFetchingNextPage: false,
-						hasNextPage: false,
-						fetchNextPage: () => undefined,
-						refetch: () => profile.refetch(),
-					}
-				}
-				empty={
-					tab === "overview" ? (
-						<Overview username={username} onViewMore={viewShelf} />
-					) : undefined
-				}
+				onScroll={bar.scrollProps.onScroll}
+				items={grid.items}
+				query={grid.query}
 				emptyTitle={emptyTitle}
 				emptyMessage={emptyMessage}
 				header={
@@ -255,21 +224,20 @@ export function Profile({ username: requested }: { username?: string }) {
 						}}
 					>
 						<ProfileHeader
-							scrollY={scrollY}
+							scrollY={bar.scrollY}
+							onTitleOffset={bar.onTitleOffset}
 							profile={profile.data ?? null}
-							isOwn={isOwn}
 						/>
 						<LineTabs
 							value={tab}
 							onChange={setTab}
 							options={[
-								{ value: "overview", label: t("mobile.me.overview") },
 								{ value: "books", label: t("nav.books") },
 								{ value: "audiobooks", label: t("nav.audiobooks") },
 							]}
 						/>
 						{filters}
-						{grid && grid.total != null ? (
+						{grid.total != null ? (
 							<Text
 								variant="label"
 								tone="secondary"
@@ -281,62 +249,31 @@ export function Profile({ username: requested }: { username?: string }) {
 					</View>
 				}
 			/>
-			{IS_ANDROID ? <StatusBarScrim scrollY={scrollY} /> : null}
 		</View>
-	);
-}
-
-/** Android has no bar over the page: once the banner is gone, a strip of
- * page colour keeps the list from running into the status bar. */
-function StatusBarScrim({ scrollY }: { scrollY: SharedValue<number> }) {
-	const palette = usePalette();
-	const insets = useSafeAreaInsets();
-	const style = useAnimatedStyle(() => ({
-		opacity: interpolate(
-			scrollY.get(),
-			[insets.top * 2, insets.top * 4],
-			[0, 1],
-			Extrapolation.CLAMP,
-		),
-	}));
-	return (
-		<Animated.View
-			pointerEvents="none"
-			style={[
-				{
-					position: "absolute",
-					top: 0,
-					left: 0,
-					right: 0,
-					height: insets.top,
-					backgroundColor: palette.background,
-				},
-				style,
-			]}
-		/>
 	);
 }
 
 function ProfileHeader({
 	scrollY,
+	onTitleOffset,
 	profile,
-	isOwn,
 }: {
 	scrollY: SharedValue<number>;
+	onTitleOffset: (y: number) => void;
 	profile: ProfileData | null;
-	isOwn: boolean;
 }) {
 	const palette = usePalette();
-	const dark = useColorScheme() === "dark";
 	const insets = useSafeAreaInsets();
 	const { width } = useWindowDimensions();
-	const { auth, serverUrl } = useConnection();
-	const { setServerUrl } = useServer();
+	const { serverUrl } = useConnection();
 	const username = profile?.displayUsername ?? profile?.username ?? "";
 	const name = profile?.name?.trim() || username;
 	const avatar = mediaUrl(serverUrl, profile?.image);
 	const banner = mediaUrl(serverUrl, profile?.headerImage);
 	const bg = palette.background;
+	// Where the name sits in the list, for the bar's fade.
+	const infoY = useRef(0);
+	const nameY = useRef(0);
 	// Full bleed under the status bar; the 4:1 banner crops to its middle.
 	const height = insets.top + Math.max(150, Math.round(width / 2.4));
 	// Pulling past the top stretches the banner instead of opening a gap.
@@ -346,45 +283,6 @@ function ProfileHeader({
 			transform: [{ translateY: pull / 2 }, { scale: 1 - pull / height }],
 		};
 	});
-
-	const openMenu = async () => {
-		const answer = await askChoice({
-			title: t("mobile.me.account"),
-			message: t("mobile.me.signed_in_as", { name: `@${username}` }),
-			options: [
-				{ id: "stats", label: t("nav.stats"), icon: icons.stats },
-				{
-					id: "downloads",
-					label: t("mobile.downloads.title"),
-					icon: icons.downloaded,
-				},
-				{ id: "tasks", label: t("settings.nav.tasks"), icon: icons.tasks },
-				{ id: "settings", label: t("nav.settings"), icon: icons.settings },
-				{
-					id: "server",
-					label: t("mobile.signin.change_server"),
-					icon: icons.server,
-				},
-				{
-					id: "sign-out",
-					label: t("nav.sign_out"),
-					icon: icons.signOut,
-					destructive: true,
-				},
-			],
-		});
-		if (answer === "stats") router.push("/stats");
-		else if (answer === "downloads") router.push("/downloads");
-		else if (answer === "tasks") router.push("/tasks");
-		else if (answer === "settings") router.push("/settings");
-		else if (answer === "server") {
-			await auth.signOut().catch(() => undefined);
-			clearDownloads();
-			await setServerUrl(null);
-		}
-		// The root guard sees the session end and swaps to sign-in.
-		else if (answer === "sign-out") void auth.signOut().then(clearDownloads);
-	};
 
 	return (
 		<View>
@@ -403,43 +301,25 @@ function ProfileHeader({
 							contentFit="cover"
 							transition={200}
 						/>
-					) : avatar ? (
-						<BlurredAvatar uri={avatar} dark={dark} />
 					) : (
 						<View
 							style={{
 								position: "absolute",
 								inset: 0,
-								experimental_backgroundImage: `linear-gradient(160deg, ${palette.accentSoft}, ${bg})`,
+								backgroundColor: palette.accentSoft,
 							}}
 						/>
 					)}
-					{/* Keeps the status bar and the iOS bar buttons legible. */}
-					<View
-						style={{
-							position: "absolute",
-							top: 0,
-							left: 0,
-							right: 0,
-							height: insets.top + 56,
-							experimental_backgroundImage: `linear-gradient(to bottom, ${bg}99, ${bg}00)`,
-						}}
-					/>
-					{/* The banner dissolves into the page, never a hard edge. */}
-					<View
-						style={{
-							position: "absolute",
-							left: 0,
-							right: 0,
-							bottom: 0,
-							height: "55%",
-							experimental_backgroundImage: `linear-gradient(to bottom, ${bg}00 0%, ${bg}40 40%, ${bg}b3 75%, ${bg} 100%)`,
-						}}
-					/>
 				</Animated.View>
 			</View>
 
-			<View style={{ paddingHorizontal: space.lg, gap: space.lg }}>
+			<View
+				style={{ paddingHorizontal: space.lg, gap: space.lg }}
+				onLayout={(event) => {
+					infoY.current = event.nativeEvent.layout.y;
+					onTitleOffset(infoY.current + nameY.current);
+				}}
+			>
 				<View
 					style={{
 						flexDirection: "row",
@@ -471,22 +351,15 @@ function ProfileHeader({
 							<Text variant="display">{name.slice(0, 1).toUpperCase()}</Text>
 						)}
 					</View>
-					<View style={{ flex: 1 }} />
-					{isOwn ? (
-						<>
-							<Button
-								variant="secondary"
-								label={t("user_profile.edit_profile")}
-								onPress={() => router.push("/settings/profile")}
-							/>
-							<IconButton label={t("mobile.me.account")} onPress={openMenu}>
-								<Icon name={icons.more} size={20} color={palette.text} />
-							</IconButton>
-						</>
-					) : null}
 				</View>
 
-				<View style={{ gap: space.xs }}>
+				<View
+					style={{ gap: space.xs }}
+					onLayout={(event) => {
+						nameY.current = event.nativeEvent.layout.y;
+						onTitleOffset(infoY.current + nameY.current);
+					}}
+				>
 					<Text
 						variant="largeTitle"
 						selectable
@@ -504,195 +377,125 @@ function ProfileHeader({
 	);
 }
 
-/** No banner yet: the avatar's own colours, blurred wide (the detail hero's
- * backdrop). */
-function BlurredAvatar({ uri, dark }: { uri: string; dark: boolean }) {
-	// Expo Image's bitmap blur is weak on Android 12+; blur the view instead.
-	const nativeBlur =
-		Platform.OS === "android" && Number(Platform.Version) >= 31;
-	return (
-		<View
-			style={{
-				position: "absolute",
-				inset: -60,
-				opacity: dark ? 0.55 : 0.45,
-				filter: nativeBlur ? [{ blur: 50 }] : undefined,
-			}}
-		>
-			<Image
-				source={{ uri }}
-				blurRadius={nativeBlur ? 0 : 50}
-				contentFit="cover"
-				style={{ position: "absolute", inset: 0 }}
+/** Your account's ⋯: the actions that have no tab of their own. */
+function useAccountMenu(username: string) {
+	const { auth } = useConnection();
+	const { setServerUrl } = useServer();
+	return async () => {
+		const answer = await askChoice({
+			title: t("mobile.me.account"),
+			message: t("mobile.me.signed_in_as", { name: `@${username}` }),
+			options: [
+				{
+					id: "edit",
+					label: t("user_profile.edit_profile"),
+					icon: icons.edit,
+				},
+				{ id: "stats", label: t("nav.stats"), icon: icons.stats },
+				{
+					id: "downloads",
+					label: t("mobile.downloads.title"),
+					icon: icons.downloaded,
+				},
+				{ id: "tasks", label: t("settings.nav.tasks"), icon: icons.tasks },
+				{
+					id: "server",
+					label: t("mobile.signin.change_server"),
+					icon: icons.server,
+				},
+				{
+					id: "sign-out",
+					label: t("nav.sign_out"),
+					icon: icons.signOut,
+					destructive: true,
+				},
+			],
+		});
+		if (answer === "edit") router.push("/settings/profile");
+		else if (answer === "stats") router.push("/stats");
+		else if (answer === "downloads") router.push("/downloads");
+		else if (answer === "tasks") router.push("/tasks");
+		else if (answer === "server") {
+			await auth.signOut().catch(() => undefined);
+			clearDownloads();
+			await setServerUrl(null);
+		}
+		// The root guard sees the session end and swaps to sign-in.
+		else if (answer === "sign-out") void auth.signOut().then(clearDownloads);
+	};
+}
+
+/** Your own profile's top bar: ⋯ then settings, bare icons in the bar. */
+function ProfileBar({ username }: { username: string }) {
+	const openMenu = useAccountMenu(username);
+	const openSettings = () => router.push("/settings");
+	if (!IS_ANDROID)
+		return (
+			<Stack.Screen
+				options={{
+					unstable_headerRightItems: () => [
+						{
+							type: "button",
+							label: t("mobile.me.account"),
+							icon: { type: "sfSymbol", name: icons.more.ios },
+							onPress: () => void openMenu(),
+						},
+						{
+							type: "button",
+							label: t("nav.settings"),
+							icon: { type: "sfSymbol", name: icons.settings.ios },
+							onPress: openSettings,
+						},
+					],
+				}}
 			/>
-		</View>
-	);
-}
-
-/** What you're on now first, then what you finished, then what's waiting
- * (backlog and want-to shelves merged), then public collections. */
-function Overview({
-	username,
-	onViewMore,
-}: {
-	username: string;
-	onViewMore: (tab: "books" | "audiobooks", status: string) => void;
-}) {
-	const { orpc } = useApi();
-	const tileWidth = useGridTileWidth(2, space.lg);
-	const bookShelves = useQueries({
-		queries: BOOK_SECTIONS.map((section) =>
-			orpc.bookShelf.getPublicShelfPaginated.queryOptions({
-				input: { username, status: section.status, limit: RAIL, offset: 0 },
-				enabled: !!username,
-				staleTime: 60_000,
-			}),
-		),
-	});
-	const audioShelves = useQueries({
-		queries: AUDIO_SECTIONS.map((section) =>
-			orpc.audiobookShelf.getPublicShelfPaginated.queryOptions({
-				input: { username, status: section.status, limit: RAIL, offset: 0 },
-				enabled: !!username,
-				staleTime: 60_000,
-			}),
-		),
-	});
-	const collections = useQuery({
-		...orpc.collections.listPublic.queryOptions({
-			input: { username, limit: 4 },
-		}),
-		enabled: !!username,
-	});
-
-	if (!username || bookShelves.some((query) => query.isPending))
-		return <ShelfSkeleton width={sizes.tile} />;
-
-	const book = (status: BookStatus) =>
-		bookShelves[BOOK_SECTIONS.findIndex((s) => s.status === status)]?.data;
-	const audio = (status: AudioStatus) =>
-		audioShelves[AUDIO_SECTIONS.findIndex((s) => s.status === status)]?.data;
-	const rails = buildRails<ShelfRow>([
-		{
-			key: "reading",
-			label: t("catalog_pages.reading"),
-			kind: "book",
-			status: "reading",
-			pages: [book("reading")],
-		},
-		{
-			key: "listening",
-			label: t("catalog_pages.listening"),
-			kind: "audiobook",
-			status: "listening",
-			pages: [audio("listening")],
-		},
-		{
-			key: "books-completed",
-			label: t("mobile.me.books_completed"),
-			kind: "book",
-			status: "completed",
-			pages: [book("completed")],
-		},
-		{
-			key: "audio-completed",
-			label: t("mobile.me.audio_completed"),
-			kind: "audiobook",
-			status: "completed",
-			pages: [audio("completed")],
-		},
-		{
-			key: "books-pending",
-			label: t("mobile.me.books_pending"),
-			kind: "book",
-			status: "all",
-			pages: [book("backlog"), book("want_to_read")],
-		},
-		{
-			key: "audio-pending",
-			label: t("mobile.me.audio_backlog"),
-			kind: "audiobook",
-			status: "all",
-			pages: [audio("backlog"), audio("want_to_listen")],
-		},
-	]);
-
+		);
 	return (
-		<View style={{ gap: space.xxl, paddingBottom: space.xl }}>
-			{rails.length === 0 ? <EmptyShelves /> : null}
-			{rails.map((rail) => (
-				<Shelf
-					key={rail.key}
-					title={`${rail.label}  ·  ${formatCount(rail.total)}`}
-					onMore={() =>
-						onViewMore(
-							rail.kind === "book" ? "books" : "audiobooks",
-							rail.status,
-						)
-					}
-					items={rail.items.map((row) => toTile(row, rail.kind))}
-				/>
-			))}
-			{collections.data && collections.data.length > 0 ? (
-				<View style={{ gap: space.lg, paddingHorizontal: space.lg }}>
-					<Text variant="section" accessibilityRole="header">
-						{t("mobile.me.public_collections")}
-					</Text>
-					<View
-						style={{ flexDirection: "row", flexWrap: "wrap", gap: space.lg }}
-					>
-						{collections.data.map((collection) => (
-							<CollectionCard
-								key={collection.id}
-								href={routes.collection(collection.id)}
-								name={collection.name}
-								covers={collection.previewCovers ?? []}
-								subtitle={t("media.item_count", {
-									count: collection.bookCount ?? 0,
-								})}
-								width={tileWidth}
-							/>
-						))}
+		<Stack.Screen
+			options={{
+				headerRight: () => (
+					<View style={{ flexDirection: "row", marginEnd: -space.sm }}>
+						<BarButton
+							label={t("mobile.me.account")}
+							icon={icons.more}
+							onPress={() => void openMenu()}
+						/>
+						<BarButton
+							label={t("nav.settings")}
+							icon={icons.settings}
+							onPress={openSettings}
+						/>
 					</View>
-				</View>
-			) : null}
-		</View>
+				),
+			}}
+		/>
 	);
 }
 
-function EmptyShelves() {
+function BarButton({
+	label,
+	icon,
+	onPress,
+}: {
+	label: string;
+	icon: IconName;
+	onPress: () => void;
+}) {
 	const palette = usePalette();
 	return (
-		<View
+		<Pressable
+			accessibilityRole="button"
+			accessibilityLabel={label}
+			onPress={onPress}
+			android_ripple={{ color: palette.ripple, borderless: true, radius: 20 }}
 			style={{
-				marginHorizontal: space.lg,
+				width: 48,
+				height: 48,
 				alignItems: "center",
-				gap: space.xs,
-				paddingVertical: space.xxl,
-				paddingHorizontal: space.xl,
-				borderRadius: radius.card,
-				borderCurve: "continuous",
-				borderWidth: 1,
-				borderColor: palette.separator,
+				justifyContent: "center",
 			}}
 		>
-			<View
-				style={{
-					width: 48,
-					height: 48,
-					borderRadius: 24,
-					backgroundColor: palette.surface,
-					alignItems: "center",
-					justifyContent: "center",
-					marginBottom: space.sm,
-				}}
-			>
-				<Icon name={icons.book} size={22} color={palette.textSecondary} />
-			</View>
-			<Text variant="headline">{t("nav.books")}</Text>
-			<Text variant="subhead" tone="secondary" style={{ textAlign: "center" }}>
-				{t("catalog_pages.empty_shelf")}
-			</Text>
-		</View>
+			<Icon name={icon} size={24} color={palette.text} />
+		</Pressable>
 	);
 }

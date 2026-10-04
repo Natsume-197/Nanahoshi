@@ -92,11 +92,27 @@ export function ErrorState({
 	);
 }
 
-export function Spinner() {
+type SpinnerTone = "primary" | "secondary" | "tertiary" | "accent";
+
+/** Loading: padded on its own line, or `inline` in an icon's place. */
+export function Spinner({
+	inline,
+	tone = "secondary",
+}: {
+	inline?: boolean;
+	tone?: SpinnerTone;
+}) {
 	const palette = usePalette();
+	const color = {
+		primary: palette.text,
+		secondary: palette.textSecondary,
+		tertiary: palette.textTertiary,
+		accent: palette.accent,
+	}[tone];
+	if (inline) return <ActivityIndicator size="small" color={color} />;
 	return (
 		<View style={{ paddingVertical: space.xl }}>
-			<ActivityIndicator color={palette.textSecondary} />
+			<ActivityIndicator color={color} />
 		</View>
 	);
 }

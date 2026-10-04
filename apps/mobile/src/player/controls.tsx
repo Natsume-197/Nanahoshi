@@ -18,6 +18,8 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
+import { neutralRipple } from "@/theme";
+import { ink } from "./ink";
 import { usePlayer, usePlayerState } from "./provider";
 
 /** A round, glyph-only transport button with a 44pt+ target. `children`
@@ -54,7 +56,7 @@ export function TransportButton({
 			}}
 			// Android: the platform's borderless ripple; iOS: a dim on press.
 			android_ripple={{
-				color: "rgba(128,128,128,0.25)",
+				color: neutralRipple,
 				borderless: true,
 				radius: box / 2,
 			}}
@@ -130,7 +132,7 @@ function Ring({ size, color }: { size: number; color: string }) {
 					height: size,
 					borderRadius: size / 2,
 					borderWidth: 2,
-					borderColor: "rgba(244,243,245,0.22)",
+					borderColor: ink.track,
 					borderTopColor: color,
 				},
 				style,

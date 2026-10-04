@@ -5,10 +5,12 @@ import { ScrollView, useWindowDimensions, View } from "react-native";
 import { Cover } from "@/components/cover";
 import { Fab } from "@/components/fab";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { LibraryMenuTarget } from "@/components/library-menu";
 import { PageHeader } from "@/components/page-header";
 import { PressableLink } from "@/components/pressable-link";
 import { askChoice } from "@/components/prompt";
 import { RefreshControl } from "@/components/refresh-control";
+import { Section } from "@/components/section";
 import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { useDownloadedTitles } from "@/downloads/provider";
@@ -75,15 +77,12 @@ export function Library() {
 					paddingBottom: space.xxl + miniPlayerInset + sizes.fab,
 				}}
 				refreshControl={
-					<RefreshControl
-						refreshing={libraries.isRefetching}
-						onRefresh={() => libraries.refetch()}
-					/>
+					<RefreshControl onRefresh={() => libraries.refetch()} />
 				}
 			>
 				<PageHeader title={t("nav.library")} />
 
-				<Section title={t("nav.browse")}>
+				<Section gap={GAP} style={SECTION_PADDING} title={t("nav.browse")}>
 					<View style={{ flexDirection: "row", flexWrap: "wrap", gap: GAP }}>
 						{destinations.map((item) => (
 							<BrowseTile
@@ -96,7 +95,7 @@ export function Library() {
 					</View>
 				</Section>
 
-				<Section title={t("nav.libraries")}>
+				<Section gap={GAP} style={SECTION_PADDING} title={t("nav.libraries")}>
 					{libraries.isPending ? (
 						<LibrariesSkeleton />
 					) : (libraries.data ?? []).length === 0 ? (
@@ -110,27 +109,40 @@ export function Library() {
 							const audio = library.mediaType === "audiobook";
 							const name = library.name ?? t("library.untitled");
 							return (
-								<CardRow
+								<LibraryMenuTarget
 									key={library.uuid}
-									href={{
-										pathname: "/library/[uuid]",
-										params: { uuid: library.uuid, name },
+									library={{
+										uuid: library.uuid,
+										name,
+										mediaType: library.mediaType,
 									}}
-									title={name}
-									subtitle={
-										audio
-											? t("media.audiobook_count", { count: library.bookCount })
-											: t("media.book_count", { count: library.bookCount })
-									}
-									art={
-										<CoverFan
-											fallback={audio ? icons.headphones : icons.book}
-											covers={Array.from(
-												new Set(library.previewCovers.filter(Boolean)),
-											).map((cover) => ({ key: cover, cover, audio }))}
+								>
+									{(onLongPress) => (
+										<CardRow
+											href={{
+												pathname: "/library/[uuid]",
+												params: { uuid: library.uuid, name },
+											}}
+											onLongPress={onLongPress}
+											title={name}
+											subtitle={
+												audio
+													? t("media.audiobook_count", {
+															count: library.bookCount,
+														})
+													: t("media.book_count", { count: library.bookCount })
+											}
+											art={
+												<CoverFan
+													fallback={audio ? icons.headphones : icons.book}
+													covers={Array.from(
+														new Set(library.previewCovers.filter(Boolean)),
+													).map((cover) => ({ key: cover, cover, audio }))}
+												/>
+											}
 										/>
-									}
-								/>
+									)}
+								</LibraryMenuTarget>
 							);
 						})
 					)}
@@ -145,30 +157,10 @@ export function Library() {
 }
 
 const GAP = space.sm;
+const SECTION_PADDING = { paddingTop: space.xl, paddingHorizontal: space.lg };
 const ROW_HEIGHT = 88;
 const FAN_HEIGHT = 64;
 const FAN_WIDTH = 84;
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-	return (
-		<View
-			style={{
-				paddingTop: space.xl,
-				paddingHorizontal: space.lg,
-				gap: GAP,
-			}}
-		>
-			<Text
-				variant="section"
-				accessibilityRole="header"
-				style={{ paddingBottom: space.xs }}
-			>
-				{title}
-			</Text>
-			{children}
-		</View>
-	);
-}
 
 /** Titles saved on this phone, as one more library: only when there are
  * some. */
@@ -199,11 +191,13 @@ function DownloadsRow() {
 /** The flat card every block on the page shares: covers, title, count. */
 function CardRow({
 	href,
+	onLongPress,
 	art,
 	title,
 	subtitle,
 }: {
 	href: Href;
+	onLongPress?: () => void;
 	art: ReactNode;
 	title: string;
 	subtitle: string;
@@ -212,6 +206,7 @@ function CardRow({
 	return (
 		<PressableLink
 			href={href}
+			onLongPress={onLongPress}
 			android_ripple={{ color: palette.ripple }}
 			accessibilityRole="button"
 			accessibilityLabel={`${title}, ${subtitle}`}

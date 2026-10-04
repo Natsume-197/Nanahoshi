@@ -1,11 +1,5 @@
 import { Host } from "@expo/ui";
-import {
-	Box,
-	DropdownMenu,
-	ListItem,
-	RNHostView,
-	Text,
-} from "@expo/ui/jetpack-compose";
+import { Box, DropdownMenu, RNHostView } from "@expo/ui/jetpack-compose";
 import { size } from "@expo/ui/jetpack-compose/modifiers";
 import { createContext, type ReactNode, use, useRef, useState } from "react";
 import { useWindowDimensions, View } from "react-native";
@@ -16,6 +10,7 @@ import { ComposeMenuItems } from "../action-menu";
 import { ActionSheet } from "../action-menu/action-sheet";
 import type { MenuItem } from "../action-menu/types";
 import { Cover } from "../cover";
+import { SheetHeader } from "../sheet/rows";
 import { type MenuAnchor, measureMenuAnchor } from "./anchor";
 import type { BookTarget } from "./model";
 import type { BookMenuTargetProps } from "./types";
@@ -133,11 +128,12 @@ function ComposeMenu({
 
 /** Cover, title and author, so the sheet says which title it acts on. */
 function Header({ target }: { target: BookTarget }) {
-	const palette = usePalette();
 	const audio = target.kind === "audiobook";
 	return (
-		<ListItem colors={{ containerColor: palette.card }}>
-			<ListItem.LeadingContent>
+		<SheetHeader
+			title={titleOrUntitled(target.title)}
+			subtitle={target.subtitle ?? undefined}
+			leading={
 				<RNHostView matchContents>
 					<Cover
 						cover={target.cover}
@@ -146,29 +142,7 @@ function Header({ target }: { target: BookTarget }) {
 						shape={audio ? "audio" : "book"}
 					/>
 				</RNHostView>
-			</ListItem.LeadingContent>
-			<ListItem.HeadlineContent>
-				<Text
-					color={palette.text}
-					maxLines={2}
-					overflow="ellipsis"
-					style={{ typography: "titleMedium" }}
-				>
-					{titleOrUntitled(target.title)}
-				</Text>
-			</ListItem.HeadlineContent>
-			{target.subtitle ? (
-				<ListItem.SupportingContent>
-					<Text
-						color={palette.textSecondary}
-						maxLines={1}
-						overflow="ellipsis"
-						style={{ typography: "bodyMedium" }}
-					>
-						{target.subtitle}
-					</Text>
-				</ListItem.SupportingContent>
-			) : null}
-		</ListItem>
+			}
+		/>
 	);
 }

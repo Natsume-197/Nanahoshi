@@ -8,7 +8,7 @@
 		"android": "bun run reader:bundle && expo run:android",
 		"ios": "bun run reader:bundle && expo run:ios",
 		"check-types": "node scripts/check-types.mjs",
-		"reader:bundle": "bun run --cwd ../reader-embed build && mkdir -p assets/reader && cp ../reader-embed/dist/index.html assets/reader/reader.html"
+		"reader:bundle": "bun run --cwd reader-embed build && mkdir -p assets/reader && cp reader-embed/dist/index.html assets/reader/reader.html"
 	},
 	"dependencies": {
 		"@better-auth/expo": "1.7.5",
@@ -53,6 +53,7 @@
 		"react-native-reanimated": "4.5.1",
 		"react-native-safe-area-context": "~5.7.0",
 		"react-native-screens": "~4.26.0",
+		"react-native-teleport": "1.2.2",
 		"react-native-webview": "13.16.1",
 		"react-native-worklets": "0.10.1"
 	},

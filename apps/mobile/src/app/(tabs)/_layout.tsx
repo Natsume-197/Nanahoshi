@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useState } from "react";
 import { AddToListHost } from "@/components/add-to-list/host";
 import { BookMenuProvider } from "@/components/book-menu";
+import { FormSheetHost } from "@/components/form-sheet/host";
 import { ChoiceHost } from "@/components/prompt/host";
 import {
 	TAB_ICONS_UNTINTED,
@@ -25,10 +27,18 @@ export default function TabsLayout() {
 	const { orpc } = useApi();
 	const { serverUrl, auth } = useConnection();
 	const active = auth.useActiveOrganization();
+	// Switching servers remounts the tabs; learning the first one at a cold
+	// start must not (it threw away the whole drawn home a second in).
+	const activeId = active.data?.id;
+	const [org, setOrg] = useState({ id: activeId, epoch: 0 });
+	if (activeId && activeId !== org.id)
+		setOrg({ id: activeId, epoch: org.id ? org.epoch + 1 : org.epoch });
 	const session = auth.useSession();
 	const profile = useQuery(orpc.profile.getProfile.queryOptions());
 	const playing = usePlayerState((s) => s.book !== null);
+	// The expanded player opens over the tabs; the bar stays put beneath it.
 	const hideTabs = ![
+		"/player",
 		"/",
 		"/index",
 		"/search",
@@ -59,7 +69,7 @@ export default function TabsLayout() {
 		avatarImage && (process.env.EXPO_OS === "ios" || TAB_ICONS_UNTINTED);
 	return (
 		// Long-press any title, anywhere in the tabs, for its actions menu.
-		<BookMenuProvider key={active.data?.id ?? "default"}>
+		<BookMenuProvider key={org.epoch}>
 			<NativeTabs
 				hidden={hideTabs}
 				{...(process.env.EXPO_OS === "ios"
@@ -151,6 +161,7 @@ export default function TabsLayout() {
 				</NativeTabs.Trigger>
 			</NativeTabs>
 			<AddToListHost />
+			<FormSheetHost />
 			<ChoiceHost />
 		</BookMenuProvider>
 	);

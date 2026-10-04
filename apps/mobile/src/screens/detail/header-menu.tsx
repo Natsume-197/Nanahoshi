@@ -1,10 +1,12 @@
 import { Stack } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { ActionSheet } from "@/components/action-menu/action-sheet";
+import { isMenuGroup, type MenuItem } from "@/components/action-menu/types";
 import type { BookTarget } from "@/components/book-menu";
 import { useBookMenu } from "@/components/book-menu/use-book-menu";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Spinner } from "@/components/states";
 import { useDownloadActions } from "@/downloads/use-download-actions";
 import { t } from "@/lib/i18n";
 import { usePalette } from "@/theme";
@@ -62,16 +64,19 @@ export function DetailHeaderMenu({ target }: { target: BookTarget }) {
 											type: "submenu" as const,
 											label: "",
 											inline: true,
-											items: section.map((item) => ({
-												type: "action" as const,
-												label: item.label,
-												icon: {
-													type: "sfSymbol" as const,
-													name: item.icon.ios,
-												},
-												destructive: item.destructive,
-												onPress: item.onPress,
-											})),
+											items: section.map((entry) =>
+												isMenuGroup(entry)
+													? {
+															type: "submenu" as const,
+															label: entry.label,
+															icon: {
+																type: "sfSymbol" as const,
+																name: entry.icon.ios,
+															},
+															items: entry.sections.flat().map(headerAction),
+														}
+													: headerAction(entry),
+											),
 										})),
 									},
 								},
@@ -126,6 +131,16 @@ export function DetailHeaderMenu({ target }: { target: BookTarget }) {
 	);
 }
 
+function headerAction(item: MenuItem) {
+	return {
+		type: "action" as const,
+		label: item.label,
+		icon: { type: "sfSymbol" as const, name: item.icon.ios },
+		destructive: item.destructive,
+		onPress: item.onPress,
+	};
+}
+
 function HeaderButton({
 	label,
 	icon,
@@ -152,7 +167,7 @@ function HeaderButton({
 			}}
 		>
 			{busy ? (
-				<ActivityIndicator size="small" color={palette.text} />
+				<Spinner inline tone="primary" />
 			) : icon ? (
 				<Icon name={icon} size={24} color={palette.text} />
 			) : null}

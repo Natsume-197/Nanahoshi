@@ -13,7 +13,7 @@ expo-env.d.ts
 *.mobileprovision
 .screens/
 
-# Built from apps/reader-embed by `bun run reader:bundle`.
+# Built from reader-embed/ by `bun run reader:bundle`.
 assets/reader/
 
 # Local build experiments.

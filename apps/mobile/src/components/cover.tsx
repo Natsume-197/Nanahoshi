@@ -49,6 +49,9 @@ export function Cover({
 				<Image
 					source={{ uri }}
 					recyclingKey={recyclingKey}
+					// Android's default ("disk") skips Glide's memory cache, so every
+					// tile scrolled back into view decoded and faded in again.
+					cachePolicy="memory-disk"
 					contentFit="cover"
 					transition={150}
 					style={{ width: "100%", height: "100%" }}

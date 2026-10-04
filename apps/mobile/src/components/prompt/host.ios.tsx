@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
-import { radius, space, usePalette } from "@/theme";
+import { EASE_OUT, radius, shadows, space, usePalette } from "@/theme";
 import { Icon, icons } from "../icon";
 import { Text } from "../text";
 import { notices } from "./index";
@@ -29,8 +29,8 @@ export function NoticeHost() {
 			{notice ? (
 				<Animated.View
 					key={notice.id}
-					entering={FadeInDown.duration(220)}
-					exiting={FadeOutDown.duration(160)}
+					entering={FadeInDown.duration(220).easing(EASE_OUT)}
+					exiting={FadeOutDown.duration(160).easing(EASE_OUT)}
 					accessibilityLiveRegion="polite"
 					pointerEvents={notice.action ? "auto" : "none"}
 					style={{
@@ -42,7 +42,7 @@ export function NoticeHost() {
 						borderRadius: radius.pill,
 						borderCurve: "continuous",
 						backgroundColor: palette.card,
-						boxShadow: "0 8px 24px rgba(0, 0, 0, 0.18)",
+						boxShadow: shadows.toast,
 					}}
 				>
 					{notice.action ? null : notice.info ? (

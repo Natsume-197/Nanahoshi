@@ -12,8 +12,9 @@ import { routes } from "@/lib/routes";
 import { titleWebUrl } from "@/lib/web-links";
 import { usePlayer, usePlayerState } from "@/player/provider";
 import { useApi, useConnection } from "@/providers/app-provider";
-import type { MenuItem } from "../action-menu/types";
+import type { MenuEntry, MenuItem } from "../action-menu/types";
 import { openAddToList } from "../add-to-list/open";
+import { openFormSheet } from "../form-sheet/open";
 import {
 	type BookMenuAction,
 	type BookMenuActionId,
@@ -78,10 +79,20 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		enrichMetadata: t("book.enrich_metadata"),
 		restoreMetadata: t("book.restore_metadata"),
 		delete: t("book.delete_permanently"),
+		share: t("mobile.menu.share"),
+		metadata: t("mobile.menu.metadata"),
 	});
 	const run = useBookMenuRunner(target, download);
-	const items: MenuItem[][] = sections.map((section) =>
-		section.map((action) => ({ ...action, onPress: () => run(action) })),
+	const toItem = (action: BookMenuAction): MenuItem => ({
+		...action,
+		onPress: () => run(action),
+	});
+	const items: MenuEntry[][] = sections.map((section) =>
+		section.map((entry) =>
+			"sections" in entry
+				? { ...entry, sections: entry.sections.map((s) => s.map(toItem)) }
+				: toItem(entry),
+		),
 	);
 	return { items };
 }
@@ -114,8 +125,7 @@ function useBookMenuRunner(
 		removeDownload: download.remove,
 		exportFile: () =>
 			exports.start(target.kind, bookUuid, titleOrUntitled(target.title)),
-		sendToKindle: () =>
-			router.push({ pathname: "/kindle/[uuid]", params: { uuid: bookUuid } }),
+		sendToKindle: () => openFormSheet({ form: "kindle", uuid: bookUuid }),
 		shareLink: () => {
 			const url = titleWebUrl(serverUrl, target.kind, bookUuid);
 			const title = titleOrUntitled(target.title);

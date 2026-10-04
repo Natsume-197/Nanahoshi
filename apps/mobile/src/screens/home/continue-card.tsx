@@ -81,6 +81,7 @@ export function ContinueCard({
 		>
 			{(onLongPress) => (
 				<PressableScale
+					scaleOnPress={false}
 					onPress={resume}
 					onLongPress={onLongPress}
 					accessibilityRole="button"

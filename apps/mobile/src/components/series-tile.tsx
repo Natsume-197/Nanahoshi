@@ -32,6 +32,7 @@ export function SeriesTile({
 	return (
 		<Link href={routes.series(item.uuid, kind)} asChild>
 			<PressableScale
+				scaleOnPress={false}
 				accessibilityRole="button"
 				accessibilityLabel={item.name}
 				style={{ width, gap: 12 }}

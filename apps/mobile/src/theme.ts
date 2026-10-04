@@ -1,5 +1,5 @@
 import { useColorScheme } from "react-native";
-import { cubicBezier } from "react-native-reanimated";
+import { cubicBezier, Easing } from "react-native-reanimated";
 
 /**
  * Tokens resolved from apps/web/src/index.css (its OKLab color-mix values
@@ -39,8 +39,9 @@ const light = {
 };
 
 const dark: typeof light = {
-	background: "#19191a",
-	chrome: "#111112",
+	// The web's dark canvas (--background) and its darker chrome (--sidebar).
+	background: "#1f1f20",
+	chrome: "#161617",
 	card: "#272729",
 	surfaceCard: "#272729",
 	surfaceCardHover: "#343436",
@@ -156,7 +157,23 @@ export const shadows = {
 	hero: "0 12px 28px rgba(0, 0, 0, 0.3)",
 	/** Player artwork floating on its blurred field (web player). */
 	art: "0 20px 50px -20px rgba(0, 0, 0, 0.85)",
+	/** The detail page's cover over its washed hero; dark grounds need more. */
+	detailCover: {
+		light: "0 20px 40px -16px rgba(0, 0, 0, 0.5)",
+		dark: "0 20px 40px -12px rgba(0, 0, 0, 0.75)",
+	},
+	/** Bars that float over the page: the mini player. */
+	floating: "0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18)",
+	/** Notice pills. */
+	toast: "0 8px 24px rgba(0, 0, 0, 0.18)",
 } as const;
+
+/** A ripple for surfaces that don't follow the app theme (the welcome
+ * paper, the always-dark player): mid-gray reads on light and dark. */
+export const neutralRipple = "rgba(128,128,128,0.2)";
+
+// Dims the page well behind every bottom sheet, so the sheet reads as on top.
+export const sheetScrim = "rgba(0,0,0,0.6)";
 
 /** expo-animation's tables: press 100–150 ms, strong ease-out on UI. */
 export const motion = {
@@ -165,6 +182,13 @@ export const motion = {
 	base: 250,
 	easeOut: cubicBezier(0.23, 1, 0.32, 1),
 } as const;
+
+/** motion.easeOut as a worklet easing, for withTiming and layout animations
+ * (their default, ease-in-out, starts slow right as the finger lets go). */
+export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+
+/** A drag's settle or snap; spread `velocity` from the gesture into it. */
+export const SNAP_SPRING = { duration: 300, dampingRatio: 0.8 } as const;
 
 /** Fixed sizes that several components share. */
 export const sizes = {

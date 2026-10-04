@@ -17,7 +17,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { coverUrl, HERO_BACKDROP_WIDTH, heroCoverWidth } from "@/lib/covers";
 import { useConnection } from "@/providers/app-provider";
-import { space, usePalette } from "@/theme";
+import { shadows, space, usePalette } from "@/theme";
 import { Cover } from "./cover";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
@@ -137,6 +137,7 @@ export function DetailHero({
 					>
 						<Image
 							source={{ uri: backdrop }}
+							cachePolicy="memory-disk"
 							blurRadius={nativeBlur ? 0 : 60}
 							contentFit="cover"
 							style={{ position: "absolute", inset: 0 }}
@@ -180,9 +181,7 @@ export function DetailHero({
 							borderRadius: palette.coverRadius,
 							borderCurve: "continuous",
 							transformOrigin: "top",
-							boxShadow: dark
-								? "0 20px 40px -12px rgba(0, 0, 0, 0.75)"
-								: "0 20px 40px -16px rgba(0, 0, 0, 0.5)",
+							boxShadow: shadows.detailCover[dark ? "dark" : "light"],
 						},
 						coverStyle,
 					]}
@@ -213,20 +212,15 @@ export function DetailHero({
 				>
 					<View style={{ gap: space.xs }}>
 						<Text
-							variant="largeTitle"
+							variant="pageTitle"
 							selectable
 							accessibilityRole="header"
-							style={{ fontWeight: "700", letterSpacing: -0.5 }}
+							style={{ fontWeight: "700", letterSpacing: -0.3 }}
 						>
 							{title}
 						</Text>
 						{subtitle ? (
-							<Text
-								variant="title"
-								tone="secondary"
-								selectable
-								style={{ fontWeight: "500" }}
-							>
+							<Text variant="headline" tone="secondary" selectable>
 								{subtitle}
 							</Text>
 						) : null}

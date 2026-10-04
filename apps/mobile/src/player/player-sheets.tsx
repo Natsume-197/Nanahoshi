@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, icons } from "@/components/icon";
+import { Sheet as BottomSheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { Toggle } from "@/components/toggle";
 import { haptics } from "@/lib/haptics";
@@ -12,7 +13,6 @@ import { TransportButton } from "./controls";
 import type { PlayerBook } from "./engine";
 import { ink, useSheetInk } from "./ink";
 import { usePlayer, usePlayerState } from "./provider";
-import { SheetFrame } from "./sheet-frame";
 import {
 	clock,
 	formatSpeed,
@@ -42,10 +42,15 @@ export function PlayerSheets({
 	const insets = useSafeAreaInsets();
 	const { width } = useWindowDimensions();
 	return (
-		<SheetFrame open={sheet !== null} color={tone.sheet} onClose={onClose}>
+		<BottomSheet
+			open={sheet !== null}
+			expanded
+			color={tone.sheet}
+			onClose={onClose}
+		>
 			{/* Hosted, not bare: RN views set straight into the Compose sheet
 			    drew but never received a press. */}
-			{(close) => (
+			{(dismiss) => (
 				<RNHostView matchContents>
 					<View
 						style={{
@@ -57,12 +62,12 @@ export function PlayerSheets({
 					>
 						{sheet === "speed" ? <PlaybackSheet /> : null}
 						{sheet === "sleep" ? (
-							<SleepSheet book={book} onDone={close} />
+							<SleepSheet book={book} onDone={() => dismiss()} />
 						) : null}
 					</View>
 				</RNHostView>
 			)}
-		</SheetFrame>
+		</BottomSheet>
 	);
 }
 

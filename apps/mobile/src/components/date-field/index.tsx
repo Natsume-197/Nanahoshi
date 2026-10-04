@@ -1,4 +1,3 @@
-import { Host } from "@expo/ui";
 import { DatePickerDialog } from "@expo/ui/jetpack-compose";
 import { useState } from "react";
 import { Pressable } from "react-native";
@@ -6,6 +5,7 @@ import { fromDateValue, toDateValue } from "@/lib/date-value";
 import { locale, t } from "@/lib/i18n";
 import { radius, sizes, space, usePalette } from "@/theme";
 import { Icon, icons } from "../icon";
+import { DetachedHost } from "../sheet/detached-host";
 import { Text } from "../text";
 
 /** A date field that opens Material's date picker dialog. */
@@ -52,7 +52,7 @@ export function DateField({
 				</Text>
 			</Pressable>
 			{open ? (
-				<Host style={{ position: "absolute", width: 1, height: 1 }}>
+				<DetachedHost>
 					<DatePickerDialog
 						initialDate={date ? date.toISOString() : null}
 						confirmButtonLabel={t("common.apply")}
@@ -64,7 +64,7 @@ export function DateField({
 						}}
 						onDismissRequest={() => setOpen(false)}
 					/>
-				</Host>
+				</DetachedHost>
 			) : null}
 		</>
 	);

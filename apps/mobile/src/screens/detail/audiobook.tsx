@@ -125,7 +125,7 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 			title: item.title ?? null,
 			cover: item.cover ?? null,
 			color: item.mainColor ?? null,
-			subtitle: joinNames(item.authors, 1),
+			subtitle: joinNames(item.authors),
 		}));
 	const tabs = [
 		{ value: "overview" as const, label: t("audiobook.tab_overview") },
@@ -157,11 +157,9 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 				}}
 				refreshControl={
 					<RefreshControl
-						refreshing={audiobook.isRefetching}
-						onRefresh={() => {
-							void audiobook.refetch();
-							void progress.refetch();
-						}}
+						onRefresh={() =>
+							Promise.all([audiobook.refetch(), progress.refetch()])
+						}
 					/>
 				}
 			>
@@ -215,33 +213,7 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 									<Description text={htmlToText(data.description)} />
 								</View>
 							) : null}
-							{data.genres.length + data.tags.length > 0 ? (
-								<View style={{ marginTop: space.lg }}>
-									<TagChips
-										tags={[
-											...data.genres.map((genre) => ({
-												key: genre.uuid,
-												label: genre.name,
-												href: {
-													pathname: "/genre/[uuid]" as const,
-													params: { uuid: genre.uuid, name: genre.name },
-												},
-											})),
-											...data.tags.map((tag) => ({
-												key: tag.uuid,
-												label: tag.name,
-												href: {
-													pathname: "/tag/[uuid]" as const,
-													params: { uuid: tag.uuid, name: tag.name },
-												},
-											})),
-										]}
-									/>
-								</View>
-							) : null}
-							{data.description || data.genres.length + data.tags.length > 0 ? (
-								<Divider />
-							) : null}
+							{data.description ? <Divider /> : null}
 							<InfoGrid
 								items={[
 									{
@@ -278,6 +250,30 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 									data.asin ? { label: "ASIN", value: data.asin } : null,
 								]}
 							/>
+							{data.genres.length + data.tags.length > 0 ? (
+								<View style={{ marginTop: space.lg }}>
+									<TagChips
+										tags={[
+											...data.genres.map((genre) => ({
+												key: genre.uuid,
+												label: genre.name,
+												href: {
+													pathname: "/genre/[uuid]" as const,
+													params: { uuid: genre.uuid, name: genre.name },
+												},
+											})),
+											...data.tags.map((tag) => ({
+												key: tag.uuid,
+												label: tag.name,
+												href: {
+													pathname: "/tag/[uuid]" as const,
+													params: { uuid: tag.uuid, name: tag.name },
+												},
+											})),
+										]}
+									/>
+								</View>
+							) : null}
 							<Divider />
 						</>
 					) : tab === "chapters" ? (

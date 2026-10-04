@@ -17,6 +17,8 @@ import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
 import { radius, space } from "@/theme";
 import { type AudioBookmark, useBookmarks } from "./bookmarks";
+import { bookmarkLines } from "./bookmarks-model";
+import { chapterName, chapterNameAt } from "./chapter-name";
 import type { PlayerBook } from "./engine";
 import { useSheetInk } from "./ink";
 import { usePlayer, usePlayerState } from "./provider";
@@ -26,12 +28,6 @@ import { activeChapterIndex, type Chapter, clock, clockIn } from "./timing";
 export type Panel = "chapters" | "bookmarks";
 
 const ROW = 52;
-
-export function chapterName(chapter: Chapter | undefined, index: number) {
-	return (
-		chapter?.title ?? t("audiobook.chapter_fallback", { number: index + 1 })
-	);
-}
 
 function PanelTitle({ title, count }: { title: string; count?: number }) {
 	const tone = useSheetInk();
@@ -265,10 +261,6 @@ export function BookmarksPanel({ book }: { book: PlayerBook }) {
 	const bookmarks = useBookmarks(book.uuid);
 	const scope = useTimeScope();
 	const at = (seconds: number) => clockIn(book.chapters, seconds, scope);
-	const chapterAt = (at: number) => {
-		const index = activeChapterIndex(book.chapters, at);
-		return index >= 0 ? chapterName(book.chapters[index], index) : null;
-	};
 	return (
 		<View style={{ flex: 1, width: "100%" }}>
 			<PanelTitle title={t("audiobook.player_bookmarks")} />
@@ -332,7 +324,7 @@ export function BookmarksPanel({ book }: { book: PlayerBook }) {
 						bookmark={item}
 						position={index}
 						time={at(item.time)}
-						chapter={chapterAt(item.time)}
+						chapter={chapterNameAt(book.chapters, item.time)}
 						onSeek={() => {
 							haptics.select();
 							void player.seek(item.time, true);
@@ -368,10 +360,11 @@ function BookmarkRow({
 }) {
 	const tone = useSheetInk();
 	const [draft, setDraft] = useState<string | null>(null);
-	const title = bookmark.label || chapter || timeLabel;
-	// Older bookmarks stored the chapter as their label; don't say it twice.
-	const subtitle =
-		bookmark.label && chapter && bookmark.label !== chapter ? chapter : null;
+	const { title, chapter: subtitle } = bookmarkLines(
+		bookmark,
+		chapter,
+		timeLabel,
+	);
 	const time = (
 		<Text
 			variant="caption"

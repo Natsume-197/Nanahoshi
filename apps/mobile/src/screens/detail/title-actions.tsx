@@ -8,15 +8,16 @@ import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { usePlayer, usePlayerState } from "@/player/provider";
 import { useReadListenEntry } from "@/reader/read-listen-entry";
-import { radius, space, usePalette } from "@/theme";
+import { space, usePalette } from "@/theme";
 import { primaryAction } from "./detail-model";
 import { useShelfStatus } from "./use-shelf-status";
 
-const HEIGHT = 44;
+const HEIGHT = 48;
 
 /**
- * Fable's stacked actions: read/listen filled, the shelf outlined under it
- * at the same width. Download and the rest live in the page's header.
+ * The web's two rows: read/listen as a filled pill (Read & Listen, when
+ * there is one, takes half the row), then the shelf as a labelled tonal pill so the list the title
+ * is in always reads. Download and the rest live in the page's header.
  */
 export function TitleActions({
 	uuid,
@@ -51,77 +52,136 @@ export function TitleActions({
 
 	return (
 		<View style={{ gap: space.sm }}>
-			<ActionButton
-				filled
-				label={label}
-				detail={detail}
-				loading={loading}
-				icon={playing ? icons.pause : audio ? icons.play : icons.book}
-				onPress={() => {
-					// Audiobooks play right away and the mini player takes over
-					// from here (like the web); ebooks open the reader.
-					if (!audio)
-						return router.push({
-							pathname: "/reader/[uuid]",
-							params: { uuid },
-						});
-					haptics.tap();
-					if (current) player.toggle();
-					else void player.play(uuid);
-				}}
-			/>
-			<ActionButton
+			<View style={{ flexDirection: "row", gap: space.sm }}>
+				<PrimaryButton
+					label={label}
+					detail={detail}
+					loading={loading}
+					icon={playing ? icons.pause : audio ? icons.play : icons.book}
+					onPress={() => {
+						// Audiobooks play right away and the mini player takes over
+						// from here (like the web); ebooks open the reader.
+						if (!audio)
+							return router.push({
+								pathname: "/reader/[uuid]",
+								params: { uuid },
+							});
+						haptics.tap();
+						if (current) player.toggle();
+						else void player.play(uuid);
+					}}
+				/>
+				{readListen ? (
+					<PrimaryButton
+						label={t("read_listen.open_reader")}
+						icon={icons.readListen}
+						onPress={readListen}
+					/>
+				) : null}
+			</View>
+			<ShelfButton
 				label={shelf.label ?? t("add_to_list.title")}
 				icon={shelf.icon ?? icons.plus}
-				trailing={icons.collapse}
+				active={!!shelf.bucket}
 				onPress={() => openAddToList({ uuid, kind })}
 			/>
-			{readListen ? (
-				<ActionButton
-					label={t("read_listen.open_reader")}
-					icon={icons.readListen}
-					onPress={readListen}
-				/>
-			) : null}
 		</View>
 	);
 }
 
-function ActionButton({
+function PrimaryButton({
 	label,
 	detail,
 	icon,
-	iconColor,
-	trailing,
-	filled = false,
 	loading = false,
 	onPress,
 }: {
 	label: string;
 	detail?: string | null;
 	icon: IconName;
-	iconColor?: string;
-	trailing?: IconName;
-	filled?: boolean;
 	loading?: boolean;
 	onPress: () => void;
 }) {
 	const palette = usePalette();
-	const ink = filled ? palette.onPrimary : palette.text;
+	// Inverse of the page, not the lavender: black on #8b7a9e read muddy.
+	const ink = palette.background;
+	return (
+		// PressableScale styles its inner view; the wrapper takes the row's slack.
+		<View style={{ flex: 1 }}>
+			<PressableScale
+				onPress={onPress}
+				disabled={loading}
+				accessibilityRole="button"
+				accessibilityLabel={detail ? `${label}, ${detail}` : label}
+				accessibilityState={{ busy: loading }}
+				style={{
+					height: HEIGHT,
+					borderRadius: HEIGHT / 2,
+					backgroundColor: palette.text,
+					flexDirection: "row",
+					alignItems: "center",
+					justifyContent: "center",
+					gap: space.sm,
+					paddingHorizontal: space.md,
+				}}
+			>
+				{loading ? (
+					<ActivityIndicator color={ink} />
+				) : (
+					<>
+						<Icon name={icon} size={20} color={ink} />
+						<Text
+							variant="headline"
+							numberOfLines={1}
+							style={{ color: ink, fontWeight: "600", flexShrink: 1 }}
+						>
+							{label}
+						</Text>
+						{detail ? (
+							<Text
+								variant="headline"
+								numberOfLines={1}
+								style={{
+									color: ink,
+									opacity: 0.7,
+									fontVariant: ["tabular-nums"],
+								}}
+							>
+								{`· ${detail}`}
+							</Text>
+						) : null}
+					</>
+				)}
+			</PressableScale>
+		</View>
+	);
+}
+
+/** A set shelf sits on the soft accent, so "in a list" reads at a glance;
+ * the text stays full ink for contrast. */
+function ShelfButton({
+	label,
+	icon,
+	active,
+	onPress,
+}: {
+	label: string;
+	icon: IconName;
+	active: boolean;
+	onPress: () => void;
+}) {
+	const palette = usePalette();
+	const ink = palette.text;
 	return (
 		<PressableScale
 			onPress={onPress}
-			disabled={loading}
 			accessibilityRole="button"
-			accessibilityLabel={detail ? `${label}, ${detail}` : label}
-			accessibilityState={{ busy: loading }}
+			accessibilityLabel={label}
+			accessibilityState={{ selected: active }}
 			style={{
 				height: HEIGHT,
-				borderRadius: radius.field,
-				borderCurve: "continuous",
-				backgroundColor: filled ? palette.primary : "transparent",
-				borderWidth: filled ? 0 : 1,
-				borderColor: palette.text,
+				borderRadius: HEIGHT / 2,
+				backgroundColor: active ? palette.accentSoft : palette.surface,
 				flexDirection: "row",
 				alignItems: "center",
 				justifyContent: "center",
@@ -129,43 +189,14 @@ function ActionButton({
 				paddingHorizontal: space.lg,
 			}}
 		>
-			{loading ? (
-				<ActivityIndicator color={ink} />
-			) : (
-				<>
-					<Icon name={icon} size={16} color={iconColor ?? ink} />
-					<Text
-						variant="label"
-						numberOfLines={1}
-						style={{ color: ink, fontWeight: "600", flexShrink: 1 }}
-					>
-						{label}
-					</Text>
-					{detail ? (
-						<Text
-							variant="label"
-							numberOfLines={1}
-							style={{
-								color: ink,
-								opacity: 0.7,
-								fontVariant: ["tabular-nums"],
-							}}
-						>
-							{`· ${detail}`}
-						</Text>
-					) : null}
-					{trailing ? (
-						<View
-							style={{
-								position: "absolute",
-								right: space.lg,
-							}}
-						>
-							<Icon name={trailing} size={16} color={palette.textSecondary} />
-						</View>
-					) : null}
-				</>
-			)}
+			<Icon name={icon} size={20} color={ink} />
+			<Text
+				variant="headline"
+				numberOfLines={1}
+				style={{ color: ink, fontWeight: "600", flexShrink: 1 }}
+			>
+				{label}
+			</Text>
 		</PressableScale>
 	);
 }

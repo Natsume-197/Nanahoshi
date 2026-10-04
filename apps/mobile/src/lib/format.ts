@@ -4,15 +4,12 @@ import { parseServerTime } from "./server-time";
 
 type Named = { name?: string | null };
 
-export function joinNames(
-	people: readonly Named[] | null | undefined,
-	max = 2,
-) {
-	const names = (people ?? [])
+/** Every name, like the web: the line it sits in clamps with "…". */
+export function joinNames(people: readonly Named[] | null | undefined) {
+	return (people ?? [])
 		.map((person) => person.name?.trim())
-		.filter((name): name is string => !!name);
-	if (names.length <= max) return names.join(", ");
-	return `${names.slice(0, max).join(", ")} +${names.length - max}`;
+		.filter((name): name is string => !!name)
+		.join(", ");
 }
 
 /** 13h 47m / 42m — the way Storytel and Audible label a listen. */

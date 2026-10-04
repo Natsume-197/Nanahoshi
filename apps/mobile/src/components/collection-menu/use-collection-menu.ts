@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { openFormSheet } from "@/components/form-sheet/open";
 import { askChoice, showNotice } from "@/components/prompt";
 import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";
@@ -50,7 +51,11 @@ export function useCollectionMenu(
 			id: "edit",
 			label: t("common.edit"),
 			icon: icons.edit,
-			onPress: () => router.push(routes.editCollection(id, kind)),
+			// Dynamic ones open the rules editor, a page of its own.
+			onPress: () =>
+				kind === "dynamic"
+					? router.push(routes.editCollection(id, kind))
+					: openFormSheet({ form: "editCollection", id }),
 		},
 		visibility: {
 			id: "visibility",

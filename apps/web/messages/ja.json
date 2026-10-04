@@ -1966,7 +1966,8 @@
 		"continue_discord": "Discordで続行",
 		"create_account_email": "代わりにメールでアカウントを作成",
 		"link_discord_required": "このサーバーではDiscordメンバーシップを確認します。続行するにはDiscordアカウントを連携してください。",
-		"link_discord": "Discordを連携"
+		"link_discord": "Discordを連携",
+		"open_in_app": "アプリで開く"
 	},
 	"scroll": {
 		"left": "左にスクロール",

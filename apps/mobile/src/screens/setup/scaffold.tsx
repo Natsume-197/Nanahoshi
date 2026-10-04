@@ -8,7 +8,6 @@ import {
 	View,
 } from "react-native";
 import Animated, {
-	Easing,
 	FadeIn,
 	FadeInLeft,
 	FadeInRight,
@@ -20,7 +19,7 @@ import { Text } from "@/components/text";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
-import { motion, radius, sizes, space, usePalette } from "@/theme";
+import { EASE_OUT, motion, radius, sizes, space, usePalette } from "@/theme";
 
 /**
  * One question per screen, Fable's onboarding shape: a round back (or close)
@@ -149,7 +148,10 @@ export function SetupDone({
 						weight="bold"
 					/>
 				</Animated.View>
-				<Animated.View entering={FadeIn.delay(160)} style={{ gap: space.sm }}>
+				<Animated.View
+					entering={FadeIn.duration(motion.base).easing(EASE_OUT).delay(160)}
+					style={{ gap: space.sm }}
+				>
 					<Text
 						variant="display"
 						accessibilityRole="header"
@@ -339,9 +341,6 @@ export function HardwareBack({ onBack }: { onBack: () => void }) {
 	});
 	return null;
 }
-
-// motion.easeOut's curve; layout animations take a worklet easing, not CSS.
-const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 /** Each step slides in from the side it comes from: forward from the right,
  * back from the left. Keyed, so a new step mounts fresh. */

@@ -156,10 +156,7 @@ export function NotificationsScreen() {
 					keyExtractor={(item) => String(item.id)}
 					contentInsetAdjustmentBehavior="automatic"
 					refreshControl={
-						<RefreshControl
-							refreshing={notifications.isRefetching}
-							onRefresh={() => void notifications.refetch()}
-						/>
+						<RefreshControl onRefresh={() => notifications.refetch()} />
 					}
 					onEndReached={() => {
 						if (notifications.hasNextPage && !notifications.isFetchingNextPage)

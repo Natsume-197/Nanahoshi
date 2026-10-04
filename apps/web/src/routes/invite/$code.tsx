@@ -1,3 +1,4 @@
+import { env } from "@nanahoshi/env/web";
 import { Button } from "@nanahoshi/ui/components/button";
 import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
@@ -9,13 +10,14 @@ import {
 	type SearchSchemaInput,
 	useRouter,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { OAuthErrorNotice } from "@/components/forms/oauth-error-notice";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { ServerBadge } from "@/components/shared/server-badge";
 import { getInvitePreview } from "@/functions/get-invite-preview";
 import { authClient } from "@/lib/auth-client";
+import { inviteAppLink, isPhoneBrowser } from "@/lib/invite-app-link";
 import { shouldAutoJoin } from "@/lib/invite-auto-join";
 import { buildInviteHead } from "@/lib/invite-meta";
 import { resolveInviteSignupState } from "@/lib/invite-signup-state";
@@ -171,6 +173,17 @@ function InvitePage() {
 		if (autoJoin) join.mutate({ code });
 	});
 
+	// Known only in the browser; the server render never offers the app.
+	const [onPhone, setOnPhone] = useState(false);
+	useMountEffect(() => {
+		setOnPhone(isPhoneBrowser(navigator.userAgent));
+	});
+	const appLink = inviteAppLink({
+		server: env.VITE_SERVER_URL,
+		code,
+		link: inviteUrl,
+	});
+
 	const handleOpenServer = async () => {
 		if (preview?.status !== "ok") return;
 		await switchActiveServer(preview.serverId);
@@ -248,6 +261,11 @@ function InvitePage() {
 			<div className="mt-4 empty:hidden">
 				<OAuthErrorNotice code={oauthError} />
 			</div>
+			{onPhone && (
+				<Button asChild variant="outline" className="mt-6 w-full">
+					<a href={appLink}>{m["invite.open_in_app"]()}</a>
+				</Button>
+			)}
 			{!session ? (
 				<>
 					{signupState.status === "loading" ? (

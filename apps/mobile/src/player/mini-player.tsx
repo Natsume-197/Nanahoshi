@@ -6,7 +6,6 @@ import Animated, {
 	useAnimatedStyle,
 	useSharedValue,
 	withSpring,
-	withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { Cover } from "@/components/cover";
@@ -14,7 +13,7 @@ import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY, IS_ANDROID } from "@/lib/platform";
-import { space, usePalette } from "@/theme";
+import { SNAP_SPRING, shadows, space, usePalette } from "@/theme";
 import {
 	JumpButton,
 	PlayPauseGlyph,
@@ -29,16 +28,19 @@ import { activeChapterIndex } from "./timing";
  * around it so the page shows on every side. */
 export const MINI_PLAYER_HEIGHT = 60;
 const CARD_INSET = 8;
+/** Gap between the card and the tab bar, so it reads as floating above it. */
+const CARD_LIFT = 12;
 
 /** Room a scrolling page leaves at its end so the floating card never
  * covers its last row. */
 export function useMiniPlayerInset() {
 	const shown = usePlayerState((s) => s.book !== null);
-	return shown && !HAS_TAB_ACCESSORY ? MINI_PLAYER_HEIGHT + CARD_INSET * 2 : 0;
+	return shown && !HAS_TAB_ACCESSORY
+		? MINI_PLAYER_HEIGHT + CARD_INSET + CARD_LIFT
+		: 0;
 }
 
 const openPlayer = () => router.push("/player");
-const SPRING = { damping: 24, stiffness: 260 };
 
 /** The card is a neutral surface of the app's theme: a cover-tinted one
  * clashed with the pages around it. */
@@ -87,18 +89,24 @@ function Card({ book }: { book: PlayerBook }) {
 		})
 		.onEnd((event) => {
 			const y = event.translationY;
-			if (y < -32 || event.velocityY < -400) {
+			const velocity = event.velocityY;
+			if (y < -32 || velocity < -400) {
 				scheduleOnRN(openPlayer);
-				offset.set(withSpring(0, SPRING));
-			} else if (y > MINI_PLAYER_HEIGHT / 2 || event.velocityY > 800) {
+				offset.set(withSpring(0, SNAP_SPRING));
+			} else if (y > MINI_PLAYER_HEIGHT / 2 || velocity > 800) {
+				// Carries the flick's speed; clamped so it never bounces back up.
 				offset.set(
-					withTiming(MINI_PLAYER_HEIGHT, { duration: 160 }, (finished) => {
-						"worklet";
-						if (finished) scheduleOnRN(stop);
-					}),
+					withSpring(
+						MINI_PLAYER_HEIGHT,
+						{ ...SNAP_SPRING, velocity, overshootClamping: true },
+						(finished) => {
+							"worklet";
+							if (finished) scheduleOnRN(stop);
+						},
+					),
 				);
 			} else {
-				offset.set(withSpring(0, SPRING));
+				offset.set(withSpring(0, { ...SNAP_SPRING, velocity }));
 			}
 		});
 
@@ -106,7 +114,7 @@ function Card({ book }: { book: PlayerBook }) {
 		<View
 			style={{
 				paddingHorizontal: CARD_INSET,
-				paddingBottom: CARD_INSET / 2,
+				paddingBottom: CARD_LIFT,
 			}}
 		>
 			<GestureDetector gesture={swipe}>
@@ -120,7 +128,7 @@ function Card({ book }: { book: PlayerBook }) {
 							backgroundColor: cardInk.surface,
 							borderWidth: StyleSheet.hairlineWidth,
 							borderColor: cardInk.edge,
-							boxShadow: "0 4px 14px rgba(0, 0, 0, 0.12)",
+							boxShadow: shadows.floating,
 						},
 						style,
 					]}

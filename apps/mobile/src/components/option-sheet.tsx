@@ -1,17 +1,12 @@
 import { BottomSheet, RNHostView } from "@expo/ui";
 import { useState } from "react";
-import {
-	ActivityIndicator,
-	Pressable,
-	ScrollView,
-	useWindowDimensions,
-	View,
-} from "react-native";
+import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { locale } from "@/lib/i18n";
-import { radius, space, usePalette } from "@/theme";
+import { radius, sheetScrim, space, usePalette } from "@/theme";
 import { Icon, icons } from "./icon";
 import { SearchField } from "./search-field";
+import { Spinner } from "./states";
 import { Text } from "./text";
 
 export type SheetOption = {
@@ -72,6 +67,7 @@ export function OptionSheet({
 			isPresented
 			onDismiss={onClose}
 			snapPoints={["half", "full"]}
+			scrimColor={sheetScrim}
 			containerColor={palette.card}
 			contentPadding={0}
 		>
@@ -111,7 +107,7 @@ export function OptionSheet({
 						contentContainerStyle={{ paddingBottom: space.lg }}
 					>
 						{loading ? (
-							<ActivityIndicator style={{ paddingVertical: space.xl }} />
+							<Spinner />
 						) : empty ? (
 							<Text
 								variant="subhead"

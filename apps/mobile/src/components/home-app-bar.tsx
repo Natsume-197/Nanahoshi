@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -10,6 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { ServerAvatar } from "@/components/server-avatar";
 import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { nextAppBarOffset, settleAppBarOffset } from "@/lib/app-bar-scroll";
@@ -17,7 +17,7 @@ import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { usePickServer } from "@/screens/panels/servers";
-import { usePalette } from "@/theme";
+import { EASE_OUT, usePalette } from "@/theme";
 
 /** A compact 56dp top bar (64 on tablets for the search field). */
 export function useAppBarHeight() {
@@ -47,7 +47,7 @@ export function useAppBarScroll() {
 				height,
 			);
 			if (target !== offset.get())
-				offset.set(withTiming(target, { duration: 150 }));
+				offset.set(withTiming(target, { duration: 150, easing: EASE_OUT }));
 		},
 	});
 	return { onScroll, offset, height };
@@ -56,7 +56,7 @@ export function useAppBarScroll() {
 type AppBarScroll = ReturnType<typeof useAppBarScroll>;
 
 /**
- * Home's top bar on Android: the server switcher (logo, name, ▾) leading,
+ * Home's top bar on Android: the server switcher (logo, name, chevron) leading,
  * friends and notifications trailing. It slides away while you read down and
  * returns the moment you scroll up. It keeps the page's own color throughout.
  */
@@ -193,36 +193,7 @@ function ServerSwitcher({
 				gap: 10,
 			}}
 		>
-			<View
-				style={{
-					width: 28,
-					height: 28,
-					borderRadius: 8,
-					borderCurve: "continuous",
-					overflow: "hidden",
-					backgroundColor: palette.primary,
-					alignItems: "center",
-					justifyContent: "center",
-				}}
-			>
-				{logo ? (
-					<Image
-						source={{ uri: logo }}
-						contentFit="cover"
-						style={{ width: 28, height: 28 }}
-					/>
-				) : (
-					<Text
-						style={{
-							fontSize: 12,
-							fontWeight: "600",
-							color: palette.onPrimary,
-						}}
-					>
-						{initials(name)}
-					</Text>
-				)}
-			</View>
+			<ServerAvatar name={name} logo={logo} />
 			<Text
 				numberOfLines={1}
 				accessibilityRole="header"
@@ -235,11 +206,7 @@ function ServerSwitcher({
 			>
 				{name}
 			</Text>
-			<Icon
-				name={{ ios: "chevron.down", android: "arrow_drop_down" }}
-				size={22}
-				color={palette.textSecondary}
-			/>
+			<Icon name={icons.expand} size={20} color={palette.textSecondary} />
 		</Pressable>
 	);
 }
@@ -320,13 +287,4 @@ function SearchField() {
 			</Text>
 		</Pressable>
 	);
-}
-
-function initials(name: string) {
-	return name
-		.split(/[\s-_]+/)
-		.map((word) => word[0])
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
 }

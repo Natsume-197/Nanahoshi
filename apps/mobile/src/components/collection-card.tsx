@@ -24,6 +24,7 @@ export function CollectionCard({
 	return (
 		<Link href={href} asChild>
 			<PressableScale
+				scaleOnPress={false}
 				accessibilityRole="button"
 				accessibilityLabel={name}
 				style={{ width, gap: 12 }}

@@ -78,19 +78,15 @@ export function Home() {
 		? picked
 		: "home";
 	const [refreshKey, setRefreshKey] = useState(0);
-	const [refreshing, setRefreshing] = useState(false);
 	const appBarHeight = useAppBarHeight();
 
 	const refreshControl = (
 		<RefreshControl
-			refreshing={refreshing}
 			// Android: the spinner drops in below the app bar, not behind it.
 			progressViewOffset={insets.top + appBarHeight}
 			onRefresh={async () => {
-				setRefreshing(true);
 				await libraries.refetch();
 				setRefreshKey((key) => key + 1);
-				setRefreshing(false);
 			}}
 		/>
 	);
@@ -344,7 +340,7 @@ function RecentlyAddedSection({ format }: { format: Format }) {
 				title: book.title,
 				cover: book.cover,
 				color: book.mainColor,
-				subtitle: joinNames(book.authors, 1),
+				subtitle: joinNames(book.authors),
 			} satisfies TileItem,
 		})),
 		...(format === "books" ? [] : (audiobooks.data ?? [])).map((book) => ({
@@ -355,7 +351,7 @@ function RecentlyAddedSection({ format }: { format: Format }) {
 				title: book.title,
 				cover: book.cover,
 				color: book.mainColor,
-				subtitle: joinNames(book.authors, 1),
+				subtitle: joinNames(book.authors),
 			} satisfies TileItem,
 		})),
 	]
@@ -384,7 +380,7 @@ function toTile(item: RecommendationItem): TileItem {
 		title: item.book.title,
 		cover: item.book.cover,
 		color: item.book.mainColor,
-		subtitle: joinNames(item.book.authors, 1),
+		subtitle: joinNames(item.book.authors),
 	};
 }
 
@@ -623,7 +619,7 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 					title: book.title,
 					cover: book.cover,
 					color: book.mainColor,
-					subtitle: joinNames(book.authors, 1),
+					subtitle: joinNames(book.authors),
 				}))
 			: audiobooks.data?.map((book) => ({
 					uuid: book.uuid,
@@ -631,7 +627,7 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 					title: book.title,
 					cover: book.cover,
 					color: book.mainColor,
-					subtitle: joinNames(book.authors, 1),
+					subtitle: joinNames(book.authors),
 				}));
 	return (
 		<Shelf

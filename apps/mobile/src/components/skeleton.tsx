@@ -12,6 +12,7 @@ import Animated, {
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { t } from "@/lib/i18n";
 import {
+	EASE_OUT,
 	motion,
 	radius,
 	sizes,
@@ -30,7 +31,9 @@ const KEYS = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
  */
 export function useArrival(ready: boolean) {
 	const waited = useRef(!ready);
-	return waited.current ? FadeIn.duration(motion.base) : undefined;
+	return waited.current
+		? FadeIn.duration(motion.fast).easing(EASE_OUT)
+		: undefined;
 }
 
 /** A slow breathe so a placeholder reads as loading, not as an empty page.

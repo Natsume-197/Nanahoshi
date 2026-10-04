@@ -7,6 +7,7 @@ import {
 	type ViewStyle,
 } from "react-native";
 import { routes } from "@/lib/routes";
+import { isMenuGroup, type MenuItem } from "../action-menu/types";
 import { Cover } from "../cover";
 import type { BookTarget } from "./model";
 import type { BookMenuTargetProps } from "./types";
@@ -42,20 +43,36 @@ export function BookMenuTarget({
 			<Link.Menu>
 				{items.map((section) => (
 					<Link.Menu key={section[0].id} inline>
-						{section.map((item) => (
-							<Link.MenuAction
-								key={item.id}
-								icon={item.icon.ios}
-								destructive={item.destructive}
-								onPress={item.onPress}
-							>
-								{item.label}
-							</Link.MenuAction>
-						))}
+						{section.map((entry) =>
+							isMenuGroup(entry) ? (
+								<Link.Menu
+									key={entry.id}
+									title={entry.label}
+									icon={entry.icon.ios}
+								>
+									{entry.sections.flat().map(menuAction)}
+								</Link.Menu>
+							) : (
+								menuAction(entry)
+							),
+						)}
 					</Link.Menu>
 				))}
 			</Link.Menu>
 		</Link>
+	);
+}
+
+function menuAction(item: MenuItem) {
+	return (
+		<Link.MenuAction
+			key={item.id}
+			icon={item.icon.ios}
+			destructive={item.destructive}
+			onPress={item.onPress}
+		>
+			{item.label}
+		</Link.MenuAction>
 	);
 }
 

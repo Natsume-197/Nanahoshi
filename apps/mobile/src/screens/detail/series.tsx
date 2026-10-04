@@ -79,7 +79,7 @@ export function SeriesDetail({
 					color: item.mainColor,
 					position: item.position ?? null,
 					author: item.authors[0]?.name ?? "",
-					subtitle: joinNames(item.authors, 1),
+					subtitle: joinNames(item.authors),
 				}));
 
 	const needle = query.toLowerCase();
@@ -121,7 +121,6 @@ export function SeriesDetail({
 				query={{
 					isPending: list.isPending,
 					isError: list.isError || series.isError,
-					isRefetching: list.isRefetching,
 					isFetchingNextPage: false,
 					hasNextPage: false,
 					fetchNextPage: () => undefined,

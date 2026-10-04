@@ -2003,7 +2003,8 @@
 		"continue_discord": "Continue with Discord",
 		"create_account_email": "Create an account with email instead",
 		"link_discord_required": "This server checks your Discord membership. Link your Discord account to continue.",
-		"link_discord": "Link Discord"
+		"link_discord": "Link Discord",
+		"open_in_app": "Open in the app"
 	},
 	"scroll": {
 		"left": "Scroll left",

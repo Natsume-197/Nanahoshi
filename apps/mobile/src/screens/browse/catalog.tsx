@@ -50,7 +50,7 @@ export function Catalog({ initialFormat }: { initialFormat?: Format }) {
 		title: item.title,
 		cover: item.cover,
 		color: item.mainColor,
-		subtitle: joinNames(item.authors, 1),
+		subtitle: joinNames(item.authors),
 	}));
 
 	return (

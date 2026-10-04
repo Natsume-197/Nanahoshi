@@ -75,3 +75,18 @@ export function findBookmarkNear(
 	}
 	return best;
 }
+
+/** A bookmark row's lines: its note, else the chapter, else the time; the
+ * chapter goes under a note unless it is the note (older bookmarks stored
+ * the chapter as their label). */
+export function bookmarkLines(
+	bookmark: AudioBookmark,
+	chapter: string | null,
+	time: string,
+): { title: string; chapter: string | null } {
+	return {
+		title: bookmark.label || chapter || time,
+		chapter:
+			bookmark.label && chapter && bookmark.label !== chapter ? chapter : null,
+	};
+}

@@ -94,10 +94,7 @@ function DownloadRow({
 	const detail = [
 		audio ? t("mobile.downloads.audiobook") : t("mobile.downloads.book"),
 		formatBytes(item.bytes, locale),
-		joinNames(
-			item.authors.map((name) => ({ name })),
-			1,
-		),
+		joinNames(item.authors.map((name) => ({ name }))),
 	]
 		.filter(Boolean)
 		.join(" · ");

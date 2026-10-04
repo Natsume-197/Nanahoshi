@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { IconName } from "../icon-names";
 
 export type ChoiceOption = {
@@ -5,6 +6,8 @@ export type ChoiceOption = {
 	label: string;
 	/** Android's sheet shows it; the iOS action sheet has no icons. */
 	icon?: IconName;
+	/** RN content in the icon's place on Android's sheet (a server's logo). */
+	leading?: ReactElement;
 	destructive?: boolean;
 	/** The current value, when the question picks one of several. */
 	selected?: boolean;

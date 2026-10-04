@@ -5,6 +5,7 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { type Api, createApi, createQueryClient } from "@/lib/api";
 import { createNanahoshiAuth, type NanahoshiAuth } from "@/lib/auth-client";
 import { connectQueryLifecycle } from "@/lib/query-lifecycle";
+import { restoreSavedQueries } from "@/lib/query-persist";
 import { readServerUrl, writeServerUrl } from "@/lib/server-url";
 import { PlayerProvider } from "@/player/provider";
 
@@ -49,7 +50,12 @@ function Connection({
 	serverUrl: string | null;
 	children: ReactNode;
 }) {
-	const [queryClient] = useState(createQueryClient);
+	// A cold start draws the screens it saw last time while they refetch.
+	const [queryClient] = useState(() => {
+		const client = createQueryClient();
+		if (serverUrl) restoreSavedQueries(client, serverUrl);
+		return client;
+	});
 	const onUnauthorizedRef = useRef(() => {});
 	const [connection] = useState(() => {
 		if (!serverUrl) return null;

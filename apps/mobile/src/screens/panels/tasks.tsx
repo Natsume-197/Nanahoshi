@@ -161,12 +161,7 @@ export function TasksScreen() {
 					data={rows}
 					keyExtractor={(task) => task.id}
 					contentInsetAdjustmentBehavior="automatic"
-					refreshControl={
-						<RefreshControl
-							refreshing={tasks.isRefetching}
-							onRefresh={() => void tasks.refetch()}
-						/>
-					}
+					refreshControl={<RefreshControl onRefresh={() => tasks.refetch()} />}
 					ListEmptyComponent={
 						<EmptyState
 							icon={icons.checkCircle}

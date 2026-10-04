@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { NavigationBar } from "expo-navigation-bar";
 import { router } from "expo-router";
@@ -11,12 +12,15 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { PortalProvider } from "react-native-teleport";
 import { useDownloads, useExports } from "@/downloads/provider";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { applyStoredAppearance } from "@/lib/appearance";
 import type { NanahoshiAuth } from "@/lib/auth-client";
 import { keepGatewayOpen } from "@/lib/gateway";
 import { useLocale } from "@/lib/i18n";
+import { forgetSavedQueries, keepQueriesSaved } from "@/lib/query-persist";
+import { shouldSnapshot } from "@/lib/query-snapshot";
 import { takeResumeRoute } from "@/lib/resume-route";
 import { usePlayer } from "@/player/provider";
 import {
@@ -24,6 +28,7 @@ import {
 	useConnection,
 	useMaybeConnection,
 } from "@/providers/app-provider";
+import { ReaderPool } from "@/reader/reader-pool";
 import { fontSources, palettes } from "@/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -65,7 +70,10 @@ export default function RootLayout() {
 					<NavigationBar hidden={false} />
 					{/* Every screen reads its strings while rendering, so a new
 					    language remounts the navigation (playback and cache stay). */}
-					{fontsLoaded ? <RootNavigator key={locale} /> : null}
+					{/* Lets the pooled reader page move into the reader screen. */}
+					<PortalProvider>
+						{fontsLoaded ? <RootNavigator key={locale} /> : null}
+					</PortalProvider>
 				</AppProvider>
 			</ThemeProvider>
 		</GestureHandlerRootView>
@@ -82,10 +90,16 @@ function SessionNavigator({ auth }: { auth: NanahoshiAuth }) {
 	const { data, isPending } = auth.useSession();
 	return (
 		<>
-			{/* Signing out must not leave someone else's book playing. */}
-			{!data && !isPending ? <StopPlayback /> : null}
+			{/* Signing out must not leave someone else's book or screens behind. */}
+			{!data && !isPending ? <EndSession /> : null}
 			{data ? <StayOnline /> : null}
-			<Navigator signedIn={!!data} ready={!isPending} />
+			{data ? (
+				<ReaderPool key={data.user.id} userId={data.user.id}>
+					<Navigator signedIn ready={!isPending} />
+				</ReaderPool>
+			) : (
+				<Navigator signedIn={false} ready={!isPending} />
+			)}
 		</>
 	);
 }
@@ -132,22 +146,27 @@ function Navigator({ signedIn, ready }: { signedIn: boolean; ready: boolean }) {
 					{SETUP_ROUTES.map((name) => (
 						<Stack.Screen key={name} name={name} options={SETUP_OPTIONS} />
 					))}
-					{/* Full screen with no swipe-back: horizontal swipes turn pages. */}
+					{/* Enters like any other screen; no swipe-back: horizontal swipes
+					    turn pages. */}
 					<Stack.Screen
 						name="reader/[uuid]"
-						options={{ animation: "fade", gestureEnabled: false }}
+						options={{ gestureEnabled: false }}
 					/>
 				</Stack.Protected>
 				<Stack.Protected guard={!signedIn}>
 					<Stack.Screen name="(auth)" />
 				</Stack.Protected>
+				{/* Invite links open here signed in or out. */}
+				<Stack.Screen name="invite" options={SETUP_OPTIONS} />
 			</Stack>
-			{signedIn ? <ResumeRoute /> : null}
+			{/* Signed out too: an invite reopens after switching servers. */}
+			<ResumeRoute />
 		</>
 	);
 }
 
-/** Puts the user back where a remount (language change) took them from. */
+/** Puts the user back where a remount (language change, sign-in, server
+ * switch) took them from. */
 function ResumeRoute() {
 	useMountEffect(() => {
 		const route = takeResumeRoute();
@@ -165,13 +184,17 @@ function ResumeRoute() {
 
 function StayOnline() {
 	const { serverUrl, auth } = useConnection();
+	const queryClient = useQueryClient();
 	useMountEffect(() =>
 		keepGatewayOpen({ serverUrl, getCookie: () => auth.getCookie() }),
 	);
+	useMountEffect(() => keepQueriesSaved(queryClient, serverUrl));
 	return null;
 }
 
-function StopPlayback() {
+function EndSession() {
+	const { serverUrl } = useConnection();
+	const queryClient = useQueryClient();
 	const player = usePlayer();
 	const downloads = useDownloads();
 	const exports = useExports();
@@ -179,6 +202,12 @@ function StopPlayback() {
 		void player.stop();
 		downloads.cancelAll();
 		exports.dismiss();
+		// The next account on this phone must not open on these screens.
+		forgetSavedQueries(serverUrl);
+		queryClient.removeQueries({
+			predicate: (query) =>
+				shouldSnapshot(query) && query.getObserversCount() === 0,
+		});
 	});
 	return null;
 }

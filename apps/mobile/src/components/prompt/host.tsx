@@ -43,6 +43,7 @@ export function ChoiceHost() {
 					id: option.id,
 					label: option.label,
 					icon: option.icon,
+					leading: option.leading,
 					destructive: option.destructive,
 					selected: option.selected,
 					onPress: () => choices.answer(option.id),

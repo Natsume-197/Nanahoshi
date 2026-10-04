@@ -15,7 +15,6 @@ import Animated, {
 	useAnimatedStyle,
 	useSharedValue,
 	withSpring,
-	withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
@@ -39,8 +38,9 @@ import {
 	openReadListenFromPlayer,
 	useReadyPairing,
 } from "@/reader/read-listen-entry";
-import { motion, radius, shadows, space } from "@/theme";
+import { EASE_OUT, motion, radius, SNAP_SPRING, shadows, space } from "@/theme";
 import { useBookmarks } from "./bookmarks";
+import { chapterName } from "./chapter-name";
 import {
 	BufferingRing,
 	JumpButton,
@@ -51,7 +51,6 @@ import {
 import type { PlayerBook } from "./engine";
 import { ink } from "./ink";
 import { type ListTab, PlayerListSheet } from "./player-list-sheet";
-import { chapterName } from "./player-panels";
 import { PlayerSheets, type Sheet, SleepGlyph } from "./player-sheets";
 import { usePlayer, usePlayerState } from "./provider";
 import { SeekBar } from "./seek-bar";
@@ -154,9 +153,6 @@ function Player({ book }: { book: PlayerBook }) {
  */
 function DragToDismiss({ children }: { children: ReactNode }) {
 	const { height } = useWindowDimensions();
-	// Worklets copy what they capture; take the number, not the whole
-	// `motion` object (its easing curve can't cross to the UI thread).
-	const duration = motion.base;
 	const offset = useSharedValue(0);
 	const style = useAnimatedStyle(() => ({
 		transform: [{ translateY: offset.get() }],
@@ -171,19 +167,25 @@ function DragToDismiss({ children }: { children: ReactNode }) {
 			offset.set(Math.max(0, event.translationY));
 		})
 		.onEnd((event) => {
-			if (event.translationY > height / 3 || event.velocityY > 1200) {
+			const velocity = event.velocityY;
+			if (event.translationY > height / 3 || velocity > 1200) {
 				// Pop only once it's off screen: popping mid-slide snapped the
 				// sheet back to the top for the native exit animation (a flash).
+				// The spring keeps the flick's speed; clamped, it never rebounds.
 				offset.set(
-					withTiming(height, { duration }, (finished) => {
-						// Explicit: React Compiler hoists this capture-free callback out
-						// of the gesture, where Reanimated no longer workletizes it.
-						"worklet";
-						if (finished) scheduleOnRN(router.back);
-					}),
+					withSpring(
+						height,
+						{ ...SNAP_SPRING, velocity, overshootClamping: true },
+						(finished) => {
+							// Explicit: React Compiler hoists this capture-free callback out
+							// of the gesture, where Reanimated no longer workletizes it.
+							"worklet";
+							if (finished) scheduleOnRN(router.back);
+						},
+					),
 				);
 			} else {
-				offset.set(withSpring(0, { damping: 24, stiffness: 260 }));
+				offset.set(withSpring(0, { ...SNAP_SPRING, velocity }));
 			}
 		});
 	return (
@@ -233,6 +235,7 @@ function Scene({ book }: { book: PlayerBook }) {
 			>
 				<Image
 					source={{ uri }}
+					cachePolicy="memory-disk"
 					// Detail gone before the upscale, so only colour fields remain.
 					blurRadius={NATIVE_BLUR ? 12 : 60}
 					contentFit="cover"
@@ -412,12 +415,20 @@ function Header({
 	);
 }
 
+// The stage measures the same on every open of one window size; remembering
+// it paints the artwork in the player's first frame instead of after layout.
+const stageSizes = new Map<string, number>();
+
 /** The artwork, as large as the space left allows. */
 function Stage({ book }: { book: PlayerBook }) {
-	const [size, setSize] = useState(0);
+	const screen = useWindowDimensions();
+	const windowKey = `${screen.width}x${screen.height}`;
+	const [size, setSize] = useState(() => stageSizes.get(windowKey) ?? 0);
 	const onLayout = (event: LayoutChangeEvent) => {
 		const { width, height } = event.nativeEvent.layout;
-		setSize(Math.floor(Math.min(width, height)));
+		const measured = Math.floor(Math.min(width, height));
+		stageSizes.set(windowKey, measured);
+		setSize(measured);
 	};
 	return (
 		<View
@@ -429,11 +440,7 @@ function Stage({ book }: { book: PlayerBook }) {
 				justifyContent: "center",
 			}}
 		>
-			{size > 0 ? (
-				<Animated.View entering={FadeIn.duration(motion.fast)}>
-					<Artwork book={book} size={size} />
-				</Animated.View>
-			) : null}
+			{size > 0 ? <Artwork book={book} size={size} /> : null}
 		</View>
 	);
 }
@@ -643,7 +650,7 @@ function UpNext() {
 	if (endCard) {
 		return (
 			<Animated.View
-				entering={FadeIn.duration(motion.base)}
+				entering={FadeIn.duration(motion.fast).easing(EASE_OUT)}
 				accessibilityRole="summary"
 				style={{
 					flexDirection: "row",
@@ -700,7 +707,7 @@ function UpNext() {
 	if (!upNext) return null;
 	return (
 		<Animated.View
-			entering={FadeIn.duration(motion.base)}
+			entering={FadeIn.duration(motion.fast).easing(EASE_OUT)}
 			style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}
 		>
 			<Text

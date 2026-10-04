@@ -4,12 +4,13 @@ import * as DocumentPicker from "expo-document-picker";
 import { File, UploadType } from "expo-file-system";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { Button } from "@/components/button";
 import { Icon, icons } from "@/components/icon";
 import { ProgressBar } from "@/components/progress-bar";
 import { askChoice, showNotice } from "@/components/prompt";
+import { Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { formatBytes } from "@/downloads/model";
 import { useCan } from "@/lib/abilities";
@@ -27,7 +28,7 @@ import {
 	type UploadEntry,
 } from "@/lib/upload-queue";
 import { useApi, useConnection } from "@/providers/app-provider";
-import { motion, radius, space, usePalette } from "@/theme";
+import { EASE_OUT, motion, radius, space, usePalette } from "@/theme";
 import { HardwareBack, SetupDone, SetupStep } from "./scaffold";
 
 type Target = {
@@ -52,7 +53,7 @@ export function UploadBooks({ libraryUuid }: { libraryUuid?: string }) {
 	if (targets.isPending)
 		return (
 			<SetupStep leading="close" title={t("mobile.setup.upload_title")}>
-				<ActivityIndicator />
+				<Spinner />
 			</SetupStep>
 		);
 	const libraries = (targets.data ?? []) as Target[];
@@ -515,7 +516,7 @@ function FileRow({
 	const live = entry.status === "uploading" || entry.status === "processing";
 	return (
 		<Animated.View
-			entering={FadeIn.duration(motion.fast)}
+			entering={FadeIn.duration(motion.fast).easing(EASE_OUT)}
 			layout={LinearTransition.duration(motion.fast)}
 			style={{
 				gap: space.sm,
@@ -574,7 +575,7 @@ function FileRow({
 function StatusGlyph({ status }: { status: UploadEntry["status"] }) {
 	const palette = usePalette();
 	if (status === "uploading" || status === "processing")
-		return <ActivityIndicator size="small" color={palette.accent} />;
+		return <Spinner inline tone="accent" />;
 	const [icon, color] =
 		status === "uploaded"
 			? [icons.checkCircle, palette.accent]

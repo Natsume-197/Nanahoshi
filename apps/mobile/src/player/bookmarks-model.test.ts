@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	bookmarkLines,
 	findBookmarkNear,
 	MAX_BOOKMARKS,
 	newBookmark,
@@ -43,4 +44,21 @@ test("a repeated tap on the same second saves one bookmark", () => {
 	const twice = withBookmark(once, newBookmark(36.9, "b", 2));
 	expect(twice.map((bookmark) => bookmark.id)).toEqual(["a"]);
 	expect(withBookmark(twice, newBookmark(37, "c", 3))).toHaveLength(2);
+});
+
+test("a bookmark row names its note, else its chapter, without repeating the chapter", () => {
+	const at = (label: string) => ({ ...newBookmark(60, "a", 0), label });
+	expect(bookmarkLines(at("Plot twist"), "Chapter 3", "1:00")).toEqual({
+		title: "Plot twist",
+		chapter: "Chapter 3",
+	});
+	expect(bookmarkLines(at("Chapter 3"), "Chapter 3", "1:00")).toEqual({
+		title: "Chapter 3",
+		chapter: null,
+	});
+	expect(bookmarkLines(at(""), "Chapter 3", "1:00")).toEqual({
+		title: "Chapter 3",
+		chapter: null,
+	});
+	expect(bookmarkLines(at(""), null, "1:00").title).toBe("1:00");
 });

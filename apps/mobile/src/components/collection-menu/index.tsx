@@ -1,8 +1,7 @@
-import { ListItem, Text } from "@expo/ui/jetpack-compose";
 import { type ReactElement, useState } from "react";
 import { haptics } from "@/lib/haptics";
-import { usePalette } from "@/theme";
 import { ActionSheet } from "../action-menu/action-sheet";
+import { SheetHeader } from "../sheet/rows";
 import {
 	type CollectionTarget,
 	useCollectionMenu,
@@ -32,28 +31,10 @@ export function CollectionMenuTarget({
 			{open ? (
 				<ActionSheet
 					sections={sections}
-					header={<SheetTitle name={collection.name} />}
+					header={<SheetHeader title={collection.name} />}
 					onClose={() => setOpen(false)}
 				/>
 			) : null}
 		</>
-	);
-}
-
-function SheetTitle({ name }: { name: string }) {
-	const palette = usePalette();
-	return (
-		<ListItem colors={{ containerColor: palette.card }}>
-			<ListItem.HeadlineContent>
-				<Text
-					color={palette.text}
-					maxLines={2}
-					overflow="ellipsis"
-					style={{ typography: "titleMedium" }}
-				>
-					{name}
-				</Text>
-			</ListItem.HeadlineContent>
-		</ListItem>
 	);
 }

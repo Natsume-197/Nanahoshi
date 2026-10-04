@@ -1,16 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { router, useScrollToTop } from "expo-router";
+import { useScrollToTop } from "expo-router";
 import { useRef, useState } from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
 import { CollectionMenuTarget } from "@/components/collection-menu";
 import { CollectionRow } from "@/components/collection-row";
 import { Fab } from "@/components/fab";
+import { openFormSheet } from "@/components/form-sheet/open";
 import { LineTabs } from "@/components/line-tabs";
 import { PageHeader } from "@/components/page-header";
 import { RefreshControl } from "@/components/refresh-control";
 import { RowSkeleton } from "@/components/states";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
+import { IS_ANDROID } from "@/lib/platform";
 import { routes } from "@/lib/routes";
 import { shelfMeta } from "@/lib/shelves";
 import { useMiniPlayerInset } from "@/player/mini-player";
@@ -68,16 +70,21 @@ export function Collections() {
 				contentContainerStyle={{ paddingBottom: 96 + miniPlayerInset }}
 				refreshControl={
 					<RefreshControl
-						refreshing={shelves.isRefetching || collections.isRefetching}
-						onRefresh={() => {
-							void shelves.refetch();
-							void collections.refetch();
-						}}
+						onRefresh={() =>
+							Promise.all([shelves.refetch(), collections.refetch()])
+						}
 					/>
 				}
 			>
 				<PageHeader title={t("nav.collections")} />
-				<View style={{ paddingHorizontal: space.lg, paddingTop: space.xl }}>
+				{/* Line tabs run edge to edge, as on the profile; iOS's segmented
+				    control keeps the page margins. */}
+				<View
+					style={{
+						paddingHorizontal: IS_ANDROID ? 0 : space.lg,
+						paddingTop: space.xl,
+					}}
+				>
 					<LineTabs
 						value={format}
 						onChange={showFormat}
@@ -123,7 +130,7 @@ export function Collections() {
 
 			<Fab
 				label={t("collection.create_title")}
-				onPress={() => router.push("/collection/new")}
+				onPress={() => openFormSheet({ form: "newCollection" })}
 			/>
 		</View>
 	);

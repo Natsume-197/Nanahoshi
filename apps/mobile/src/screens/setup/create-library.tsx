@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Button } from "@/components/button";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { t } from "@/lib/i18n";
@@ -350,9 +351,7 @@ function FolderStep({
 							/>
 						) : null}
 						{directories.isPending ? (
-							<View style={{ padding: space.xl }}>
-								<ActivityIndicator color={palette.textSecondary} />
-							</View>
+							<Spinner />
 						) : directories.isError ? (
 							<Text
 								variant="subhead"

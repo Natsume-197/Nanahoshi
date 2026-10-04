@@ -23,7 +23,7 @@ export function SectionHeader({
 			style={{
 				flexDirection: "row",
 				alignItems: "center",
-				gap: space.xs,
+				gap: space.sm,
 				paddingHorizontal: gutter,
 				minHeight: 44,
 			}}
@@ -37,11 +37,15 @@ export function SectionHeader({
 				{title}
 			</Text>
 			{href || onPress ? (
-				<Icon
-					name={icons.chevronRight}
-					size={18}
-					color={palette.textSecondary}
-				/>
+				// Negative end margin eats the glyph's side bearing so the
+				// stroke lines up with the page edge.
+				<View style={{ marginLeft: "auto", marginRight: -10 }}>
+					<Icon
+						name={icons.chevronRight}
+						size={28}
+						color={palette.textSecondary}
+					/>
+				</View>
 			) : null}
 		</View>
 	);

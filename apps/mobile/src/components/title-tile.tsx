@@ -59,6 +59,7 @@ export function TitleTile({
 		>
 			{(onLongPress) => (
 				<PressableScale
+					scaleOnPress={false}
 					onPressIn={() => prefetch(item.kind, item.uuid, item.cover)}
 					onPress={() => router.push(routes.title(item.kind, item.uuid))}
 					onLongPress={onLongPress}

@@ -514,11 +514,15 @@ function Recents({
 		);
 	}
 	return (
-		<View style={{ gap: space.sm }}>
+		<View style={{ gap: space.xs }}>
 			<Text
 				variant="section"
 				accessibilityRole="header"
-				style={{ paddingHorizontal: space.md, minHeight: 44 }}
+				style={{
+					paddingHorizontal: space.md,
+					paddingTop: space.sm,
+					paddingBottom: space.xs,
+				}}
 			>
 				{t("search.recent_searches")}
 			</Text>

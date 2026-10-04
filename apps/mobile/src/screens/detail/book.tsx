@@ -107,7 +107,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 		subtitle:
 			item.position != null
 				? t("mobile.series.book_n", { n: item.position })
-				: joinNames(item.authors, 1),
+				: joinNames(item.authors),
 	}));
 	// Like the web's selectMoreByAuthorItems: skip this title and its series.
 	const inSeries = new Set(seriesItems.map((item) => item.uuid));
@@ -118,7 +118,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			title: item.title ?? null,
 			cover: item.cover ?? null,
 			color: item.color ?? null,
-			subtitle: joinNames(item.authors, 1),
+			subtitle: joinNames(item.authors),
 		})),
 		...(moreAudio.data?.audiobooks ?? []).map((item) => ({
 			uuid: item.uuid,
@@ -126,7 +126,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			title: item.title ?? null,
 			cover: item.cover ?? null,
 			color: item.mainColor ?? null,
-			subtitle: joinNames(item.authors, 1),
+			subtitle: joinNames(item.authors),
 		})),
 	].filter((item) => item.uuid !== uuid && !inSeries.has(item.uuid));
 
@@ -166,11 +166,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 				}}
 				refreshControl={
 					<RefreshControl
-						refreshing={book.isRefetching}
-						onRefresh={() => {
-							void book.refetch();
-							void progress.refetch();
-						}}
+						onRefresh={() => Promise.all([book.refetch(), progress.refetch()])}
 					/>
 				}
 			>
@@ -205,33 +201,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 									<Description text={htmlToText(data.description)} />
 								</View>
 							) : null}
-							{data.genres.length + data.tags.length > 0 ? (
-								<View style={{ marginTop: space.lg }}>
-									<TagChips
-										tags={[
-											...data.genres.map((genre) => ({
-												key: genre.uuid,
-												label: genre.name,
-												href: {
-													pathname: "/genre/[uuid]" as const,
-													params: { uuid: genre.uuid, name: genre.name },
-												},
-											})),
-											...data.tags.map((tag) => ({
-												key: tag.uuid,
-												label: tag.name,
-												href: {
-													pathname: "/tag/[uuid]" as const,
-													params: { uuid: tag.uuid, name: tag.name },
-												},
-											})),
-										]}
-									/>
-								</View>
-							) : null}
-							{data.description || data.genres.length + data.tags.length > 0 ? (
-								<Divider />
-							) : null}
+							{data.description ? <Divider /> : null}
 							<InfoGrid
 								items={[
 									{ label: t("book.format"), value: t("home.format_book") },
@@ -302,6 +272,30 @@ export function BookDetail({ uuid }: { uuid: string }) {
 										: null,
 								]}
 							/>
+							{data.genres.length + data.tags.length > 0 ? (
+								<View style={{ marginTop: space.lg }}>
+									<TagChips
+										tags={[
+											...data.genres.map((genre) => ({
+												key: genre.uuid,
+												label: genre.name,
+												href: {
+													pathname: "/genre/[uuid]" as const,
+													params: { uuid: genre.uuid, name: genre.name },
+												},
+											})),
+											...data.tags.map((tag) => ({
+												key: tag.uuid,
+												label: tag.name,
+												href: {
+													pathname: "/tag/[uuid]" as const,
+													params: { uuid: tag.uuid, name: tag.name },
+												},
+											})),
+										]}
+									/>
+								</View>
+							) : null}
 							<Divider />
 						</>
 					) : tab === "reading" ? (
@@ -365,7 +359,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 										title: item.seriesName ?? item.book.title,
 										cover: item.book.cover,
 										color: item.book.mainColor,
-										subtitle: joinNames(item.book.authors, 1),
+										subtitle: joinNames(item.book.authors),
 									}))}
 							/>
 						) : null}

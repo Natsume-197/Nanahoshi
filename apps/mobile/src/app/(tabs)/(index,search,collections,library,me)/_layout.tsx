@@ -7,11 +7,12 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY } from "@/lib/platform";
 import { MiniPlayer } from "@/player/mini-player";
+import { usePickServer } from "@/screens/panels/servers";
 import { fonts, radius, usePalette } from "@/theme";
 
 /** Sheets and modals the floating mini player would sit on top of. */
 const OVERLAY_ROUTE =
-	/^\/(servers|join|kindle\/|edit-metadata\/|fix-match\/|add-to-list\/|collection\/(new|edit|dynamic))/;
+	/^\/(kindle\/|edit-metadata\/|fix-match\/|add-to-list\/|collection\/(new|edit|dynamic))/;
 
 const ROOT_TITLES: Record<string, () => string> = {
 	index: () => t("nav.home"),
@@ -31,6 +32,7 @@ export default function TabStack({ segment }: { segment: string }) {
 	const root = segment.match(/\((.*)\)/)?.[1] ?? "index";
 	const navigation = useNavigation();
 	const overlay = OVERLAY_ROUTE.test(usePathname());
+	const pickServer = usePickServer();
 	// Re-tapping the active tab returns to its root. Native tabs mean to do it
 	// themselves but can't find this stack inside the wrapper below.
 	useMountEffect(() =>
@@ -62,7 +64,7 @@ export default function TabStack({ segment }: { segment: string }) {
 									type: "button",
 									label: t("server.select"),
 									icon: { type: "sfSymbol", name: "server.rack" },
-									onPress: () => router.push("/servers"),
+									onPress: () => void pickServer(),
 								},
 								{
 									type: "button",
@@ -122,26 +124,6 @@ export default function TabStack({ segment }: { segment: string }) {
 						headerTransparent: true,
 						headerStyle: { backgroundColor: "transparent" },
 						headerShadowVisible: false,
-					}}
-				/>
-				{/* Picking a server is a quick choice: a sheet. */}
-				<Stack.Screen
-					name="servers"
-					options={{
-						title: t("server.select"),
-						presentation: "formSheet",
-						sheetGrabberVisible: true,
-						sheetAllowedDetents: [0.75, 1],
-						unstable_headerRightItems: ios
-							? () => [
-									{
-										type: "button",
-										label: t("common.close"),
-										icon: { type: "sfSymbol", name: "xmark" },
-										onPress: () => router.back(),
-									},
-								]
-							: undefined,
 					}}
 				/>
 				{/* Friends and notifications are pages of their own, pushed like
@@ -221,7 +203,6 @@ export default function TabStack({ segment }: { segment: string }) {
 				{/* Shelf + lists picker: a native sheet over the detail page. */}
 				<Stack.Screen name="add-to-list/[uuid]" options={listSheet} />
 				<Stack.Screen name="kindle/[uuid]" options={listSheet} />
-				<Stack.Screen name="join" options={listSheet} />
 			</Stack>
 			<View
 				pointerEvents="box-none"

@@ -1,12 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { type Href, useIsFocused, useLocalSearchParams } from "expo-router";
+import { useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { ErrorState, Spinner } from "@/components/states";
 import { readBookMeta, saveBookMeta } from "@/downloads/files";
 import { bootBookFrom } from "@/downloads/manager";
 import { useConnection } from "@/providers/app-provider";
-import { EmbedWebView } from "@/reader/embed-webview";
+import { EmbedWebView, type ReaderWebViewHandle } from "@/reader/embed-webview";
+import { readerGround } from "@/reader/reader-ground";
 import { readerPageQuery } from "@/reader/reader-page";
+import {
+	OpenPooled,
+	PooledReaderHost,
+	usePooledReader,
+} from "@/reader/reader-pool";
+import { useReaderRouteControls } from "@/reader/use-reader-route-controls";
 import { usePalette } from "@/theme";
 
 export default function ReaderRoute() {
@@ -15,16 +23,42 @@ export default function ReaderRoute() {
 		pair?: string;
 	}>();
 	const palette = usePalette();
+	// The last book's background, so the screen opens on the colour it will read in.
+	const [ground] = useState(() => readerGround() ?? palette.background);
 	const { auth, api } = useConnection();
+	const host = `reader-${uuid}`;
+	const leaveRef = useRef<(next?: Href) => void>(() => {});
+	const pool = usePooledReader(host, (next) => leaveRef.current(next));
+	const ownReader = useRef<ReaderWebViewHandle>(null);
+	const pooled = useRef(false);
+	pooled.current = pool !== null;
+	leaveRef.current = useReaderRouteControls(
+		pool ? pool.handle : ownReader,
+		() => pooled.current,
+	);
+	const focused = useIsFocused();
 	const queryClient = useQueryClient();
 	const session = auth.useSession().data;
 	const activeServerId = session?.session.activeOrganizationId ?? null;
 
 	const page = useQuery(readerPageQuery);
+	// A book this device opened before starts from its copy on disk; the server
+	// is asked in the background instead of in front of the book.
+	const onDisk = useMemo(
+		() =>
+			activeServerId
+				? { serverId: activeServerId, meta: readBookMeta(activeServerId, uuid) }
+				: null,
+		[activeServerId, uuid],
+	);
 	const opened = useQuery({
 		queryKey: ["reader-book", uuid, activeServerId],
 		enabled: !!activeServerId,
 		retry: false,
+		initialData: onDisk?.meta
+			? { serverId: onDisk.serverId, book: onDisk.meta }
+			: undefined,
+		initialDataUpdatedAt: 0,
 		// Offline React Query would park this forever; it must run and fall
 		// back to the copy on disk.
 		networkMode: "always",
@@ -57,7 +91,7 @@ export default function ReaderRoute() {
 
 	const failed = page.error ?? opened.error;
 	return (
-		<View style={{ flex: 1, backgroundColor: palette.background }}>
+		<View style={{ flex: 1, backgroundColor: ground }}>
 			{failed ? (
 				<View style={{ flex: 1, justifyContent: "center" }}>
 					<ErrorState
@@ -68,8 +102,27 @@ export default function ReaderRoute() {
 						}}
 					/>
 				</View>
+			) : pool ? (
+				<>
+					<PooledReaderHost name={host} />
+					{opened.data ? (
+						<OpenPooled
+							pool={pool}
+							screen={{
+								kind: "reader",
+								uuid,
+								book: opened.data.book,
+								readListenPairUuid: pair,
+							}}
+							serverId={opened.data.serverId}
+						/>
+					) : null}
+				</>
 			) : page.data && opened.data && session ? (
 				<EmbedWebView
+					handleRef={ownReader}
+					visible={focused}
+					onLeave={(next) => leaveRef.current(next)}
 					key={uuid}
 					screen={{
 						kind: "reader",
