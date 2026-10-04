@@ -17,8 +17,7 @@
 				"backgroundColor": "#19191a",
 				"foregroundImage": "./assets/images/adaptive-icon.png"
 			},
-			"softwareKeyboardLayoutMode": "resize",
-			"usesCleartextTraffic": true
+			"softwareKeyboardLayoutMode": "resize"
 		},
 		"plugins": [
 			"expo-router",
@@ -44,7 +43,14 @@
 				}
 			],
 			"expo-sharing",
-			"expo-build-properties"
+			[
+				"expo-build-properties",
+				{
+					"android": {
+						"usesCleartextTraffic": true
+					}
+				}
+			]
 		],
 		"experiments": {
 			"typedRoutes": true,

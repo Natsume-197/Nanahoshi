@@ -8,6 +8,8 @@
 		"android": "bun run reader:bundle && expo run:android",
 		"ios": "bun run reader:bundle && expo run:ios",
 		"check-types": "node scripts/check-types.mjs",
+		"apk": "bash scripts/build-apk.sh release",
+		"apk:debug": "bash scripts/build-apk.sh debug",
 		"reader:bundle": "bun run --cwd reader-embed build && mkdir -p assets/reader && cp reader-embed/dist/index.html assets/reader/reader.html"
 	},
 	"dependencies": {
