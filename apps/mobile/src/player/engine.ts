@@ -22,6 +22,7 @@ import { coverUrl } from "@/lib/covers";
 import { titleOrUntitled } from "@/lib/format";
 import { parseServerTime } from "@/lib/server-time";
 import { decodeActiveBook, encodeActiveBook } from "./active-book";
+import { resolveBookSpeed } from "./speed";
 import {
 	activeChapterIndex,
 	type Chapter,
@@ -111,6 +112,10 @@ export type PlayerSnapshot = {
 	/** Position in the whole book, across files. */
 	time: number;
 	rate: number;
+	/** The last speed picked anywhere: what a book without its own plays at. */
+	defaultRate: number;
+	/** This book plays at its own speed, not the default. */
+	rateOverride: boolean;
 	sleep: SleepState | null;
 	error: boolean;
 	ended: boolean;
@@ -157,6 +162,13 @@ function writeStored(key: string, value: string) {
 	}
 }
 
+const bookSpeedKey = (uuid: string) => `${SPEED_KEY}.${uuid}`;
+
+function readBookSpeed(uuid: string): number | null {
+	const raw = readStored(bookSpeedKey(uuid));
+	return raw ? Number(raw) : null;
+}
+
 function readSpeed(): number {
 	try {
 		const raw = SecureStore.getItem(SPEED_KEY);
@@ -182,6 +194,8 @@ export class PlayerEngine {
 		buffering: false,
 		time: 0,
 		rate: readSpeed(),
+		defaultRate: readSpeed(),
+		rateOverride: false,
 		sleep: null,
 		error: false,
 		ended: false,
@@ -328,10 +342,14 @@ export class PlayerEngine {
 				return start;
 			});
 			const serverRate = progress?.playbackRate;
-			const rate =
-				typeof serverRate === "number" && Number.isFinite(serverRate)
-					? clampSpeed(serverRate)
-					: this.snapshot.rate;
+			const defaultRate = readSpeed();
+			const { rate, override: rateOverride } = resolveBookSpeed({
+				server: serverRate,
+				local: readBookSpeed(uuid),
+				fallback: defaultRate,
+			});
+			// Remembered here too, so it holds when the server can't be asked.
+			if (serverRate != null) writeStored(bookSpeedKey(uuid), String(rate));
 			// A finished book starts over rather than sitting on its last second.
 			const serverSaved = progress
 				? {
@@ -358,6 +376,8 @@ export class PlayerEngine {
 				loadingUuid: null,
 				time: start,
 				rate,
+				defaultRate,
+				rateOverride,
 				ended: false,
 				endCard: false,
 				upNext: null,
@@ -548,16 +568,35 @@ export class PlayerEngine {
 		if (next) void this.seek(next.startTime);
 	};
 
+	/** A speed picked by hand: the book's and the new default, like the web. */
 	setRate = (value: number) => {
 		const rate = clampSpeed(value);
 		this.player.setPlaybackRate(rate);
-		this.set({ rate });
-		try {
-			SecureStore.setItem(SPEED_KEY, String(rate));
-		} catch {
-			// Preference only.
-		}
+		this.set({ rate, defaultRate: rate, rateOverride: false });
+		writeStored(SPEED_KEY, String(rate));
+		const uuid = this.snapshot.book?.uuid;
+		if (!uuid) return;
+		writeStored(bookSpeedKey(uuid), String(rate));
+		this.saveRate(uuid, rate);
 	};
+
+	/** Drops this book's own speed for the default. */
+	resetRateToDefault = () => {
+		const rate = readSpeed();
+		this.player.setPlaybackRate(rate);
+		this.set({ rate, defaultRate: rate, rateOverride: false });
+		const uuid = this.snapshot.book?.uuid;
+		if (!uuid) return;
+		writeStored(bookSpeedKey(uuid), "");
+		// Other devices drop the override too.
+		this.saveRate(uuid, rate);
+	};
+
+	private saveRate(uuid: string, rate: number) {
+		void this.deps.api.client.listeningProgress
+			.saveProgress({ bookUuid: uuid, playbackRate: rate })
+			.catch(() => undefined);
+	}
 
 	setSleep = (mode: SleepMode | null) => {
 		this.player.volume = 1;

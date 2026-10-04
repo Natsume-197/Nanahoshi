@@ -201,7 +201,8 @@ function Grid<T>({
 }
 
 /**
- * The web's speed popover: the rate with ± steps, presets, back to 1×, and
+ * The web's speed popover: the rate with ± steps, presets, back to 1× (or to
+ * the default when the book has its own speed), and
  * the jump amounts, which shape how the transport moves through the book as
  * much as the speed does. Autoplay of the next book closes it.
  */
@@ -209,6 +210,8 @@ function PlaybackSheet() {
 	const tone = useSheetInk();
 	const player = usePlayer();
 	const rate = usePlayerState((s) => s.rate);
+	const defaultRate = usePlayerState((s) => s.defaultRate);
+	const rateOverride = usePlayerState((s) => s.rateOverride);
 	const jumpBack = usePlayerState((s) => s.jumpBack);
 	const jumpForward = usePlayerState((s) => s.jumpForward);
 	const autoplayNext = usePlayerState((s) => s.autoplayNext);
@@ -255,7 +258,15 @@ function PlaybackSheet() {
 						/>
 					)}
 				/>
-				{rate !== 1 ? (
+				{rateOverride ? (
+					<Choice
+						variant="ghost"
+						label={t("audiobook.player_speed_use_default", {
+							speed: formatSpeed(defaultRate),
+						})}
+						onPress={player.resetRateToDefault}
+					/>
+				) : rate !== 1 ? (
 					<Choice
 						variant="ghost"
 						label={t("audiobook.player_speed_reset")}

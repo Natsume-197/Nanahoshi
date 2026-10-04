@@ -4,8 +4,6 @@ import {
 	IconButton,
 	LazyColumn,
 	Row,
-	SegmentedButton,
-	SingleChoiceSegmentedButtonRow,
 	Text,
 	TextField,
 	useNativeState,
@@ -39,38 +37,33 @@ const earlier = { ios: "chevron.up", android: "expand_less" } as const;
 const addBookmark = { ios: "bookmark", android: "bookmark_add" } as const;
 
 /**
- * Chapters and bookmarks in the Material sheet the rest of the app uses,
- * over the player instead of in the artwork's place: the list scrolls,
- * drags up to full height and swipes away like any other sheet.
+ * Chapters or bookmarks, one list per button, in the Material sheet the rest
+ * of the app uses: the list scrolls, drags up to full height and swipes away
+ * like any other sheet.
  */
 export function PlayerListSheet({
 	book,
 	tab,
-	onTab,
 	onClose,
 }: {
 	book: PlayerBook;
 	tab: ListTab | null;
-	onTab: (tab: ListTab) => void;
 	onClose: () => void;
 }) {
 	if (!tab) return null;
-	return <ListSheet book={book} tab={tab} onTab={onTab} onClose={onClose} />;
+	return <ListSheet book={book} tab={tab} onClose={onClose} />;
 }
 
 function ListSheet({
 	book,
 	tab,
-	onTab,
 	onClose,
 }: {
 	book: PlayerBook;
 	tab: ListTab;
-	onTab: (tab: ListTab) => void;
 	onClose: () => void;
 }) {
 	const tone = useSheetInk();
-	const bookmarks = useBookmarks(book.uuid);
 	const hasChapters = book.chapters.length > 0;
 	return (
 		<Sheet color={tone.sheet} onClose={onClose}>
@@ -83,28 +76,13 @@ function ListSheet({
 				};
 				return (
 					<Column modifiers={[fillMaxWidth()]}>
-						{hasChapters ? (
-							<SingleChoiceSegmentedButtonRow
-								modifiers={[fillMaxWidth(), padding(16, 0, 16, 12)]}
-							>
-								<TabButton
-									label={t("audiobook.player_chapters")}
-									selected={tab === "chapters"}
-									onPress={() => onTab("chapters")}
-								/>
-								<TabButton
-									label={
-										bookmarks.list.length > 0
-											? `${t("audiobook.player_bookmarks")} · ${bookmarks.list.length}`
-											: t("audiobook.player_bookmarks")
-									}
-									selected={tab === "bookmarks"}
-									onPress={() => onTab("bookmarks")}
-								/>
-							</SingleChoiceSegmentedButtonRow>
-						) : (
-							<SheetTitle>{t("audiobook.player_bookmarks")}</SheetTitle>
-						)}
+						<SheetTitle>
+							{t(
+								tab === "chapters"
+									? "audiobook.player_chapters"
+									: "audiobook.player_bookmarks",
+							)}
+						</SheetTitle>
 						{tab === "chapters" && hasChapters ? (
 							<ChapterList book={book} onJump={jumpAndClose} />
 						) : (
@@ -114,39 +92,6 @@ function ListSheet({
 				);
 			}}
 		</Sheet>
-	);
-}
-
-function TabButton({
-	label,
-	selected,
-	onPress,
-}: {
-	label: string;
-	selected: boolean;
-	onPress: () => void;
-}) {
-	const tone = useSheetInk();
-	return (
-		<SegmentedButton
-			selected={selected}
-			onClick={() => {
-				haptics.select();
-				onPress();
-			}}
-			colors={{
-				activeContainerColor: tone.text,
-				activeContentColor: tone.onText,
-				activeBorderColor: tone.text,
-				inactiveContainerColor: "transparent",
-				inactiveContentColor: tone.text,
-				inactiveBorderColor: tone.track,
-			}}
-		>
-			<SegmentedButton.Label>
-				<Text color={selected ? tone.onText : tone.text}>{label}</Text>
-			</SegmentedButton.Label>
-		</SegmentedButton>
 	);
 }
 

@@ -151,7 +151,7 @@ function Card({ book }: { book: PlayerBook }) {
 							alignItems: "center",
 							gap: space.sm,
 							paddingLeft: space.sm,
-							paddingRight: space.xs,
+							paddingRight: space.sm,
 							backgroundColor:
 								pressed && !IS_ANDROID ? cardInk.ripple : "transparent",
 						})}
@@ -164,15 +164,25 @@ function Card({ book }: { book: PlayerBook }) {
 							rounded={4}
 						/>
 						<TrackMeta book={book} />
-						<JumpButton direction="back" color={cardInk.text} size={22} />
-						<TransportButton
-							icon={icons.play}
-							label={playLabel}
-							color={cardInk.text}
-							onPress={player.toggle}
-						>
-							<PlayPauseGlyph size={26} color={cardInk.text} />
-						</TransportButton>
+						{/* Two 40pt cells side by side, held off the edge by the card's
+						    padding. */}
+						<View style={{ flexDirection: "row", alignItems: "center" }}>
+							<JumpButton
+								direction="back"
+								color={cardInk.text}
+								size={22}
+								box={40}
+							/>
+							<TransportButton
+								icon={icons.play}
+								label={playLabel}
+								color={cardInk.text}
+								box={40}
+								onPress={player.toggle}
+							>
+								<PlayPauseGlyph size={26} color={cardInk.text} />
+							</TransportButton>
+						</View>
 					</Pressable>
 					<ProgressLine book={book} />
 				</Animated.View>

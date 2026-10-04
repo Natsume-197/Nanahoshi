@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { type Href, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
 	type LayoutChangeEvent,
 	Platform,
@@ -40,7 +40,7 @@ import {
 } from "@/reader/read-listen-entry";
 import { EASE_OUT, motion, radius, SNAP_SPRING, shadows, space } from "@/theme";
 import { useBookmarks } from "./bookmarks";
-import { chapterName } from "./chapter-name";
+import { chapterLabel, chapterName } from "./chapter-name";
 import {
 	BufferingRing,
 	JumpButton,
@@ -53,7 +53,8 @@ import { ink } from "./ink";
 import { type ListTab, PlayerListSheet } from "./player-list-sheet";
 import { PlayerSheets, type Sheet, SleepGlyph } from "./player-sheets";
 import { usePlayer, usePlayerState } from "./provider";
-import { SeekBar } from "./seek-bar";
+import { type ScrubLabel, SeekBar } from "./seek-bar";
+import { seekPreview } from "./seek-preview";
 import { setTimeScope, type TimeScope, useTimeScope } from "./time-scope";
 import {
 	activeChapterIndex,
@@ -135,12 +136,7 @@ function Player({ book }: { book: PlayerBook }) {
 			{moreOpen ? (
 				<ActionSheet sections={more} onClose={() => setMoreOpen(false)} />
 			) : null}
-			<PlayerListSheet
-				book={book}
-				tab={list}
-				onTab={setList}
-				onClose={() => setList(null)}
-			/>
+			<PlayerListSheet book={book} tab={list} onClose={() => setList(null)} />
 		</>
 	);
 }
@@ -551,6 +547,22 @@ function Progress({ book, scope }: { book: PlayerBook; scope: TimeScope }) {
 	const start = chapterScope ? chapter.startTime : 0;
 	const end = chapterScope ? chapter.endTime : book.duration;
 	const duration = Math.max(1, book.duration);
+	const describe = (at: number): ScrubLabel => {
+		const preview = seekPreview(at, end - start, book.chapters, bookmarks.list);
+		const index = preview.chapterIndex;
+		// Like the web: a bookmark's note wins, else the chapter.
+		const bookmark = preview.bookmark?.label
+			? `${preview.bookmark.number} · ${preview.bookmark.label}`
+			: null;
+		return {
+			bookmark,
+			chapter:
+				!bookmark && index >= 0
+					? chapterLabel(book.chapters[index], index)
+					: null,
+			bookmarkId: preview.bookmark?.id ?? null,
+		};
+	};
 	return (
 		<SeekBar
 			start={start}
@@ -575,6 +587,7 @@ function Progress({ book, scope }: { book: PlayerBook; scope: TimeScope }) {
 			color={ink.text}
 			track={ink.track}
 			muted={ink.muted}
+			describe={describe}
 		/>
 	);
 }
@@ -864,58 +877,37 @@ function BottomRow({
 						: t("audiobook.player_sleep")
 				}
 			/>
-			<BookmarkAction uuid={book.uuid} />
-			<Action
-				glyph={<Icon name={icons.chapters} size={22} color={ink.text} />}
-				label={t(
-					hasChapters
-						? "audiobook.player_chapters"
-						: "audiobook.player_bookmarks",
-				)}
-				onPress={() => onList(hasChapters ? "chapters" : "bookmarks")}
-			/>
+			<BookmarkAction uuid={book.uuid} onPress={() => onList("bookmarks")} />
+			{hasChapters ? (
+				<Action
+					glyph={<Icon name={icons.chapters} size={22} color={ink.text} />}
+					label={t("audiobook.player_chapters")}
+					onPress={() => onList("chapters")}
+				/>
+			) : null}
 		</View>
 	);
 }
 
 /**
- * Saves the moment in one tap, the way Audible's toolbar does: the icon
- * fills and the label says so for a beat, and the tick lands on the bar.
+ * Opens the bookmarks, the web's pill: the list starts with "add a bookmark
+ * here", so saving and finding them live behind the same button.
  */
-function BookmarkAction({ uuid }: { uuid: string }) {
-	const player = usePlayer();
-	const bookmarks = useBookmarks(uuid);
-	const [saved, setSaved] = useState(false);
-	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const save = () => {
-		haptics.release();
-		bookmarks.add(player.getSnapshot().time);
-		setSaved(true);
-		if (timer.current) clearTimeout(timer.current);
-		timer.current = setTimeout(() => setSaved(false), 1600);
-	};
+function BookmarkAction({
+	uuid,
+	onPress,
+}: {
+	uuid: string;
+	onPress: () => void;
+}) {
+	const count = useBookmarks(uuid).list.length;
+	const label = t("audiobook.player_bookmarks");
 	return (
 		<Action
-			glyph={
-				<Icon
-					name={
-						saved
-							? { ios: "bookmark.fill", android: "bookmark_added" }
-							: {
-									ios: "bookmark",
-									android: "bookmark_add",
-								}
-					}
-					size={22}
-					color={ink.text}
-				/>
-			}
-			label={t(
-				saved ? "mobile.player.bookmark_saved" : "mobile.player.bookmark",
-			)}
-			active={saved}
-			onPress={save}
-			a11y={t("audiobook.player_bookmark_add")}
+			glyph={<Icon name={icons.bookmark} size={22} color={ink.text} />}
+			label={label}
+			onPress={onPress}
+			a11y={count > 0 ? `${label}, ${count}` : label}
 		/>
 	);
 }
