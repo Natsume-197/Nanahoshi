@@ -18,7 +18,6 @@
 		"@nanahoshi/db": "workspace:*",
 		"@nanahoshi/env": "workspace:*",
 		"@nanahoshi/ebook-parser": "workspace:*",
-		"@nanahoshi/read-listen": "workspace:*",
 		"@orpc/server": "catalog:",
 		"@types/nodemailer": "^8.0.2",
 		"@types/pg": "catalog:",

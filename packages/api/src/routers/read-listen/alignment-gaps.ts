@@ -1,4 +1,4 @@
-import type { ReadListenCue } from "@nanahoshi/read-listen/manifest";
+import type { ReadListenCue } from "./manifest";
 
 /**
  * Narrated illustrations and chapter breaks leave up to ~2.5 min without a

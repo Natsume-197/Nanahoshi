@@ -2,13 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, type Dirent } from "node:fs";
 import * as fs from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
+import { longestAlignmentGapMs } from "./alignment-gaps";
 import {
 	type HONOMIYA_MANIFEST_SCHEMA,
 	type HonomiyaManifestV1,
 	honomiyaManifestV1Schema,
-} from "@nanahoshi/read-listen/manifest";
-import { z } from "zod";
-import { longestAlignmentGapMs } from "./alignment-gaps";
+} from "./manifest";
 
 const MAX_SIDECAR_BYTES = 64 * 1024 * 1024;
 

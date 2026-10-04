@@ -1,4 +1,0 @@
-{
-	"extends": "@nanahoshi/config/tsconfig.base.json",
-	"include": ["src"]
-}

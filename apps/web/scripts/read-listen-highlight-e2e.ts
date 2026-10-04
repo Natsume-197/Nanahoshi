@@ -274,8 +274,9 @@ try {
 				await check("orientation-restored");
 			}
 			if (config.includes("touch")) {
+				// Tategaki pages also turn with horizontal swipes, right to left.
 				const vertical = config.includes("vertical=true");
-				await touchReader(page, vertical ? 0 : -80, vertical ? -80 : 0);
+				await touchReader(page, vertical ? 80 : -80, 0);
 				await page.waitForFunction(() => !window.fixture.following, undefined, {
 					timeout: 1000,
 				});

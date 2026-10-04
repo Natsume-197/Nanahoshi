@@ -63,6 +63,7 @@
         "react-native-reanimated": "4.5.1",
         "react-native-safe-area-context": "~5.7.0",
         "react-native-screens": "~4.26.0",
+        "react-native-teleport": "1.2.2",
         "react-native-webview": "13.16.1",
         "react-native-worklets": "0.10.1",
       },
@@ -73,7 +74,7 @@
         "typescript": "~6.0.3",
       },
     },
-    "apps/reader-embed": {
+    "apps/mobile/reader-embed": {
       "name": "reader-embed",
       "dependencies": {
         "@fontsource-variable/geist": "^5.3.0",
@@ -161,7 +162,6 @@
         "@nanahoshi/auth": "workspace:*",
         "@nanahoshi/ebook-parser": "workspace:*",
         "@nanahoshi/env": "workspace:*",
-        "@nanahoshi/read-listen": "workspace:*",
         "@nanahoshi/reader": "workspace:*",
         "@nanahoshi/ui": "workspace:*",
         "@orpc/client": "catalog:",
@@ -217,7 +217,6 @@
         "@nanahoshi/db": "workspace:*",
         "@nanahoshi/ebook-parser": "workspace:*",
         "@nanahoshi/env": "workspace:*",
-        "@nanahoshi/read-listen": "workspace:*",
         "@orpc/server": "catalog:",
         "@types/nodemailer": "^8.0.2",
         "@types/pg": "catalog:",
@@ -311,16 +310,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "packages/read-listen": {
-      "name": "@nanahoshi/read-listen",
-      "dependencies": {
-        "zod": "^4.6.5",
-      },
-      "devDependencies": {
-        "@nanahoshi/config": "workspace:*",
-        "typescript": "^7.0.2",
-      },
-    },
     "packages/reader": {
       "name": "@nanahoshi/reader",
       "dependencies": {
@@ -350,7 +339,6 @@
         "@fontsource/noto-serif-jp": "^5.3.0",
         "@nanahoshi/api": "workspace:*",
         "@nanahoshi/ebook-parser": "workspace:*",
-        "@nanahoshi/read-listen": "workspace:*",
         "@nanahoshi/ui": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/server": "catalog:",
@@ -1039,8 +1027,6 @@
     "@nanahoshi/ebook-parser": ["@nanahoshi/ebook-parser@workspace:packages/ebook-parser"],
 
     "@nanahoshi/env": ["@nanahoshi/env@workspace:packages/env"],
-
-    "@nanahoshi/read-listen": ["@nanahoshi/read-listen@workspace:packages/read-listen"],
 
     "@nanahoshi/reader": ["@nanahoshi/reader@workspace:packages/reader"],
 
@@ -2630,6 +2616,8 @@
 
     "react-native-skia-apple-tvos": ["react-native-skia-apple-tvos@147.1.0", "", {}, "sha512-b+4vILXHPu++t8H41PHLBVsTab2LPqwXNdzgdScyl4+Cu8Ta34aUQW3T469cB0ogAMPdu//KV00w4YVpDZoRUQ=="],
 
+    "react-native-teleport": ["react-native-teleport@1.2.2", "", { "peerDependencies": { "react": "*", "react-dom": "*", "react-native": "*" } }, "sha512-ot9G+y7VyvHE9kij4q82IcVikAlL+bgmzKn1O8BdtTgOsrfxQhfQ6I4vJJQla491CbRSHLqwRno8jOwYJocXyA=="],
+
     "react-native-webview": ["react-native-webview@13.16.1", "", { "dependencies": { "escape-string-regexp": "^4.0.0", "invariant": "2.2.4" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-If0eHhoEdOYDcHsX+xBFwHMbWBGK1BvGDQDQdVkwtSIXiq1uiqjkpWVP2uQ1as94J0CzvFE9PUNDuhiX0Z6ubw=="],
 
     "react-native-worklets": ["react-native-worklets@0.10.1", "", { "dependencies": { "@babel/plugin-transform-arrow-functions": "^7.27.1", "@babel/plugin-transform-class-properties": "^7.28.6", "@babel/plugin-transform-classes": "^7.28.6", "@babel/plugin-transform-nullish-coalescing-operator": "^7.28.6", "@babel/plugin-transform-optional-chaining": "^7.28.6", "@babel/plugin-transform-shorthand-properties": "^7.27.1", "@babel/plugin-transform-template-literals": "^7.27.1", "@babel/plugin-transform-unicode-regex": "^7.27.1", "@babel/preset-typescript": "^7.28.5", "@babel/types": "^7.27.1", "convert-source-map": "^2.0.0", "semver": "^7.7.4" }, "peerDependencies": { "@babel/core": "*", "@react-native/metro-config": "*", "react": "*", "react-native": "0.83 - 0.86" } }, "sha512-62mRM19bDpfpdI8HLkEErcdOsrAPDtE9lA/sw+5lLRpzBHNhxaoj9QyY2KjXqUmirelxkX4zuPGTC3VdA0feJA=="],
@@ -2646,7 +2634,7 @@
 
     "readdirp": ["readdirp@5.0.0", "", {}, "sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ=="],
 
-    "reader-embed": ["reader-embed@workspace:apps/reader-embed"],
+    "reader-embed": ["reader-embed@workspace:apps/mobile/reader-embed"],
 
     "readline-sync": ["readline-sync@1.4.10", "", {}, "sha512-gNva8/6UAe8QYepIQH/jQ2qn91Qj0B9sYjMBBs3QOB8F2CXcKgLxQaJRP76sWVRQt+QU+8fAkCbCvjjMFu7Ycw=="],
 
