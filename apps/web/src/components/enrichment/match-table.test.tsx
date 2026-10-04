@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, mock, test } from "bun:test";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";

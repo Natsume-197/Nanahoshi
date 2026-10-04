@@ -1,4 +1,14 @@
 import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { FloppyDisk } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -7,16 +17,6 @@ import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import {

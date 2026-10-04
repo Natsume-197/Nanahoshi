@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, test } from "bun:test";
 
 const { cleanup, render } = await import("@testing-library/react");

@@ -1,3 +1,10 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowClockwise,
 	ArrowCounterClockwise,
@@ -10,17 +17,10 @@ import {
 } from "@phosphor-icons/react";
 import { memo } from "react";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
-import { Button } from "@/components/ui/button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 type TransportSize = "bar" | "expanded";

@@ -1,3 +1,6 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import {
 	ArrowsClockwise,
 	Books,
@@ -14,9 +17,6 @@ import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";

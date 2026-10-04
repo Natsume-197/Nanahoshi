@@ -1,3 +1,32 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	Card,
+	CardAction,
+	CardContent,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@nanahoshi/ui/components/card";
+import {
+	Field,
+	FieldDescription,
+	FieldGroup,
+	FieldLabel,
+} from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	CheckCircle,
 	CircleNotch,
@@ -17,36 +46,7 @@ import {
 	PROVIDER_INFO,
 	PROVIDERS_BY_MEDIA_TYPE,
 } from "@/components/libraries/provider-priority-list";
-import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import {
-	Field,
-	FieldDescription,
-	FieldGroup,
-	FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { AMAZON_DOMAINS } from "@/lib/amazon-domains";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";

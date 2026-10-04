@@ -1,23 +1,23 @@
-import { type ReactNode, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	Drawer,
 	DrawerContent,
 	DrawerHeader,
 	DrawerTitle,
-} from "@/components/ui/drawer";
+} from "@nanahoshi/ui/components/drawer";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@nanahoshi/ui/components/popover";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+} from "@nanahoshi/ui/components/tooltip";
+import { useIsMobile } from "@nanahoshi/ui/hooks/use-mobile";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { type ReactNode, useState } from "react";
 
 type Side = "top" | "bottom";
 

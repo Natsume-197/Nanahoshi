@@ -1,11 +1,11 @@
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { GearSix } from "@phosphor-icons/react";
 import { memo } from "react";
 import { PlayerPopoverButton } from "@/components/audio-player/player-controls";
 import { JumpSettings } from "@/components/audio-player/player-jump-settings";
 import { SleepSettings } from "@/components/audio-player/player-sleep-control";
 import { SpeedSettings } from "@/components/audio-player/player-speed-control";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,

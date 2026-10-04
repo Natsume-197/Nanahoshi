@@ -1,8 +1,8 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { ArrowDown, ArrowsDownUp, ArrowUp } from "@phosphor-icons/react";
 import type { Column, RowData } from "@tanstack/react-table";
 import type { DataTableFeatures } from "@/components/data-table/table-features";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface DataTableColumnHeaderProps<
 	TFeatures extends DataTableFeatures,

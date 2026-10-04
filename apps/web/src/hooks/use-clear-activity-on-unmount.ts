@@ -1,4 +1,4 @@
-import { useOnUnmount } from "@/hooks/use-on-unmount";
+import { useOnUnmount } from "@nanahoshi/ui/hooks/use-on-unmount";
 import { client } from "@/utils/orpc";
 
 /**

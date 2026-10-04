@@ -1,3 +1,10 @@
+import { emptyDynamicCollectionDefinition } from "@nanahoshi/api/routers/collections/collection-rule-templates";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	CircleNotch,
 	FolderPlus,
@@ -8,15 +15,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { DynamicCollectionEditor } from "@/components/collections/dynamic-collection-editor";
-import { emptyDynamicCollectionDefinition } from "@/components/collections/dynamic-collection-templates";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
 import { posthog } from "@/lib/posthog";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

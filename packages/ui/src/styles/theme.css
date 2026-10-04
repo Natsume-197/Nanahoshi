@@ -1,0 +1,522 @@
+/* Design tokens, base layer and utilities shared by the web app and the reader. */
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant coarse (@media (pointer: coarse));
+@custom-variant short (@media (max-height: 26rem));
+@custom-variant rail-expanded (html[data-rail="expanded"] &);
+
+:root {
+	color-scheme: light;
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.235 0.004 286);
+	--reading: oklch(0.31 0.004 286);
+	--card: oklch(1 0 0);
+	--card-border: oklch(0.92 0.004 286);
+	--card-foreground: oklch(0.205 0.004 286);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.205 0.004 286);
+	--dropdown: color-mix(
+		in oklab,
+		var(--popover) 96%,
+		var(--popover-foreground)
+	);
+	--dropdown-destructive: color-mix(
+		in oklab,
+		var(--destructive) 90%,
+		var(--popover-foreground)
+	);
+	--primary: oklch(0.235 0.004 286);
+	/* Resolved on the root, so surfaces that re-point --primary (the reader panel) can still read the app accent. */
+	--app-primary: var(--primary);
+	--primary-foreground: oklch(0.99 0 0);
+	--floating-action: oklch(0.205 0.004 286);
+	--floating-action-foreground: oklch(0.99 0 0);
+	--media-action: var(--primary);
+	--media-action-foreground: var(--primary-foreground);
+	--secondary: oklch(0.97 0.003 286);
+	--secondary-foreground: oklch(0.235 0.004 286);
+	--muted: oklch(0.97 0.003 286);
+	--muted-foreground: oklch(0.53 0.007 286);
+	--accent: oklch(0.945 0.004 286);
+	--accent-foreground: oklch(0.235 0.004 286);
+	--success: oklch(0.52 0.17 145);
+	--warning: oklch(0.5 0.14 75);
+	--info: oklch(0.5 0.16 250);
+	--selection: oklch(0.55 0.19 255);
+	--selection-foreground: oklch(0.99 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--destructive-foreground: oklch(0.99 0 0);
+	--border: oklch(0.92 0.004 286);
+	--input: oklch(0.94 0.004 286);
+	--ring: oklch(0.58 0.008 286);
+	--chart-1: oklch(0.85 0.008 285.7);
+	--chart-2: oklch(0.75 0.009 285.7);
+	--chart-3: oklch(0.65 0.01 285.7);
+	--chart-4: oklch(0.55 0.011 285.7);
+	--chart-5: oklch(0.45 0.012 285.7);
+	--radius: 0.5rem;
+	--safe-area-top: env(safe-area-inset-top, 0px);
+	--safe-area-right: env(safe-area-inset-right, 0px);
+	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-area-left: env(safe-area-inset-left, 0px);
+	--mobile-header-height: 3.5rem;
+	--mobile-tabbar-height: 4rem;
+	--mobile-player-height: 4.25rem;
+	--mobile-player-offset: 0px;
+	--duration-micro: 80ms;
+	--duration-quick: 150ms;
+	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-slide-dur: 250ms;
+	--page-fade-dur: 250ms;
+	--page-blur: 3px;
+	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-fade-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--read-listen-route-dur: 250ms;
+	--read-listen-route-distance: 0.5rem;
+	--read-listen-route-scale: 0.996;
+	--notification-sheet-open-dur: 360ms;
+	--notification-sheet-close-dur: 300ms;
+	--notification-sheet-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+	/* The iOS sheet curve: a firm start and a long settle, without the
+	   quint's snap that reads as a jump when a frame or two is lost. */
+	--expanded-player-open-dur: 440ms;
+	--expanded-player-close-dur: 320ms;
+	--expanded-player-ease: cubic-bezier(0.32, 0.72, 0, 1);
+	--press-scale: 0.96;
+	--press-scale-subtle: 0.985;
+	--theme-gradient: none;
+	--surface-card: oklch(0.975 0.002 286);
+	--surface-card-hover: oklch(0.96 0.003 286);
+	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
+	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
+	--surface-hover: var(--muted);
+	--control: var(--input);
+	--switch-off: color-mix(in oklab, var(--foreground) 16%, var(--card));
+	--switch-off-edge: color-mix(
+		in oklab,
+		var(--foreground) 45%,
+		var(--switch-off)
+	);
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 4%), 0 6px 18px oklch(0 0 0 / 4%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(0 0 0 / 7%), 0 2px 4px oklch(0 0 0 / 5%),
+		0 10px 24px oklch(0 0 0 / 7%);
+	--elevation-dropdown:
+		0 0 0 1px oklch(0 0 0 / 8%), 0 3px 8px -2px oklch(0 0 0 / 10%),
+		0 16px 36px -10px oklch(0 0 0 / 18%);
+	--image-outline: oklch(0 0 0 / 10%);
+	--progress-track: oklch(0 0 0 / 45%);
+	--progress-indicator: oklch(0.97 0 0);
+	/* The navigation chrome is the light system-gray material beside the white
+	   library canvas. */
+	--sidebar: oklch(0.97 0.003 286);
+	--sidebar-foreground: oklch(0.205 0.004 286);
+	--sidebar-primary: oklch(0.235 0.004 286);
+	--sidebar-primary-foreground: oklch(0.99 0 0);
+	--sidebar-accent: oklch(0.9 0.005 286);
+	--sidebar-accent-foreground: oklch(0.205 0.004 286);
+	--sidebar-border: oklch(0.92 0.004 286);
+	--sidebar-ring: oklch(0.58 0.008 286);
+	--nav-inactive: color-mix(
+		in oklab,
+		var(--sidebar-foreground) 68%,
+		var(--sidebar)
+	);
+	--nav-active: color-mix(in oklab, var(--sidebar-accent) 80%, transparent);
+	--rail-width: 5.5rem;
+	--rail-item-inset: calc((5.5rem - 2.25rem) / 2);
+	/* Expanded rows don't need the collapsed rail's centering inset: with the
+	   rail's own 0.5rem gutter rows add 4px, so artwork, icon columns and
+	   titles start 16px from the window edge. */
+	--rail-row-inset: 4px;
+	/* Notifications and members share one overlay width: they toggle from
+	   adjacent buttons, so a width per panel would read as the chrome
+	   resizing rather than swapping contents. Wider than the expanded app
+	   rail — notification rows carry a title, a timestamp and a progress
+	   bar, and 15rem wraps them. */
+	--overlay-rail-width: 20rem;
+}
+
+.dark {
+	color-scheme: dark;
+	--radius: 0.2rem;
+	/* Content canvas: one step above the navigation chrome, in the same
+	   neutral family (#1f2024 carried a blue cast next to it). */
+	--background: #1f1f20;
+	--foreground: color-mix(in oklab, #352d3e 8%, #ededed);
+	--reading: color-mix(in oklab, #352d3e 6%, #e3e3e3);
+	--card: #272729;
+	--card-border: color-mix(in oklab, #352d3e 10%, #484848);
+	--card-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--surface-card: var(--card);
+	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
+	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
+	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
+	--surface-hover: var(--muted);
+	--popover: #272729;
+	--popover-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--dropdown: var(--popover);
+	--dropdown-destructive: color-mix(
+		in oklab,
+		var(--destructive) 40%,
+		var(--popover-foreground)
+	);
+	--primary: #8b7a9e;
+	--primary-foreground: #000000;
+	--floating-action: oklch(0.198 0.004 286);
+	--floating-action-foreground: oklch(0.97 0 90);
+	/* Discord's row-hover/active fill. */
+	--secondary: color-mix(in oklab, #352d3e 15%, #3e3e3e);
+	--secondary-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--muted: color-mix(in oklab, #352d3e 12%, #373737);
+	--muted-foreground: color-mix(in oklab, #352d3e 12%, #aaaaaa);
+	--accent: color-mix(in oklab, #352d3e 16%, #515151);
+	--accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
+	--success: oklch(0.72 0.17 145);
+	--warning: oklch(0.78 0.15 75);
+	--info: oklch(0.74 0.14 250);
+	--selection: oklch(0.68 0.17 255);
+	--selection-foreground: oklch(0.16 0.03 255);
+	--destructive: oklch(0.62 0.2 25);
+	--destructive-foreground: oklch(0.98 0 0);
+	--border: color-mix(in oklab, #352d3e 10%, #3b3b3b);
+	--input: color-mix(in oklab, #352d3e 12%, #2c2c2c);
+	--control: var(--input);
+	--ring: color-mix(in oklab, #8b7a9e 80%, black);
+	--chart-1: #8b7a9e;
+	--chart-2: color-mix(in oklab, #8b7a9e 80%, var(--background));
+	--chart-3: color-mix(in oklab, #8b7a9e 60%, var(--background));
+	--chart-4: color-mix(in oklab, #8b7a9e 40%, var(--background));
+	--chart-5: color-mix(in oklab, #8b7a9e 20%, var(--background));
+	/* Navbar + sidebar share this darker chrome, framing the content panel. */
+	--sidebar: #161617;
+	--sidebar-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--sidebar-primary: #8b7a9e;
+	--sidebar-primary-foreground: #000000;
+	--sidebar-accent: #2c2c2e;
+	--sidebar-accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
+	--sidebar-border: #242425;
+	--sidebar-ring: color-mix(in oklab, #8b7a9e 80%, black);
+	--nav-inactive: color-mix(
+		in oklab,
+		var(--sidebar-foreground) 78%,
+		var(--sidebar)
+	);
+	/* Opaque and lifted off the chrome, so the current destination reads as
+	   a clear step above the inactive rows. */
+	--nav-active: color-mix(
+		in oklab,
+		var(--sidebar-foreground) 14%,
+		var(--sidebar)
+	);
+	--switch-off: color-mix(in oklab, var(--foreground) 30%, var(--input));
+	--elevation-card: 0 1px 2px oklch(0 0 0 / 26%), 0 8px 24px oklch(0 0 0 / 18%);
+	--elevation-card-hover:
+		0 0 0 1px oklch(1 0 0 / 13%), 0 10px 28px oklch(0 0 0 / 28%);
+	--elevation-dropdown:
+		0 0 0 1px oklch(1 0 0 / 12%), 0 4px 12px -2px oklch(0 0 0 / 30%),
+		0 18px 40px -10px oklch(0 0 0 / 42%);
+	--image-outline: oklch(1 0 0 / 10%);
+}
+
+@theme inline {
+	--font-sans: "Gen Interface JP", "Noto Sans JP", sans-serif;
+	--font-reader-sans: "Geist Variable", "Noto Sans JP", sans-serif;
+	--font-serif: Georgia, "Times New Roman", serif;
+	--color-nav-inactive: var(--nav-inactive);
+	--color-nav-active: var(--nav-active);
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-control: var(--control);
+	--color-switch-off: var(--switch-off);
+	--color-switch-off-edge: var(--switch-off-edge);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-info: var(--info);
+	--color-selection-foreground: var(--selection-foreground);
+	--color-selection: var(--selection);
+	--color-warning: var(--warning);
+	--color-success: var(--success);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-floating-action-foreground: var(--floating-action-foreground);
+	--color-floating-action: var(--floating-action);
+	--color-media-action-foreground: var(--media-action-foreground);
+	--color-media-action: var(--media-action);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-dropdown: var(--dropdown);
+	--color-dropdown-destructive: var(--dropdown-destructive);
+	--color-card-foreground: var(--card-foreground);
+	--color-card-border: var(--card-border);
+	--color-card: var(--card);
+	--color-surface-card: var(--surface-card);
+	--color-surface-card-hover: var(--surface-card-hover);
+	--color-surface-accent: var(--surface-accent);
+	--color-surface-accent-hover: var(--surface-accent-hover);
+	--color-surface-hover: var(--surface-hover);
+	--color-foreground: var(--foreground);
+	--color-reading: var(--reading);
+	--color-background: var(--background);
+	--shadow-card: var(--elevation-card);
+	--shadow-card-hover: var(--elevation-card-hover);
+	--shadow-dropdown: var(--elevation-dropdown);
+	--ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+	/* Proportional, not subtractive: fixed px steps go negative (and get
+	   clamped to square) once --radius drops below 4px, which the appearance
+	   slider allows. These ratios reproduce the old 4px/6px at --radius 0.5rem. */
+	--radius-sm: calc(var(--radius) * 0.5);
+	--radius-md: calc(var(--radius) * 0.75);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
+	--font-heading: var(--font-sans);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+		scrollbar-width: thin;
+		scrollbar-color: var(--border) transparent;
+	}
+
+	body {
+		@apply font-sans antialiased bg-background;
+		color: var(--reading);
+		font-weight: 400;
+		line-height: 1.5;
+		letter-spacing: -0.006em;
+	}
+
+	body.reader-route-font {
+		font-family: var(--font-reader-sans);
+	}
+
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	button:not(:disabled) {
+		cursor: pointer;
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+	}
+
+	html {
+		@apply font-sans;
+	}
+	h1,
+	h2,
+	h3,
+	h4 {
+		letter-spacing: -0.02em;
+		line-height: 1.2;
+		text-wrap: balance;
+	}
+
+	::selection {
+		background: var(--primary);
+		color: var(--primary-foreground);
+	}
+}
+
+@media (prefers-contrast: more) {
+	:root {
+		--muted-foreground: oklch(0.38 0.007 286);
+		--nav-inactive: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 85%,
+			var(--sidebar)
+		);
+		--border: oklch(0.76 0.006 286);
+		--ring: oklch(0.25 0.008 286);
+		--dropdown: color-mix(
+			in oklab,
+			var(--popover) 90%,
+			var(--popover-foreground)
+		);
+		--dropdown-destructive: color-mix(
+			in oklab,
+			var(--destructive) 80%,
+			var(--popover-foreground)
+		);
+		--elevation-dropdown:
+			0 0 0 1px oklch(0 0 0 / 18%), 0 4px 10px -2px oklch(0 0 0 / 16%),
+			0 18px 40px -10px oklch(0 0 0 / 24%);
+	}
+
+	.dark {
+		--muted-foreground: oklch(0.888 0 90);
+		--nav-inactive: color-mix(
+			in oklab,
+			var(--sidebar-foreground) 95%,
+			var(--sidebar)
+		);
+		/* Opaque on purpose: high contrast needs a solid edge, not a veil. */
+		--border: oklch(0.62 0 90);
+		--ring: oklch(0.97 0 0);
+		--dropdown: color-mix(
+			in oklab,
+			var(--popover) 86%,
+			var(--popover-foreground)
+		);
+		--dropdown-destructive: color-mix(
+			in oklab,
+			var(--destructive) 30%,
+			var(--popover-foreground)
+		);
+		--elevation-dropdown:
+			0 0 0 1px oklch(1 0 0 / 24%), 0 5px 14px -2px oklch(0 0 0 / 36%),
+			0 20px 44px -10px oklch(0 0 0 / 50%);
+	}
+}
+
+@media (pointer: coarse) {
+	[data-pressable] {
+		--pressable-scale: var(--press-scale);
+
+		touch-action: manipulation;
+		transition-duration: var(--duration-quick);
+		transition-property:
+			color, background-color, border-color, opacity, box-shadow, transform;
+		transition-timing-function: var(--ease-smooth-out);
+	}
+
+	[data-pressable="subtle"] {
+		--pressable-scale: var(--press-scale-subtle);
+	}
+
+	[data-pressable]:active:not(:disabled) {
+		transform: scale(var(--pressable-scale));
+		transition-duration: var(--duration-micro);
+	}
+
+	[data-slot="button"],
+	[data-slot="combobox-clear"],
+	[data-slot="combobox-trigger"] {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		touch-action: manipulation;
+	}
+
+	[data-slot="combobox-item"],
+	[data-slot="context-menu-checkbox-item"],
+	[data-slot="context-menu-item"],
+	[data-slot="context-menu-radio-item"],
+	[data-slot="context-menu-sub-trigger"],
+	[data-slot="dropdown-menu-checkbox-item"],
+	[data-slot="dropdown-menu-item"],
+	[data-slot="dropdown-menu-radio-item"],
+	[data-slot="dropdown-menu-sub-trigger"],
+	[data-slot="select-item"],
+	[data-slot="select-trigger"],
+	[data-slot="tabs-trigger"] {
+		min-height: 2.75rem;
+		touch-action: manipulation;
+	}
+
+	[data-slot="input"],
+	[data-slot="input-group"],
+	[data-slot="textarea"] {
+		min-height: 2.75rem;
+		font-size: 1rem;
+	}
+
+	[data-slot="book-card-shell"]:active [data-slot="book-card-cover"] {
+		transform: scale(var(--press-scale-subtle));
+		transition-duration: var(--duration-micro);
+	}
+
+	/* A long-press to open a context menu (books, series, collections) must read
+	   only as "open menu": iOS otherwise fires text selection + the native
+	   callout on the pressed card first, smudging the title. */
+	[data-slot="context-menu-trigger"] {
+		-webkit-touch-callout: none;
+		user-select: none;
+	}
+
+	/* Safari treats the focus Base UI moves into a popup after a long-press as
+	   :focus-visible and paints a ring on the popup / first item. On touch there
+	   is no keyboard nav to signpost, so drop it — data-highlighted still styles
+	   the actual selection. */
+	[data-slot="context-menu-content"]:focus-visible,
+	[data-slot="context-menu-sub-content"]:focus-visible,
+	[data-slot="dropdown-menu-content"]:focus-visible,
+	[data-slot="context-menu-item"]:focus-visible,
+	[data-slot="context-menu-checkbox-item"]:focus-visible,
+	[data-slot="context-menu-radio-item"]:focus-visible,
+	[data-slot="context-menu-sub-trigger"]:focus-visible {
+		outline: none;
+	}
+}
+
+/* Escape still restores a modal's focus for keyboard continuity, but the
+   restored control does not need to flash a new focus halo. This is unlayered
+   so it can override focus utilities; the attribute is removed on blur. */
+[data-modal-restored-focus]:focus-visible {
+	outline: none;
+	box-shadow: none;
+}
+
+@media (max-height: 26rem) {
+	:root {
+		--mobile-header-height: 3rem;
+		--mobile-tabbar-height: 3.25rem;
+		--mobile-player-height: 3.5rem;
+	}
+}
+
+@utility scrollbar-none {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+@utility theme-gradient-surface {
+	background-image: var(--theme-gradient, none);
+	background-repeat: no-repeat;
+	background-position: top left;
+	background-size: 100vw 100svh;
+	background-attachment: fixed;
+}
+
+@keyframes skeleton-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.45;
+	}
+}
+
+@utility skeleton-pulse {
+	animation: skeleton-pulse 1.5s ease-in-out infinite;
+}

@@ -1,5 +1,5 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 function getInitials(name?: string | null) {
 	if (!name) return "?";

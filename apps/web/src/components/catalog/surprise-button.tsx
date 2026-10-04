@@ -1,9 +1,9 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { CircleNotch, Shuffle } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { CatalogFormat } from "@/components/catalog/catalog-view";
-import { Button } from "@/components/ui/button";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 

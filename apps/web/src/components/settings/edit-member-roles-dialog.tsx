@@ -1,10 +1,10 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { Modal } from "@nanahoshi/ui/components/modal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { RoleOption } from "@/components/data-table/columns/members-columns";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Modal } from "@/components/ui/modal";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

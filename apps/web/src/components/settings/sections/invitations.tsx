@@ -1,3 +1,16 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import {
 	Check,
 	CircleNotch,
@@ -9,19 +22,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SettingRows } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
 import { formatDate } from "@/utils/format";

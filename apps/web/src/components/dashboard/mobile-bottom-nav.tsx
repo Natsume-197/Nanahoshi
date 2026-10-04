@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	Books,
 	Folder,
@@ -14,7 +15,6 @@ import {
 import { resolveRailSection } from "@/components/dashboard/rail-nav";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { useSession } from "@/hooks/use-session";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

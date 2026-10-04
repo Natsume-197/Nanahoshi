@@ -1,7 +1,7 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import type { JSX } from "react";
 import { CollectionCardSkeleton } from "@/components/shared/collection-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { HomeSectionId } from "@/lib/home-layout-store";
 import { getHomeSectionPlaceholderKind } from "./home-section-placeholder-kind";
 import { ResumeSectionSkeleton, SectionSkeleton } from "./section-skeleton";

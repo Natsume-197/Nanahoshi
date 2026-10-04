@@ -1,8 +1,8 @@
+import { useIsomorphicLayoutEffect } from "@nanahoshi/ui/hooks/use-isomorphic-layout-effect";
 import { useQuery } from "@tanstack/react-query";
 import { type JSX, useState } from "react";
 import { DashboardHomeContent } from "@/components/dashboard/home/dashboard-home-content";
 import { CategorySelector } from "@/components/shared/category-selector";
-import { useIsomorphicLayoutEffect } from "@/hooks/use-isomorphic-layout-effect";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { MediaCategoryContent } from "./media-category-content";

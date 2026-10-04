@@ -1,12 +1,12 @@
-import { X } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	useFloatingWindowDrag,
 	useFloatingWindowResize,
-} from "@/components/ui/use-floating-window-drag";
-import { useWindowEvent } from "@/hooks/use-window-event";
+} from "@nanahoshi/ui/hooks/use-floating-window-drag";
+import { useWindowEvent } from "@nanahoshi/ui/hooks/use-window-event";
+import { X } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { m } from "@/paraglide/messages";
 
 export function ThemeCustomizerShell({

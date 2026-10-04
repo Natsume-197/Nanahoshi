@@ -1,5 +1,5 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { useCallback, useState } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { refreshThemeColor } from "@/lib/theme-color";
 import {
 	applyPaletteVars,

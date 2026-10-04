@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { CircleNotch } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 
 /**
  * Page header shared by collection pages (likes, series, narrators): a large

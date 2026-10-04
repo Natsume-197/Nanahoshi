@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FormEvent, ReactNode } from "react";
@@ -20,7 +20,7 @@ mock.module("@/utils/orpc", () => ({
 	orpc: {},
 	queryClient: { setQueryData: () => {}, invalidateQueries: () => {} },
 }));
-mock.module("@/components/ui/modal", () => ({
+mock.module("@nanahoshi/ui/components/modal", () => ({
 	Modal: ({
 		children,
 		onSubmit,

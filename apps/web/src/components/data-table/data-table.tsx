@@ -1,3 +1,15 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@nanahoshi/ui/components/table";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import {
 	type ColumnDef,
@@ -7,18 +19,6 @@ import {
 } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import type { DataTableFeatures } from "@/components/data-table/table-features";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 
 interface DataTableProps<
 	TFeatures extends DataTableFeatures,

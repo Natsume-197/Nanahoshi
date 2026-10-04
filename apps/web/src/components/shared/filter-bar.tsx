@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
 	Combobox,
 	ComboboxChip,
@@ -10,15 +9,16 @@ import {
 	ComboboxList,
 	ComboboxValue,
 	useComboboxAnchor,
-} from "@/components/ui/combobox";
+} from "@nanahoshi/ui/components/combobox";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+} from "@nanahoshi/ui/components/select";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import type { ReactNode } from "react";
 import { m } from "@/paraglide/messages";
 
 /**

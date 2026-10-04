@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { CaretRight } from "@phosphor-icons/react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 
 const titleClass =
 	"flex h-9 min-w-0 flex-1 items-center gap-1 rounded-lg ps-[calc(var(--rail-row-inset)+16px)] pe-2 font-semibold text-nav-inactive text-xs uppercase tracking-[0.08em]";

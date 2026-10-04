@@ -1,5 +1,5 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import type { RefObject } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 
 /** Keep transient card hover effects from animating under a stationary cursor. */
 export function useCardScrollActivity(ref: RefObject<HTMLElement | null>) {

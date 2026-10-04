@@ -1,6 +1,4 @@
-import { BookOpen, Headphones, Info, Plus, X } from "@phosphor-icons/react";
-import { type FormEvent, useCallback, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	Field,
 	FieldDescription,
@@ -8,11 +6,16 @@ import {
 	FieldLabel,
 	FieldLegend,
 	FieldSet,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils";
+} from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@nanahoshi/ui/components/toggle-group";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { BookOpen, Headphones, Info, Plus, X } from "@phosphor-icons/react";
+import { type FormEvent, useCallback, useMemo, useRef, useState } from "react";
 import { m } from "@/paraglide/messages";
 import { DirectoryPicker } from "./directory-picker";
 import {

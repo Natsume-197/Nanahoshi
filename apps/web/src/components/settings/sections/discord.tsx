@@ -1,17 +1,17 @@
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { CircleNotch, Plus, Trash } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DiscordIcon } from "@/components/shared/discord-icon";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

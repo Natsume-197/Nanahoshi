@@ -1,4 +1,14 @@
 import { isOwnerRole } from "@nanahoshi/api/auth/access.service";
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
 import { Crown, DotsThree, Shield, UserMinus } from "@phosphor-icons/react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -7,16 +17,6 @@ import {
 	defineTableFeatures,
 } from "@/components/data-table";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 

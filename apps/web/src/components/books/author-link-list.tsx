@@ -1,11 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { Fragment } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import { Fragment } from "react";
 
 function AmazonIcon({ className }: { className?: string }) {
 	return (

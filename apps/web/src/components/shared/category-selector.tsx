@@ -1,6 +1,9 @@
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@nanahoshi/ui/components/toggle-group";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { PAGE_GUTTER } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 
 interface CategorySelectorItem<Value extends string> {
 	value: Value;

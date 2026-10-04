@@ -1,4 +1,19 @@
 import { PERMISSIONS } from "@nanahoshi/api/auth/permissions.catalog";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	CaretRight,
 	DotsSixVertical,
@@ -12,23 +27,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SettingRows } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

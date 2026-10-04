@@ -1,42 +1,42 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+import { bindFakeReaderHost } from "@nanahoshi/reader/host/fake-reader-host";
+import { renderBindingHook } from "@nanahoshi/test-utils/render-binding-hook";
 import { act, cleanup } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-import { renderBindingHook } from "@/test-utils/render-binding-hook";
 
 const saveListening = mock(() => Promise.resolve());
-const saveReading = mock(() => Promise.resolve());
 const clearActivity = mock(() => Promise.resolve());
 const setIdle = mock(() => Promise.resolve());
 
 mock.module("@/utils/orpc", () => ({
 	client: {
 		listeningProgress: { saveProgress: saveListening },
-		readingProgress: { saveProgress: saveReading },
 		presence: { clearActivity, setIdle },
 	},
 }));
+bindFakeReaderHost({ presence: { clearActivity, setIdle } });
 mock.module("@/lib/invalidate-progress", () => ({
 	invalidateListeningProgress: () => {},
 	invalidateReadingProgress: () => {},
 	invalidateRecommendations: () => {},
 }));
-mock.module("@/hooks/use-document-event", () => ({
+mock.module("@nanahoshi/ui/hooks/use-document-event", () => ({
 	useDocumentEvent: () => {},
 }));
-mock.module("@/hooks/use-window-event", () => ({ useWindowEvent: () => {} }));
-mock.module("@/hooks/use-interval", () => ({ useInterval: () => {} }));
+mock.module("@nanahoshi/ui/hooks/use-window-event", () => ({
+	useWindowEvent: () => {},
+}));
+mock.module("@nanahoshi/ui/hooks/use-interval", () => ({
+	useInterval: () => {},
+}));
 mock.module("@/hooks/use-clear-activity-on-unmount", () => ({
 	useClearActivityOnUnmount: () => {},
 }));
-mock.module("@/features/reader/renderers/shared/reading-time-slice", () => ({
-	claimReadingTimeSlice: () => 0,
-}));
-const { usePresenceIdle } = await import("./use-presence-idle");
+const { usePresenceIdle } = await import(
+	"@nanahoshi/reader/presence/use-presence-idle"
+);
 const { usePlayerSync } = await import(
 	"../components/audio-player/use-player-sync"
-);
-const { useReaderSync } = await import(
-	"../features/reader/interaction/use-reader-sync"
 );
 
 beforeAll(() => {
@@ -53,7 +53,6 @@ beforeAll(() => {
 afterEach(() => {
 	cleanup();
 	saveListening.mockClear();
-	saveReading.mockClear();
 	clearActivity.mockClear();
 	setIdle.mockClear();
 });
@@ -203,58 +202,5 @@ describe("live activity lifecycle", () => {
 			"clear",
 			"save:resume",
 		]);
-	});
-
-	test("announces reading when the document becomes ready after mount", async () => {
-		const { rerender } = renderBindingHook(
-			({ enabled }) =>
-				useReaderSync({
-					enabled,
-					bookUuid: "book-1",
-					getCharCounts: () => ({
-						exploredCharCount: 12,
-						bookCharCount: 120,
-						positionIntentAt: 1,
-					}),
-				}),
-			{ initialProps: { enabled: false } },
-		);
-
-		await act(async () => {
-			rerender({ enabled: true });
-			await Promise.resolve();
-		});
-
-		expect(saveReading).toHaveBeenCalledWith(
-			expect.objectContaining({ bookUuid: "book-1", status: "reading" }),
-			expect.anything(),
-		);
-	});
-
-	test("clears reading activity when the reader stops being ready", async () => {
-		const { rerender } = renderBindingHook(
-			({ enabled }) =>
-				useReaderSync({
-					enabled,
-					bookUuid: "book-1",
-					getCharCounts: () => ({
-						exploredCharCount: 12,
-						bookCharCount: 120,
-						positionIntentAt: 1,
-					}),
-				}),
-			{ initialProps: { enabled: true } },
-		);
-
-		await act(async () => {
-			await Promise.resolve();
-			clearActivity.mockClear();
-			rerender({ enabled: false });
-			await Promise.resolve();
-		});
-
-		expect(clearActivity).toHaveBeenCalledWith({
-			context: { keepalive: true },
-		});
 	});
 });

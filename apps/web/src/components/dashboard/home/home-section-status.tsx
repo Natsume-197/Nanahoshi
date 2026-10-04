@@ -1,3 +1,4 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import {
 	createContext,
 	type JSX,
@@ -5,7 +6,6 @@ import {
 	useContext,
 	useMemo,
 } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 
 export type HomeSectionStatus = "loading" | "populated" | "empty";
 

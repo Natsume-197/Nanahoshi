@@ -1,8 +1,8 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";
 import { BookCard } from "@/components/books/book-card";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";

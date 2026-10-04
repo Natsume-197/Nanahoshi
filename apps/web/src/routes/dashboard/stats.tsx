@@ -1,6 +1,7 @@
+import type { StatsView } from "@nanahoshi/reader/sessions/stats-model";
+import { StatsPage } from "@nanahoshi/reader/stats/stats-page";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import type { StatsView } from "@/features/reading-stats/stats-model";
-import { StatsPage } from "@/features/reading-stats/stats-page";
+import { PAGE_SHELL } from "@/lib/page-layout";
 import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/dashboard/stats")({
@@ -24,6 +25,7 @@ function StatsRoute() {
 	const navigate = Route.useNavigate();
 	return (
 		<StatsPage
+			className={PAGE_SHELL}
 			view={view ?? "all"}
 			onViewChange={(next) =>
 				navigate({

@@ -1,5 +1,5 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { useCallback, useRef } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 
 interface useInfiniteScrollOptions {
 	hasNextPage: boolean | undefined;

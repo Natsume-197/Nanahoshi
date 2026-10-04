@@ -1,7 +1,7 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { memo, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	COVER_EDGE,

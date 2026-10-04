@@ -1,3 +1,7 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { Slider } from "@nanahoshi/ui/components/slider";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { ArrowCounterClockwise, Minus, Plus } from "@phosphor-icons/react";
 import { memo } from "react";
 import { PlayerSheetButton } from "@/components/audio-player/player-controls";
@@ -10,14 +14,10 @@ import {
 	nudgeSpeed,
 	SPEED_PRESETS,
 } from "@/components/audio-player/player-preferences";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /** Where the sheet's slider stops: past 3× is presets-and-buttons territory. */

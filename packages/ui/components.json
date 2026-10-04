@@ -1,0 +1,28 @@
+{
+	"$schema": "https://ui.shadcn.com/schema.json",
+	"style": "base-rhea",
+	"rsc": false,
+	"tsx": true,
+	"tailwind": {
+		"config": "",
+		"css": "../../apps/web/src/index.css",
+		"baseColor": "neutral",
+		"cssVariables": true,
+		"prefix": ""
+	},
+	"iconLibrary": "lucide",
+	"rtl": false,
+	"aliases": {
+		"components": "@nanahoshi/ui/components",
+		"utils": "@nanahoshi/ui/lib/utils",
+		"ui": "@nanahoshi/ui/components",
+		"lib": "@nanahoshi/ui/lib",
+		"hooks": "@nanahoshi/ui/hooks"
+	},
+	"menuColor": "default",
+	"menuAccent": "subtle",
+	"registries": {
+		"@efferd": "https://efferd.com/r/{name}.json",
+		"@diceui": "https://diceui.com/r/{name}.json"
+	}
+}

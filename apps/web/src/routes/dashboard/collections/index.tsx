@@ -1,3 +1,11 @@
+import { Separator } from "@nanahoshi/ui/components/separator";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nanahoshi/ui/components/tabs";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -8,8 +16,6 @@ import { CollectionToolbar } from "@/components/shared/collection-toolbar";
 import { CreateCollectionButton } from "@/components/shared/create-collection-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ShelfListItem } from "@/components/shared/shelf-card";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import {
 	resolveCollectionPreview,
@@ -17,7 +23,6 @@ import {
 } from "@/hooks/use-collection-previews";
 import { collectionMatchesFormat } from "@/lib/library-format";
 import { PAGE_SHELL } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

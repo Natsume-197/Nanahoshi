@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, mock, test } from "bun:test";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -46,7 +46,7 @@ mock.module("@/components/metadata/match-metadata-dialog", () => ({
 	BookMatchDialog: () => null,
 	AudiobookMatchDialog: () => null,
 }));
-mock.module("@/components/ui/modal", () => ({
+mock.module("@nanahoshi/ui/components/modal", () => ({
 	Modal: ({ open, children }: { open: boolean; children: ReactNode }) =>
 		open ? <div role="dialog">{children}</div> : null,
 }));

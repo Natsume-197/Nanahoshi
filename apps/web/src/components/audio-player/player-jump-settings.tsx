@@ -1,14 +1,14 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { memo } from "react";
 import {
 	JUMP_AMOUNTS,
 	type JumpAmount,
 } from "@/components/audio-player/player-preferences";
-import { Button } from "@/components/ui/button";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 function AmountRow({

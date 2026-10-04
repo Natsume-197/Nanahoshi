@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { CircleNotch, DownloadSimple, Pencil } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
@@ -6,7 +7,6 @@ import { toast } from "sonner";
 import { EditEntityDialog } from "@/components/catalog/edit-entity-dialog";
 import { EntityBooksView } from "@/components/catalog/entity-books-view";
 import type { SortOption } from "@/components/shared/sort-select";
-import { Button } from "@/components/ui/button";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
 import { downloadFromUrl } from "@/utils/download";

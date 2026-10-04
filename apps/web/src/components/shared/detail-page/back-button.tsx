@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useCanGoBack, useRouter } from "@tanstack/react-router";
 import { DETAIL_CORNER_BUTTON } from "@/components/shared/detail-page/corner-button";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /**

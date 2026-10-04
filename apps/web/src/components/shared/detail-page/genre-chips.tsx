@@ -1,5 +1,5 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { cn } from "@/lib/utils";
 
 const CHIP_CLASS =
 	"inline-flex min-h-7 items-center rounded-full border border-border/70 bg-muted/50 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors";

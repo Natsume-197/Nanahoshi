@@ -1,6 +1,6 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { type ShouldBlockFn, useBlocker } from "@tanstack/react-router";
 import { createElement, useCallback, useId, useRef } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 
 type HistoryAction = "PUSH" | "REPLACE" | "FORWARD" | "BACK" | "GO";
 

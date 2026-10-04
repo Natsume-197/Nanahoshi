@@ -1,3 +1,6 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { useIsBelowLg } from "@nanahoshi/ui/hooks/use-mobile";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	BookmarkSimple,
 	CaretDown,
@@ -29,14 +32,11 @@ import {
 	ReadListenModeControls,
 	type ReadListenPlayerContext,
 } from "@/components/audio-player/read-listen-player";
-import { Button } from "@/components/ui/button";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { useIsBelowLg } from "@/hooks/use-mobile";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatChapterLabel } from "@/utils/chapters";
 import { getCoverFilename, getCoverUrl } from "@/utils/covers";

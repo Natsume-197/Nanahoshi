@@ -2,8 +2,8 @@
 // lifecycle is named and coloured, so the sidebar dot, the row chip and the
 // detail pane can never disagree about what a book's state looks like.
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { m } from "@/paraglide/messages";
 import type { EnrichmentLifecycle as Lifecycle } from "./filters";
 

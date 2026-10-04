@@ -1,3 +1,4 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { BookCard } from "@/components/books/book-card";
@@ -8,7 +9,6 @@ import type { AudiobookShelfStatus } from "@/components/profile/book-shelf-secti
 import { ProfilePagination } from "@/components/profile/profile-pagination";
 import { CategorySelector } from "@/components/shared/category-selector";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useUiSnapshotState } from "@/hooks/use-ui-snapshot-state";
 import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS, coverPresets } from "@/utils/covers";

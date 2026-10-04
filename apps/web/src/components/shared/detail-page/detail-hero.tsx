@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { type CSSProperties, Fragment, type ReactNode } from "react";
 import { PAGE_GUTTER } from "@/lib/page-layout";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { getHeroSurfaceColors } from "@/utils/color";
 
 const FALLBACK_SURFACE = { base: "rgb(58 56 64)", deep: "rgb(44 42 49)" };

@@ -2,9 +2,9 @@
 // (`gridClassName`); the header and every row are subgrids of it, so an
 // auto-sized column takes its widest cell on the page and every row lines up.
 
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { ReactNode } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 
 export const TRAY_ROW_SUBGRID =
 	"col-span-full grid grid-cols-subgrid items-center";

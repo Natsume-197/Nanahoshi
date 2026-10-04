@@ -1,6 +1,6 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Modal } from "@nanahoshi/ui/components/modal";
 import { X } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 

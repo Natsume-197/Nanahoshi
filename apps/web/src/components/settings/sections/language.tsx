@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Check, Translate } from "@phosphor-icons/react";
 import { SettingRows } from "@/components/settings/setting-rows";
 import { useLocale } from "@/hooks/use-locale";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import type { Locale } from "@/paraglide/runtime";
 

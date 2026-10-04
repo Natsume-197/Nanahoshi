@@ -1,3 +1,9 @@
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Field, FieldGroup, FieldLabel } from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import {
 	CaretLeft,
 	CaretRight,
@@ -8,12 +14,6 @@ import {
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useId, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/use-debounce";
 import { typesetProps } from "@/lib/text-lang";
 import { m } from "@/paraglide/messages";

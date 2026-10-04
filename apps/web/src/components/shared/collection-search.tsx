@@ -1,6 +1,6 @@
+import { Input } from "@nanahoshi/ui/components/input";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /** Search input shared by collection pages (likes, series). Controlled. */

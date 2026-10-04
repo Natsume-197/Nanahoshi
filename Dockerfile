@@ -12,6 +12,7 @@ WORKDIR /app
 FROM base AS manifests
 COPY bun.lock package.json ./
 COPY apps/server/package.json apps/server/
+COPY apps/reader-embed/package.json apps/reader-embed/
 COPY apps/web/package.json apps/web/
 COPY packages/api/package.json packages/api/
 COPY packages/auth/package.json packages/auth/
@@ -20,6 +21,10 @@ COPY packages/db/package.json packages/db/
 COPY packages/ebook-parser/package.json packages/ebook-parser/
 COPY packages/env/package.json packages/env/
 COPY packages/read-listen/package.json packages/read-listen/
+COPY packages/reader/package.json packages/reader/
+COPY packages/reader-bridge/package.json packages/reader-bridge/
+COPY packages/test-utils/package.json packages/test-utils/
+COPY packages/ui/package.json packages/ui/
 
 # ── Shared build dependencies ────────────────────────────────────────
 FROM manifests AS build-deps

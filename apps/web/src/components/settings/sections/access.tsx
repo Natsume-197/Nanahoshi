@@ -1,12 +1,12 @@
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Check, Globe, Lock, UserPlus } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { toast } from "sonner";
 import { DiscordAccessRules } from "@/components/settings/sections/discord";
 import { SettingRows } from "@/components/settings/setting-rows";
-import { Badge } from "@/components/ui/badge";
 import { useAbilities } from "@/hooks/use-abilities";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 

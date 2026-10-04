@@ -1,4 +1,6 @@
 import type { DynamicCollectionDefinitionV1 } from "@nanahoshi/api/routers/collections/collection-rules";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Modal } from "@nanahoshi/ui/components/modal";
 import {
 	ArrowLeft,
 	CircleNotch,
@@ -24,8 +26,6 @@ import { QueryErrorState } from "@/components/libraries/query-error-state";
 import { CollectionView } from "@/components/shared/collection-view";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useDebounce } from "@/hooks/use-debounce";
 import { invalidateEverywhere } from "@/lib/invalidate-everywhere";

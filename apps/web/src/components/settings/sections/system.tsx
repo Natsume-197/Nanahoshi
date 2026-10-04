@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { ArrowsClockwise, CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -6,7 +7,6 @@ import {
 	SettingRows,
 	SettingStatRow,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";

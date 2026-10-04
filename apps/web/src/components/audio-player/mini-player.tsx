@@ -1,3 +1,10 @@
+import { findReadyReadListenPairing } from "@nanahoshi/reader/read-listen/pairing";
+import {
+	navigateToReadListenReader,
+	rememberReadListenReaderEntry,
+} from "@nanahoshi/reader/read-listen/reader-session";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type CSSProperties, memo, useMemo, useRef, useState } from "react";
@@ -16,15 +23,8 @@ import {
 	useAudioPlayerBook,
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss";
-import { findReadyReadListenPairing } from "@/lib/read-listen/pairing";
-import {
-	navigateToReadListenReader,
-	rememberReadListenReaderEntry,
-} from "@/lib/read-listen/reader-session";
 import { transitionReadListenNavigation } from "@/lib/read-listen/view-transition";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

@@ -1,6 +1,6 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { ArrowSquareOut, Bug, GithubLogo } from "@phosphor-icons/react";
 import { SettingRow, SettingRows } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
 import { m } from "@/paraglide/messages";
 
 const PROJECT_URL = "https://github.com/Natsume-197/Nanahoshi";

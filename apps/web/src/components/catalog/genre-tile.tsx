@@ -1,6 +1,6 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, CSSProperties } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { getTintedCardStyle } from "@/utils/color";
 import {
 	coverPresets,

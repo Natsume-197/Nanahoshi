@@ -1,0 +1,37 @@
+{
+	"name": "@nanahoshi/ui",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./components/*": "./src/components/*.tsx",
+		"./hooks/*": "./src/hooks/*.ts",
+		"./lib/*": "./src/lib/*.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@base-ui/react": "^1.8.0",
+		"@phosphor-icons/react": "^2.1.10",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"next-themes": "^0.4.6",
+		"sonner": "^2.0.8",
+		"tailwind-merge": "^3.7.0"
+	},
+	"peerDependencies": {
+		"react": "19.3.0",
+		"react-dom": "19.3.0"
+	},
+	"devDependencies": {
+		"@nanahoshi/config": "workspace:*",
+		"@nanahoshi/test-utils": "workspace:*",
+		"@testing-library/react": "^16.3.3",
+		"@types/bun": "catalog:",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"react": "19.3.0",
+		"react-dom": "19.3.0",
+		"typescript": "catalog:"
+	}
+}

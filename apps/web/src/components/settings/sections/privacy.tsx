@@ -1,11 +1,11 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client, orpc, queryClient } from "@/utils/orpc";

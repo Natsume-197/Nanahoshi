@@ -1,8 +1,8 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Camera, CircleNotch } from "@phosphor-icons/react";
 import { type ChangeEvent, type ReactNode, type RefObject, useId } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
 /**
  * A labeled image slot with a preview, an upload button, and an optional

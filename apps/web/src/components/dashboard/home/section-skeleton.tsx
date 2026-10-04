@@ -1,8 +1,8 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { JSX } from "react";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
 export const DASHBOARD_LIMIT = 12;
 

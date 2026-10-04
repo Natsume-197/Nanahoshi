@@ -1,3 +1,12 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nanahoshi/ui/components/tabs";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { PencilSimple } from "@phosphor-icons/react";
 import {
 	useQuery,
@@ -32,16 +41,12 @@ import {
 	CollectionCardSkeleton,
 } from "@/components/shared/collection-card";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAbilities } from "@/hooks/use-abilities";
 import {
 	resolveCollectionPreview,
 	useCollectionPreviews,
 } from "@/hooks/use-collection-previews";
 import { PAGE_GUTTER } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { getHeaderImageSources } from "@/utils/profile-images";

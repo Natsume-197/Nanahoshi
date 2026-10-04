@@ -1,3 +1,9 @@
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { CaretUp, Headphones, WarningCircle, X } from "@phosphor-icons/react";
 import { memo, useMemo } from "react";
 import { MarqueeText } from "@/components/audio-player/marquee-text";
@@ -18,15 +24,9 @@ import {
 	ReadListenSentenceSeekButton,
 } from "@/components/audio-player/read-listen-player";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatChapterLabel, getChapterMarkerPercents } from "@/utils/chapters";
 import {

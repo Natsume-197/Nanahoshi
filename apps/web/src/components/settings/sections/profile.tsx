@@ -1,4 +1,9 @@
 import { env } from "@nanahoshi/env/web";
+import { Button } from "@nanahoshi/ui/components/button";
+import { FieldError } from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
@@ -10,11 +15,6 @@ import {
 	SettingRows,
 } from "@/components/settings/setting-rows";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { Button } from "@/components/ui/button";
-import { FieldError } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SESSION_QUERY_KEY } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";

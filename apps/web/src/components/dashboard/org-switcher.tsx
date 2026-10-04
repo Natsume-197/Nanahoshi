@@ -1,11 +1,4 @@
-import { Check, Plus, SignOut, Sliders, UserPlus } from "@phosphor-icons/react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { toast } from "sonner";
-import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { CreateServerDialog } from "@/components/servers/create-server-dialog";
-import { ServerBadge } from "@/components/shared/server-badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -14,9 +7,17 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { Check, Plus, SignOut, Sliders, UserPlus } from "@phosphor-icons/react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
+import { CreateServerDialog } from "@/components/servers/create-server-dialog";
+import { ServerBadge } from "@/components/shared/server-badge";
 import type { DashboardOrganization } from "@/functions/get-organizations";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "@/hooks/use-session";
@@ -25,7 +26,6 @@ import {
 	isServerScopedDetailPath,
 	switchActiveServer,
 } from "@/lib/switch-server";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export function OrgSwitcher({

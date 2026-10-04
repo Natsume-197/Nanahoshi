@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@nanahoshi/ui/lib/utils";
 
 function serverInitials(name: string) {
 	return name

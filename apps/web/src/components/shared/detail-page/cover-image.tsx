@@ -1,5 +1,5 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getMutedAccentSurfaceColor } from "@/utils/color";
 import { COVER_EDGE, coverPresets } from "@/utils/covers";

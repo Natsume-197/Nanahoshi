@@ -1,3 +1,9 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Slider } from "@nanahoshi/ui/components/slider";
+import { Switch } from "@nanahoshi/ui/components/switch";
+import { useOnUnmount } from "@nanahoshi/ui/hooks/use-on-unmount";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
 	ArrowCounterClockwise,
@@ -14,13 +20,8 @@ import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { useCornerRadius } from "@/hooks/use-corner-radius";
-import { useOnUnmount } from "@/hooks/use-on-unmount";
 import { applyStoredTheme, type Theme, useTheme } from "@/hooks/use-theme";
 import {
 	buildCustomPalette,
@@ -44,7 +45,6 @@ import {
 } from "@/lib/theme-palettes";
 import { cancelThemePreview, previewTheme } from "@/lib/theme-preview";
 import { RADIUS_MAX, RADIUS_MIN, RADIUS_STEP } from "@/lib/theme-radius";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const THEME_OPTIONS: {

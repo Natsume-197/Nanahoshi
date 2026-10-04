@@ -1,16 +1,16 @@
-import { Heart } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { memo } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { Heart } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { useAudioPlayerBook } from "@/context/audio-player-context";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { usePop } from "@/hooks/use-pop";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

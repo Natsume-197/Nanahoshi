@@ -1,14 +1,14 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
-import { Button } from "../ui/button";
 
 type Step = 1 | 2;
 

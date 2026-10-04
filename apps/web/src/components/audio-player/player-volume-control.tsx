@@ -1,13 +1,13 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { Button } from "@nanahoshi/ui/components/button";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
 import { memo, useRef } from "react";
 import { PlayerPopoverButton } from "@/components/audio-player/player-controls";
-import { Button } from "@/components/ui/button";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /**

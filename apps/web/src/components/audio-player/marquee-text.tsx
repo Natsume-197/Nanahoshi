@@ -1,8 +1,8 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useRef, useState } from "react";
 import { marqueeVars, shouldLoop } from "@/components/audio-player/marquee";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 
 /**
  * A line of text that scrolls end to end in one direction when it doesn't fit,

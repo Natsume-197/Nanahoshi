@@ -1,3 +1,22 @@
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	Field,
+	FieldDescription,
+	FieldGroup,
+	FieldLabel,
+} from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import {
 	ArrowSquareOut,
 	ArrowsClockwise,
@@ -14,25 +33,6 @@ import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-	Field,
-	FieldDescription,
-	FieldGroup,
-	FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 

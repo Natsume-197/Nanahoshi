@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	CaretDoubleLeft,
 	CaretDoubleRight,
@@ -5,7 +6,6 @@ import {
 	CaretRight,
 } from "@phosphor-icons/react";
 import { generatePageNumbers } from "@/components/profile/page-numbers";
-import { Button } from "@/components/ui/button";
 
 /** Paging controls shared by the profile tab grids. Renders nothing when
  *  everything fits on one page. */

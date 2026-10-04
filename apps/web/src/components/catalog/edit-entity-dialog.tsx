@@ -1,9 +1,9 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Textarea } from "@nanahoshi/ui/components/textarea";
 import { type FormEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { Textarea } from "@/components/ui/textarea";
 
 type EditValues = { name: string; description?: string | null };
 

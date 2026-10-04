@@ -17,6 +17,10 @@ Bun workspaces + Turborepo monorepo with the following packages:
 - `packages/db` — Drizzle ORM schema + PostgreSQL client
 - `packages/env` — Environment variable validation via `@t3-oss/env-core` + Zod
 - `packages/config` — Shared TypeScript/build config
+- `packages/ui` — shadcn components (`components/`), `cn` (`lib/utils`) and generic React hooks (`hooks/`), shared by the web app and the reader. Add shadcn components from `packages/ui` (it has its own `components.json`).
+- `packages/reader` — the book reader (engines, settings, reading tracker), embedded by the web app and the mobile WebView
+- `packages/reader-bridge` — message protocol between the reader running in the mobile WebView and the native host (oRPC calls are forwarded to the host's client)
+- `packages/test-utils` — `setup-dom` and `renderBindingHook` for Bun tests
 
 ## Commands
 
@@ -87,7 +91,6 @@ The **worker process** registers the BullMQ workers (never import worker modules
 - `metadata-enrich.worker` — background metadata enrichment
 - `cover-color.worker` — extracts dominant colors from book covers
 - `scheduled-scan.worker` — executes library scans and reprocesses (scheduled AND manual: the API only creates the task and enqueues a job on the `scheduled-scan` queue, so producer work never runs in the API process and survives restarts via BullMQ stalled-job retry)
-- `bookmeter-sync.worker` — imports linked bookmeter.com lists into user shelves (nightly sweep + on-link/manual jobs)
 - plus `ranobedb-import`, `send-to-kindle` and the task-progress listeners
 
 Long-running producers (scan phases, bulk enqueue loops) call `throwIfTaskCancelled(taskId)` between batches — cancelling a task stops the heavy work within seconds and always leaves self-healing state (e.g. `scanned_file` rows the next scan re-enqueues). Extend this pattern to any new bulk producer.
@@ -99,6 +102,10 @@ TanStack Start (SSR-capable) + TanStack Router (file-based routing). Route files
 The oRPC client is wired into TanStack Query via `createTanstackQueryUtils` in `apps/web/src/utils/orpc.ts`. Use `orpc.<router>.<procedure>.queryOptions(...)` for queries in route loaders and components.
 
 Route context provides `{ orpc, queryClient }` — auth guards use `beforeLoad` to check session and redirect to `/login`.
+
+The reader lives in `packages/reader` (`@nanahoshi/reader`) because the web app and the mobile WebView both embed it. It depends on workspace packages only, never on an app (`src/boundary.test.ts` enforces it), and exposes an explicit public API through `exports` in its `package.json`. It reaches the server and the app only through the `ReaderHost` bound at startup (`packages/reader/src/host/reader-host.ts`; the web binding is `apps/web/src/lib/reader-host.ts`). The reader package also owns the reading-session panel, the stats page (`src/stats`) and Read & Listen's runtime (`src/read-listen`); Read & Listen plays through `ReaderHost.readListenAudio` (the web's HTML audio player, or the phone's native player over the bridge), and app links go through `openAppRoute`/`AppLink`. Web-only wiring (router, org switching, the gateway socket, Read & Listen's URL mode) lives in `apps/web/src/features/reader-web`. The reader has its own Paraglide catalog in `packages/reader/src/i18n/messages`; its locale follows the host.
+
+The mobile app (`apps/mobile`) shows the reader through `apps/reader-embed`: a Vite build of one self-contained HTML (`bun run --cwd apps/mobile reader:bundle`) opened from `file://` in a WebView. The app is its host: it answers the page's oRPC calls with its own client, downloads books to the document directory (so they open offline) and drives the native audio player for Read & Listen.
 
 ### Infrastructure (`packages/api/src/infrastructure`)
 
@@ -158,7 +165,7 @@ Unit tests mock external infrastructure. Integration tests run separately with `
 
 ### Escape hatch: `useMountEffect`
 
-Defined in `apps/web/src/hooks/use-mount-effect.ts`. This is the **only** place `useEffect` is imported directly. Use it exclusively for setup/cleanup of external systems on mount (service workers, SSE, IndexedDB repair, etc.).
+Defined in `packages/ui/src/hooks/use-mount-effect.ts` (import `@nanahoshi/ui/hooks/use-mount-effect`). This is the **only** place `useEffect` is imported directly. Use it exclusively for setup/cleanup of external systems on mount (service workers, SSE, IndexedDB repair, etc.).
 
 ### Utility hooks (prefer these over `useMountEffect` in components)
 
@@ -169,7 +176,7 @@ These hooks encapsulate `useMountEffect` internally so components stay declarati
 - `useInterval(callback, ms)` — run a callback on a fixed interval
 - `useOnUnmount(callback)` — run a callback when the component unmounts
 
-All live in `apps/web/src/hooks/`.
+All live in `packages/ui/src/hooks/`.
 
 ### Render-phase patterns
 

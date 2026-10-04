@@ -1,11 +1,11 @@
-import { ArrowSquareOut } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from "@nanahoshi/ui/components/context-menu";
+import { ArrowSquareOut } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 
 interface SeriesContextMenuProps {
 	/** Series detail page URL (already encoded) — the caller owns the route. */

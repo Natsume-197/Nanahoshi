@@ -1,3 +1,14 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -6,17 +17,6 @@ import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";

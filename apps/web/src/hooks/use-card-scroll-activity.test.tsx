@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { expect, test } from "bun:test";
 import { fireEvent, renderHook } from "@testing-library/react";
 import { useCardScrollActivity } from "./use-card-scroll-activity";

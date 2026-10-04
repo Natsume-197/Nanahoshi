@@ -68,6 +68,9 @@
 		"esbuild": "0.28.2",
 		"sharp": "0.35.4"
 	},
+	"patchedDependencies": {
+		"react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch"
+	},
 	"packageManager": "bun@1.4.2",
 	"dependencies": {
 		"posthog-js": "^1.433.10",

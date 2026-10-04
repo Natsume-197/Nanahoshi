@@ -1,4 +1,5 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { BookmarkSimple } from "@phosphor-icons/react";
 import { memo, useMemo, useState } from "react";
 import {
@@ -19,7 +20,6 @@ import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	formatChapterLabel,

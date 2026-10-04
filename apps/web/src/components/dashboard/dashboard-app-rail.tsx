@@ -1,4 +1,7 @@
 import { ScrollArea } from "@base-ui/react/scroll-area";
+import { ReadListenIcon } from "@nanahoshi/reader/ui/read-listen-icon";
+import { useWindowEvent } from "@nanahoshi/ui/hooks/use-window-event";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	BookOpen,
 	BookOpenText,
@@ -21,10 +24,7 @@ import {
 } from "@/components/dashboard/rail-nav";
 import { RailResizeHandle } from "@/components/dashboard/rail-resize-handle";
 import { RailSectionTitle } from "@/components/dashboard/rail-section";
-import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
-import { useWindowEvent } from "@/hooks/use-window-event";
 import { toggleRail } from "@/lib/rail-store";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

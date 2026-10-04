@@ -1,3 +1,8 @@
+import {
+	ContextMenu,
+	ContextMenuTrigger,
+} from "@nanahoshi/ui/components/context-menu";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	createContext,
@@ -10,9 +15,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { MediaType } from "@/hooks/books/use-book-context-menu-actions";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { orpc } from "@/utils/orpc";
 
 const MENU_STALE_TIME = 60_000;

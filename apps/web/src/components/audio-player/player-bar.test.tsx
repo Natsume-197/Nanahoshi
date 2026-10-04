@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { m } from "@/paraglide/messages";
@@ -52,7 +52,7 @@ mock.module("@/components/audio-player/read-listen-player", () => ({
 const { cleanup, fireEvent, render, waitFor } = await import(
 	"@testing-library/react"
 );
-const { TooltipProvider } = await import("@/components/ui/tooltip");
+const { TooltipProvider } = await import("@nanahoshi/ui/components/tooltip");
 const { PlayerBar } = await import("./player-bar");
 
 beforeEach(() => {

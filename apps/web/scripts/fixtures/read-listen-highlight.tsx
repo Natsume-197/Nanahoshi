@@ -1,5 +1,5 @@
-import type { LazyHtmlBook } from "../../src/features/reader/document/lazy-html-book";
-import { countTextCharacters } from "../../src/features/reader/document/processing/character-count";
+import type { LazyHtmlBook } from "../../../../packages/reader/src/document/lazy-html-book";
+import { countTextCharacters } from "../../../../packages/reader/src/document/processing/character-count";
 
 declare global {
 	interface Window {
@@ -25,11 +25,11 @@ import { createRoot } from "react-dom/client";
 import {
 	ActiveReadListenCue,
 	ReadListenManualFollowPause,
-} from "../../src/components/read-listen/read-listen-bindings";
-import type { BookReaderApi } from "../../src/features/reader/reader-contract";
-import { BookReaderContinuous } from "../../src/features/reader/renderers/continuous/book-reader-continuous";
-import { BookReaderPaginated } from "../../src/features/reader/renderers/paginated/book-reader-paginated";
-import { resolveReadListenTimelinePosition } from "../../src/lib/read-listen/timeline";
+} from "../../../../packages/reader/src/read-listen/read-listen-bindings";
+import { resolveReadListenTimelinePosition } from "../../../../packages/reader/src/read-listen/timeline";
+import type { BookReaderApi } from "../../../../packages/reader/src/reader-contract";
+import { BookReaderContinuous } from "../../../../packages/reader/src/renderers/continuous/book-reader-continuous";
+import { BookReaderPaginated } from "../../../../packages/reader/src/renderers/paginated/book-reader-paginated";
 
 const params = new URLSearchParams(location.search);
 const verticalMode = params.get("vertical") === "true";

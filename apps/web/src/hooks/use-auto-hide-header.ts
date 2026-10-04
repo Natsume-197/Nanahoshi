@@ -1,6 +1,6 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { useRouter } from "@tanstack/react-router";
 import type { RefObject } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { type AutoHideState, resolveAutoHide } from "@/lib/auto-hide-header";
 
 /**

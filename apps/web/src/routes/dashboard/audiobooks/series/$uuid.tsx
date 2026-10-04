@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { BookCard } from "@/components/books/book-card";
@@ -8,7 +9,6 @@ import {
 } from "@/components/books/book-context-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PAGE_SHELL } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";
 

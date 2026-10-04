@@ -1,4 +1,4 @@
-import { useMountEffect } from "@/hooks/use-mount-effect";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { gatewaySubscribe } from "./gateway-client";
 
 /**

@@ -1,6 +1,6 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { memo } from "react";
 import { useAudioPlayerState } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { getActiveChapterIndex } from "@/utils/chapters";
 import { formatTime } from "@/utils/format";
 

@@ -1,6 +1,6 @@
 import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { useCallback, useState } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { searchResultKey } from "@/lib/search-result-batches";
 
 const STORAGE_KEY = "nanahoshi:search-history";

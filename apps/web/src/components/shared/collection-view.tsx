@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { Key, ReactNode } from "react";
 import { BookCardSkeleton } from "@/components/books/book-card-skeleton";
 import { CollectionSearch } from "@/components/shared/collection-search";
@@ -8,7 +9,6 @@ import {
 	VirtualizedCardGrid,
 } from "@/components/shared/virtualized-card-grid";
 import { PAGE_SHELL } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 

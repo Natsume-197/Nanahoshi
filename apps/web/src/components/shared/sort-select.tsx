@@ -4,7 +4,7 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from "@nanahoshi/ui/components/select";
 
 export interface SortOption<T extends string> {
 	value: T;

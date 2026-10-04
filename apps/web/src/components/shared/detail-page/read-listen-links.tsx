@@ -1,9 +1,9 @@
+import { resolveReadListenPairState } from "@nanahoshi/reader/read-listen/pairing";
+import { DropdownMenuItem } from "@nanahoshi/ui/components/dropdown-menu";
 import { BookOpen, Headphones, Waveform } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { resolveReadListenPairState } from "@/lib/read-listen/pairing";
 import { m } from "@/paraglide/messages";
 import { formatReadingTime } from "@/utils/format";
 import { type client, orpc } from "@/utils/orpc";

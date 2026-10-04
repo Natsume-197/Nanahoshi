@@ -1,3 +1,7 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import {
 	CircleNotch,
 	DeviceMobile,
@@ -13,10 +17,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { SettingRows } from "@/components/settings/setting-rows";
 import { DiscordIcon } from "@/components/shared/discord-icon";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCompleteSignOut } from "@/hooks/use-complete-sign-out";
 import { authClient } from "@/lib/auth-client";
 import { revokeAllSessionsAndSignOut } from "@/lib/revoke-all-sessions";

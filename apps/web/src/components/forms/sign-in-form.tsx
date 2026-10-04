@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { Key } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
@@ -11,7 +12,6 @@ import {
 } from "@/components/forms/auth-shell";
 import { OAuthErrorNotice } from "@/components/forms/oauth-error-notice";
 import { DiscordIcon } from "@/components/shared/discord-icon";
-import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import type { client } from "@/utils/orpc";

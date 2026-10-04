@@ -1,11 +1,11 @@
 import type { LibraryComplete } from "@nanahoshi/api/routers/libraries/library.model";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
 	SettingControlRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Switch } from "@/components/ui/switch";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { invalidateLibraries } from "./utils";

@@ -1,6 +1,6 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Books, CheckCircle, Hourglass, Warning } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	ALL_BUCKETS,

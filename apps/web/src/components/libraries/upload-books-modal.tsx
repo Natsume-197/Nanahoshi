@@ -3,6 +3,18 @@ import {
 	MAX_UPLOAD_BYTES,
 } from "@nanahoshi/api/modules/scanning/supportedExtensions";
 import { env } from "@nanahoshi/env/web";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@nanahoshi/ui/components/select";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowClockwise,
 	CheckCircle,
@@ -15,23 +27,11 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { type DragEvent, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { posthog } from "@/lib/posthog";
 import {
 	UploadRequestError,
 	uploadWithProgress,
 } from "@/lib/upload-with-progress";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatFileSize } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";

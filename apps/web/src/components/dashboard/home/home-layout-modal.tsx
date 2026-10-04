@@ -19,6 +19,10 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Switch } from "@nanahoshi/ui/components/switch";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	CaretDown,
 	CaretUp,
@@ -26,9 +30,6 @@ import {
 	ListDashes,
 } from "@phosphor-icons/react";
 import { type CSSProperties, type JSX, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Switch } from "@/components/ui/switch";
 import {
 	getDefaultHomeLayout,
 	type HomeSectionId,
@@ -36,7 +37,6 @@ import {
 	setHomeLayout,
 	useHomeLayout,
 } from "@/lib/home-layout-store";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const sectionLabels = {

@@ -1,10 +1,10 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import {
 	SettingRow,
 	SettingRows,
 	SettingStatRow,
 } from "@/components/settings/setting-rows";
-import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";

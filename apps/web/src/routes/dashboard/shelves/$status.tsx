@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { ArrowLeft, CircleNotch } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -20,7 +21,6 @@ import {
 } from "@/components/shared/shelf-card";
 import { parseLibraryFormat } from "@/lib/library-format";
 import { PAGE_SHELL } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { BOOK_GRID_CLASS } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";

@@ -1,3 +1,9 @@
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
 import { Palette } from "@phosphor-icons/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -11,12 +17,6 @@ import { createRoot } from "react-dom/client";
 import { DashboardHeaderSearch } from "@/components/dashboard/dashboard-header-search";
 import { SettingsSidebarNav } from "@/components/settings/settings-sidebar-nav";
 import { CategorySelector } from "@/components/shared/category-selector";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
 	applyPaletteVars,
 	DEFAULT_GRADIENT_INPUT,

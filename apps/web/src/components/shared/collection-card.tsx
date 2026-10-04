@@ -1,8 +1,8 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { FolderSimple, FunnelSimple } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	coverPresets,

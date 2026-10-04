@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, test } from "bun:test";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { useSearchHistory } from "./use-search-history";

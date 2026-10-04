@@ -1,7 +1,7 @@
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { InputHTMLAttributes, ReactNode } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 const authInputClass = "h-11 border-border bg-input";
 

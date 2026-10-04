@@ -14,8 +14,8 @@
 	"rtl": false,
 	"aliases": {
 		"components": "@/components",
-		"utils": "@/lib/utils",
-		"ui": "@/components/ui",
+		"utils": "@nanahoshi/ui/lib/utils",
+		"ui": "@nanahoshi/ui/components",
 		"lib": "@/lib",
 		"hooks": "@/hooks"
 	},

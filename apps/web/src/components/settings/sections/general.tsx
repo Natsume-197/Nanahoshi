@@ -1,3 +1,14 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldLabel,
+} from "@nanahoshi/ui/components/field";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
 import { CircleNotch } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -9,17 +20,6 @@ import {
 	SettingRow,
 	SettingRows,
 } from "@/components/settings/setting-rows";
-import { Button } from "@/components/ui/button";
-import {
-	Field,
-	FieldDescription,
-	FieldError,
-	FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { useAbilities } from "@/hooks/use-abilities";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";

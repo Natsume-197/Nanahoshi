@@ -2,15 +2,29 @@ import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/read
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import { summarizeReading } from "../../../../packages/api/src/routers/reading-sessions/reading-statistics";
-import { ReaderHeader } from "../../src/features/reader/ui/chrome/reader-header";
-import { ReadingHistory } from "../../src/features/reading-sessions/reading-history";
-import { ReadingSessionControl } from "../../src/features/reading-sessions/reading-session-control";
-import { useReadingTracker } from "../../src/features/reading-sessions/use-reading-tracker";
+import { bindReaderHost } from "../../../../packages/reader/src/host/reader-host";
+import { ReadingHistory } from "../../../../packages/reader/src/sessions/reading-history";
+import { ReadingSessionControl } from "../../../../packages/reader/src/sessions/reading-session-control";
+import { useReadingTracker } from "../../../../packages/reader/src/tracking/use-reading-tracker";
+import { ReaderHeader } from "../../../../packages/reader/src/ui/chrome/reader-header";
 import { setLocale } from "../../src/paraglide/runtime";
-import { orpc } from "../../src/utils/orpc";
+import { client, orpc } from "../../src/utils/orpc";
 import "../../src/index.css";
 
 setLocale("es", { reload: false });
+// The reader's panels reach the server through the host; the web client's
+// requests are answered by the fetch stub below.
+bindReaderHost({
+	api: client,
+	locale: () => "es",
+	coverUrl: () => "",
+	setChromeColor: () => {},
+	notifyError: () => {},
+	openAppRoute: () => {},
+	usePlayAudiobook: () => () => {},
+	onProgressSaved: () => {},
+	onReadingSessionEnded: () => {},
+});
 const qc = new QueryClient({
 	defaultOptions: {
 		queries: { staleTime: Number.POSITIVE_INFINITY, retry: false },

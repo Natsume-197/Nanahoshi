@@ -1,7 +1,7 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { JSX } from "react";
 import { COMPACT_TEXT_BLOCK_CLASS } from "@/components/books/book-card-shell";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
 interface BookCardSkeletonProps {
 	className?: string;

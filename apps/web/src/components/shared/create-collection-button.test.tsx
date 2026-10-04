@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
 
@@ -22,7 +22,7 @@ mock.module("@/components/collections/dynamic-collection-editor", () => ({
 	DynamicCollectionEditor: () => <section aria-label="Dynamic editor" />,
 }));
 
-mock.module("@/components/ui/modal", () => ({
+mock.module("@nanahoshi/ui/components/modal", () => ({
 	Modal: ({
 		title,
 		children,

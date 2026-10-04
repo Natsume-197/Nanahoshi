@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { BookOpen, CircleNotch, Play } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { memo, type ReactNode, useCallback, useRef } from "react";
@@ -9,7 +10,6 @@ import { AuthorLinkList } from "@/components/books/author-link-list";
 import { BookCardShell } from "@/components/books/book-card-shell";
 import { BookContextMenu } from "@/components/books/book-context-menu";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	type CoverPreset,

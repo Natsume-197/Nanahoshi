@@ -1,8 +1,8 @@
+import type { ReaderThemeColors } from "@nanahoshi/reader/presentation/settings";
+import { ReadListenIcon } from "@nanahoshi/reader/ui/read-listen-icon";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Crosshair, CursorClick } from "@phosphor-icons/react";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
-import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
-import type { ReaderThemeColors } from "@/features/reader/presentation/settings";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 /** Read & Listen contributes context to the player, never playback controls. */

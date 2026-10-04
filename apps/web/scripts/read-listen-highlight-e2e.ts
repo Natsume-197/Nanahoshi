@@ -28,7 +28,7 @@ const build = await Bun.build({
 });
 if (!build.success) throw new Error(build.logs.join("\n"));
 const css = await Bun.file(
-	resolve(import.meta.dir, "../src/features/reader/ui/styles/reader.css"),
+	resolve(import.meta.dir, "../../../packages/reader/src/ui/styles/reader.css"),
 ).text();
 const server = Bun.serve({
 	port: 0,

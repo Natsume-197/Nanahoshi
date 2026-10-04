@@ -2,10 +2,10 @@
 // Read & Listen pairings), so both lists look and behave the same around
 // their rows.
 
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
 import { CaretLeft, CaretRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { Fragment, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { m } from "@/paraglide/messages";
 import { visiblePageNumbers } from "./pagination";
 

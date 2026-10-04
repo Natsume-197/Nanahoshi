@@ -19,13 +19,13 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { DotsSixVertical, GearSix } from "@phosphor-icons/react";
 import { type CSSProperties, type ReactNode, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export type MediaType = "ebook" | "audiobook";

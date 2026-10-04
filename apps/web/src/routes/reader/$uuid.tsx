@@ -2,8 +2,8 @@ import { ORPCError } from "@orpc/client";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import {
 	ReaderRoutePending,
-	ReaderScreen,
-} from "@/features/reader/reader-screen";
+	WebReaderScreen,
+} from "@/features/reader-web/web-reader-screen";
 import { getBook } from "@/functions/books/get-book";
 import { fetchLoaderQuery } from "@/lib/loader-query";
 import { optionalUuid } from "@/lib/search-validators";
@@ -44,7 +44,7 @@ function ReaderRoute() {
 	const { uuid } = Route.useParams();
 	const { pair } = Route.useSearch();
 	return (
-		<ReaderScreen
+		<WebReaderScreen
 			book={book}
 			switchedOrgId={switchedOrgId}
 			uuid={uuid}

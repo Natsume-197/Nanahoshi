@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { type JSX, memo } from "react";
 import { BookContextMenuRoot } from "@/components/books/book-context-menu";
 import { PAGE_GUTTER } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { AudiobookSeriesSection } from "../home/audiobook-series-section";
 import { BookSeriesSection } from "../home/book-series-section";
 import { ContinueSection } from "../home/continue-section";

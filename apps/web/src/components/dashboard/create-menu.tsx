@@ -1,14 +1,14 @@
-import { Books, FolderPlus, Plus, UploadSimple } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
-import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { Button } from "@/components/ui/button";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { Books, FolderPlus, Plus, UploadSimple } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense, useState } from "react";
+import { useSettingsModal } from "@/components/layout/settings-modal-context";
 import { useAbilities } from "@/hooks/use-abilities";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";

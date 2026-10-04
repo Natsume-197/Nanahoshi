@@ -1,6 +1,6 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { type JSX, useRef } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { m } from "@/paraglide/messages";
 import { getHomePrefetchDistance } from "./progressive-home-sections";
 

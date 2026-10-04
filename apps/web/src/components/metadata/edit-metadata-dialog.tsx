@@ -1,13 +1,13 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Textarea } from "@nanahoshi/ui/components/textarea";
 import { CircleNotch, LockSimple, LockSimpleOpen } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { Textarea } from "@/components/ui/textarea";
 import { m } from "@/paraglide/messages";
 import { getErrorMessage } from "@/utils/format";
 import { client } from "@/utils/orpc";

@@ -1,7 +1,7 @@
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { toast } from "sonner";
 import { switchActiveServer } from "@/lib/switch-server";
 import { m } from "@/paraglide/messages";
-import { useMountEffect } from "./use-mount-effect";
 
 /**
  * Syncs the client-side active server when a book loader resolved the

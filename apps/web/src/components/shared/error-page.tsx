@@ -1,6 +1,6 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { ArrowClockwise, House, Warning } from "@phosphor-icons/react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
 
 interface ErrorPageProps {
 	title?: string;

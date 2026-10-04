@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, describe, expect, test } from "bun:test";
 import { downloadFromUrl } from "./download";
 

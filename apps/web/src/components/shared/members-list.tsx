@@ -1,28 +1,28 @@
-import { BookOpen, DotsThree, Headphones } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useRef, useState } from "react";
-import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
-import { resolveLiveListeningPosition } from "@/components/shared/member-activity-progress";
-import { PRESENCE_DOT } from "@/components/shared/presence-dot";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { ReadListenIcon } from "@nanahoshi/reader/ui/read-listen-icon";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@nanahoshi/ui/components/dropdown-menu";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTitle,
 	PopoverTrigger,
-} from "@/components/ui/popover";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useInterval } from "@/hooks/use-interval";
+} from "@nanahoshi/ui/components/popover";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { useInterval } from "@nanahoshi/ui/hooks/use-interval";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { BookOpen, DotsThree, Headphones } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef, useState } from "react";
+import { resolveLiveListeningPosition } from "@/components/shared/member-activity-progress";
+import { PRESENCE_DOT } from "@/components/shared/presence-dot";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import type { PresenceState } from "@/hooks/use-presence-events";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	coverPresets,

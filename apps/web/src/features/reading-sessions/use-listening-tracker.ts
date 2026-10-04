@@ -1,14 +1,17 @@
 import type { SessionUpload } from "@nanahoshi/api/routers/reading-sessions/reading-sessions.model";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import { useMountEffect } from "@/hooks/use-mount-effect";
-import { client, orpc } from "@/utils/orpc";
-import { ListeningClock, type Playback } from "./listening-clock";
+import {
+	ListeningClock,
+	type Playback,
+} from "@nanahoshi/reader/sessions/listening-clock";
 import {
 	persistSession,
 	sessionOwnerLock,
 	syncSessionOutbox,
-} from "./session-outbox";
+} from "@nanahoshi/reader/tracking/session-outbox";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
+import { client, orpc } from "@/utils/orpc";
 
 interface Options {
 	userId: string | undefined;

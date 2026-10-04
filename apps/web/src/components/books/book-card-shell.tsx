@@ -1,10 +1,10 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useInSweepScroll } from "@/components/shared/sweep-scroll-context";
 import { useInVirtualizedCardGrid } from "@/components/shared/virtualized-card-grid";
 import { useHideCardText } from "@/hooks/use-card-display-preferences";
 import { detectTextLang } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	getHoverTintStyle,

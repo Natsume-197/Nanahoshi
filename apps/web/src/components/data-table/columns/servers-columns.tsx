@@ -1,3 +1,10 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
 import { DotsThree, Trash } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
@@ -6,13 +13,6 @@ import {
 	DataTableColumnHeader,
 	defineTableFeatures,
 } from "@/components/data-table";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { getErrorMessage } from "@/utils/format";
 import { orpc, queryClient } from "@/utils/orpc";
 

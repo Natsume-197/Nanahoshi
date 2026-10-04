@@ -19,10 +19,10 @@ export function removeLegacyOfflineStorage(): void {
 /** Sign-out cleanup for every browser cache, including private reader files. */
 export async function clearOfflineCaches(): Promise<void> {
 	const readerCache = await import(
-		"@/features/reader/document/reader-book-cache"
+		"@nanahoshi/reader/document/reader-book-cache"
 	);
 	const readerStorage = await import(
-		"@/features/reader/presentation/reader-storage"
+		"@nanahoshi/reader/presentation/reader-storage"
 	);
 	await readerCache.clearReaderBookCache();
 	readerStorage.clearReaderStorage();

@@ -1,3 +1,7 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	BookmarkSimple,
 	Check,
@@ -13,15 +17,11 @@ import {
 	useBookmarks,
 } from "@/components/audio-player/bookmarks";
 import { PlayerPopoverButton } from "@/components/audio-player/player-controls";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
 	useAudioPlayerActions,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { formatChapterLabel, getActiveChapterIndex } from "@/utils/chapters";
 import { formatTime } from "@/utils/format";

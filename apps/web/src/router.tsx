@@ -1,11 +1,16 @@
+import { bindUiLabels } from "@nanahoshi/ui/lib/labels";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
 import { ErrorPage, NotFoundPage } from "./components/shared/error-page";
 import { getSessionErrorKind } from "./lib/auth-session-error";
+import { bindWebReaderHost, bindWebReaderRouter } from "./lib/reader-host";
 import { m } from "./paraglide/messages";
 import { routeTree } from "./routeTree.gen";
 import { createQueryClient, orpc, queryClient } from "./utils/orpc";
+
+bindWebReaderHost();
+bindUiLabels({ close: () => m["common.close"]() });
 
 export const getRouter = () => {
 	// The browser owns one long-lived cache. Every SSR request gets an isolated
@@ -55,6 +60,7 @@ export const getRouter = () => {
 			</QueryClientProvider>
 		),
 	});
+	bindWebReaderRouter(router);
 	return router;
 };
 

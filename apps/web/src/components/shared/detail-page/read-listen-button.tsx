@@ -1,15 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { ReadListenIcon } from "@/components/read-listen/read-listen-icon";
-import { Button } from "@/components/ui/button";
+import { findReadyReadListenPairings } from "@nanahoshi/reader/read-listen/pairing";
+import { ReadListenIcon } from "@nanahoshi/reader/ui/read-listen-icon";
+import { Button } from "@nanahoshi/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { findReadyReadListenPairings } from "@/lib/read-listen/pairing";
-import { cn } from "@/lib/utils";
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { HERO_SECONDARY_BUTTON } from "./detail-hero";

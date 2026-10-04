@@ -32,7 +32,7 @@ esac
 
 # Deterministic order so local and CI enumerate identically.
 mapfile -t files < <(
-	find apps/server/src apps/web/src apps/web/scripts packages/api/src packages/auth/src packages/env/src packages/ebook-parser/src packages/read-listen/src packages/db/src scripts \
+	find apps/server/src apps/mobile/src apps/web/src apps/reader-embed/src apps/web/scripts packages/api/src packages/auth/src packages/env/src packages/ebook-parser/src packages/read-listen/src packages/db/src packages/ui/src packages/reader-bridge/src packages/reader/src scripts \
 		\( -name "*.test.ts" -o -name "*.test.tsx" \) | sort
 )
 

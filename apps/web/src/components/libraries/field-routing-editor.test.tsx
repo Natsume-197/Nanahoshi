@@ -1,4 +1,4 @@
-import "@/test-utils/setup-dom";
+import "@nanahoshi/test-utils/setup-dom";
 import { afterEach, expect, test } from "bun:test";
 import { useState } from "react";
 import { m } from "@/paraglide/messages";

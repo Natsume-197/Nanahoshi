@@ -35,6 +35,14 @@ export default defineConfig(({ command }) => ({
 			strategy: ["cookie", "preferredLanguage", "baseLocale"],
 			cookieName: "locale",
 		}),
+		// The reader's own catalog; its locale follows the host (see reader-host).
+		paraglideVitePlugin({
+			project: "../../packages/reader/src/i18n/project.inlang",
+			outdir: "../../packages/reader/src/i18n/paraglide",
+			outputStructure:
+				command === "serve" ? "locale-modules" : "message-modules",
+			strategy: ["globalVariable", "baseLocale"],
+		}),
 		tailwindcss(),
 		tanstackStart(),
 		viteReact(),

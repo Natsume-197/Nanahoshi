@@ -1,3 +1,29 @@
+import { ReadingHistory } from "@nanahoshi/reader/sessions/reading-history";
+import { Badge } from "@nanahoshi/ui/components/badge";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nanahoshi/ui/components/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowCounterClockwise,
 	BookmarkSimple,
@@ -58,26 +84,6 @@ import {
 	type DetailListRow,
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ReadingHistory } from "@/features/reading-sessions/reading-history";
 import type { getBook } from "@/functions/books/get-book";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
@@ -85,7 +91,6 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { usePop } from "@/hooks/use-pop";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import {

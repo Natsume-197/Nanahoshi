@@ -1,7 +1,7 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { getLocale } from "@/paraglide/runtime";
 
 /** Vertically stacked settings rows grouped by spacing rather than repeated rules. */

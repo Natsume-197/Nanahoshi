@@ -1,3 +1,4 @@
+import { Badge } from "@nanahoshi/ui/components/badge";
 import { BookOpen, Headphones } from "@phosphor-icons/react";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -7,7 +8,6 @@ import {
 	SectionSkeleton,
 } from "@/components/dashboard/home/section-skeleton";
 import { ScrollSection } from "@/components/shared/scroll-section";
-import { Badge } from "@/components/ui/badge";
 import { m } from "@/paraglide/messages";
 import { coverPresets } from "@/utils/covers";
 import { orpc } from "@/utils/orpc";

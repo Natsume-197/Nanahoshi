@@ -1,7 +1,7 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { BookOpen, Headphones } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { typesetProps } from "@/lib/text-lang";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	COVER_EDGE,

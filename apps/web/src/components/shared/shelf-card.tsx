@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import type { Icon } from "@phosphor-icons/react";
 import {
 	Bookmark,
@@ -11,7 +12,6 @@ import {
 import { Link } from "@tanstack/react-router";
 import type { JSX } from "react";
 import type { LibraryFormat } from "@/lib/library-format";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { CollectionArtwork } from "./collection-card";
 

@@ -1,3 +1,4 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { Plus } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,7 +8,6 @@ import {
 	serversTableFeatures,
 } from "@/components/data-table/columns/servers-columns";
 import { CreateServerDialog } from "@/components/servers/create-server-dialog";
-import { Button } from "@/components/ui/button";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 

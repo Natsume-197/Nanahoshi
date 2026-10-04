@@ -1,3 +1,4 @@
+import { useWindowEvent } from "@nanahoshi/ui/hooks/use-window-event";
 import { useRef } from "react";
 import {
 	resolvePlayerShortcut,
@@ -9,7 +10,6 @@ import {
 	useAudioPlayerExpanded,
 	useAudioPlayerState,
 } from "@/context/audio-player-context";
-import { useWindowEvent } from "@/hooks/use-window-event";
 
 /**
  * Space to play, arrows to jump, shift+arrows for chapters, up/down for volume,

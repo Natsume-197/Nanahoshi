@@ -1,0 +1,33 @@
+"use client";
+
+import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
+import type * as React from "react";
+
+import { cn } from "../lib/utils";
+
+function Switch({
+	className,
+	size = "default",
+	...props
+}: React.ComponentProps<typeof SwitchPrimitive.Root> & {
+	size?: "sm" | "default";
+}) {
+	return (
+		<SwitchPrimitive.Root
+			data-slot="switch"
+			data-size={size}
+			className={cn(
+				"peer group/switch relative inline-flex shrink-0 cursor-pointer items-center rounded-2xl border-2 outline-none transition-all after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=default]:h-5 data-[size=sm]:h-4 data-[size=default]:w-8 data-[size=sm]:w-6 data-disabled:cursor-not-allowed data-checked:border-primary data-unchecked:border-switch-off-edge data-checked:bg-primary data-unchecked:bg-switch-off data-disabled:opacity-50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+				className,
+			)}
+			{...props}
+		>
+			<SwitchPrimitive.Thumb
+				data-slot="switch-thumb"
+				className="pointer-events-none block rounded-2xl bg-background bg-clip-padding shadow-sm ring-0 transition-transform data-checked:translate-x-[calc(100%-4px)] data-unchecked:translate-x-0 data-checked:bg-primary-foreground group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3"
+			/>
+		</SwitchPrimitive.Root>
+	);
+}
+
+export { Switch };

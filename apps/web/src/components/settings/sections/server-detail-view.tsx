@@ -1,3 +1,5 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components/data-table";
@@ -5,8 +7,6 @@ import {
 	orgMembersColumns,
 	orgMembersTableFeatures,
 } from "@/components/data-table/columns/org-members-columns";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/utils/orpc";
 
 export function ServerDetailView({

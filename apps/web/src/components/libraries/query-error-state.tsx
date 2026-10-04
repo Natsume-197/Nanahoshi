@@ -1,5 +1,5 @@
+import { Button } from "@nanahoshi/ui/components/button";
 import { WarningCircle } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { m } from "@/paraglide/messages";
 
 export function QueryErrorState({

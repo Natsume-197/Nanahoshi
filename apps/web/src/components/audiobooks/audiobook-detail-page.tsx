@@ -1,3 +1,24 @@
+import { ReadingHistory } from "@nanahoshi/reader/sessions/reading-history";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@nanahoshi/ui/components/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowCounterClockwise,
 	BookmarkSimple,
@@ -57,28 +78,12 @@ import {
 	DetailListSection,
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useIsAudiobookLoading } from "@/context/audio-player-context";
-import { ReadingHistory } from "@/features/reading-sessions/reading-history";
 import type { getAudiobook } from "@/functions/books/get-audiobook";
 import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
 import { usePop } from "@/hooks/use-pop";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	coverPresets,

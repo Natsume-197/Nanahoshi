@@ -1,9 +1,9 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Label } from "@nanahoshi/ui/components/label";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { type ComponentType, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 export type SettingsNavIcon = ComponentType<{

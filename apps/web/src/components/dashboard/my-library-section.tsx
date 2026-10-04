@@ -21,6 +21,18 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuTrigger,
+} from "@nanahoshi/ui/components/context-menu";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@nanahoshi/ui/components/tooltip";
+import { cn } from "@nanahoshi/ui/lib/utils";
+import {
 	BookmarkSimple,
 	Check,
 	Clock,
@@ -45,17 +57,6 @@ import {
 	type ShelfBucket,
 	shelfBucketMeta,
 } from "@/components/shared/shelf-card";
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useAbilities } from "@/hooks/use-abilities";
 import {
 	resolveCollectionPreview,
@@ -68,7 +69,6 @@ import {
 	toggleRailPin,
 } from "@/lib/rail-library-layout";
 import { useRailState } from "@/lib/rail-store";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	coverPresets,

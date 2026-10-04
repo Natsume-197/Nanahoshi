@@ -1,5 +1,23 @@
 import { AUDIOBOOK_PROVIDER_MANIFEST } from "@nanahoshi/api/routers/audiobooks/metadata/providers/provider.manifest";
 import { BOOK_PROVIDER_MANIFEST } from "@nanahoshi/api/routers/books/metadata/providers/provider.manifest";
+import { Button } from "@nanahoshi/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@nanahoshi/ui/components/dropdown-menu";
+import { Input } from "@nanahoshi/ui/components/input";
+import { Switch } from "@nanahoshi/ui/components/switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@nanahoshi/ui/components/table";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowCounterClockwise,
 	ArrowsClockwise,
@@ -12,24 +30,6 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	type MediaType,

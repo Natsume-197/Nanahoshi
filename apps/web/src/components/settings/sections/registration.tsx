@@ -1,3 +1,6 @@
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { Switch } from "@nanahoshi/ui/components/switch";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { Check, EnvelopeSimple, Prohibit, Ticket } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
@@ -7,9 +10,6 @@ import {
 	SettingRows,
 } from "@/components/settings/setting-rows";
 import { DiscordIcon } from "@/components/shared/discord-icon";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc, queryClient } from "@/utils/orpc";
 

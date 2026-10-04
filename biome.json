@@ -115,7 +115,7 @@
 			}
 		},
 		{
-			"includes": ["apps/web/src/features/reader/ui/styles/reader.css"],
+			"includes": ["packages/reader/src/ui/styles/reader.css"],
 			"linter": {
 				"rules": {
 					"complexity": {
@@ -128,7 +128,7 @@
 			}
 		},
 		{
-			"includes": ["**/components/ui/**"],
+			"includes": ["**/components/ui/**", "packages/ui/src/components/**"],
 			"linter": {
 				"rules": {
 					"a11y": {

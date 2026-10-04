@@ -1,4 +1,10 @@
 import { PERMISSIONS } from "@nanahoshi/api/auth/permissions.catalog";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Separator } from "@nanahoshi/ui/components/separator";
+import { Skeleton } from "@nanahoshi/ui/components/skeleton";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowLeft,
 	Check,
@@ -14,13 +20,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { permissionMapsEqual } from "./library-ui-state";

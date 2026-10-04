@@ -1,11 +1,11 @@
 import "react-easy-crop/react-easy-crop.css";
+import { Button } from "@nanahoshi/ui/components/button";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import { Slider } from "@nanahoshi/ui/components/slider";
+import { useMountEffect } from "@nanahoshi/ui/hooks/use-mount-effect";
 import { ArrowClockwise, CircleNotch, Image } from "@phosphor-icons/react";
 import { useState } from "react";
 import Cropper, { type Area, type Point } from "react-easy-crop";
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Slider } from "@/components/ui/slider";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import { getCroppedBlob } from "@/lib/crop-image";
 import { m } from "@/paraglide/messages";
 

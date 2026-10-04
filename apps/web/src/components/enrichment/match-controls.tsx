@@ -1,3 +1,12 @@
+import { Button } from "@nanahoshi/ui/components/button";
+import { Checkbox } from "@nanahoshi/ui/components/checkbox";
+import { Modal } from "@nanahoshi/ui/components/modal";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@nanahoshi/ui/components/popover";
+import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowClockwise,
 	CheckCircle,
@@ -6,15 +15,6 @@ import {
 	Question,
 } from "@phosphor-icons/react";
 import { type ComponentProps, type ReactNode, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Modal } from "@/components/ui/modal";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import {
 	ALL_BUCKETS,

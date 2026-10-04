@@ -1,3 +1,4 @@
+import { cn } from "@nanahoshi/ui/lib/utils";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
@@ -10,7 +11,6 @@ import {
 } from "react";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
 import { getLocationRestoreKey, railScroll } from "@/lib/scroll-restoration";
-import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { SweepScrollProvider } from "./sweep-scroll-context";
 
