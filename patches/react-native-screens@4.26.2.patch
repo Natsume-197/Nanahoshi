@@ -22,7 +22,7 @@ index 10cd91b..57ce71b 100644
  
          // LabelVisibilityMode
          // From docs: can be one of LABEL_VISIBILITY_AUTO, LABEL_VISIBILITY_SELECTED, LABEL_VISIBILITY_LABELED, or LABEL_VISIBILITY_UNLABELED
-@@ -106,8 +110,20 @@
+@@ -106,8 +110,22 @@
              tabBarAppearance?.tabBarItemActiveIndicatorColor
                  ?: resolveColorAttr(context, R.attr.colorSecondaryContainer)
  
@@ -31,17 +31,19 @@ index 10cd91b..57ce71b 100644
 +        val indicatorEnabled = tabBarAppearance?.tabBarItemActiveIndicatorEnabled ?: true
 +        bottomNavigationView.isItemActiveIndicatorEnabled = indicatorEnabled
 +
-+        // Nanahoshi patch: without the indicator pill, Material 3's 80dp bar is
-+        // mostly empty padding; use the compact 64dp bar the web has instead.
-+        // The menu view carries its own 80dp minimum, so both must shrink.
-+        if (!indicatorEnabled) {
-+            val compactHeight = PixelUtil.toPixelFromDIP(64f).toInt()
-+            bottomNavigationView.minimumHeight = compactHeight
-+            (bottomNavigationView.menuView as? android.view.View)?.minimumHeight = compactHeight
-+            bottomNavigationView.setItemPaddingTop(PixelUtil.toPixelFromDIP(10f).toInt())
-+            bottomNavigationView.setItemPaddingBottom(PixelUtil.toPixelFromDIP(10f).toInt())
-+            bottomNavigationView.setActiveIndicatorLabelPadding(PixelUtil.toPixelFromDIP(2f).toInt())
-+        }
++        // Nanahoshi patch: Material 3's 80dp bar is mostly empty padding; use
++        // the compact 64dp bar Google's own apps (Play Store) use instead. The
++        // menu view carries its own 80dp minimum, so both must shrink. The pill
++        // (32dp) needs tighter padding than a bare icon.
++        val compactHeight = PixelUtil.toPixelFromDIP(64f).toInt()
++        bottomNavigationView.minimumHeight = compactHeight
++        (bottomNavigationView.menuView as? android.view.View)?.minimumHeight = compactHeight
++        val paddingTop = if (indicatorEnabled) 6f else 10f
++        val paddingBottom = if (indicatorEnabled) 6f else 10f
++        val labelPadding = if (indicatorEnabled) 4f else 2f
++        bottomNavigationView.setItemPaddingTop(PixelUtil.toPixelFromDIP(paddingTop).toInt())
++        bottomNavigationView.setItemPaddingBottom(PixelUtil.toPixelFromDIP(paddingBottom).toInt())
++        bottomNavigationView.setActiveIndicatorLabelPadding(PixelUtil.toPixelFromDIP(labelPadding).toInt())
          bottomNavigationView.itemActiveIndicatorColor = ColorStateList.valueOf(activeIndicatorColor)
      }
  

@@ -20,6 +20,8 @@ const light = {
 	textSecondary: "#6b6b70",
 	textTertiary: "#9a9a9f",
 	navInactive: "#555557",
+	/** Material's pill behind the selected tab: neutral, never the accent. */
+	navIndicator: "#e4e4e7",
 	separator: "#e4e4e7",
 	primary: "#1e1e20",
 	onPrimary: "#fcfcfc",
@@ -51,6 +53,7 @@ const dark: typeof light = {
 	textSecondary: "#96979e",
 	textTertiary: "#6d6e75",
 	navInactive: "#aeaeaf",
+	navIndicator: "#373638",
 	separator: "#3a3a3b",
 	primary: "#8b7a9e",
 	onPrimary: "#000000",

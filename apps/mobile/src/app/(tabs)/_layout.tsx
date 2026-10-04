@@ -79,7 +79,8 @@ export default function TabsLayout() {
 						{ minimizeBehavior: "onScrollDown" as const }
 					: {
 							labelVisibilityMode: "labeled" as const,
-							disableIndicator: true,
+							// Material 3's active pill, as on Google's own apps.
+							indicatorColor: palette.navIndicator,
 							backgroundColor: palette.chrome,
 							tintColor: palette.text,
 							// Icons arrive pre-colored (useAndroidTabIcons) so the
