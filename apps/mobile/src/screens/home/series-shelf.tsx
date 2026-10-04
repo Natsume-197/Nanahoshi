@@ -18,7 +18,7 @@ export function SeriesShelf({
 }) {
 	if (!loading && (!items || items.length === 0)) return null;
 	return (
-		<View style={{ gap: space.lg }}>
+		<View style={{ gap: space.md }}>
 			<SectionHeader
 				title={title}
 				href={{

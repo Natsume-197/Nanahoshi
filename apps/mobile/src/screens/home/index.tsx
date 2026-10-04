@@ -203,7 +203,8 @@ function ChipRowSkeleton() {
 }
 
 function Stack({ children }: { children: React.ReactNode }) {
-	return <View style={{ gap: space.xxl }}>{children}</View>;
+	// Rails sit close, as on Storytel: the titles carry the separation.
+	return <View style={{ gap: space.xl }}>{children}</View>;
 }
 
 /** Default web home layout (lib/home-layout-store.ts HOME_SECTION_IDS). */
@@ -304,7 +305,7 @@ function ContinueSection({ format }: { format: Format }) {
 				: t("home.hero_continue");
 
 	return (
-		<View style={{ gap: space.lg }}>
+		<View style={{ gap: space.md }}>
 			<SectionHeader title={title} />
 			{items.length === 0 ? (
 				<ContinueSkeleton width={width} />
@@ -499,7 +500,7 @@ function CollectionsRail({
 }) {
 	if (collections.length === 0 && !loading) return null;
 	return (
-		<View style={{ gap: space.lg }}>
+		<View style={{ gap: space.md }}>
 			<SectionHeader title={title} href={href} />
 			{collections.length === 0 ? (
 				<ShelfSkeleton width={COLLECTION_CARD_WIDTH} shape="collection" />

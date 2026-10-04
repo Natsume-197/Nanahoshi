@@ -46,7 +46,8 @@ export function Shelf({
 			: !!audio;
 
 	return (
-		<View style={{ gap: space.lg }}>
+		// The 44pt header row adds its own slack above the covers.
+		<View style={{ gap: space.md }}>
 			<SectionHeader
 				gutter={gutter}
 				title={title}
