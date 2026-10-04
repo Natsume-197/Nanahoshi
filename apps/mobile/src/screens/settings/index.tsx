@@ -39,6 +39,7 @@ export function SettingsScreen() {
 		<>
 			{IS_ANDROID ? <Stack.Screen options={{ title: "" }} /> : null}
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerStyle={{
 					padding: space.lg,

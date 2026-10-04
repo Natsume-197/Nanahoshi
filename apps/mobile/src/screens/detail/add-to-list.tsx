@@ -114,6 +114,7 @@ export function AddToList({
 
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentContainerStyle={{
 				padding: space.lg,
 				gap: space.xl,

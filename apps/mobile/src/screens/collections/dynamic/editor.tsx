@@ -237,6 +237,7 @@ function DynamicCollectionEditor({
 				}}
 			/>
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				keyboardShouldPersistTaps="handled"
 				automaticallyAdjustKeyboardInsets
 				contentInsetAdjustmentBehavior="automatic"

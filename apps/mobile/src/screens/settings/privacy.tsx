@@ -34,6 +34,7 @@ export function PrivacySettingsScreen() {
 
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

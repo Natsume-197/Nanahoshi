@@ -161,6 +161,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			<DetailHeaderMenu target={target} />
 			{detailHeader.header}
 			<Animated.ScrollView
+				showsVerticalScrollIndicator={false}
 				{...detailHeader.scrollProps}
 				entering={arrival}
 				contentContainerStyle={{

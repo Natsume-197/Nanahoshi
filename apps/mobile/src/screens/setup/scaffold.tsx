@@ -76,6 +76,7 @@ export function SetupStep({
 				</View>
 			</View>
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				keyboardShouldPersistTaps="handled"
 				contentContainerStyle={{
 					flexGrow: 1,

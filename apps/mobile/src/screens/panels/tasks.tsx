@@ -165,6 +165,7 @@ export function TasksScreen() {
 				<ErrorState onRetry={() => tasks.refetch()} />
 			) : (
 				<FlatList
+					showsVerticalScrollIndicator={false}
 					data={rows}
 					keyExtractor={(task) => task.id}
 					contentInsetAdjustmentBehavior="automatic"

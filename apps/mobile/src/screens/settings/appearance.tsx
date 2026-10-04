@@ -26,6 +26,7 @@ export function AppearanceSettingsScreen() {
 	const current = useAppearancePreference();
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

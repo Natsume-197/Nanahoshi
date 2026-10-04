@@ -63,6 +63,7 @@ export function MembersScreen() {
 				<ErrorState onRetry={() => members.refetch()} />
 			) : (
 				<SectionList
+					showsVerticalScrollIndicator={false}
 					sections={sections}
 					keyExtractor={(item) => item.id}
 					contentInsetAdjustmentBehavior="automatic"

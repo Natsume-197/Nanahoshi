@@ -68,6 +68,7 @@ export function TitleGrid({
 	return (
 		<List
 			ref={listRef}
+			showsVerticalScrollIndicator={false}
 			data={items}
 			numColumns={2}
 			contentInsetAdjustmentBehavior={onScroll ? "never" : "automatic"}

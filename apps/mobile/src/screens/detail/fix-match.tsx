@@ -309,6 +309,7 @@ function SearchStep({
 
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			keyboardShouldPersistTaps="handled"
 			automaticallyAdjustKeyboardInsets
 			contentInsetAdjustmentBehavior="automatic"
@@ -551,6 +552,7 @@ function PreviewStep({
 	);
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

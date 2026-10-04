@@ -63,6 +63,7 @@ export function Collections() {
 	return (
 		<View style={{ flex: 1 }}>
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
 				contentInsetAdjustmentBehavior={
 					process.env.EXPO_OS === "ios" ? "never" : "automatic"

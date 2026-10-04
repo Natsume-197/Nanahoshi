@@ -179,6 +179,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
 	return (
 		<>
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				contentInsetAdjustmentBehavior="automatic"
 				keyboardShouldPersistTaps="handled"
 				automaticallyAdjustKeyboardInsets

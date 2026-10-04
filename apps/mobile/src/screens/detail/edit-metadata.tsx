@@ -173,6 +173,7 @@ function MetadataForm({
 				}}
 			/>
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				keyboardShouldPersistTaps="handled"
 				automaticallyAdjustKeyboardInsets
 				contentInsetAdjustmentBehavior="automatic"

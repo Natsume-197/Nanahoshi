@@ -160,6 +160,7 @@ export function NotificationsScreen() {
 				<ErrorState onRetry={() => notifications.refetch()} />
 			) : (
 				<FlatList
+					showsVerticalScrollIndicator={false}
 					data={rows}
 					keyExtractor={(item) => String(item.id)}
 					contentInsetAdjustmentBehavior="automatic"

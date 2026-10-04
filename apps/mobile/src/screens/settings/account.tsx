@@ -94,6 +94,7 @@ export function AccountSettingsScreen() {
 
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			keyboardShouldPersistTaps="handled"
 			automaticallyAdjustKeyboardInsets

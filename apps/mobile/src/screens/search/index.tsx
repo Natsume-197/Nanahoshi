@@ -327,6 +327,7 @@ export function Search() {
 				) : null}
 			</View>
 			<FlashList
+				showsVerticalScrollIndicator={false}
 				ref={listRef}
 				contentInsetAdjustmentBehavior={
 					process.env.EXPO_OS === "ios" ? "never" : "automatic"

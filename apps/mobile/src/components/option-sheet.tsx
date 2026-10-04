@@ -102,6 +102,7 @@ export function OptionSheet({
 						/>
 					) : null}
 					<ScrollView
+						showsVerticalScrollIndicator={false}
 						style={{ maxHeight: height * 0.6 }}
 						keyboardShouldPersistTaps="handled"
 						contentContainerStyle={{ paddingBottom: space.lg }}

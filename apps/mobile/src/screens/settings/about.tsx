@@ -46,6 +46,7 @@ export function AboutSettingsScreen() {
 	};
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

@@ -44,6 +44,7 @@ export function SheetBody({
 		return <View style={[PADDING, { paddingTop: space.xs }]}>{content}</View>;
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			keyboardShouldPersistTaps="handled"
 			automaticallyAdjustKeyboardInsets
 			contentContainerStyle={PADDING}

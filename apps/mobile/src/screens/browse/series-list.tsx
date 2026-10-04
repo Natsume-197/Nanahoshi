@@ -83,6 +83,7 @@ export function SeriesList({ initialFormat }: { initialFormat?: Format }) {
 
 	return (
 		<FlashList
+			showsVerticalScrollIndicator={false}
 			data={items}
 			numColumns={2}
 			contentInsetAdjustmentBehavior="automatic"

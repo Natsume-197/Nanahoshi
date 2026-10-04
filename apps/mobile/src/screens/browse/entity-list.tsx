@@ -171,6 +171,7 @@ export function EntityList({ kind }: { kind: EntityKind }) {
 
 	return (
 		<FlashList
+			showsVerticalScrollIndicator={false}
 			data={rows}
 			key={people ? "grid" : tiles ? `tiles-${genreColumns}` : "rows"}
 			numColumns={people ? 2 : tiles ? genreColumns : 1}

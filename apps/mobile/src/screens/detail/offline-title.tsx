@@ -23,6 +23,7 @@ export function OfflineTitle({ uuid }: { uuid: string }) {
 		<>
 			<Stack.Screen options={{ title: "" }} />
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerStyle={{ padding: space.lg, gap: space.lg }}
 			>

@@ -18,6 +18,7 @@ export function DownloadSettingsScreen() {
 	const cellular = useSmartOnCellular();
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

@@ -121,6 +121,7 @@ export function Home() {
 	if (process.env.EXPO_OS === "ios")
 		return (
 			<ScrollView
+				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
 				contentInsetAdjustmentBehavior="never"
 				contentContainerStyle={{
@@ -156,6 +157,7 @@ function AndroidHome({
 	return (
 		<View style={{ flex: 1 }}>
 			<Animated.ScrollView
+				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
 				onScroll={appBar.onScroll}
 				scrollEventThrottle={16}

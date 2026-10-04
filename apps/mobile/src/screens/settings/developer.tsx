@@ -14,6 +14,7 @@ export function DeveloperSettingsScreen() {
 	const offline = useSimulatedOffline();
 	return (
 		<ScrollView
+			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
 				padding: space.lg,

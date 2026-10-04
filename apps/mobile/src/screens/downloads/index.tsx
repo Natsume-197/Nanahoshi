@@ -35,6 +35,7 @@ export function DownloadsScreen() {
 
 	return (
 		<FlatList
+			showsVerticalScrollIndicator={false}
 			data={shown}
 			keyExtractor={(item) => `${item.kind}:${item.uuid}`}
 			contentInsetAdjustmentBehavior="automatic"
