@@ -1,0 +1,63 @@
+name: Mobile
+
+# Types, lint and unit tests for apps/mobile already run in CI's validate job.
+# This builds what only a native build catches: the reader bundle, Metro, Expo
+# prebuild, patched native dependencies and the Gradle build.
+on:
+  push:
+    branches: [master]
+    paths:
+      - apps/mobile/**
+      - packages/reader/**
+      - packages/reader-bridge/**
+      - packages/ui/**
+      - patches/**
+      - bun.lock
+      - package.json
+      - .github/workflows/mobile.yml
+  pull_request:
+    paths:
+      - apps/mobile/**
+      - packages/reader/**
+      - packages/reader-bridge/**
+      - packages/ui/**
+      - patches/**
+      - bun.lock
+      - package.json
+      - .github/workflows/mobile.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android:
+    name: Android release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # The native build needs more disk than the runner leaves free.
+      - name: Free runner disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bun install --frozen-lockfile
+      - name: Build APK (reader bundle, prebuild, Gradle)
+        run: bun run mobile:apk:clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nanahoshi-android-apk
+          path: apps/mobile/dist/*.apk
+          if-no-files-found: error
+          retention-days: 7
