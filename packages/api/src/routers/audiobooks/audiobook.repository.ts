@@ -19,6 +19,7 @@ import {
 } from "@nanahoshi/db/schema/general";
 import { and, asc, eq, isNull, type SQL, sql } from "drizzle-orm";
 import { compareAudiobookSeriesEntries } from "../../modules/audiobookSeriesOrder";
+import { authorOrderBy, authorRoleRank } from "../_shared/author-order";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -83,7 +84,7 @@ export class AudiobookRepository {
 				COALESCE(am.description, canonical_am.description) AS description,
 				COALESCE(am.cover, canonical_am.cover) AS cover,
 				(
-					SELECT COALESCE(jsonb_agg(a.name ORDER BY a.name), '[]')
+					SELECT COALESCE(jsonb_agg(a.name ORDER BY ${authorOrderBy("aba")}), '[]')
 					FROM audiobook_author aba
 					INNER JOIN author a ON a.id = aba.author_id
 					WHERE aba.book_id = COALESCE(b.duplicate_of_book_id, b.id)
@@ -178,7 +179,8 @@ export class AudiobookRepository {
 					})
 					.from(audiobookAuthor)
 					.innerJoin(author, eq(author.id, audiobookAuthor.authorId))
-					.where(eq(audiobookAuthor.bookId, bookId)),
+					.where(eq(audiobookAuthor.bookId, bookId))
+					.orderBy(authorRoleRank(audiobookAuthor.role), asc(author.name)),
 				db
 					.select({
 						uuid: narrator.uuid,

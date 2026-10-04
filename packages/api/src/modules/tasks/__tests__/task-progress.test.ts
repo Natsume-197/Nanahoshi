@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Task } from "@nanahoshi/api/modules/taskManager";
-import { getTaskJobProgress } from "./task-progress";
+import type { Task } from "../../taskManager";
+import { getTaskJobProgress } from "../task-progress";
 
 const task: Task = {
 	id: "task-1",

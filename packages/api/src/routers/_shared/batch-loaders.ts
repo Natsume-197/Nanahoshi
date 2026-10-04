@@ -6,7 +6,8 @@ import {
 	bookNarrator,
 	narrator,
 } from "@nanahoshi/db/schema/general";
-import { eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
+import { authorRoleRank } from "./author-order";
 
 export type AuthorInfo = {
 	uuid: string;
@@ -37,7 +38,8 @@ export class BatchLoaderRepository {
 			})
 			.from(bookAuthor)
 			.innerJoin(author, eq(author.id, bookAuthor.authorId))
-			.where(inArray(bookAuthor.bookId, bookIds));
+			.where(inArray(bookAuthor.bookId, bookIds))
+			.orderBy(authorRoleRank(bookAuthor.role), asc(author.name));
 
 		for (const row of rows) {
 			const key = Number(row.bookId);
@@ -68,7 +70,8 @@ export class BatchLoaderRepository {
 			})
 			.from(audiobookAuthor)
 			.innerJoin(author, eq(author.id, audiobookAuthor.authorId))
-			.where(inArray(audiobookAuthor.bookId, bookIds));
+			.where(inArray(audiobookAuthor.bookId, bookIds))
+			.orderBy(authorRoleRank(audiobookAuthor.role), asc(author.name));
 
 		for (const row of rows) {
 			const key = Number(row.bookId);

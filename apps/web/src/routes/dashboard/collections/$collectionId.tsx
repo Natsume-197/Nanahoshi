@@ -156,7 +156,7 @@ function CollectionDetailPage() {
 					subtitle={
 						collection
 							? [
-									m["collection.subtitle"]({
+									m["media.item_count"]({
 										count: totalHits ?? collection.bookCount ?? 0,
 									}),
 									collection.description,

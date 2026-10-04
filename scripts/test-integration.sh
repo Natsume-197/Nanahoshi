@@ -28,6 +28,7 @@ export SCAN_RECOVERY_INTEGRATION=1
 export DYNAMIC_COLLECTION_INTEGRATION=1
 export READING_SESSIONS_INTEGRATION=1
 export AUDIOBOOK_SERIES_INTEGRATION=1
+export AUTHOR_ORDER_INTEGRATION=1
 
 files=(
 	packages/api/src/infrastructure/search/pgroonga/__tests__/pgroonga.provider.integration.test.ts
@@ -39,6 +40,7 @@ files=(
 	packages/api/src/routers/reading-sessions/__tests__/reading-sessions.integration.test.ts
 	packages/api/src/routers/reading-sessions/__tests__/reading-history-preservation.integration.test.ts
 	packages/api/src/routers/audiobooks/metadata/__tests__/metadata.series.integration.test.ts
+	packages/api/src/routers/_shared/__tests__/author-order.integration.test.ts
 )
 
 mapfile -t discovered_files < <(

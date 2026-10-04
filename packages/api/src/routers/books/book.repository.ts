@@ -28,6 +28,7 @@ import {
 } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import { generateDeterministicUUID } from "../../utils/misc";
+import { authorOrderBy } from "../_shared/author-order";
 import { batchLoaderRepository } from "../_shared/batch-loaders";
 import {
 	accessibleCondition,
@@ -282,7 +283,7 @@ export class BookRepository {
 				COALESCE(bm.description, canonical_bm.description) AS description,
 				COALESCE(bm.cover, canonical_bm.cover) AS cover,
 				(
-					SELECT COALESCE(jsonb_agg(a.name ORDER BY a.name), '[]')
+					SELECT COALESCE(jsonb_agg(a.name ORDER BY ${authorOrderBy("ba")}), '[]')
 					FROM book_author ba
 					INNER JOIN author a ON a.id = ba.author_id
 					WHERE ba.book_id = COALESCE(b.duplicate_of_book_id, b.id)
@@ -443,7 +444,7 @@ export class BookRepository {
 				) AS series,
 				(
 					SELECT COALESCE(
-						jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY a.name),
+						jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY ${authorOrderBy("ba")}),
 						'[]'
 					)
 					FROM book_author ba
@@ -1285,13 +1286,13 @@ export class BookRepository {
 					: bookCreatedAtDesc;
 	}
 
-	// Aggregated primary-author name per book (MIN = first alphabetically,
-	// matching the old per-row `ORDER BY a.name LIMIT 1` subquery). One hash
+	// Aggregated primary-author name per book: the first writer alphabetically,
+	// any credit only when the book has no writer (see _shared/author-order). One hash
 	// aggregate over the link table beats re-running that subquery for every
 	// sorted row (~38k times per catalog page at prod scale).
 	private primaryAuthorJoin(mediaType: "ebook" | "audiobook" | "all"): SQL {
-		const ebook = sql`SELECT ba.book_id, a.name FROM book_author ba INNER JOIN author a ON a.id = ba.author_id`;
-		const audio = sql`SELECT aa.book_id, a.name FROM audiobook_author aa INNER JOIN author a ON a.id = aa.author_id`;
+		const ebook = sql`SELECT ba.book_id, a.name, ba.role FROM book_author ba INNER JOIN author a ON a.id = ba.author_id`;
+		const audio = sql`SELECT aa.book_id, a.name, aa.role FROM audiobook_author aa INNER JOIN author a ON a.id = aa.author_id`;
 		const links =
 			mediaType === "all"
 				? sql`${ebook} UNION ALL ${audio}`
@@ -1299,7 +1300,9 @@ export class BookRepository {
 					? audio
 					: ebook;
 		return sql`LEFT JOIN (
-			SELECT book_id, MIN(name) AS name FROM (${links}) links GROUP BY book_id
+			SELECT book_id,
+				COALESCE(MIN(name) FILTER (WHERE role IS NULL OR role = 'Author'), MIN(name)) AS name
+			FROM (${links}) links GROUP BY book_id
 		) pa ON pa.book_id = ${book.id}`;
 	}
 

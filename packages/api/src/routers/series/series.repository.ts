@@ -146,9 +146,11 @@ export class SeriesRepository {
 					LIMIT 3
 				) AS covers,
 				(
-					SELECT COALESCE(jsonb_agg(author_name ORDER BY author_name), '[]')
+					SELECT COALESCE(jsonb_agg(author_name ORDER BY author_rank, author_name), '[]')
 					FROM (
-						SELECT DISTINCT a.name AS author_name
+						SELECT a.name AS author_name,
+							-- Writers before illustrators (see _shared/author-order).
+							MIN(CASE WHEN ar.role IS NULL OR ar.role = 'Author' THEN 0 ELSE 1 END) AS author_rank
 						FROM ${sql.raw(relation)} sr_author
 						INNER JOIN book b_author ON b_author.id = sr_author.book_id
 						INNER JOIN library l_author ON l_author.id = b_author.library_id
@@ -158,6 +160,7 @@ export class SeriesRepository {
 							AND l_author.server_id = ${serverId}
 							AND l_author.media_type = ${mediaType}
 							AND ${visibleBookSql("b_author")}
+						GROUP BY a.name
 					) series_authors
 				) AS authors
 			FROM series s

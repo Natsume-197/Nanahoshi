@@ -149,9 +149,12 @@ const itemSelectSql = sql`
 	COALESCE(rb.completed, false) AS "representativeCompleted",
 	(SELECT s.uuid FROM series s WHERE x.kind = 'series' AND s.id = x.item_id) AS "seriesUuid",
 	(SELECT s.name FROM series s WHERE x.kind = 'series' AND s.id = x.item_id) AS "seriesName",
-	(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.name) FROM (
-		SELECT DISTINCT a.uuid, a.name FROM book_author ba JOIN author a ON a.id = ba.author_id WHERE ba.book_id = rb.id
-		UNION SELECT a.uuid, a.name FROM audiobook_author aa JOIN author a ON a.id = aa.author_id WHERE aa.book_id = rb.id
+	(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.author_rank, an.name) FROM (
+		SELECT a.uuid, a.name, MIN(links.author_rank) AS author_rank FROM (
+			SELECT ba.author_id, CASE WHEN ba.role IS NULL OR ba.role = 'Author' THEN 0 ELSE 1 END AS author_rank FROM book_author ba WHERE ba.book_id = rb.id
+			UNION ALL SELECT aa.author_id, CASE WHEN aa.role IS NULL OR aa.role = 'Author' THEN 0 ELSE 1 END FROM audiobook_author aa WHERE aa.book_id = rb.id
+		) links JOIN author a ON a.id = links.author_id
+		GROUP BY a.uuid, a.name
 	) an) AS authors
 `;
 
@@ -310,9 +313,12 @@ export class RecommendationsRepository {
 			)
 		`;
 		const authorsSql = sql`
-			(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.name) FROM (
-				SELECT DISTINCT a2.uuid, a2.name FROM book_author ba JOIN author a2 ON a2.id = ba.author_id WHERE ba.book_id = nxt.id
-				UNION SELECT a2.uuid, a2.name FROM audiobook_author aa JOIN author a2 ON a2.id = aa.author_id WHERE aa.book_id = nxt.id
+			(SELECT json_agg(json_build_object('uuid', an.uuid, 'name', an.name) ORDER BY an.author_rank, an.name) FROM (
+				SELECT a2.uuid, a2.name, MIN(links.author_rank) AS author_rank FROM (
+					SELECT ba.author_id, CASE WHEN ba.role IS NULL OR ba.role = 'Author' THEN 0 ELSE 1 END AS author_rank FROM book_author ba WHERE ba.book_id = nxt.id
+					UNION ALL SELECT aa.author_id, CASE WHEN aa.role IS NULL OR aa.role = 'Author' THEN 0 ELSE 1 END FROM audiobook_author aa WHERE aa.book_id = nxt.id
+				) links JOIN author a2 ON a2.id = links.author_id
+				GROUP BY a2.uuid, a2.name
 			) an) AS authors
 		`;
 

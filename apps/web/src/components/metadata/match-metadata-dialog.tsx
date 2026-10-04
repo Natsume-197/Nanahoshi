@@ -1,3 +1,23 @@
+import {
+	AUDIOBOOK_PREVIEW_FIELDS,
+	AUDIOBOOK_PROVIDER_OPTIONS,
+	audiobookCandidateMeta,
+	BOOK_PREVIEW_FIELDS,
+	BOOK_PROVIDER_OPTIONS,
+	bookCandidateMeta,
+	canSearchMatch,
+	defaultSelectedFields,
+	displayMetadataValue,
+	type MatchCandidate,
+	type MatchQuery,
+	type MetadataPreview,
+	matchFieldLabel,
+	OUTCOME_MESSAGE_KEYS,
+	type ProviderOption,
+	type ProviderSearchOutcome,
+	searchProviders,
+	splitCandidates,
+} from "@nanahoshi/api/routers/books/metadata/fix-match";
 import { Button } from "@nanahoshi/ui/components/button";
 import { Input } from "@nanahoshi/ui/components/input";
 import { Label } from "@nanahoshi/ui/components/label";
@@ -25,150 +45,14 @@ import { client, orpc } from "@/utils/orpc";
 // Fix match: search an external source for the correct entry and replace this
 // item's metadata with it. Locked (hand-edited) fields survive server-side.
 
-export type MatchCandidate = {
-	provider: string;
-	providerId: string;
-	title: string;
-	subtitle?: string | null;
-	/** Pre-formatted secondary rows (authors, series · year …). */
-	metaLines: string[];
-	previewCover?: string | null;
-	/** Provider page — cover and title link out to it when present. */
-	url?: string | null;
-};
+export type { MatchCandidate, MetadataPreview, ProviderOption };
 
-export type ProviderOption = {
-	id: string;
-	label: string;
-	/** Shows the optional ASIN field when this source is selected. */
-	supportsAsin?: boolean;
-};
-
-export type MetadataPreview = {
-	metadata: Record<string, unknown>;
-	lockedFields: string[];
-};
-
-type ProviderSearchStatus =
-	| "found"
-	| "no_results"
-	| "rate_limited"
-	| "invalid_credentials"
-	| "failed";
-
-type ProviderSearchOutcome = {
-	provider: string;
-	status: ProviderSearchStatus;
-	count: number;
-	durationMs: number;
-};
-
-function providerFailureStatus(error: unknown): ProviderSearchStatus {
-	const details =
-		typeof error === "object" && error
-			? (error as { code?: unknown; message?: unknown; cause?: unknown })
-			: null;
-	const cause =
-		typeof details?.cause === "object" && details.cause
-			? (details.cause as { code?: unknown; message?: unknown })
-			: null;
-	const text = [details?.code, details?.message, cause?.code, cause?.message]
-		.filter((value): value is string => typeof value === "string")
-		.join(" ")
-		.toLowerCase();
-	if (
-		text.includes("too_many_requests") ||
-		text.includes("rate limit") ||
-		text.includes("cooldown")
-	) {
-		return "rate_limited";
-	}
-	if (
-		text.includes("unauthorized") ||
-		text.includes("invalid credential") ||
-		text.includes("invalid api") ||
-		text.includes("api key")
-	) {
-		return "invalid_credentials";
-	}
-	return "failed";
-}
-
-function providerOutcomeText(outcome: ProviderSearchOutcome): string {
-	switch (outcome.status) {
-		case "found":
-			return m["match.outcome_found"]({ count: outcome.count });
-		case "no_results":
-			return m["match.outcome_no_results"]();
-		case "rate_limited":
-			return m["match.outcome_rate_limited"]();
-		case "invalid_credentials":
-			return m["match.outcome_invalid_credentials"]();
-		case "failed":
-			return m["match.outcome_failed"]();
-	}
-}
-
-const PREVIEW_FIELDS = [
-	"title",
-	"titleRomaji",
-	"subtitle",
-	"description",
-	"publishedDate",
-	"languageCode",
-	"pageCount",
-	"isbn10",
-	"isbn13",
-	"asin",
-	"cover",
-	"authors",
-	"publisher",
-	"series",
-	"genres",
-	"tags",
-] as const;
-
-const AUDIOBOOK_PREVIEW_FIELDS = [
-	"title",
-	"subtitle",
-	"description",
-	"publishedDate",
-	"languageCode",
-	"isbn",
-	"asin",
-	"cover",
-	"explicit",
-	"abridged",
-	"authors",
-	"narrators",
-	"publisher",
-	"series",
-	"genres",
-	"tags",
-] as const;
-
-function displayMetadataValue(value: unknown): string {
-	if (value == null || value === "") return "—";
-	if (Array.isArray(value)) {
-		return value
-			.map((entry) =>
-				typeof entry === "string"
-					? entry
-					: String((entry as { name?: unknown }).name ?? ""),
-			)
-			.filter(Boolean)
-			.join(", ");
-	}
-	if (typeof value === "object") {
-		return String((value as { name?: unknown }).name ?? JSON.stringify(value));
-	}
-	return String(value);
-}
-
-function displayFieldName(field: string): string {
-	const spaced = field.replace(/([A-Z])/g, " $1").replaceAll("_", " ");
-	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
+const messages = m as unknown as Record<
+	string,
+	(params?: Record<string, unknown>) => string
+>;
+const providerOutcomeText = (outcome: ProviderSearchOutcome) =>
+	messages[OUTCOME_MESSAGE_KEYS[outcome.status]]({ count: outcome.count });
 
 function CandidateRow({
 	candidate,
@@ -289,7 +173,7 @@ export function FixMatchDialog({
 	fallbackIcon,
 	search,
 	preview,
-	previewFields = PREVIEW_FIELDS,
+	previewFields = BOOK_PREVIEW_FIELDS,
 	current,
 	apply,
 	searchKey,
@@ -320,9 +204,6 @@ export function FixMatchDialog({
 }) {
 	const router = useRouter();
 	// A suggestion from a provider this server no longer offers can't be applied.
-	const suggestions = allSuggestions.filter((candidate) =>
-		providers.some(({ id }) => id === candidate.provider),
-	);
 	const [selectedProviders, setSelectedProviders] = useState(
 		() => new Set(providers.map(({ id }) => id)),
 	);
@@ -342,60 +223,15 @@ export function FixMatchDialog({
 	const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
 	const [lockedFields, setLockedFields] = useState<Set<string>>(new Set());
 
-	const showAsin = providers.some(
-		(option) => selectedProviders.has(option.id) && option.supportsAsin,
+	const { showAsin, canSearch } = canSearchMatch(
+		providers,
+		selectedProviders,
+		title,
+		asin,
 	);
-	const canSearch =
-		selectedProviders.size > 0 &&
-		(title.trim() !== "" || (showAsin && asin.trim() !== ""));
 
-	const runSearch = async (query: {
-		providerIds: string[];
-		title: string;
-		author: string;
-		asin: string;
-		withAsin: boolean;
-	}) => {
-		const ids = query.providerIds;
-		const settled = await Promise.allSettled(
-			ids.map(async (provider) => {
-				const startedAt = performance.now();
-				const candidates = await search({
-					provider,
-					title: query.title.trim() || undefined,
-					author: query.author.trim() || undefined,
-					asin: query.withAsin ? query.asin.trim() || undefined : undefined,
-				});
-				return {
-					provider,
-					candidates,
-					durationMs: Math.round(performance.now() - startedAt),
-				};
-			}),
-		);
-		return {
-			candidates: settled.flatMap((entry) =>
-				entry.status === "fulfilled" ? entry.value.candidates : [],
-			),
-			outcomes: settled.map((entry, index): ProviderSearchOutcome => {
-				const provider = ids[index] ?? "provider";
-				if (entry.status === "rejected") {
-					return {
-						provider,
-						status: providerFailureStatus(entry.reason),
-						count: 0,
-						durationMs: 0,
-					};
-				}
-				return {
-					provider,
-					status: entry.value.candidates.length > 0 ? "found" : "no_results",
-					count: entry.value.candidates.length,
-					durationMs: entry.value.durationMs,
-				};
-			}),
-		};
-	};
+	const runSearch = (query: MatchQuery) =>
+		searchProviders(query, search, providers, () => performance.now());
 
 	// Opening the dialog already knows the title, so the first search runs by
 	// itself; the button is for refining it.
@@ -447,16 +283,7 @@ export function FixMatchDialog({
 			setPreviewCandidate(candidate);
 			setPreviewData(data.metadata);
 			setLockedFields(new Set(data.lockedFields));
-			setSelectedFields(
-				new Set(
-					previewFields.filter(
-						(field) =>
-							!data.lockedFields.includes(field) &&
-							data.metadata[field] != null &&
-							(current?.[field] == null || current[field] === ""),
-					),
-				),
-			);
+			setSelectedFields(defaultSelectedFields(previewFields, data, current));
 		},
 		onError: (error) =>
 			toast.error(getErrorMessage(error, m["match.failed"]())),
@@ -493,15 +320,12 @@ export function FixMatchDialog({
 	const searching =
 		searchMutation.isPending ||
 		(manualSearch == null && initialSearch.isFetching);
-	const suggestionKeys = new Set(
-		suggestions.map(({ provider, providerId }) => `${provider}:${providerId}`),
-	);
 	// A suggestion the search finds again stays in its own section only.
-	const results =
-		shownSearch?.candidates.filter(
-			({ provider, providerId }) =>
-				!suggestionKeys.has(`${provider}:${providerId}`),
-		) ?? null;
+	const { suggestions, results } = splitCandidates(
+		providers,
+		allSuggestions,
+		shownSearch?.candidates ?? null,
+	);
 	const renderCandidate = (candidate: MatchCandidate) => (
 		<CandidateRow
 			key={`${candidate.provider}-${candidate.providerId}`}
@@ -621,7 +445,7 @@ export function FixMatchDialog({
 										/>
 										<span className="flex items-center gap-1 font-medium">
 											{lockedFields.has(field) && <LockSimple aria-hidden />}
-											{displayFieldName(field)}
+											{matchFieldLabel(field, (key) => messages[key]())}
 										</span>
 										<span className="text-muted-foreground">
 											{displayMetadataValue(current?.[field])}
@@ -796,43 +620,9 @@ export function FixMatchDialog({
 
 // ─── Books ────────────────────────────────────────────────
 
-type BookCandidate = Awaited<
-	ReturnType<typeof client.books.searchMetadata>
->[number];
-
 type BookProviderId = Parameters<
 	typeof client.books.searchMetadata
 >[0]["provider"];
-
-function bookMeta(candidate: BookCandidate): string[] {
-	const lines: string[] = [];
-	const authors = candidate.authors?.map((a) => a.name).join(", ");
-	if (authors) lines.push(authors);
-	const seriesLine = [
-		candidate.series?.name
-			? `${candidate.series.name}${
-					candidate.series.position != null
-						? ` #${candidate.series.position}`
-						: ""
-				}`
-			: null,
-		candidate.publishedDate?.slice(0, 4),
-	]
-		.filter(Boolean)
-		.join(" · ");
-	if (seriesLine) lines.push(seriesLine);
-	return lines;
-}
-
-const BOOK_PROVIDER_OPTIONS: ProviderOption[] = [
-	{ id: "ranobedb", label: "RanobeDB" },
-	{ id: "amazon", label: "Amazon", supportsAsin: true },
-	{ id: "googlebooks", label: "Google Books" },
-	{ id: "openlibrary", label: "Open Library" },
-	{ id: "goodreads", label: "Goodreads" },
-	{ id: "hardcover", label: "Hardcover" },
-	{ id: "comicvine", label: "Comic Vine" },
-];
 
 export function BookMatchDialog({
 	open,
@@ -900,7 +690,7 @@ export function BookMatchDialog({
 					providerId: c.providerId,
 					title: c.title,
 					subtitle: c.titleRomaji,
-					metaLines: bookMeta(c),
+					metaLines: bookCandidateMeta(c),
 					previewCover: c.previewCover,
 					url: c.url,
 				}));
@@ -929,38 +719,6 @@ export function BookMatchDialog({
 
 // ─── Audiobooks ───────────────────────────────────────────
 
-type AudiobookCandidate = Awaited<
-	ReturnType<typeof client.audiobooks.searchMetadata>
->[number];
-
-function audiobookMeta(candidate: AudiobookCandidate): string[] {
-	const lines: string[] = [];
-	const people = [
-		candidate.authors?.map((a) => a.name).join(", "),
-		candidate.narrators?.map((n) => n.name).join(", "),
-	]
-		.filter(Boolean)
-		.join(" · ");
-	if (people) lines.push(people);
-	const detail = [
-		candidate.series?.name
-			? `${candidate.series.name}${
-					candidate.series.sequence
-						? ` · ${candidate.series.sequence}`
-						: candidate.series.position != null
-							? ` #${candidate.series.position}`
-							: ""
-				}`
-			: null,
-		candidate.duration ? formatReadingTime(candidate.duration) : null,
-		candidate.publishedDate?.slice(0, 4),
-	]
-		.filter(Boolean)
-		.join(" · ");
-	if (detail) lines.push(detail);
-	return lines;
-}
-
 export function AudiobookMatchDialog({
 	open,
 	onOpenChange,
@@ -988,10 +746,7 @@ export function AudiobookMatchDialog({
 		<FixMatchDialog
 			open={open}
 			onOpenChange={onOpenChange}
-			providers={[
-				{ id: "audible", label: "Audible", supportsAsin: true },
-				{ id: "itunes", label: "Apple iTunes" },
-			]}
+			providers={AUDIOBOOK_PROVIDER_OPTIONS}
 			initialTitle={initialTitle}
 			initialAuthor={initialAuthor}
 			initialAsin={initialAsin}
@@ -1013,7 +768,7 @@ export function AudiobookMatchDialog({
 					provider: c.provider,
 					providerId: c.providerId,
 					title: c.title ?? "",
-					metaLines: audiobookMeta(c),
+					metaLines: audiobookCandidateMeta(c, formatReadingTime),
 					previewCover: c.previewCover,
 					url: c.url,
 				}));

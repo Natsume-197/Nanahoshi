@@ -29,6 +29,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { normalizedNameSearchSql } from "../../infrastructure/search/name-search";
+import { authorRoleRank } from "../_shared/author-order";
 import { withSerialScan } from "../_shared/serial-scan";
 import type { DynamicCollectionDefinitionV1 } from "./collection-rules";
 import { compileDynamicCollectionQuery } from "./collection-rules.compiler";
@@ -346,7 +347,8 @@ export class CollectionsRepository {
 			})
 			.from(bookAuthor)
 			.innerJoin(author, eq(author.id, bookAuthor.authorId))
-			.where(inArray(bookAuthor.bookId, bookIds));
+			.where(inArray(bookAuthor.bookId, bookIds))
+			.orderBy(authorRoleRank(bookAuthor.role), asc(author.name));
 		const audioAuthors = db
 			.select({
 				bookId: audiobookAuthor.bookId,
@@ -355,7 +357,8 @@ export class CollectionsRepository {
 			})
 			.from(audiobookAuthor)
 			.innerJoin(author, eq(author.id, audiobookAuthor.authorId))
-			.where(inArray(audiobookAuthor.bookId, bookIds));
+			.where(inArray(audiobookAuthor.bookId, bookIds))
+			.orderBy(authorRoleRank(audiobookAuthor.role), asc(author.name));
 		const [ebookRows, audioRows] = await Promise.all([
 			ebookAuthors,
 			audioAuthors,

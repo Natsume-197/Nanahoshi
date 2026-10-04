@@ -1,5 +1,6 @@
 import { db } from "@nanahoshi/db";
 import { type SQL, sql } from "drizzle-orm";
+import { authorOrderBy } from "../../../routers/_shared/author-order";
 import {
 	accessibleSql,
 	visibleBookSql,
@@ -526,7 +527,7 @@ class PGroongaSearch {
 			} AS series,
 			(
 				SELECT COALESCE(
-					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY a.name),
+					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', ba.role, 'provider', a.provider) ORDER BY ${authorOrderBy("ba")}),
 					'[]'
 				)
 				FROM book_author ba
@@ -725,7 +726,7 @@ class PGroongaSearch {
 			} AS series,
 			(
 				SELECT COALESCE(
-					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider) ORDER BY a.name),
+					jsonb_agg(jsonb_build_object('uuid', a.uuid, 'name', a.name, 'role', aa.role, 'provider', a.provider) ORDER BY ${authorOrderBy("aa")}),
 					'[]'
 				)
 				FROM audiobook_author aa

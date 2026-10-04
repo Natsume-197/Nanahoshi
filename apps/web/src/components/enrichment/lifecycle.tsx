@@ -190,25 +190,7 @@ export function matchReasonLabels(reasons: string[]): string[] {
 	return [...new Set(labels)];
 }
 
-// Google Books answers zoom=0 with an "image not available" placeholder for
-// many volumes that do have a zoom=1 thumbnail, which is also the right size
-// for a preview.
-export function previewCoverUrl(url: string | null | undefined): string | null {
-	if (!url) return null;
-	try {
-		const parsed = new URL(url);
-		if (
-			parsed.hostname === "books.google.com" &&
-			parsed.pathname === "/books/content"
-		) {
-			parsed.searchParams.set("zoom", "1");
-			return parsed.toString();
-		}
-	} catch {
-		return url;
-	}
-	return url;
-}
+export { previewCoverUrl } from "@nanahoshi/api/routers/books/metadata/fix-match";
 
 export function sourceLabel(
 	source: string,
