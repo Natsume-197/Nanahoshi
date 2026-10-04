@@ -14,7 +14,7 @@ export function Sheet({ open = true, color, onClose, children }: SheetProps) {
 		<BottomSheet
 			isPresented={open}
 			onDismiss={onClose}
-			containerColor={color ?? palette.card}
+			containerColor={color ?? palette.sheet}
 			contentPadding={0}
 		>
 			{typeof children === "function" ? children(dismiss) : children}

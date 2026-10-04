@@ -68,7 +68,7 @@ export function OptionSheet({
 			onDismiss={onClose}
 			snapPoints={["half", "full"]}
 			scrimColor={sheetScrim}
-			containerColor={palette.card}
+			containerColor={palette.sheet}
 			contentPadding={0}
 		>
 			{/* Hosted, not bare: RN views set straight into the Compose sheet

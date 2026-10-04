@@ -42,7 +42,7 @@ export function SheetRow({
 		) : null);
 	return (
 		<ListItem
-			colors={{ containerColor: background ?? palette.card }}
+			colors={{ containerColor: background ?? palette.sheet }}
 			modifiers={onPress ? [clickable(onPress)] : undefined}
 		>
 			{lead ? <ListItem.LeadingContent>{lead}</ListItem.LeadingContent> : null}
@@ -104,7 +104,7 @@ export function SheetHeader({
 	const palette = usePalette();
 	return (
 		<ListItem
-			colors={{ containerColor: palette.card }}
+			colors={{ containerColor: palette.sheet }}
 			modifiers={onPress ? [clickable(onPress)] : undefined}
 		>
 			{leading ? (

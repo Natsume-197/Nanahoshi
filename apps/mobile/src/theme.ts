@@ -11,6 +11,9 @@ const light = {
 	background: "#ffffff",
 	chrome: "#f5f5f7", // --sidebar: tab bar
 	card: "#ffffff",
+	/** Bottom sheets and their rows: the page's own colour, set apart by the
+	 * scrim and their rounded top, not a lighter fill. */
+	sheet: "#ffffff",
 	/** --surface-card: grouped lists, hub tiles, panels on the canvas. */
 	surfaceCard: "#f7f7f8",
 	surfaceCardHover: "#f2f2f4",
@@ -45,6 +48,7 @@ const dark: typeof light = {
 	background: "#1f1f20",
 	chrome: "#161617",
 	card: "#272729",
+	sheet: "#1f1f20",
 	surfaceCard: "#272729",
 	surfaceCardHover: "#343436",
 	surface: "#373638",

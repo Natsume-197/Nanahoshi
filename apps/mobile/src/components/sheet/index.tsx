@@ -43,7 +43,7 @@ export function Sheet({
 				ref={sheet}
 				onDismissRequest={onClose}
 				skipPartiallyExpanded={expanded}
-				containerColor={color ?? palette.card}
+				containerColor={color ?? palette.sheet}
 				contentColor={palette.text}
 				scrimColor={sheetScrim}
 			>
