@@ -8,7 +8,7 @@ const android = (type: Haptics.AndroidHaptics) =>
  * The app's one vocabulary for touch feedback. Android plays the platform's
  * own haptic constants (tuned per device, off when the user disables touch
  * feedback); iOS the Taptic Engine. Keep it for moments that change
- * something — never on plain navigation.
+ * something — the tab bar is the only navigation that ticks.
  */
 export const haptics = {
 	/** A button that starts or stops something: play, a transport, download. */
@@ -21,6 +21,11 @@ export const haptics = {
 		IS_ANDROID
 			? android(Haptics.AndroidHaptics.Clock_Tick)
 			: void Haptics.selectionAsync(),
+	/** Switching tabs in the bottom bar: a notch firmer than `select`. */
+	tab: () =>
+		IS_ANDROID
+			? android(Haptics.AndroidHaptics.Virtual_Key)
+			: void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
 	/** Opening a context menu on a long press. */
 	longPress: () =>
 		IS_ANDROID

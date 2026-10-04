@@ -11,6 +11,7 @@ import {
 	UNTINTED_TAB_ICONS,
 	useAndroidTabIcons,
 } from "@/components/tab-icons";
+import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { HAS_TAB_ACCESSORY } from "@/lib/platform";
@@ -72,6 +73,7 @@ export default function TabsLayout() {
 		<BookMenuProvider key={org.epoch}>
 			<NativeTabs
 				hidden={hideTabs}
+				screenListeners={{ tabPress: haptics.tab }}
 				{...(process.env.EXPO_OS === "ios"
 					? // Scrolling tucks the bar away, and the player into it, as in Music.
 						{ minimizeBehavior: "onScrollDown" as const }
