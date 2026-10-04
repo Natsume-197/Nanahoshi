@@ -143,18 +143,18 @@
 	/* Content canvas: one step above the navigation chrome, in the same
 	   neutral family (#1f2024 carried a blue cast next to it). */
 	--background: #1f1f20;
-	--foreground: color-mix(in oklab, #352d3e 8%, #ededed);
+	--foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
 	--reading: color-mix(in oklab, #352d3e 6%, #e3e3e3);
 	--card: #272729;
 	--card-border: color-mix(in oklab, #352d3e 10%, #484848);
-	--card-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--card-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
 	--surface-card: var(--card);
 	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
 	--popover: #272729;
-	--popover-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--popover-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
 	--dropdown: var(--popover);
 	--dropdown-destructive: color-mix(
 		in oklab,
@@ -167,9 +167,9 @@
 	--floating-action-foreground: oklch(0.97 0 90);
 	/* Discord's row-hover/active fill. */
 	--secondary: color-mix(in oklab, #352d3e 15%, #3e3e3e);
-	--secondary-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--secondary-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
 	--muted: color-mix(in oklab, #352d3e 12%, #373737);
-	--muted-foreground: color-mix(in oklab, #352d3e 12%, #aaaaaa);
+	--muted-foreground: color-mix(in oklab, #352d3e 10%, #b8b8b8);
 	--accent: color-mix(in oklab, #352d3e 16%, #515151);
 	--accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
 	--success: oklch(0.72 0.17 145);
@@ -190,7 +190,7 @@
 	--chart-5: color-mix(in oklab, #8b7a9e 20%, var(--background));
 	/* Navbar + sidebar share this darker chrome, framing the content panel. */
 	--sidebar: #161617;
-	--sidebar-foreground: color-mix(in oklab, #352d3e 8%, #f1f1f1);
+	--sidebar-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
 	--sidebar-primary: #8b7a9e;
 	--sidebar-primary-foreground: #000000;
 	--sidebar-accent: #2c2c2e;

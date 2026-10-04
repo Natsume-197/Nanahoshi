@@ -326,7 +326,7 @@ const RECIPE_SURFACES = {
 // Approximations of the base themes' --foreground (which is oklch in CSS) for
 // contrast checks against editor-picked surfaces.
 const BASE_FOREGROUND: Record<PaletteBase, string> = {
-	dark: "#ededed",
+	dark: "#f7f7f7",
 	light: "#1c1c1f",
 };
 
@@ -770,24 +770,24 @@ function seedPaletteVars(
 		base === "dark"
 			? {
 					"--background": mix(seed, 12, SEED_BACKGROUND_ANCHOR.dark),
-					"--foreground": mix(seed, 8, "#ededed"),
+					"--foreground": mix(seed, 4, "#f7f7f7"),
 					"--reading": mix(seed, 6, "#e3e3e3"),
 					"--card": mix(seed, 10, "#252529"),
 					"--card-border": mix(seed, 10, "#484848"),
-					"--card-foreground": mix(seed, 8, "#f1f1f1"),
+					"--card-foreground": mix(seed, 4, "#f7f7f7"),
 					"--popover": mix(seed, 10, "#252529"),
-					"--popover-foreground": mix(seed, 8, "#f1f1f1"),
+					"--popover-foreground": mix(seed, 4, "#f7f7f7"),
 					"--secondary": mix(seed, 15, "#3e3e3e"),
-					"--secondary-foreground": mix(seed, 8, "#f1f1f1"),
+					"--secondary-foreground": mix(seed, 4, "#f7f7f7"),
 					"--muted": mix(seed, 12, "#373737"),
-					"--muted-foreground": mix(seed, 12, "#aaaaaa"),
+					"--muted-foreground": mix(seed, 10, "#b8b8b8"),
 					"--accent": mix(seed, 16, "#515151"),
 					"--accent-foreground": mix(seed, 6, "#f4f4f4"),
 					"--border": mix(seed, 10, "#3b3b3b"),
 					"--input": mix(seed, 12, "#2c2c2c"),
 					"--ring": mix(primary, 80, "black"),
 					"--sidebar": mix(seed, 10, "#1d1d1d"),
-					"--sidebar-foreground": mix(seed, 8, "#f1f1f1"),
+					"--sidebar-foreground": mix(seed, 4, "#f7f7f7"),
 					"--sidebar-accent": mix(seed, 14, "#353535"),
 					"--sidebar-accent-foreground": mix(seed, 6, "#f4f4f4"),
 					"--sidebar-border": mix(seed, 10, "#353535"),
