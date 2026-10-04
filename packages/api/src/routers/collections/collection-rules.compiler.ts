@@ -3,23 +3,12 @@ import {
 	book,
 	bookMetadata,
 	library,
-	likedBook,
 	listeningProgress,
 	readingProgress,
 	userAudiobookShelf,
 	userBookShelf,
 } from "@nanahoshi/db/schema/general";
-import {
-	and,
-	eq,
-	inArray,
-	isNotNull,
-	isNull,
-	not,
-	or,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, eq, inArray, isNull, not, or, type SQL, sql } from "drizzle-orm";
 import {
 	type CollectionEntityRef,
 	type CollectionFieldRule,
@@ -41,7 +30,7 @@ export type CompiledDynamicCollectionQuery = {
 	where: SQL;
 	orderBy: SQL[];
 	isPersonalized: boolean;
-	personalJoins: Array<"liked" | "shelf" | "progress">;
+	personalJoins: Array<"shelf" | "progress">;
 	requiresSerialScan: boolean;
 };
 
@@ -99,15 +88,13 @@ function hasPositiveIndexedTitleRule(group: CollectionRuleGroup): boolean {
 }
 
 function collectPersonalJoins(definition: DynamicCollectionDefinitionV1) {
-	const required = new Set<"liked" | "shelf" | "progress">();
+	const required = new Set<"shelf" | "progress">();
 	const pending = [...definition.root.children];
 	while (pending.length > 0) {
 		const node = pending.pop();
 		if (!node) continue;
 		if (node.kind === "group") {
 			pending.push(...node.children);
-		} else if (node.field === "liked") {
-			required.add("liked");
 		} else if (node.field === "shelfStatus") {
 			required.add("shelf");
 		} else if (
@@ -131,9 +118,7 @@ function collectPersonalJoins(definition: DynamicCollectionDefinitionV1) {
 	) {
 		required.add("progress");
 	}
-	return (["liked", "shelf", "progress"] as const).filter((join) =>
-		required.has(join),
-	);
+	return (["shelf", "progress"] as const).filter((join) => required.has(join));
 }
 
 function compileSort(
@@ -252,11 +237,6 @@ function compileRule(
 				sql`CASE WHEN ${library.mediaType} = 'audiobook' THEN ${audiobookMetadata.cover} ELSE ${bookMetadata.cover} END`,
 				rule.operator,
 			);
-		case "liked": {
-			return rule.operator === "isTrue"
-				? isNotNull(likedBook.bookId)
-				: isNull(likedBook.bookId);
-		}
 		case "author":
 			return entityRelationPredicate(
 				sql`SELECT ba.book_id, a.uuid

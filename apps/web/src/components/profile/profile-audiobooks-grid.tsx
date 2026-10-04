@@ -123,7 +123,7 @@ export function ProfileAudiobooksGrid({
 				</div>
 			) : items.length === 0 ? (
 				<EmptyState
-					title={m["likes.empty_title_audiobooks"]()}
+					title={m["shelves.empty_title"]()}
 					description={
 						activeStatus
 							? m["catalog_pages.no_status_audiobooks"]()

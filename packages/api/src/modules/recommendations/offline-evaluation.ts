@@ -17,7 +17,7 @@ import { parseWorkKey, workKey } from "./types";
 import { buildMixes, type Mix, type SimilarityRow } from "./user-feed";
 import type { UserFeedSignalInput } from "./user-feed.service";
 
-const POSITIVE_HOLDOUT_SIGNALS = new Set(["like", "completed"]);
+const POSITIVE_HOLDOUT_SIGNALS = new Set(["collected", "completed"]);
 
 export interface TemporalHoldout {
 	target: WorkKey;
@@ -132,7 +132,7 @@ function historicalWorksAt(
 	holdout: RollingTemporalHoldout,
 ): WorkAggregate[] {
 	type Engagement = {
-		likes: Set<string>;
+		collections: Set<string>;
 		completions: Set<string>;
 		engaged: Set<string>;
 	};
@@ -140,7 +140,11 @@ function historicalWorksAt(
 	const record = (key: WorkKey) => {
 		let value = engagement.get(key);
 		if (!value) {
-			value = { likes: new Set(), completions: new Set(), engaged: new Set() };
+			value = {
+				collections: new Set(),
+				completions: new Set(),
+				engaged: new Set(),
+			};
 			engagement.set(key, value);
 		}
 		return value;
@@ -153,8 +157,8 @@ function historicalWorksAt(
 				: history.rows.filter((row) => row.atMs <= holdout.targetAtMs);
 		for (const row of rows) {
 			const value = record(workKey(row.kind, row.itemId));
-			if (row.signal === "like") {
-				value.likes.add(history.userId);
+			if (row.signal === "collected") {
+				value.collections.add(history.userId);
 				value.engaged.add(history.userId);
 			} else if (row.signal === "completed") {
 				value.completions.add(history.userId);
@@ -175,7 +179,7 @@ function historicalWorksAt(
 			return {
 				...work,
 				engagedUserIds: new Set(value?.engaged ?? []),
-				likeCount: value?.likes.size ?? 0,
+				collectionCount: value?.collections.size ?? 0,
 				completionCount: value?.completions.size ?? 0,
 			};
 		});
@@ -476,7 +480,7 @@ function languageSegment(languageCode: string | null): string {
 }
 
 const SESSION_SEED_SIGNALS = new Set([
-	"like",
+	"collected",
 	"completed",
 	"progress",
 	"progress50",

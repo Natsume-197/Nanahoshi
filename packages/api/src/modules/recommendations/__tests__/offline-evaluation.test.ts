@@ -18,7 +18,7 @@ describe("createTemporalHoldout", () => {
 	test("hides the latest positive work completely and drops future signals", () => {
 		const holdout = createTemporalHoldout([
 			{ kind: "book", itemId: 1, signal: "completed", atMs: 100 },
-			{ kind: "book", itemId: 2, signal: "like", atMs: 200 },
+			{ kind: "book", itemId: 2, signal: "collected", atMs: 200 },
 			{ kind: "book", itemId: 3, signal: "shelf", atMs: 250 },
 			{ kind: "book", itemId: 3, signal: "completed", atMs: 300 },
 			{ kind: "book", itemId: 4, signal: "not_interested", atMs: 280 },
@@ -35,7 +35,7 @@ describe("createTemporalHoldout", () => {
 	test("requires enough distinct positive works", () => {
 		expect(
 			createTemporalHoldout([
-				{ kind: "book", itemId: 1, signal: "like", atMs: 100 },
+				{ kind: "book", itemId: 1, signal: "collected", atMs: 100 },
 				{ kind: "book", itemId: 1, signal: "completed", atMs: 200 },
 				{ kind: "book", itemId: 2, signal: "completed", atMs: 300 },
 			]),
@@ -51,7 +51,7 @@ describe("createRollingTemporalHoldouts", () => {
 				rows: [1, 2, 3, 4, 5].map((itemId) => ({
 					kind: "book" as const,
 					itemId,
-					signal: "like",
+					signal: "collected",
 					atMs: itemId * 100,
 				})),
 			},

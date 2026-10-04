@@ -301,7 +301,7 @@ export function buildMixes(input: BuildMixesInput): Mix[] {
 				key: c.key,
 				score: c.final,
 				rank,
-				reason: c.bestSeed.fromLike ? "because_you_liked" : c.bestReason,
+				reason: c.bestSeed.fromCollection ? "because_you_saved" : c.bestReason,
 				reasonKey: c.bestSeed.key,
 				components: c.components,
 			})),

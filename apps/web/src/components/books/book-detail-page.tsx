@@ -18,11 +18,6 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@nanahoshi/ui/components/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@nanahoshi/ui/components/tooltip";
 import { cn } from "@nanahoshi/ui/lib/utils";
 import {
 	ArrowCounterClockwise,
@@ -32,7 +27,6 @@ import {
 	DeviceTablet,
 	DotsThree,
 	DownloadSimple,
-	Heart,
 	LinkBreak,
 	MagnifyingGlass,
 	PencilSimple,
@@ -85,10 +79,8 @@ import {
 	SynopsisSection,
 } from "@/components/shared/synopsis-section";
 import type { getBook } from "@/functions/books/get-book";
-import { useToggleLike } from "@/hooks/books/use-toggle-like";
 import { useAbilities } from "@/hooks/use-abilities";
 import { useDebounce } from "@/hooks/use-debounce";
-import { usePop } from "@/hooks/use-pop";
 import { PAGE_GUTTER, PAGE_GUTTER_BLEED } from "@/lib/page-layout";
 import { typesetProps } from "@/lib/text-lang";
 import { m } from "@/paraglide/messages";
@@ -478,14 +470,6 @@ function HeroActions({
 
 	const currentShelf = bookShelfQuery.data?.status as ShelfStatus | undefined;
 
-	// --- Like ---
-	const likeStatusQuery = useQuery(
-		orpc.likedBooks.getLikeStatus.queryOptions({ input: { bookUuid } }),
-	);
-	const toggleLikeMutation = useToggleLike(bookUuid, "ebook");
-	const isLiked = likeStatusQuery.data?.liked ?? false;
-	const { ref: heartRef, pop: popHeart } = usePop<SVGSVGElement>();
-
 	// --- Reading progress (drives the primary CTA) ---
 	const progressQuery = useQuery(
 		orpc.readingProgress.getProgress.queryOptions({ input: { bookUuid } }),
@@ -673,58 +657,22 @@ function HeroActions({
 					);
 				})()}
 				icons={
-					<>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									aria-label={
-										isLiked
-											? m["aria.remove_from_likes"]()
-											: m["aria.add_to_likes"]()
-									}
-									aria-pressed={isLiked}
-									aria-busy={toggleLikeMutation.isPending}
-									onClick={() => {
-										if (!isLiked) popHeart();
-										toggleLikeMutation.mutate();
-									}}
-									disabled={
-										toggleLikeMutation.isPending || likeStatusQuery.isLoading
-									}
-									{...HERO_ICON_BUTTON}
-								>
-									<Heart
+					(canDownload || canEnrich) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button aria-label={m["nav.more"]()} {...HERO_ICON_BUTTON}>
+									<DotsThree
 										aria-hidden="true"
-										ref={heartRef}
-										weight={isLiked ? "fill" : "regular"}
+										weight="bold"
 										className="size-5"
 									/>
 								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								{isLiked
-									? m["aria.remove_from_likes"]()
-									: m["aria.add_to_likes"]()}
-							</TooltipContent>
-						</Tooltip>
-
-						{(canDownload || canEnrich) && (
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button aria-label={m["nav.more"]()} {...HERO_ICON_BUTTON}>
-										<DotsThree
-											aria-hidden="true"
-											weight="bold"
-											className="size-5"
-										/>
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" sideOffset={6}>
-									{moreMenuItems}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						)}
-					</>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" sideOffset={6}>
+								{moreMenuItems}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)
 				}
 			/>
 

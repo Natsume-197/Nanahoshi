@@ -14,7 +14,6 @@ import {
 	CircleNotch,
 	DeviceTablet,
 	DownloadSimple,
-	Heart,
 	Info,
 	ThumbsDown,
 	Trash,
@@ -64,14 +63,10 @@ export function BookContextMenuContentPanel() {
 		handleDeletePermanently,
 		handleOpenInNewTab,
 		handleRemoveFromContinueReading,
-		handleToggleLike,
 		isAudiobook,
 		isInContinueReading,
 		isDeletePermanentlyBusy,
-		isLiked,
-		isLikeActionBusy,
 		isReadingProgressActionBusy,
-		likeActionLabel,
 	} = useBookContextMenuActions(activeBookUuid, activeMediaType, {
 		inContinueList: activeInContinueList,
 	});
@@ -80,7 +75,6 @@ export function BookContextMenuContentPanel() {
 	const canDownload = isAudiobook
 		? can("audiobook", "download")
 		: can("book", "download");
-	const canLike = can("like", "create");
 	const canDelete = can("book", "delete");
 
 	const [isAddToListOpen, setIsAddToListOpen] = useState(false);
@@ -187,15 +181,6 @@ export function BookContextMenuContentPanel() {
 				</ContextMenuGroup>
 				<ContextMenuSeparator />
 				<ContextMenuGroup>
-					{canLike && (
-						<ContextMenuItem
-							disabled={!hasActiveBook || isLikeActionBusy}
-							onClick={handleToggleLike}
-						>
-							<Heart weight={isLiked ? "fill" : "regular"} />
-							{likeActionLabel}
-						</ContextMenuItem>
-					)}
 					<ContextMenuItem
 						disabled={!hasActiveBook}
 						onClick={() => {

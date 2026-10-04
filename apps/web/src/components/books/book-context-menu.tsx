@@ -170,10 +170,6 @@ export function BookContextMenuRoot({
 			const targetIsAudiobook = targetMediaType === "audiobook";
 			const input = { bookUuid };
 			void queryClient.prefetchQuery({
-				...orpc.likedBooks.getLikeStatus.queryOptions({ input }),
-				staleTime: MENU_STALE_TIME,
-			});
-			void queryClient.prefetchQuery({
 				...orpc.collections.listBookMemberships.queryOptions({ input }),
 				staleTime: MENU_STALE_TIME,
 			});

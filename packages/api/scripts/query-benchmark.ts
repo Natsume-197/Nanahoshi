@@ -375,7 +375,7 @@ async function seed() {
 	);
 }
 
-// Adds the per-user rows (reading progress, likes, shelf) the dashboard
+// Adds the per-user rows (reading progress, shelf) the dashboard
 // queries read. Idempotent — safe to run against an already-seeded org.
 const USER_ID = "qbench-user";
 async function augment() {
@@ -404,20 +404,13 @@ async function augment() {
 		[USER_ID, bookIds.slice(0, 60)],
 	);
 	await pool.query(
-		`INSERT INTO liked_book (user_id, book_id, server_id, created_at)
-		 SELECT $1, id, $2, now() - (id % 200) * interval '1 hour'
-		 FROM unnest($3::bigint[]) AS t(id)
-		 ON CONFLICT DO NOTHING`,
-		[USER_ID, ORG_ID, bookIds.slice(0, 300)],
-	);
-	await pool.query(
 		`INSERT INTO user_book_shelf (user_id, book_id, status, updated_at)
 		 SELECT $1, id, (ARRAY['want_to_read','backlog','reading','completed'])[1 + id % 4]::shelf_status, now() - (id % 120) * interval '1 hour'
 		 FROM unnest($2::bigint[]) AS t(id)
 		 ON CONFLICT DO NOTHING`,
 		[USER_ID, bookIds.slice(0, 150)],
 	);
-	console.log("augmented: 60 reading_progress, 300 liked_book, 150 shelf rows");
+	console.log("augmented: 60 reading_progress, 150 shelf rows");
 }
 
 async function clean() {
@@ -649,9 +642,6 @@ async function run(label: string, out?: string) {
 	const { readingProgressRepository } = await import(
 		"../src/routers/reading-progress/reading-progress.repository"
 	);
-	const { likedBooksRepository } = await import(
-		"../src/routers/liked-books/liked-books.repository"
-	);
 	const { bookShelfRepository } = await import(
 		"../src/routers/book-shelf/book-shelf.repository"
 	);
@@ -726,13 +716,6 @@ async function run(label: string, out?: string) {
 	);
 	await add("dashboard: listInProgress(20)", 50, () =>
 		readingProgressRepository.listInProgress(USER_ID, 20, ORG_ID, "ALL"),
-	);
-	await add("dashboard: listLiked recent (40)", 50, () =>
-		likedBooksRepository.listLiked(USER_ID, ORG_ID, "ALL", {
-			limit: 40,
-			offset: 0,
-			sort: "recent",
-		}),
 	);
 	await add("dashboard: shelf listByStatus reading", 50, () =>
 		bookShelfRepository.listByStatus(USER_ID, ORG_ID, "ALL", "reading", 50),

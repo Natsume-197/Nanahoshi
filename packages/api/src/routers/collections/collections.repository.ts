@@ -10,7 +10,6 @@ import {
 	collection,
 	collectionBook,
 	library,
-	likedBook,
 	listeningProgress,
 	readingProgress,
 	userAudiobookShelf,
@@ -683,16 +682,6 @@ export class CollectionsRepository {
 				.leftJoin(audiobookMetadata, eq(audiobookMetadata.bookId, book.id))
 				.$dynamic();
 			let scopedQuery = query;
-			if (compiled.personalJoins.includes("liked")) {
-				scopedQuery = scopedQuery.leftJoin(
-					likedBook,
-					and(
-						eq(likedBook.bookId, book.id),
-						eq(likedBook.userId, context.viewerId),
-						eq(likedBook.serverId, context.serverId),
-					),
-				);
-			}
 			if (compiled.personalJoins.includes("progress")) {
 				scopedQuery = scopedQuery
 					.leftJoin(

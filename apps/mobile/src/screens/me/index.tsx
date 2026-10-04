@@ -39,7 +39,7 @@ import { useApi, useConnection, useServer } from "@/providers/app-provider";
 import { radius, sizes, space, usePalette } from "@/theme";
 import { buildRails } from "./profile-model";
 
-type Tab = "overview" | "books" | "audiobooks" | "likes";
+type Tab = "overview" | "books" | "audiobooks";
 type BookStatus = "completed" | "reading" | "backlog" | "want_to_read";
 type AudioStatus = "listening" | "completed" | "backlog" | "want_to_listen";
 const PAGE = 40;
@@ -92,8 +92,8 @@ export function Me() {
 }
 
 /** The web's profile page (/dashboard/user/$username): banner, avatar and
- * name, then Overview / Books / Audiobooks, plus Likes on your own, whose ⋯
- * menu carries the account actions. Another member's is read-only. */
+ * name, then Overview / Books / Audiobooks; your own one's ⋯ menu carries
+ * the account actions. Another member's is read-only. */
 export function Profile({ username: requested }: { username?: string }) {
 	const { orpc } = useApi();
 	const own = useQuery(orpc.profile.getProfile.queryOptions());
@@ -111,9 +111,6 @@ export function Profile({ username: requested }: { username?: string }) {
 	const [tab, setTab] = useState<Tab>("overview");
 	const [bookStatus, setBookStatus] = useState<BookStatus | "all">("all");
 	const [audioStatus, setAudioStatus] = useState<AudioStatus | "all">("all");
-	const [likedFormat, setLikedFormat] = useState<"books" | "audiobooks">(
-		"books",
-	);
 	const scrollY = useSharedValue(0);
 	const onScroll = useAnimatedScrollHandler({
 		onScroll: (event) => {
@@ -154,19 +151,6 @@ export function Profile({ username: requested }: { username?: string }) {
 		}),
 		enabled: !!username && tab === "audiobooks",
 	});
-	const likes = useInfiniteQuery({
-		...orpc.likedBooks.listLiked.infiniteOptions({
-			input: (cursor: number) => ({ limit: PAGE, cursor, format: likedFormat }),
-			initialPageParam: 0,
-			getNextPageParam: (last, pages) =>
-				last.length === PAGE ? pages.length * PAGE : undefined,
-		}),
-		enabled: isOwn && tab === "likes",
-	});
-	const likedCount = useQuery({
-		...orpc.likedBooks.count.queryOptions({ input: { format: likedFormat } }),
-		enabled: isOwn && tab === "likes",
-	});
 
 	const grid =
 		tab === "books"
@@ -187,29 +171,7 @@ export function Profile({ username: requested }: { username?: string }) {
 						total: audiobooks.data?.pages[0]?.total,
 						count: (n: number) => t("media.audiobook_count", { count: n }),
 					}
-				: tab === "likes"
-					? {
-							query: likes,
-							items: (likes.data?.pages.flat() ?? []).map(
-								(item): TileItem => ({
-									uuid: item.bookUuid,
-									kind: likedFormat === "audiobooks" ? "audiobook" : "book",
-									title: item.title ?? null,
-									cover: item.cover ?? null,
-									color: item.mainColor ?? null,
-									subtitle: joinNames(item.authors ?? [], 1),
-								}),
-							),
-							total: likedCount.data,
-							count: (n: number) =>
-								t(
-									likedFormat === "audiobooks"
-										? "media.audiobook_count"
-										: "media.book_count",
-									{ count: n },
-								),
-						}
-					: null;
+				: null;
 
 	const filters =
 		tab === "books" ? (
@@ -236,43 +198,19 @@ export function Profile({ username: requested }: { username?: string }) {
 					})),
 				]}
 			/>
-		) : tab === "likes" ? (
-			<ChipRow
-				value={likedFormat}
-				onChange={setLikedFormat}
-				options={[
-					{ value: "books", label: t("nav.books") },
-					{ value: "audiobooks", label: t("nav.audiobooks") },
-				]}
-			/>
 		) : null;
 
-	const emptyTitle =
-		tab === "likes"
-			? t(
-					likedFormat === "audiobooks"
-						? "likes.empty_title_audiobooks"
-						: "likes.empty_title",
-				)
-			: t(
-					tab === "audiobooks"
-						? "likes.empty_title_audiobooks"
-						: "library_page.empty_title",
-				);
+	const emptyTitle = t(
+		tab === "audiobooks" ? "shelves.empty_title" : "library_page.empty_title",
+	);
 	const emptyMessage =
-		tab === "likes"
+		(tab === "books" ? bookStatus : audioStatus) !== "all"
 			? t(
-					likedFormat === "audiobooks"
-						? "likes.empty_desc_audiobooks"
-						: "likes.empty_desc",
+					tab === "audiobooks"
+						? "catalog_pages.no_status_audiobooks"
+						: "catalog_pages.no_status_books",
 				)
-			: (tab === "books" ? bookStatus : audioStatus) !== "all"
-				? t(
-						tab === "audiobooks"
-							? "catalog_pages.no_status_audiobooks"
-							: "catalog_pages.no_status_books",
-					)
-				: t("catalog_pages.empty_shelf");
+			: t("catalog_pages.empty_shelf");
 
 	if (!isOwn && other.isError)
 		return <ErrorState onRetry={() => other.refetch()} />;
@@ -328,10 +266,6 @@ export function Profile({ username: requested }: { username?: string }) {
 								{ value: "overview", label: t("mobile.me.overview") },
 								{ value: "books", label: t("nav.books") },
 								{ value: "audiobooks", label: t("nav.audiobooks") },
-								// Likes are private, so only your own profile has the tab.
-								...(isOwn
-									? [{ value: "likes" as const, label: t("mobile.me.likes") }]
-									: []),
 							]}
 						/>
 						{filters}

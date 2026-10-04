@@ -19,7 +19,7 @@ function makeWork(overrides: Partial<WorkAggregate> = {}): WorkAggregate {
 		memberBookIds: [1],
 		embeddingText: "",
 		engagedUserIds: new Set(),
-		likeCount: 0,
+		collectionCount: 0,
 		completionCount: 0,
 		rating: null,
 		ratingCount: null,

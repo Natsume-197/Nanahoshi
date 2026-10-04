@@ -62,7 +62,7 @@ function makeWorks(n: number, seed: number): WorkAggregate[] {
 		memberBookIds: [i + 1],
 		embeddingText: `work ${i + 1}`,
 		engagedUserIds: randomSubset(rand, users, 30) as Set<string>,
-		likeCount: Math.floor(rand() * 5),
+		collectionCount: Math.floor(rand() * 5),
 		completionCount: Math.floor(rand() * 5),
 		rating: null,
 		ratingCount: null,

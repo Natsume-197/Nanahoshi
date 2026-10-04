@@ -6,7 +6,7 @@ const BAYES_PRIOR_RATING = 3.5;
 export interface PopularityEntry {
 	kind: WorkAggregate["kind"];
 	id: number;
-	likeCount: number;
+	collectionCount: number;
 	completionCount: number;
 	engagedUserCount: number;
 	rating: number | null;
@@ -15,13 +15,13 @@ export interface PopularityEntry {
 }
 
 export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
-	const maxLikes = Math.max(0, ...works.map((w) => w.likeCount));
+	const maxCollections = Math.max(0, ...works.map((w) => w.collectionCount));
 	const maxCompletions = Math.max(0, ...works.map((w) => w.completionCount));
 	const maxEngagedUsers = Math.max(
 		0,
 		...works.map((w) => w.engagedUserIds.size),
 	);
-	const logMaxLikes = Math.log1p(maxLikes);
+	const logMaxCollections = Math.log1p(maxCollections);
 	const logMaxCompletions = Math.log1p(maxCompletions);
 	const logMaxEngagedUsers = Math.log1p(maxEngagedUsers);
 
@@ -34,8 +34,10 @@ export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
 		const hasRating = w.rating !== null && n > 0;
 		const ratingTerm = hasRating ? (bayes - 1) / 4 : 0; // missing data is not popularity
 
-		const likeTerm =
-			logMaxLikes === 0 ? 0 : Math.log1p(w.likeCount) / logMaxLikes;
+		const collectionTerm =
+			logMaxCollections === 0
+				? 0
+				: Math.log1p(w.collectionCount) / logMaxCollections;
 		const completionTerm =
 			logMaxCompletions === 0
 				? 0
@@ -48,7 +50,7 @@ export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
 		return {
 			kind: w.kind,
 			id: w.id,
-			likeCount: w.likeCount,
+			collectionCount: w.collectionCount,
 			completionCount: w.completionCount,
 			engagedUserCount: w.engagedUserIds.size,
 			rating: w.rating,
@@ -58,7 +60,7 @@ export function computePopularity(works: WorkAggregate[]): PopularityEntry[] {
 				Math.max(
 					0,
 					0.4 * ratingTerm +
-						0.25 * likeTerm +
+						0.25 * collectionTerm +
 						0.2 * completionTerm +
 						0.15 * engagedTerm,
 				),

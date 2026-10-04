@@ -18,7 +18,6 @@ export type BookTarget = {
 export type BookMenuActionId =
 	| "play"
 	| "details"
-	| "like"
 	| "addToList"
 	| "download"
 	| "cancelDownload"
@@ -42,10 +41,8 @@ export type BookMenuAction = {
 };
 
 export type BookMenuState = {
-	liked: boolean;
 	inProgress: boolean;
 	isPlaying: boolean;
-	canLike: boolean;
 	canDelete: boolean;
 	canEditMetadata: boolean;
 	/** Where the title stands on this phone; null when it can't be downloaded. */
@@ -58,8 +55,6 @@ type Labels = Record<
 	| "listen"
 	| "pause"
 	| "details"
-	| "like"
-	| "unlike"
 	| "addToList"
 	| "download"
 	| "cancelDownload"
@@ -97,12 +92,6 @@ export function buildBookMenu(
 		open.push({ id: "details", label: labels.details, icon: icons.info });
 
 	const library: BookMenuAction[] = [];
-	if (state.canLike)
-		library.push({
-			id: "like",
-			label: state.liked ? labels.unlike : labels.like,
-			icon: state.liked ? icons.heartFill : icons.heart,
-		});
 	if (!page)
 		library.push({
 			id: "addToList",

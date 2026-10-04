@@ -29,7 +29,6 @@ export const icons = {
 	book: { ios: "book.fill", android: "menu_book" },
 	headphones: { ios: "headphones", android: "headphones" },
 	heart: { ios: "heart", android: "favorite_border" },
-	heartFill: { ios: "heart.fill", android: "favorite" },
 	series: { ios: "square.stack", android: "stacks" },
 	author: { ios: "person", android: "person" },
 	narrator: { ios: "mic", android: "mic" },

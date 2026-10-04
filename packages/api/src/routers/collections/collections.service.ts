@@ -5,6 +5,7 @@ import {
 	InternalServerError,
 	NotFoundError,
 } from "../../errors";
+import { enqueueUserRefresh } from "../../modules/recommendations/recommendation.scheduler";
 import type { LibraryScope } from "../_shared/library-scope";
 import { bookRepository } from "../books/book.repository";
 import { getBookLinkPreviewConfig } from "../settings/settings.service";
@@ -638,6 +639,7 @@ export const createCollection = async (
 
 		await collectionsRepository.addBook(created.id, Number(bookRecord.id));
 		await collectionsRepository.touch(created.id);
+		await enqueueUserRefresh(serverId, userId);
 	}
 
 	return created;
@@ -692,6 +694,8 @@ export const deleteCollection = async (
 	}
 
 	await collectionsRepository.deleteByIdForUser(collectionId, userId, serverId);
+	// Manual collections feed recommendations; their books stop counting.
+	if (target.kind === "manual") await enqueueUserRefresh(serverId, userId);
 	return { success: true };
 };
 
@@ -755,6 +759,7 @@ export const setBookMembership = async (
 
 	if (changed) {
 		await collectionsRepository.touch(input.collectionId);
+		await enqueueUserRefresh(serverId, userId);
 	}
 
 	return {

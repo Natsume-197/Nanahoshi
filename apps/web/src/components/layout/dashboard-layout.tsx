@@ -177,7 +177,7 @@ function NotificationEventsListener() {
 }
 
 // Recommendation listener: refetches "For you" when the debounced per-user
-// refresh (like/shelf/progress signal) finishes server-side. Per-user routing.
+// refresh (collection/shelf/progress signal) finishes server-side. Per-user routing.
 function RecommendationEventsListener() {
 	useRecommendationEvents();
 	return null;

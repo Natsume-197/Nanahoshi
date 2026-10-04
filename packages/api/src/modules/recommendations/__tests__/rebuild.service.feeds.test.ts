@@ -36,7 +36,7 @@ const work = (id: number): WorkAggregate => ({
 	memberBookIds: [id],
 	embeddingText: `work ${id}`,
 	engagedUserIds: new Set(["user-1"]),
-	likeCount: 1,
+	collectionCount: 1,
 	completionCount: 1,
 	rating: null,
 	ratingCount: null,

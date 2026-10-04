@@ -53,7 +53,9 @@ beforeEach(() => {
 	repo.getUserRecState = async () => storedState;
 	repo.loadUserSignalWorks = async () => {
 		computeRuns++;
-		return [{ kind: "series", itemId: 1, signal: "like", atMs: Date.now() }];
+		return [
+			{ kind: "series", itemId: 1, signal: "collected", atMs: Date.now() },
+		];
 	};
 	repo.loadSimilaritiesForSeeds = async () => [
 		{
@@ -104,7 +106,7 @@ afterEach(() => {
 describe("computeUserFeed", () => {
 	test("shared rebuild context is result-equivalent and loads common data once", async () => {
 		const signals = [
-			{ kind: "series" as const, itemId: 1, signal: "like", atMs: 1_000 },
+			{ kind: "series" as const, itemId: 1, signal: "collected", atMs: 1_000 },
 		];
 		const nowMs = 2_000;
 		const uncached = await buildUserMixesPreview("org", signals, nowMs);
@@ -149,7 +151,7 @@ describe("computeUserFeed", () => {
 		expect(replacedWith[0]?.mixCount).toBe(1);
 	});
 
-	test("liked seed produces because_you_liked items", async () => {
+	test("collection seed produces because_you_saved items", async () => {
 		await computeUserFeed("org", "u1");
 		expect(replacedWith.length).toBe(1);
 	});

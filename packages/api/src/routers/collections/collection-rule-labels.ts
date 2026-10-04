@@ -45,7 +45,6 @@ const FIELD_LABELS: Record<
 		enrichmentStatus: "Metadata status",
 		metadataLocked: "Metadata locked",
 		readListenPaired: "Read & Listen pair",
-		liked: "Liked",
 		shelfStatus: "Shelf",
 		consumptionStatus: "Reading status",
 		progressPercent: "Progress (%)",
@@ -90,7 +89,6 @@ const FIELD_LABELS: Record<
 		enrichmentStatus: "Estado de metadatos",
 		metadataLocked: "Metadatos bloqueados",
 		readListenPaired: "Pareja Leer y escuchar",
-		liked: "Me gusta",
 		shelfStatus: "Estante",
 		consumptionStatus: "Estado de lectura",
 		progressPercent: "Progreso (%)",
@@ -135,7 +133,6 @@ const FIELD_LABELS: Record<
 		enrichmentStatus: "メタデータ状態",
 		metadataLocked: "メタデータをロック",
 		readListenPaired: "読む・聴くペア",
-		liked: "お気に入り",
 		shelfStatus: "本棚",
 		consumptionStatus: "読書状態",
 		progressPercent: "進捗 (%)",
@@ -320,7 +317,7 @@ const TEMPLATE_LABELS: Record<SupportedLocale, Record<string, string>> = {
 		inSeries: "In a series",
 		recentPicks: "Recent picks",
 		shortBooksAnyFormat: "Short books in any format",
-		favoritesToFinish: "Favorites to finish",
+		shelvedToFinish: "Shelved, not finished",
 	},
 	es: {
 		recentlyAdded: "Añadidos recientemente",
@@ -335,7 +332,7 @@ const TEMPLATE_LABELS: Record<SupportedLocale, Record<string, string>> = {
 		inSeries: "Dentro de una serie",
 		recentPicks: "Selecciones recientes",
 		shortBooksAnyFormat: "Libros cortos en cualquier formato",
-		favoritesToFinish: "Favoritos por terminar",
+		shelvedToFinish: "En estantes, sin terminar",
 	},
 	ja: {
 		recentlyAdded: "最近追加",
@@ -350,7 +347,7 @@ const TEMPLATE_LABELS: Record<SupportedLocale, Record<string, string>> = {
 		inSeries: "シリーズ作品",
 		recentPicks: "最近のおすすめ",
 		shortBooksAnyFormat: "形式を問わない短い本",
-		favoritesToFinish: "読み終えていないお気に入り",
+		shelvedToFinish: "棚にある未読了の本",
 	},
 };
 
@@ -412,7 +409,6 @@ export const COLLECTION_FIELD_GROUPS = [
 	{
 		id: "personal",
 		fields: [
-			"liked",
 			"shelfStatus",
 			"consumptionStatus",
 			"progressPercent",

@@ -131,17 +131,10 @@ export const DYNAMIC_COLLECTION_TEMPLATES = [
 				value: { amount: 90, unit: "day" },
 			},
 			{
-				kind: "group",
-				match: "any",
-				children: [
-					{ kind: "rule", field: "liked", operator: "isTrue" },
-					{
-						kind: "rule",
-						field: "shelfStatus",
-						operator: "includesAny",
-						value: ["want", "backlog"],
-					},
-				],
+				kind: "rule",
+				field: "shelfStatus",
+				operator: "includesAny",
+				value: ["want", "backlog"],
 			},
 		],
 		[{ field: "addedAt", direction: "desc" }],
@@ -196,7 +189,7 @@ export const DYNAMIC_COLLECTION_TEMPLATES = [
 			],
 		},
 	]),
-	template("favoritesToFinish", [
+	template("shelvedToFinish", [
 		{
 			kind: "rule",
 			field: "consumptionStatus",
@@ -204,17 +197,10 @@ export const DYNAMIC_COLLECTION_TEMPLATES = [
 			value: ["completed"],
 		},
 		{
-			kind: "group",
-			match: "any",
-			children: [
-				{ kind: "rule", field: "liked", operator: "isTrue" },
-				{
-					kind: "rule",
-					field: "shelfStatus",
-					operator: "includesAny",
-					value: ["inProgress", "backlog"],
-				},
-			],
+			kind: "rule",
+			field: "shelfStatus",
+			operator: "includesAny",
+			value: ["inProgress", "backlog"],
 		},
 	]),
 ] satisfies ReadonlyArray<{

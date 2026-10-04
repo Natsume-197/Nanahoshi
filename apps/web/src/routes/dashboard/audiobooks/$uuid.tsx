@@ -51,12 +51,6 @@ export const Route = createFileRoute("/dashboard/audiobooks/$uuid")({
 						input: { bookUuid: params.uuid },
 					}),
 				);
-				prefetchRouteQuery(
-					context.queryClient,
-					orpc.likedBooks.getLikeStatus.queryOptions({
-						input: { bookUuid: params.uuid },
-					}),
-				);
 			}
 			return { audiobook };
 		} catch (error) {

@@ -109,7 +109,7 @@ export function createSyntheticRecommendationDataset(): SyntheticRecommendationD
 				memberBookIds: [id],
 				embeddingText: `${title} ${definition.label}`,
 				engagedUserIds: new Set(),
-				likeCount: 0,
+				collectionCount: 0,
 				completionCount: 0,
 				rating: 3.6 + (local % 4) * 0.1,
 				ratingCount: 20 + (local % 5) * 10,
@@ -135,7 +135,7 @@ export function createSyntheticRecommendationDataset(): SyntheticRecommendationD
 				rows.push({
 					kind: "series",
 					itemId: cluster * 100 + local + 1,
-					signal: step % 3 === 2 ? "completed" : "like",
+					signal: step % 3 === 2 ? "completed" : "collected",
 					atMs: baseTime + (step + 1) * 7 * 86_400_000 + member * 3_600_000,
 				});
 			}
@@ -248,7 +248,7 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 					memberBookIds: [id],
 					embeddingText: sparse ? label : `${label} ${local}`,
 					engagedUserIds: new Set(),
-					likeCount: 0,
+					collectionCount: 0,
 					completionCount: 0,
 					rating: sparse ? null : 3.4 + (local % 5) * 0.12,
 					ratingCount: sparse ? null : 15 + (local % 6) * 12,
@@ -307,7 +307,7 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 				push(
 					rows,
 					pick(sub, m + step),
-					step % 3 === 2 ? "completed" : "like",
+					step % 3 === 2 ? "completed" : "collected",
 					step + 1,
 					m,
 				);
@@ -340,7 +340,7 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 				push(
 					rows,
 					pick(a, m + step),
-					step % 2 ? "completed" : "like",
+					step % 2 ? "completed" : "collected",
 					step + 1,
 					m,
 				);
@@ -348,7 +348,7 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 				push(
 					rows,
 					pick(b, m + step),
-					step % 2 ? "completed" : "like",
+					step % 2 ? "completed" : "collected",
 					step + 5,
 					m,
 				);
@@ -374,16 +374,16 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 				push(
 					rows,
 					pick(a, m + step),
-					step % 2 ? "completed" : "like",
+					step % 2 ? "completed" : "collected",
 					step + 1,
 					m,
 				);
-			push(rows, pick(b, m), "like", 5, m); // the blip
+			push(rows, pick(b, m), "collected", 5, m); // the blip
 			for (let step = 4; step < 7; step++)
 				push(
 					rows,
 					pick(a, m + step),
-					step % 2 ? "completed" : "like",
+					step % 2 ? "completed" : "collected",
 					step + 2,
 					m,
 				);
@@ -408,7 +408,7 @@ export function createHardSyntheticRecommendationDataset(): SyntheticRecommendat
 				push(
 					rows,
 					pick(sub, m + Math.floor(step / 2)),
-					step % 3 === 2 ? "completed" : "like",
+					step % 3 === 2 ? "completed" : "collected",
 					step + 1,
 					m,
 				);

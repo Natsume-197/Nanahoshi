@@ -22,7 +22,6 @@ export const PERMISSIONS = {
 	cover: ["edit"],
 	collection: ["read", "create", "update", "delete", "makePublic"],
 	progress: ["read", "write"],
-	like: ["create"],
 	apiKey: ["create", "revoke"],
 	opds: ["access"],
 } as const;

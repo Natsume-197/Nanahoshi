@@ -23,9 +23,7 @@ describe("Dynamic Collection templates", () => {
 		);
 
 		expect(groupedTemplates.map((template) => template.id)).toEqual([
-			"recentPicks",
 			"shortBooksAnyFormat",
-			"favoritesToFinish",
 		]);
 	});
 

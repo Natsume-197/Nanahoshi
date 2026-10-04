@@ -1,7 +1,7 @@
 import type { WorkKey } from "./types";
 
 export type SignalType =
-	| "like"
+	| "collected"
 	| "completed"
 	| "progress50"
 	| "progress"
@@ -19,7 +19,7 @@ export interface SignalRow {
 export interface Seed {
 	key: WorkKey;
 	weight: number;
-	fromLike: boolean;
+	fromCollection: boolean;
 }
 
 export interface NegativeSeed {
@@ -29,7 +29,7 @@ export interface NegativeSeed {
 }
 
 const SIGNAL_WEIGHTS: Partial<Record<SignalType, number>> = {
-	like: 1.0,
+	collected: 1.0, // saved to one of the user's own collections: explicit taste
 	completed: 0.8,
 	progress50: 0.6,
 	progress: 0, // exclusion only — already reading it
@@ -59,7 +59,10 @@ export function selectSeeds(
 	nowMs: number,
 ): { seeds: Seed[]; negativeSeeds: NegativeSeed[]; exclusions: Set<WorkKey> } {
 	const exclusions = new Set<WorkKey>();
-	const byWork = new Map<WorkKey, { weight: number; fromLike: boolean }>();
+	const byWork = new Map<
+		WorkKey,
+		{ weight: number; fromCollection: boolean }
+	>();
 	const negByWork = new Map<WorkKey, NegativeSeed>();
 
 	for (const row of rows) {
@@ -83,10 +86,11 @@ export function selectSeeds(
 		if (!prev || weight > prev.weight) {
 			byWork.set(row.key, {
 				weight,
-				fromLike: row.signal === "like" || (prev?.fromLike ?? false),
+				fromCollection:
+					row.signal === "collected" || (prev?.fromCollection ?? false),
 			});
-		} else if (row.signal === "like") {
-			prev.fromLike = true;
+		} else if (row.signal === "collected") {
+			prev.fromCollection = true;
 		}
 	}
 
@@ -94,7 +98,11 @@ export function selectSeeds(
 	for (const key of negByWork.keys()) byWork.delete(key);
 
 	const seeds = [...byWork.entries()]
-		.map(([key, v]) => ({ key, weight: v.weight, fromLike: v.fromLike }))
+		.map(([key, v]) => ({
+			key,
+			weight: v.weight,
+			fromCollection: v.fromCollection,
+		}))
 		.sort((a, b) => b.weight - a.weight || (a.key < b.key ? -1 : 1))
 		.slice(0, MAX_SEEDS);
 

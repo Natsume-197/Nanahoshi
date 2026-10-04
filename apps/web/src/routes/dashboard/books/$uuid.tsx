@@ -56,12 +56,6 @@ export const Route = createFileRoute("/dashboard/books/$uuid")({
 				);
 				prefetchRouteQuery(
 					context.queryClient,
-					orpc.likedBooks.getLikeStatus.queryOptions({
-						input: { bookUuid: params.uuid },
-					}),
-				);
-				prefetchRouteQuery(
-					context.queryClient,
 					orpc.collections.listBookMemberships.queryOptions({
 						input: { bookUuid: params.uuid },
 					}),

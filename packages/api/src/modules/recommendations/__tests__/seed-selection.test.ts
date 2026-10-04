@@ -6,9 +6,9 @@ const NOW = 1_750_000_000_000;
 const DAY = 86_400_000;
 
 describe("selectSeeds", () => {
-	test("likes outweigh completions, completions outweigh shelf", () => {
+	test("collection saves outweigh completions, completions outweigh shelf", () => {
 		const rows: SignalRow[] = [
-			{ key: workKey("series", 1), signal: "like", atMs: NOW },
+			{ key: workKey("series", 1), signal: "collected", atMs: NOW },
 			{ key: workKey("series", 2), signal: "completed", atMs: NOW },
 			{ key: workKey("series", 3), signal: "shelf", atMs: NOW },
 		];
@@ -31,24 +31,24 @@ describe("selectSeeds", () => {
 		expect(seeds[1]?.weight).toBeCloseTo(0.3);
 	});
 
-	test("recency decay: an old like can fall below a fresh completion", () => {
+	test("recency decay: an old collection save can fall below a fresh completion", () => {
 		const rows: SignalRow[] = [
-			{ key: workKey("series", 1), signal: "like", atMs: NOW - 365 * DAY },
+			{ key: workKey("series", 1), signal: "collected", atMs: NOW - 365 * DAY },
 			{ key: workKey("series", 2), signal: "completed", atMs: NOW },
 		];
 		const { seeds } = selectSeeds(rows, NOW);
 		expect(seeds[0]?.key).toBe("series:2");
 	});
 
-	test("max signal wins per work; fromLike sticks", () => {
+	test("max signal wins per work; fromCollection sticks", () => {
 		const rows: SignalRow[] = [
 			{ key: workKey("series", 1), signal: "shelf", atMs: NOW },
-			{ key: workKey("series", 1), signal: "like", atMs: NOW },
+			{ key: workKey("series", 1), signal: "collected", atMs: NOW },
 		];
 		const { seeds } = selectSeeds(rows, NOW);
 		expect(seeds.length).toBe(1);
 		expect(seeds[0]?.weight).toBeCloseTo(1);
-		expect(seeds[0]?.fromLike).toBe(true);
+		expect(seeds[0]?.fromCollection).toBe(true);
 	});
 
 	test("progress signal excludes but never seeds", () => {
@@ -63,7 +63,7 @@ describe("selectSeeds", () => {
 	test("caps at MAX_SEEDS keeping the strongest", () => {
 		const rows: SignalRow[] = Array.from({ length: 40 }, (_, i) => ({
 			key: workKey("book", i + 1),
-			signal: i < 25 ? ("like" as const) : ("shelf" as const),
+			signal: i < 25 ? ("collected" as const) : ("shelf" as const),
 			atMs: NOW - i * DAY,
 		}));
 		const { seeds, exclusions } = selectSeeds(rows, NOW);
@@ -80,8 +80,8 @@ describe("selectSeeds", () => {
 
 	test("deterministic tie order by key", () => {
 		const rows: SignalRow[] = [
-			{ key: workKey("book", 2), signal: "like", atMs: NOW },
-			{ key: workKey("book", 1), signal: "like", atMs: NOW },
+			{ key: workKey("book", 2), signal: "collected", atMs: NOW },
+			{ key: workKey("book", 1), signal: "collected", atMs: NOW },
 		];
 		const a = selectSeeds(rows, NOW).seeds.map((s) => s.key);
 		const b = selectSeeds([...rows].reverse(), NOW).seeds.map((s) => s.key);
@@ -132,7 +132,7 @@ describe("selectSeeds", () => {
 
 	test("an explicit negative overrides a positive signal on the same work", () => {
 		const rows: SignalRow[] = [
-			{ key: workKey("series", 7), signal: "like", atMs: NOW },
+			{ key: workKey("series", 7), signal: "collected", atMs: NOW },
 			{ key: workKey("series", 7), signal: "not_interested", atMs: NOW },
 		];
 		const { seeds, negativeSeeds } = selectSeeds(rows, NOW);

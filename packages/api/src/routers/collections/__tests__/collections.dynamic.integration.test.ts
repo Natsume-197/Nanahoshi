@@ -177,7 +177,12 @@ describe.skipIf(!enabled)("Dynamic Collections integration", () => {
 							operator: "includesAny",
 							value: ["unstarted"],
 						},
-						{ kind: "rule", field: "liked", operator: "isFalse" },
+						{
+							kind: "rule",
+							field: "shelfStatus",
+							operator: "includesAny",
+							value: ["none"],
+						},
 					],
 				},
 				sort: [{ field: "progressPercent", direction: "desc" }],

@@ -17,7 +17,6 @@ import { PlayerArtField } from "@/components/audio-player/player-art-field";
 import { PlayerBookmarksPanel } from "@/components/audio-player/player-bookmarks-panel";
 import { PlayerChapterPanel } from "@/components/audio-player/player-chapter-panel";
 import { PlayerIconButton } from "@/components/audio-player/player-controls";
-import { PlayerLikeButton } from "@/components/audio-player/player-like-button";
 import { PlayerMoreMenu } from "@/components/audio-player/player-more-menu";
 import {
 	persistProgressScope,
@@ -414,10 +413,6 @@ export const ExpandedPlayer = memo(function ExpandedPlayer({
 									</p>
 								)}
 							</div>
-							<PlayerLikeButton
-								className="mt-0.5 size-10 shrink-0"
-								iconClassName="size-5 md:size-6"
-							/>
 						</div>
 
 						<div className="flex w-full min-w-0 shrink-0 touch-none flex-col gap-1">

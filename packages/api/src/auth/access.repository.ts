@@ -30,7 +30,6 @@ const DEFAULT_EVERYONE_PERMISSIONS: PermissionMap = {
 	audiobook: ["download"],
 	collection: ["read", "create", "update", "delete"],
 	progress: ["read", "write"],
-	like: ["create"],
 	opds: ["access"],
 };
 

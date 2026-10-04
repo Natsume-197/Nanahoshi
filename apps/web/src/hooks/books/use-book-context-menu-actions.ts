@@ -16,9 +16,8 @@ import {
 	type ContinueProgressData,
 	resolveIsInContinueList,
 } from "./continue-list-state";
-import { type MediaType, useToggleLike } from "./use-toggle-like";
 
-export type { MediaType } from "./use-toggle-like";
+export type MediaType = "ebook" | "audiobook";
 
 const MENU_STALE_TIME = 60_000;
 
@@ -43,9 +42,6 @@ export function useBookContextMenuActions(
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const isAudiobook = mediaType === "audiobook";
-	const likeStatusQueryOptions = orpc.likedBooks.getLikeStatus.queryOptions({
-		input: { bookUuid },
-	});
 	const collectionsMembershipQueryOptions =
 		orpc.collections.listBookMemberships.queryOptions({
 			input: { bookUuid },
@@ -65,11 +61,6 @@ export function useBookContextMenuActions(
 		input: { bookUuid },
 	});
 
-	const likeStatusQuery = useQuery({
-		...likeStatusQueryOptions,
-		enabled,
-		staleTime: MENU_STALE_TIME,
-	});
 	const collectionsMembershipQuery = useQuery({
 		...collectionsMembershipQueryOptions,
 		enabled,
@@ -102,7 +93,6 @@ export function useBookContextMenuActions(
 		: readingProgressQuery;
 	const shelfQuery = isAudiobook ? audiobookShelfQuery : bookShelfQuery;
 
-	const toggleLikeMutation = useToggleLike(bookUuid, mediaType);
 	const createCollectionMutation = useMutation({
 		mutationFn: (input: { name: string; isPublic: boolean }) =>
 			client.collections.create({
@@ -353,15 +343,11 @@ export function useBookContextMenuActions(
 		},
 	});
 
-	const isLiked = likeStatusQuery.data?.liked ?? false;
 	const isInContinueReading = resolveIsInContinueList({
 		progress: progressQuery.data as ContinueProgressData | undefined,
 		isAudiobook,
 		hint: inContinueList,
 	});
-	const isLikeActionBusy =
-		toggleLikeMutation.isPending ||
-		(likeStatusQuery.isFetching && !likeStatusQuery.data);
 	const isCollectionActionBusy =
 		createCollectionMutation.isPending ||
 		setCollectionMembershipMutation.isPending;
@@ -372,10 +358,6 @@ export function useBookContextMenuActions(
 			if (!targetBookUuid) return;
 			const targetIsAudiobook = targetMediaType === "audiobook";
 			const input = { bookUuid: targetBookUuid };
-			void queryClient.prefetchQuery({
-				...orpc.likedBooks.getLikeStatus.queryOptions({ input }),
-				staleTime: MENU_STALE_TIME,
-			});
 			void queryClient.prefetchQuery({
 				...orpc.collections.listBookMemberships.queryOptions({ input }),
 				staleTime: MENU_STALE_TIME,
@@ -423,9 +405,6 @@ export function useBookContextMenuActions(
 		}
 	}, [bookUuid]);
 
-	const handleToggleLike = useCallback(() => {
-		toggleLikeMutation.mutate();
-	}, [toggleLikeMutation]);
 	const handleRemoveFromContinueReading = useCallback(() => {
 		if (!bookUuid || !isInContinueReading) return;
 		removeFromContinueReadingMutation.mutate();
@@ -488,20 +467,16 @@ export function useBookContextMenuActions(
 		handleRemoveShelf,
 		handleSetCollectionMembership,
 		handleSetShelf,
-		handleToggleLike,
 		isAudiobook,
 		isCollectionActionBusy,
 		isDeletePermanentlyBusy: deletePermanentlyMutation.isPending,
 		isCollectionsLoading:
 			collectionsMembershipQuery.isFetching && !collectionsMembershipQuery.data,
 		isInContinueReading,
-		isLiked,
-		isLikeActionBusy,
 		isReadingProgressActionBusy,
 		isShelfActionBusy:
 			setShelfMutation.isPending || removeShelfMutation.isPending,
 		isShelfLoading: shelfQuery.isFetching && !shelfQuery.data,
-		likeActionLabel: isLiked ? m["book.unlike"]() : m["book.like"](),
 		prepareBookContext,
 	};
 }

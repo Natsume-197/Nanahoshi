@@ -43,7 +43,6 @@ export const COLLECTION_RULE_FIELDS = [
 	"enrichmentStatus",
 	"metadataLocked",
 	"readListenPaired",
-	"liked",
 	"shelfStatus",
 	"consumptionStatus",
 	"progressPercent",
@@ -223,7 +222,6 @@ export const COLLECTION_FIELD_OPERATORS = {
 	enrichmentStatus: ["includesAny", "excludesAll"],
 	metadataLocked: BOOLEAN_OPERATORS,
 	readListenPaired: BOOLEAN_OPERATORS,
-	liked: BOOLEAN_OPERATORS,
 	shelfStatus: ["includesAny", "excludesAll"],
 	consumptionStatus: ["includesAny", "excludesAll"],
 	progressPercent: NUMBER_OPERATORS,
@@ -251,7 +249,6 @@ export const COLLECTION_ENUM_VALUES = {
 } as const;
 
 export const PERSONAL_COLLECTION_FIELDS = new Set<CollectionRuleField>([
-	"liked",
 	"shelfStatus",
 	"consumptionStatus",
 	"progressPercent",

@@ -9,8 +9,8 @@ import {
 	type SimilarityRow,
 } from "../user-feed";
 
-function seed(id: number, weight = 1, fromLike = false): Seed {
-	return { key: workKey("series", id), weight, fromLike };
+function seed(id: number, weight = 1, fromCollection = false): Seed {
+	return { key: workKey("series", id), weight, fromCollection };
 }
 
 function negative(
@@ -111,21 +111,21 @@ describe("buildMixes", () => {
 		expect(mixes[0]?.items.some((i) => i.key === "series:10")).toBe(true);
 	});
 
-	test("reason: because_you_liked when the dominant seed was liked", () => {
-		const liked = seed(1, 1, true);
+	test("reason: because_you_saved when the dominant seed was saved to a collection", () => {
+		const saved = seed(1, 1, true);
 		const mixes = buildMixes(
 			baseInput({
-				clusters: [cluster([liked])],
+				clusters: [cluster([saved])],
 				similaritiesBySeed: new Map([
-					[liked.key, [simRow(10, 0.9, "same_author")]],
+					[saved.key, [simRow(10, 0.9, "same_author")]],
 				]),
 			}),
 		);
-		expect(mixes[0]?.items[0]?.reason).toBe("because_you_liked");
+		expect(mixes[0]?.items[0]?.reason).toBe("because_you_saved");
 		expect(mixes[0]?.items[0]?.reasonKey).toBe("series:1");
 	});
 
-	test("reason: similarity reason kept when the seed was not liked", () => {
+	test("reason: similarity reason kept when the seed was not saved to a collection", () => {
 		const s = seed(1, 0.8, false);
 		const mixes = buildMixes(
 			baseInput({

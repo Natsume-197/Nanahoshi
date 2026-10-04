@@ -109,7 +109,7 @@ describe.skipIf(!enabled)("recommendations integration", () => {
 			INSERT INTO user_recommendation
 				(server_id, user_id, kind, item_id, mix_index, score, rank, reason, reason_kind, reason_id, components, computed_at)
 			VALUES
-				(${orgId}, ${userId}, 'series', ${seriesId}, 0, 0.9, 0, 'because_you_liked', 'book', ${standaloneId}, '{}', now()),
+				(${orgId}, ${userId}, 'series', ${seriesId}, 0, 0.9, 0, 'because_you_saved', 'book', ${standaloneId}, '{}', now()),
 				(${orgId}, ${userId}, 'book', ${hiddenBookId}, 0, 0.7, 1, 'same_author', 'book', ${hiddenBookId}, '{}', now())
 		`);
 	});

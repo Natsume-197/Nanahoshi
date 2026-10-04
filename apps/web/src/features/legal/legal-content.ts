@@ -174,7 +174,7 @@ const en: Record<LegalKind, LegalDoc> = {
 				body: [
 					"Account: name, username, email, password (hashed), and profile images.",
 					"If you sign in with Discord or Google: that account's ID, email, name, and image.",
-					"Activity: reading and listening progress, reading sessions, shelves, likes, collections, notifications, and preferences.",
+					"Activity: reading and listening progress, reading sessions, shelves, collections, notifications, and preferences.",
 					"Files: the books, audiobooks, and images you upload.",
 					"Technical data: the IP address and browser or device of each session, and a log of security events, to protect your account.",
 				],

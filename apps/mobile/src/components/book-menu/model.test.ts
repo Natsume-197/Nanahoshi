@@ -5,8 +5,6 @@ const labels = {
 	listen: "Listen",
 	pause: "Pause",
 	details: "Details",
-	like: "Like",
-	unlike: "Unlike",
 	addToList: "Add to list",
 	download: "Download",
 	cancelDownload: "Cancel download",
@@ -24,10 +22,8 @@ const labels = {
 	delete: "Delete",
 };
 const base: BookMenuState = {
-	liked: false,
 	inProgress: false,
 	isPlaying: false,
-	canLike: true,
 	canDelete: false,
 	canEditMetadata: false,
 	download: null,
@@ -39,7 +35,7 @@ const titles = (sections: ReturnType<typeof buildBookMenu>) =>
 test("a book offers details and list actions, nothing to play", () => {
 	expect(titles(buildBookMenu({ kind: "book" }, base, labels))).toEqual([
 		["Details"],
-		["Like", "Add to list", "Share link"],
+		["Add to list", "Share link"],
 	]);
 });
 
@@ -57,21 +53,16 @@ test("an audiobook leads with play, which turns into pause while it plays", () =
 test("state and permissions decide the optional actions", () => {
 	const sections = buildBookMenu(
 		{ kind: "audiobook", recommendation: true },
-		{ ...base, liked: true, inProgress: true, canDelete: true },
+		{ ...base, inProgress: true, canDelete: true },
 		labels,
 	);
 	expect(titles(sections)).toEqual([
 		["Listen", "Details"],
-		["Unlike", "Add to list", "Share link", "Remove from Continue listening"],
+		["Add to list", "Share link", "Remove from Continue listening"],
 		["Not interested"],
 		["Delete"],
 	]);
 	expect(sections[3][0].destructive).toBe(true);
-	expect(
-		titles(
-			buildBookMenu({ kind: "book" }, { ...base, canLike: false }, labels),
-		)[1],
-	).toEqual(["Add to list", "Share link"]);
 });
 
 test("the download action follows what's on the phone", () => {
@@ -79,15 +70,10 @@ test("the download action follows what's on the phone", () => {
 		buildBookMenu({ kind: "book" }, { ...base, download }, labels)[1].map(
 			(action) => action.label,
 		);
-	expect(library("none")).toEqual([
-		"Like",
-		"Add to list",
-		"Download",
-		"Share link",
-	]);
+	expect(library("none")).toEqual(["Add to list", "Download", "Share link"]);
 	expect(library("active")).toContain("Cancel download");
 	expect(library("done")).toContain("Remove download");
-	expect(library(null)).toEqual(["Like", "Add to list", "Share link"]);
+	expect(library(null)).toEqual(["Add to list", "Share link"]);
 });
 
 test("exporting the file sits beside the offline download, gated on its own", () => {
@@ -97,12 +83,7 @@ test("exporting the file sits beside the offline download, gated on its own", ()
 		labels,
 	)[1].map((action) => action.label);
 	// Can't keep it offline, may still take the file: the two are separate.
-	expect(library).toEqual([
-		"Like",
-		"Add to list",
-		"Export file…",
-		"Share link",
-	]);
+	expect(library).toEqual(["Add to list", "Export file…", "Share link"]);
 });
 
 test("on the title's own page the menu drops what the page's buttons do", () => {
@@ -111,7 +92,7 @@ test("on the title's own page the menu drops what the page's buttons do", () => 
 		{ ...base, download: "none" },
 		labels,
 	);
-	expect(titles(sections)).toEqual([["Like", "Share link"]]);
+	expect(titles(sections)).toEqual([["Share link"]]);
 });
 
 test("only an ebook the user may download can go to a Kindle", () => {

@@ -29,12 +29,9 @@ import {
 } from "@/components/profile/book-shelf-sections";
 import { ProfileAudiobooksGrid } from "@/components/profile/profile-audiobooks-grid";
 import { ProfileBooksGrid } from "@/components/profile/profile-books-grid";
-import { ProfileLikesGrid } from "@/components/profile/profile-likes-grid";
 import {
-	type LikedFormat,
 	parseRequestedProfileTab,
 	type RequestedProfileTab,
-	resolveProfileTab,
 } from "@/components/profile/profile-tabs";
 import {
 	CollectionCard,
@@ -76,10 +73,7 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 		tab?: RequestedProfileTab;
 		shelf?: ShelfStatus;
 		audiobookShelf?: AudiobookShelfStatus;
-		likedFormat?: LikedFormat;
 	} => ({
-		// Ownership isn't known here, so `tab=likes` is merely accepted; the
-		// component is what refuses to render it on someone else's profile.
 		tab: parseRequestedProfileTab(search.tab),
 		shelf: SHELF_STATUS_VALUES.includes(search.shelf as ShelfStatus)
 			? (search.shelf as ShelfStatus)
@@ -89,10 +83,6 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 		)
 			? (search.audiobookShelf as AudiobookShelfStatus)
 			: undefined,
-		likedFormat:
-			search.likedFormat === "books" || search.likedFormat === "audiobooks"
-				? search.likedFormat
-				: undefined,
 	}),
 	loader: ({ params: { username }, context }) => {
 		if (typeof window === "undefined") return;
@@ -118,25 +108,13 @@ export const Route = createFileRoute("/dashboard/user/$username/")({
 				input: { username, limit: 40, offset: 0 },
 			}),
 		);
-		if (isOwnProfile) {
-			context.queryClient.prefetchQuery(
-				orpc.likedBooks.listLiked.queryOptions({
-					input: { limit: 40, cursor: 0, format: "books" },
-				}),
-			);
-			context.queryClient.prefetchQuery(
-				orpc.likedBooks.count.queryOptions({
-					input: { format: "books" },
-				}),
-			);
-		}
 	},
 	pendingComponent: ProfileSkeleton,
 });
 
 function UserProfilePage() {
 	const { username } = useParams({ from: "/dashboard/user/$username/" });
-	const { tab, shelf, audiobookShelf, likedFormat } = Route.useSearch();
+	const { tab, shelf, audiobookShelf } = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const tabsNavRef = useRef<HTMLDivElement>(null);
 	const queryClient = useQueryClient();
@@ -157,23 +135,12 @@ function UserProfilePage() {
 			}),
 		);
 	};
-	const prefetchLikesTab = () => {
-		const format = likedFormat ?? "books";
-		void queryClient.prefetchQuery(
-			orpc.likedBooks.listLiked.queryOptions({
-				input: { limit: 40, cursor: 0, format },
-			}),
-		);
-		void queryClient.prefetchQuery(
-			orpc.likedBooks.count.queryOptions({ input: { format } }),
-		);
-	};
 	const { openSettings } = useSettingsModal();
 	const { can, isLoading: abilitiesLoading } = useAbilities();
 	const { session } = Route.useRouteContext();
 	const sessionUsername = (session.user as { username?: string }).username;
 	const isOwnProfile = !!sessionUsername && sessionUsername === username;
-	const activeTab = resolveProfileTab({ requestedTab: tab, isOwnProfile });
+	const activeTab = tab ?? "overview";
 	const isOverviewTab = activeTab === "overview";
 
 	const profileQuery = useSuspenseQuery(
@@ -331,9 +298,7 @@ function UserProfilePage() {
 									? { tab: "books", shelf }
 									: value === "audiobooks"
 										? { tab: "audiobooks", audiobookShelf }
-										: value === "likes"
-											? { tab: "likes", likedFormat }
-											: {},
+										: {},
 							replace: true,
 							resetScroll: false,
 						});
@@ -381,17 +346,6 @@ function UserProfilePage() {
 								<span className="sm:hidden">Audiobooks</span>
 								<span className="hidden sm:inline">Audiobook List</span>
 							</TabsTrigger>
-							{/* Only you can see your likes, so nobody else gets the tab. */}
-							{isOwnProfile && (
-								<TabsTrigger
-									value="likes"
-									className={PROFILE_TAB_TRIGGER_CLASS}
-									onPointerEnter={prefetchLikesTab}
-									onFocus={prefetchLikesTab}
-								>
-									Likes
-								</TabsTrigger>
-							)}
 						</TabsList>
 					</div>
 
@@ -459,24 +413,6 @@ function UserProfilePage() {
 									}
 								/>
 							</TabsContent>
-
-							{isOwnProfile && (
-								<TabsContent
-									value="likes"
-									keepMounted
-									className="data-[state=active]:animate-none"
-								>
-									<ProfileLikesGrid
-										format={likedFormat ?? "books"}
-										onFormatChange={(format) =>
-											navigate({
-												search: { tab: "likes", likedFormat: format },
-												replace: true,
-											})
-										}
-									/>
-								</TabsContent>
-							)}
 						</main>
 					</div>
 				</Tabs>

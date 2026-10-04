@@ -23,7 +23,7 @@ import { organization, user } from "./auth";
 export const workKindEnum = pgEnum("work_kind", ["series", "book"]);
 
 export const recommendationReasonEnum = pgEnum("recommendation_reason", [
-	"because_you_liked",
+	"because_you_saved",
 	"same_author",
 	"shared_genres",
 	"similar_content",
@@ -114,7 +114,7 @@ export const workPopularity = pgTable(
 		serverId: text("server_id").notNull(),
 		kind: workKindEnum("kind").notNull(),
 		itemId: bigint("item_id", { mode: "number" }).notNull(),
-		likeCount: integer("like_count").notNull().default(0),
+		collectionCount: integer("collection_count").notNull().default(0),
 		completionCount: integer("completion_count").notNull().default(0),
 		engagedUserCount: integer("engaged_user_count").notNull().default(0),
 		rating: doublePrecision("rating"),

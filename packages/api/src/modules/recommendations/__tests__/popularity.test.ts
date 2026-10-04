@@ -17,7 +17,7 @@ function makeWork(
 		memberBookIds: [id],
 		embeddingText: "",
 		engagedUserIds: new Set(),
-		likeCount: 0,
+		collectionCount: 0,
 		completionCount: 0,
 		rating: null,
 		ratingCount: null,
@@ -31,7 +31,7 @@ describe("computePopularity", () => {
 		expect(computePopularity([])).toEqual([]);
 	});
 
-	test("zero likes and completions everywhere does not divide by zero", () => {
+	test("zero collection saves and completions everywhere does not divide by zero", () => {
 		const entries = computePopularity([makeWork(1), makeWork(2)]);
 		for (const e of entries) {
 			expect(Number.isFinite(e.score)).toBe(true);
@@ -44,7 +44,7 @@ describe("computePopularity", () => {
 		expect(computePopularity([makeWork(1)])[0]?.score).toBe(0);
 	});
 
-	test("engaged users contribute even without likes or completions", () => {
+	test("engaged users contribute even without collection saves or completions", () => {
 		const entries = computePopularity([
 			makeWork(1, { engagedUserIds: new Set(["u1", "u2"]) }),
 			makeWork(2),
@@ -53,11 +53,11 @@ describe("computePopularity", () => {
 		expect(entries[0]?.score).toBeGreaterThan(0);
 	});
 
-	test("more likes → higher score", () => {
+	test("more collection saves → higher score", () => {
 		const entries = computePopularity([
-			makeWork(1, { likeCount: 10 }),
-			makeWork(2, { likeCount: 1 }),
-			makeWork(3, { likeCount: 0 }),
+			makeWork(1, { collectionCount: 10 }),
+			makeWork(2, { collectionCount: 1 }),
+			makeWork(3, { collectionCount: 0 }),
 		]);
 		expect(entries[0]?.id).toBe(1);
 		expect(entries[2]?.id).toBe(3);

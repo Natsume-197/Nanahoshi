@@ -117,7 +117,12 @@ const ALL_WORK_KEYS = [
 const NOW = 1_800_000_000_000;
 
 const SIGNALS: UserFeedSignalInput[] = [
-	{ kind: "series", itemId: 1, signal: "like", atMs: NOW - 10 * 86_400_000 },
+	{
+		kind: "series",
+		itemId: 1,
+		signal: "collected",
+		atMs: NOW - 10 * 86_400_000,
+	},
 	{ kind: "book", itemId: 5, signal: "completed", atMs: NOW - 40 * 86_400_000 },
 	{
 		kind: "series",

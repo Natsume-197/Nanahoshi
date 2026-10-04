@@ -119,7 +119,7 @@ describe("Dynamic Collection SQL compiler", () => {
 						children: [
 							{
 								kind: "rule",
-								field: "liked",
+								field: "metadataLocked",
 								operator: "isTrue",
 							},
 						],
@@ -161,7 +161,7 @@ describe("Dynamic Collection SQL compiler", () => {
 							},
 							{
 								kind: "rule",
-								field: "liked",
+								field: "metadataLocked",
 								operator: "isTrue",
 							},
 						],
@@ -174,7 +174,7 @@ describe("Dynamic Collection SQL compiler", () => {
 		expect(query.sql).toContain('"library"."media_type" = $4');
 		expect(query.params).toContain("ebook");
 		expect(query.sql).toContain(" or ");
-		expect(query.sql).toContain('"liked_book"."book_id" is not null');
+		expect(query.sql).toContain("CARDINALITY(");
 	});
 
 	test("keeps entity labels out of SQL and uses UUIDs", () => {

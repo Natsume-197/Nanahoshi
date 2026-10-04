@@ -385,7 +385,7 @@ export function RecommendationsSettings() {
 						>
 							<div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
 								{[
-									[m["settings.recs.signal_like"](), 100],
+									[m["settings.recs.signal_collected"](), 100],
 									[m["settings.recs.signal_completed"](), 80],
 									[m["settings.recs.signal_half_read"](), 60],
 									[m["settings.recs.signal_want"](), 40],

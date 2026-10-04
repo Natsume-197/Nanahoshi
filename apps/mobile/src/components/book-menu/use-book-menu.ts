@@ -26,7 +26,7 @@ import {
  * The actions for one title. `fetch` gates the network: menus that stay
  * mounted with their trigger (iOS) pass false and only read what's cached,
  * then flip to true while the menu is open, so a grid of tiles never
- * fetches like/progress for every cover.
+ * fetches progress for every cover.
  */
 export function useBookMenu(target: BookTarget, fetch: boolean) {
 	const { orpc } = useApi();
@@ -36,10 +36,6 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		(s) => s.book?.uuid === target.uuid && s.playing,
 	);
 	const input = { input: { bookUuid: target.uuid } };
-	const like = useQuery({
-		...orpc.likedBooks.getLikeStatus.queryOptions(input),
-		enabled: fetch,
-	});
 	const listening = useQuery({
 		...orpc.listeningProgress.getProgress.queryOptions(input),
 		enabled: fetch && audio,
@@ -54,12 +50,10 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		target.title,
 	);
 	const state = {
-		liked: like.data?.liked ?? false,
 		inProgress: audio
 			? listening.data?.status === "listening"
 			: reading.data?.status === "reading",
 		isPlaying,
-		canLike: can("like", "create"),
 		canDelete: can("book", "delete"),
 		canEditMetadata: can("book", "editMetadata"),
 		download: downloadMenuState(download.status.state, download.allowed),
@@ -69,8 +63,6 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		listen: t("audiobook.listen"),
 		pause: t("audiobook.player_pause"),
 		details: t("home.hero_view_details"),
-		like: t("aria.add_to_likes"),
-		unlike: t("aria.remove_from_likes"),
 		addToList: t("add_to_list.title"),
 		download: t("mobile.downloads.download"),
 		cancelDownload: t("mobile.downloads.cancel"),
@@ -87,7 +79,7 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		restoreMetadata: t("book.restore_metadata"),
 		delete: t("book.delete_permanently"),
 	});
-	const run = useBookMenuRunner(target, state.liked, download);
+	const run = useBookMenuRunner(target, download);
 	const items: MenuItem[][] = sections.map((section) =>
 		section.map((action) => ({ ...action, onPress: () => run(action) })),
 	);
@@ -96,7 +88,6 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 
 function useBookMenuRunner(
 	target: BookTarget,
-	liked: boolean,
 	download: Pick<
 		ReturnType<typeof useDownloadActions>,
 		"start" | "cancel" | "remove"
@@ -116,19 +107,6 @@ function useBookMenuRunner(
 				? player.toggle()
 				: player.play(bookUuid),
 		details: () => router.push(routes.title(target.kind, bookUuid)),
-		like: async () => {
-			const key = orpc.likedBooks.getLikeStatus.queryKey({
-				input: { bookUuid },
-			});
-			queryClient.setQueryData(key, { liked: !liked });
-			try {
-				await client.likedBooks.toggleLike({ bookUuid });
-			} finally {
-				void queryClient.invalidateQueries({
-					queryKey: orpc.likedBooks.key(),
-				});
-			}
-		},
 		addToList: () =>
 			openAddToList({ uuid: bookUuid, kind: audio ? "audiobook" : "ebook" }),
 		download: download.start,

@@ -6,8 +6,8 @@ import { workKey } from "../types";
 
 const DIM = 8;
 
-function seed(id: number, weight = 1, fromLike = false): Seed {
-	return { key: workKey("series", id), weight, fromLike };
+function seed(id: number, weight = 1, fromCollection = false): Seed {
+	return { key: workKey("series", id), weight, fromCollection };
 }
 
 function vec(direction: number): Float32Array {

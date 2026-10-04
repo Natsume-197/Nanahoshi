@@ -519,9 +519,9 @@ export class RecommendationsRepository {
 	): Promise<{ kind: WorkKind; itemId: number; atMs: number }[]> {
 		const result = await db.execute(sql`
 			WITH events AS (
-				SELECT lb.book_id, extract(epoch from lb.created_at) * 1000 AS at
-				FROM liked_book lb
-				WHERE lb.server_id = ${serverId} AND lb.user_id = ${userId}
+				SELECT cb.book_id, extract(epoch from coalesce(cb.added_at, c.created_at)) * 1000 AS at
+				FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+				WHERE c.server_id = ${serverId} AND c.user_id = ${userId} AND c.kind = 'manual'
 				UNION ALL
 				SELECT rp.book_id,
 					extract(epoch from coalesce(rp.completed_at, rp.last_read_at, rp.created_at)) * 1000

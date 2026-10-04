@@ -24,7 +24,7 @@ export interface WorkAggregate {
 	memberBookIds: number[];
 	embeddingText: string;
 	engagedUserIds: Set<string>;
-	likeCount: number;
+	collectionCount: number;
 	completionCount: number;
 	rating: number | null;
 	ratingCount: number | null;
@@ -33,7 +33,7 @@ export interface WorkAggregate {
 }
 
 export type RecommendationReason =
-	| "because_you_liked"
+	| "because_you_saved"
 	| "same_author"
 	| "shared_genres"
 	| "similar_content"

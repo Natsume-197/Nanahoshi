@@ -28,7 +28,7 @@ import {
 	MultiFilterSelect,
 } from "@/components/shared/filter-bar";
 import type { SortOption } from "@/components/shared/sort-select";
-import type { MediaType } from "@/hooks/books/use-toggle-like";
+import type { MediaType } from "@/hooks/books/use-book-context-menu-actions";
 import { useCollectionView } from "@/hooks/use-collection-view";
 import { useSession } from "@/hooks/use-session";
 import {

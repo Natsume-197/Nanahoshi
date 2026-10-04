@@ -65,7 +65,7 @@ export interface RecommendationItem {
 	book: RecommendationBook;
 	reason: {
 		type:
-			| "because_you_liked"
+			| "because_you_saved"
 			| "same_author"
 			| "shared_genres"
 			| "similar_content"

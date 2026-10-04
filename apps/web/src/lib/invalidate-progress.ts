@@ -26,7 +26,7 @@ function invalidateStatistics() {
 
 /**
  * Refetch the recommendation rails after a strong engagement event (reader
- * session end, completion, like) — the server injects a session mix from the
+ * session end, completion) — the server injects a session mix from the
  * freshest seed, so the home the user returns to already reflects what they
  * just read. Not called from periodic syncs: once per event, not per minute.
  */

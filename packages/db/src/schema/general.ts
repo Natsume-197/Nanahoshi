@@ -1585,43 +1585,6 @@ export const bookTag = pgTable(
 	],
 );
 
-export const likedBook = pgTable(
-	"liked_book",
-	{
-		userId: text("user_id").notNull(),
-		serverId: text("server_id").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-			.defaultNow()
-			.notNull(),
-		bookId: bigint("book_id", { mode: "number" }).notNull(),
-	},
-	(table) => [
-		foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "liked_books_user_id_fkey",
-		}).onUpdate("cascade"),
-		foreignKey({
-			columns: [table.bookId],
-			foreignColumns: [book.id],
-			name: "liked_books_book_id_fkey",
-		})
-			.onUpdate("cascade")
-			.onDelete("cascade"),
-		foreignKey({
-			columns: [table.serverId],
-			foreignColumns: [organization.id],
-			name: "liked_books_server_id_fkey",
-		}).onDelete("cascade"),
-		primaryKey({
-			columns: [table.userId, table.bookId, table.serverId],
-			name: "liked_books_pkey",
-		}),
-		index("liked_book_user_org_idx").on(table.userId, table.serverId),
-		index("liked_book_book_idx").on(table.bookId),
-	],
-);
-
 export const readingProgress = pgTable(
 	"reading_progress",
 	{

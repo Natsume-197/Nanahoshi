@@ -15,7 +15,6 @@ import { inviteLinksRouter } from "./invite-links";
 import { kindleRouter } from "./kindle/kindle.router";
 import { librariesRouter } from "./libraries";
 import { libraryAccessRouter } from "./library-access";
-import { likedBooksRouter } from "./liked-books";
 import { listeningProgressRouter } from "./listening-progress";
 import { membersRouter } from "./members";
 import { narratorsRouter } from "./narrators";
@@ -72,7 +71,6 @@ export const appRouter: {
 	readListen: typeof readListenRouter;
 	bookShelf: typeof bookShelfRouter;
 	shelves: typeof shelvesRouter;
-	likedBooks: typeof likedBooksRouter;
 	profile: typeof profileRouter;
 	tasks: typeof tasksRouter;
 	inviteLinks: typeof inviteLinksRouter;
@@ -118,7 +116,6 @@ export const appRouter: {
 	readListen: readListenRouter,
 	bookShelf: bookShelfRouter,
 	shelves: shelvesRouter,
-	likedBooks: likedBooksRouter,
 	profile: profileRouter,
 	tasks: tasksRouter,
 	inviteLinks: inviteLinksRouter,

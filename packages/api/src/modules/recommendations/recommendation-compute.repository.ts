@@ -27,8 +27,9 @@ const SIMILARITY_INSERT_BATCH = 4000;
 
 /** Members with at least one signal that can influence a personalized feed. */
 const activeOrgUserIds = (serverId: string) => sql`
-	SELECT lb.user_id FROM liked_book lb
-		WHERE lb.server_id = ${serverId}
+	SELECT c.user_id FROM collection c
+		WHERE c.server_id = ${serverId} AND c.kind = 'manual'
+			AND EXISTS (SELECT 1 FROM collection_book cb WHERE cb.collection_id = c.id)
 	UNION
 	SELECT rp.user_id FROM reading_progress rp
 		JOIN book b ON b.id = rp.book_id
@@ -69,7 +70,7 @@ type AggRow = {
 	subtitle: string | null;
 	description: string | null;
 	authorNames: string[] | null;
-	likedUserIds: string[] | null;
+	collectedUserIds: string[] | null;
 	completedUserIds: string[] | null;
 	shelfUserIds: string[] | null;
 	rating: number | null;
@@ -178,8 +179,9 @@ export class RecommendationComputeRepository {
 						UNION SELECT aa.author_id FROM audiobook_author aa WHERE aa.book_id = ANY(w.member_book_ids)
 							AND (aa.role IS NULL OR lower(trim(aa.role)) IN ('author', 'writer', '著', '著者', '原作'))
 					)) AS "authorNames",
-					(SELECT array_agg(DISTINCT lb.user_id) FROM liked_book lb
-						WHERE lb.book_id = ANY(w.member_book_ids)) AS "likedUserIds",
+					(SELECT array_agg(DISTINCT c.user_id) FROM collection_book cb
+						JOIN collection c ON c.id = cb.collection_id
+						WHERE cb.book_id = ANY(w.member_book_ids) AND c.kind = 'manual') AS "collectedUserIds",
 					(SELECT array_agg(DISTINCT user_id) FROM (
 						SELECT rp.user_id FROM reading_progress rp
 							WHERE rp.book_id = ANY(w.member_book_ids) AND rp.status = 'completed'
@@ -215,7 +217,7 @@ export class RecommendationComputeRepository {
 				tagTerms.map((term) => term.name).join(" "),
 				row.description?.slice(0, 1000),
 			].filter(Boolean);
-			const liked = row.likedUserIds ?? [];
+			const collected = row.collectedUserIds ?? [];
 			const completed = row.completedUserIds ?? [];
 			return {
 				kind: row.kind,
@@ -228,11 +230,11 @@ export class RecommendationComputeRepository {
 				memberBookIds: row.memberBookIds.map(Number),
 				embeddingText: titleParts.join(" "),
 				engagedUserIds: new Set([
-					...liked,
+					...collected,
 					...completed,
 					...(row.shelfUserIds ?? []),
 				]),
-				likeCount: liked.length,
+				collectionCount: collected.length,
 				completionCount: completed.length,
 				rating: row.rating === null ? null : Number(row.rating),
 				ratingCount: row.ratingCount === null ? null : Number(row.ratingCount),
@@ -307,8 +309,9 @@ export class RecommendationComputeRepository {
 	async computeEngagementFingerprint(serverId: string): Promise<string> {
 		const result = await db.execute(sql`
 			SELECT
-				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from lb.created_at)::bigint), 0))
-					FROM liked_book lb WHERE lb.server_id = ${serverId}) AS likes,
+				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from cb.added_at)::bigint), 0))
+					FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+					WHERE c.server_id = ${serverId} AND c.kind = 'manual') AS collections,
 				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from rp.last_read_at)::bigint), 0))
 					FROM reading_progress rp JOIN book b ON b.id = rp.book_id
 					JOIN library l ON l.id = b.library_id WHERE l.server_id = ${serverId}) AS reading,
@@ -331,8 +334,9 @@ export class RecommendationComputeRepository {
 	): Promise<string> {
 		const result = await db.execute(sql`
 			SELECT
-				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from lb.created_at)::bigint), 0))
-					FROM liked_book lb WHERE lb.server_id = ${serverId} AND lb.user_id = ${userId}) AS likes,
+				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from cb.added_at)::bigint), 0))
+					FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+					WHERE c.server_id = ${serverId} AND c.user_id = ${userId} AND c.kind = 'manual') AS collections,
 				(SELECT concat(count(*), ':', coalesce(max(extract(epoch from rp.last_read_at)::bigint), 0), ':',
 						count(*) FILTER (WHERE rp.status = 'completed'))
 					FROM reading_progress rp JOIN book b ON b.id = rp.book_id
@@ -395,7 +399,7 @@ export class RecommendationComputeRepository {
 			);
 		};
 		const [
-			likes,
+			collections,
 			reading,
 			listening,
 			bShelf,
@@ -405,10 +409,10 @@ export class RecommendationComputeRepository {
 			lAbandoned,
 		] = await Promise.all([
 			grouped(sql`
-				SELECT lb.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from lb.created_at)::bigint), 0)) AS v
-				FROM liked_book lb
-				WHERE lb.server_id = ${serverId} AND lb.user_id IN (${userIdList(userIds)})
-				GROUP BY lb.user_id`),
+				SELECT c.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from cb.added_at)::bigint), 0)) AS v
+				FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+				WHERE c.server_id = ${serverId} AND c.kind = 'manual' AND c.user_id IN (${userIdList(userIds)})
+				GROUP BY c.user_id`),
 			grouped(sql`
 				SELECT rp.user_id AS uid, concat(count(*), ':', coalesce(max(extract(epoch from rp.last_read_at)::bigint), 0), ':',
 						count(*) FILTER (WHERE rp.status = 'completed')) AS v
@@ -464,7 +468,7 @@ export class RecommendationComputeRepository {
 			out.set(
 				userId,
 				JSON.stringify({
-					likes: likes?.get(userId) ?? "0:0",
+					collections: collections?.get(userId) ?? "0:0",
 					reading: reading?.get(userId) ?? "0:0:0",
 					listening: listening?.get(userId) ?? "0:0:0",
 					b_shelf: bShelf?.get(userId) ?? "0:0",
@@ -594,7 +598,7 @@ export class RecommendationComputeRepository {
 						serverId,
 						kind: e.kind,
 						itemId: e.id,
-						likeCount: e.likeCount,
+						collectionCount: e.collectionCount,
 						completionCount: e.completionCount,
 						engagedUserCount: e.engagedUserCount,
 						rating: e.rating,
@@ -762,8 +766,9 @@ export class RecommendationComputeRepository {
 	> {
 		const result = await db.execute(sql`
 			WITH events AS (
-				SELECT lb.book_id, 'like' AS signal, lb.created_at AS at
-				FROM liked_book lb WHERE lb.server_id = ${serverId} AND lb.user_id = ${userId}
+				SELECT cb.book_id, 'collected' AS signal, coalesce(cb.added_at, c.created_at) AS at
+				FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+				WHERE c.server_id = ${serverId} AND c.user_id = ${userId} AND c.kind = 'manual'
 				UNION ALL
 				SELECT rp.book_id,
 					CASE WHEN rp.status = 'completed' THEN 'completed'
@@ -867,8 +872,9 @@ export class RecommendationComputeRepository {
 		if (userIds.length === 0) return out;
 		const result = await db.execute(sql`
 			WITH events AS (
-				SELECT lb.user_id, lb.book_id, 'like' AS signal, lb.created_at AS at
-				FROM liked_book lb WHERE lb.server_id = ${serverId} AND lb.user_id IN (${userIdList(userIds)})
+				SELECT c.user_id, cb.book_id, 'collected' AS signal, coalesce(cb.added_at, c.created_at) AS at
+				FROM collection_book cb JOIN collection c ON c.id = cb.collection_id
+				WHERE c.server_id = ${serverId} AND c.kind = 'manual' AND c.user_id IN (${userIdList(userIds)})
 				UNION ALL
 				SELECT rp.user_id, rp.book_id,
 					CASE WHEN rp.status = 'completed' THEN 'completed'

@@ -900,7 +900,7 @@ export class BookRepository {
 
 	async removeBook(id: number): Promise<boolean> {
 		try {
-			// Cascades to book_metadata, book_author, liked_book, collection_book.
+			// Cascades to book_metadata, book_author, collection_book.
 			const deleted = await db.delete(book).where(eq(book.id, id));
 
 			return (deleted.rowCount ?? 0) > 0;
