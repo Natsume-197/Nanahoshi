@@ -194,12 +194,6 @@ export function AccountSettingsScreen() {
 				<GroupedRow
 					first
 					icon={icons.signOut}
-					label={t("settings.account.sign_out")}
-					subtitle={t("settings.account.sign_out_desc")}
-					onPress={() => void auth.signOut().then(clearDownloads)}
-				/>
-				<GroupedRow
-					icon={icons.signOut}
 					label={t("settings.account.sign_out_all")}
 					subtitle={t("settings.account.sign_out_all_desc")}
 					destructive

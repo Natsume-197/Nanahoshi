@@ -16,13 +16,12 @@ import { ErrorState, OfflineState } from "@/components/states";
 import { Text } from "@/components/text";
 import { TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
-import { clearDownloads } from "@/downloads/files";
 import { useIsOnline } from "@/downloads/provider";
 import { joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { IS_ANDROID } from "@/lib/platform";
-import { useApi, useConnection, useServer } from "@/providers/app-provider";
+import { useApi, useConnection } from "@/providers/app-provider";
 import { useDetailHeader } from "@/screens/detail/use-detail-header";
 import { space, usePalette } from "@/theme";
 
@@ -386,8 +385,6 @@ function ProfileHeader({
 
 /** Your account's ⋯: the actions that have no tab of their own. */
 function useAccountMenu(username: string) {
-	const { auth } = useConnection();
-	const { setServerUrl } = useServer();
 	return async () => {
 		const answer = await askChoice({
 			title: t("mobile.me.account"),
@@ -399,36 +396,10 @@ function useAccountMenu(username: string) {
 					icon: icons.edit,
 				},
 				{ id: "stats", label: t("nav.stats"), icon: icons.stats },
-				{
-					id: "downloads",
-					label: t("mobile.downloads.title"),
-					icon: icons.downloaded,
-				},
-				{ id: "tasks", label: t("settings.nav.tasks"), icon: icons.tasks },
-				{
-					id: "server",
-					label: t("mobile.signin.change_server"),
-					icon: icons.server,
-				},
-				{
-					id: "sign-out",
-					label: t("nav.sign_out"),
-					icon: icons.signOut,
-					destructive: true,
-				},
 			],
 		});
 		if (answer === "edit") router.push("/settings/profile");
 		else if (answer === "stats") router.push("/stats");
-		else if (answer === "downloads") router.push("/downloads");
-		else if (answer === "tasks") router.push("/tasks");
-		else if (answer === "server") {
-			await auth.signOut().catch(() => undefined);
-			clearDownloads();
-			await setServerUrl(null);
-		}
-		// The root guard sees the session end and swaps to sign-in.
-		else if (answer === "sign-out") void auth.signOut().then(clearDownloads);
 	};
 }
 

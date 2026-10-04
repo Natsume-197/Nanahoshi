@@ -5,6 +5,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
+import { clearDownloads } from "@/downloads/files";
 import { useSmartDownloads } from "@/downloads/smart-settings";
 import { useAppearancePreference } from "@/lib/appearance";
 import { useDeveloperMode } from "@/lib/developer-mode";
@@ -33,6 +34,7 @@ export function SettingsScreen() {
 	const developer = useDeveloperMode();
 	const smart = useSmartDownloads();
 	const offline = useSimulatedOffline();
+	const { auth } = useConnection();
 	return (
 		<>
 			{IS_ANDROID ? <Stack.Screen options={{ title: "" }} /> : null}
@@ -108,6 +110,11 @@ export function SettingsScreen() {
 						label={t("settings.nav.about")}
 						href="/settings/about"
 					/>
+					<GroupedRow
+						icon={icons.tasks}
+						label={t("settings.nav.tasks")}
+						href="/tasks"
+					/>
 					{developer ? (
 						<GroupedRow
 							icon={icons.code}
@@ -116,6 +123,15 @@ export function SettingsScreen() {
 							href="/settings/developer"
 						/>
 					) : null}
+				</GroupedList>
+				<GroupedList>
+					<GroupedRow
+						first
+						icon={icons.signOut}
+						label={t("nav.sign_out")}
+						destructive
+						onPress={() => void auth.signOut().then(clearDownloads)}
+					/>
 				</GroupedList>
 			</ScrollView>
 		</>
