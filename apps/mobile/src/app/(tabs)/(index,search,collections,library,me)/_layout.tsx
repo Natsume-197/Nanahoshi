@@ -173,6 +173,10 @@ export default function TabStack({ segment }: { segment: string }) {
 					name="settings/about"
 					options={{ title: t("settings.nav.about") }}
 				/>
+				<Stack.Screen
+					name="settings/developer"
+					options={{ title: t("mobile.settings.developer") }}
+				/>
 				<Stack.Screen name="series/[uuid]" />
 				<Stack.Screen name="author/[uuid]" />
 				<Stack.Screen name="collection/[id]" />

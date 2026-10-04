@@ -4,6 +4,7 @@ import { openAddToList } from "@/components/add-to-list/open";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
+import { useAvailableOffline } from "@/downloads/provider";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { usePlayer, usePlayerState } from "@/player/provider";
@@ -42,6 +43,8 @@ export function TitleActions({
 	const current = usePlayerState((s) => s.book?.uuid === uuid);
 	const playing = usePlayerState((s) => s.book?.uuid === uuid && s.playing);
 	const loading = usePlayerState((s) => s.loadingUuid === uuid);
+	// Offline, a title that isn't on the phone can't open; say so up front.
+	const unavailable = useAvailableOffline(uuid) === false && !current;
 	const { label, detail } = primaryAction({
 		audio,
 		progress,
@@ -54,10 +57,27 @@ export function TitleActions({
 		<View style={{ gap: space.sm }}>
 			<View style={{ flexDirection: "row", gap: space.sm }}>
 				<PrimaryButton
-					label={label}
-					detail={detail}
+					label={
+						unavailable
+							? t(
+									audio
+										? "mobile.offline.listen_unavailable"
+										: "mobile.offline.read_unavailable",
+								)
+							: label
+					}
+					detail={unavailable ? null : detail}
 					loading={loading}
-					icon={playing ? icons.pause : audio ? icons.play : icons.book}
+					disabled={unavailable}
+					icon={
+						unavailable
+							? icons.offline
+							: playing
+								? icons.pause
+								: audio
+									? icons.play
+									: icons.book
+					}
 					onPress={() => {
 						// Audiobooks play right away and the mini player takes over
 						// from here (like the web); ebooks open the reader.
@@ -71,7 +91,7 @@ export function TitleActions({
 						else void player.play(uuid);
 					}}
 				/>
-				{readListen ? (
+				{readListen && !unavailable ? (
 					<PrimaryButton
 						label={t("read_listen.open_reader")}
 						icon={icons.readListen}
@@ -89,17 +109,19 @@ export function TitleActions({
 	);
 }
 
-function PrimaryButton({
+export function PrimaryButton({
 	label,
 	detail,
 	icon,
 	loading = false,
+	disabled = false,
 	onPress,
 }: {
 	label: string;
 	detail?: string | null;
 	icon: IconName;
 	loading?: boolean;
+	disabled?: boolean;
 	onPress: () => void;
 }) {
 	const palette = usePalette();
@@ -110,14 +132,15 @@ function PrimaryButton({
 		<View style={{ flex: 1 }}>
 			<PressableScale
 				onPress={onPress}
-				disabled={loading}
+				disabled={loading || disabled}
 				accessibilityRole="button"
 				accessibilityLabel={detail ? `${label}, ${detail}` : label}
-				accessibilityState={{ busy: loading }}
+				accessibilityState={{ busy: loading, disabled }}
 				style={{
 					height: HEIGHT,
 					borderRadius: HEIGHT / 2,
 					backgroundColor: palette.text,
+					opacity: disabled ? 0.4 : 1,
 					flexDirection: "row",
 					alignItems: "center",
 					justifyContent: "center",

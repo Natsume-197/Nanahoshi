@@ -28,6 +28,8 @@ export function MaterialIcon({
 			),
 		staleTime: Number.POSITIVE_INFINITY,
 		gcTime: Number.POSITIVE_INFINITY,
+		// Drawn on the device: offline must not park it.
+		networkMode: "always",
 	});
 	if (!source.data) return <Box modifiers={[sizeModifier(size, size)]} />;
 	return <Icon source={source.data} tint={tint} size={size} />;

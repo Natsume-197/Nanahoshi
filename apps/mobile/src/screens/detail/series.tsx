@@ -122,6 +122,8 @@ export function SeriesDetail({
 					isPending: list.isPending,
 					isError: list.isError || series.isError,
 					isFetchingNextPage: false,
+					fetchStatus: list.fetchStatus,
+					data: list.data,
 					hasNextPage: false,
 					fetchNextPage: () => undefined,
 					refetch: () => {

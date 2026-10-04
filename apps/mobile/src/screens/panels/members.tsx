@@ -3,7 +3,13 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, SectionList, View } from "react-native";
 import { RefreshControl } from "@/components/refresh-control";
-import { EmptyState, ErrorState, RowSkeleton } from "@/components/states";
+import {
+	EmptyState,
+	ErrorState,
+	OfflineState,
+	RowSkeleton,
+	waitingOffline,
+} from "@/components/states";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
@@ -49,7 +55,9 @@ export function MembersScreen() {
 
 	return (
 		<>
-			{members.isPending ? (
+			{waitingOffline(members) ? (
+				<OfflineState />
+			) : members.isPending ? (
 				<RowSkeleton count={6} square />
 			) : members.isError ? (
 				<ErrorState onRetry={() => members.refetch()} />

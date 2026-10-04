@@ -116,6 +116,29 @@ export function useDownloadedTitles() {
 	return { serverId, titles, jobs };
 }
 
+let onDevice = { key: "", uuids: new Set<string>() };
+
+/** Whether a title opens without the server, or null while online (nothing
+ * to tell apart then). One disk listing per change, shared by every tile. */
+export function useAvailableOffline(uuid: string): boolean | null {
+	const online = useIsOnline();
+	const serverId = useActiveServerId();
+	const version = useDownloadsState((s) => s.version);
+	if (online || !serverId) return null;
+	const key = `${serverId}:${version}`;
+	if (onDevice.key !== key) {
+		onDevice = {
+			key,
+			uuids: new Set(
+				listDownloads(serverId)
+					.filter((entry) => entry.complete)
+					.map((entry) => entry.uuid),
+			),
+		};
+	}
+	return onDevice.uuids.has(uuid);
+}
+
 /** The device's network, as React Query sees it (see query-lifecycle). */
 export function useIsOnline(): boolean {
 	return useSyncExternalStore(

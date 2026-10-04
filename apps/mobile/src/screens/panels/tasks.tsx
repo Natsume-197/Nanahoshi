@@ -8,7 +8,12 @@ import { ProgressBar } from "@/components/progress-bar";
 import { askChoice, showNotice } from "@/components/prompt";
 import { RefreshControl } from "@/components/refresh-control";
 import { RowSkeleton } from "@/components/skeleton";
-import { EmptyState, ErrorState } from "@/components/states";
+import {
+	EmptyState,
+	ErrorState,
+	OfflineState,
+	waitingOffline,
+} from "@/components/states";
 import { Text } from "@/components/text";
 import { formatDuration, formatRelativeTime } from "@/lib/format";
 import { locale, t } from "@/lib/i18n";
@@ -152,7 +157,9 @@ export function TasksScreen() {
 						: { headerRight: undefined, unstable_headerRightItems: undefined }),
 				}}
 			/>
-			{tasks.isPending ? (
+			{waitingOffline(tasks) ? (
+				<OfflineState />
+			) : tasks.isPending ? (
 				<RowSkeleton count={6} />
 			) : tasks.isError ? (
 				<ErrorState onRetry={() => tasks.refetch()} />

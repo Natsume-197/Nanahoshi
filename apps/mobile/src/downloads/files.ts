@@ -1,5 +1,6 @@
 import type { ReaderBootBook } from "@nanahoshi/reader-bridge";
 import { Directory, File, Paths } from "expo-file-system";
+import { assertNetwork } from "@/lib/simulated-offline";
 import type { PlayerBook } from "@/player/engine";
 import type { DownloadEntry, DownloadKind, SavedPosition } from "./model";
 
@@ -46,6 +47,7 @@ export async function downloadInto(
 	target: File,
 	transfer: Transfer,
 ) {
+	assertNetwork();
 	ensureDirectory(target.parentDirectory);
 	const partial = new File(target.parentDirectory, `${target.name}.part`);
 	await File.downloadFileAsync(url, partial, {

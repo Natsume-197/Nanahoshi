@@ -6,6 +6,7 @@ import { usePrefetchTitle } from "@/lib/title-queries";
 import { usePalette } from "@/theme";
 import { BookMenuTarget } from "./book-menu";
 import { Cover } from "./cover";
+import { OfflineAvailability } from "./offline-availability";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
 
@@ -69,46 +70,48 @@ export function TitleTile({
 						.join(", ")}
 					style={{ width, gap: 12 }}
 				>
-					<View
-						style={{
-							width,
-							height: frameHeight,
-							borderRadius: palette.coverRadius,
-							overflow: "hidden",
-							justifyContent: "center",
-							backgroundColor: plated
-								? platedBackground(item.color, palette.surface)
-								: undefined,
-						}}
-					>
-						<Cover
-							cover={item.cover}
-							color={item.color}
-							width={width}
-							shape={square ? "audio" : "book"}
-							recyclingKey={item.uuid}
-						/>
-						{item.progress && item.progress > 0 ? (
-							<View
-								style={{
-									position: "absolute",
-									left: 0,
-									right: 0,
-									bottom: 0,
-									height: 4,
-									backgroundColor: palette.progressTrack,
-								}}
-							>
+					<OfflineAvailability uuid={item.uuid}>
+						<View
+							style={{
+								width,
+								height: frameHeight,
+								borderRadius: palette.coverRadius,
+								overflow: "hidden",
+								justifyContent: "center",
+								backgroundColor: plated
+									? platedBackground(item.color, palette.surface)
+									: undefined,
+							}}
+						>
+							<Cover
+								cover={item.cover}
+								color={item.color}
+								width={width}
+								shape={square ? "audio" : "book"}
+								recyclingKey={item.uuid}
+							/>
+							{item.progress && item.progress > 0 ? (
 								<View
 									style={{
-										width: `${item.progress}%`,
-										height: "100%",
-										backgroundColor: palette.progress,
+										position: "absolute",
+										left: 0,
+										right: 0,
+										bottom: 0,
+										height: 4,
+										backgroundColor: palette.progressTrack,
 									}}
-								/>
-							</View>
-						) : null}
-					</View>
+								>
+									<View
+										style={{
+											width: `${item.progress}%`,
+											height: "100%",
+											backgroundColor: palette.progress,
+										}}
+									/>
+								</View>
+							) : null}
+						</View>
+					</OfflineAvailability>
 					<View style={{ gap: 4, paddingHorizontal: 2, minHeight: 64 }}>
 						<Text numberOfLines={2} variant="tileTitle">
 							{titleOrUntitled(item.title)}

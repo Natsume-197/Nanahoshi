@@ -9,7 +9,14 @@ import { t } from "@/lib/i18n";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { space } from "@/theme";
 import { icons } from "./icon";
-import { EmptyState, ErrorState, ShelfSkeleton, Spinner } from "./states";
+import {
+	EmptyState,
+	ErrorState,
+	OfflineState,
+	ShelfSkeleton,
+	Spinner,
+	waitingOffline,
+} from "./states";
 import { type TileItem, TitleTile } from "./title-tile";
 
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<TileItem>);
@@ -18,6 +25,8 @@ type Paged = {
 	isPending: boolean;
 	isError: boolean;
 	isFetchingNextPage: boolean;
+	fetchStatus: string;
+	data: unknown;
 	hasNextPage: boolean;
 	fetchNextPage: () => unknown;
 	refetch: () => unknown;
@@ -83,6 +92,8 @@ export function TitleGrid({
 					</View>
 				) : query.isError ? (
 					<ErrorState onRetry={() => void query.refetch()} />
+				) : waitingOffline(query) ? (
+					<OfflineState />
 				) : query.isPending ? (
 					<View style={{ marginHorizontal: -(space.lg - gap / 2) }}>
 						<ShelfSkeleton width={width} />

@@ -10,7 +10,13 @@ import { Icon } from "@/components/icon";
 import { icons } from "@/components/icon-names";
 import { askChoice, showNotice } from "@/components/prompt";
 import { RefreshControl } from "@/components/refresh-control";
-import { EmptyState, ErrorState, RowSkeleton } from "@/components/states";
+import {
+	EmptyState,
+	ErrorState,
+	OfflineState,
+	RowSkeleton,
+	waitingOffline,
+} from "@/components/states";
 import { Text } from "@/components/text";
 import { formatRelativeTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -146,7 +152,9 @@ export function NotificationsScreen() {
 								}),
 				}}
 			/>
-			{notifications.isPending ? (
+			{waitingOffline(notifications) ? (
+				<OfflineState />
+			) : notifications.isPending ? (
 				<RowSkeleton count={6} />
 			) : notifications.isError ? (
 				<ErrorState onRetry={() => notifications.refetch()} />

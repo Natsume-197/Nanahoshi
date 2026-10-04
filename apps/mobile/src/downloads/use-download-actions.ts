@@ -2,7 +2,12 @@ import { useCan } from "@/lib/abilities";
 import { haptics } from "@/lib/haptics";
 import { usePlayer } from "@/player/provider";
 import { canDownloadTitle, type DownloadKind } from "./model";
-import { useActiveServerId, useDownloads, useTitleDownload } from "./provider";
+import {
+	useActiveServerId,
+	useDownloads,
+	useIsOnline,
+	useTitleDownload,
+} from "./provider";
 
 /** Download, cancel and remove for one title, shared by its download button,
  * its long-press menu and the Downloads page. */
@@ -16,6 +21,8 @@ export function useDownloadActions(
 	const can = useCan();
 	const serverId = useActiveServerId();
 	const status = useTitleDownload(kind, uuid);
+	// Offline a download can't start; removing or cancelling still can.
+	const online = useIsOnline();
 
 	const start = () => {
 		if (!serverId) return;
@@ -36,7 +43,7 @@ export function useDownloadActions(
 
 	return {
 		status,
-		allowed: canDownloadTitle(kind, can),
+		allowed: online && canDownloadTitle(kind, can),
 		start,
 		cancel,
 		remove,

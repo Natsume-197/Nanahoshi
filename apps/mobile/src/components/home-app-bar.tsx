@@ -14,6 +14,7 @@ import { Bone, SkeletonPulse } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { nextAppBarOffset, settleAppBarOffset } from "@/lib/app-bar-scroll";
 import { t } from "@/lib/i18n";
+import { useLastServer } from "@/lib/last-server";
 import { mediaUrl } from "@/lib/media";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { usePickServer } from "@/screens/panels/servers";
@@ -72,8 +73,11 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 		...orpc.notifications.unreadCount.queryOptions(),
 		refetchInterval: 60_000,
 	});
-	const logo = mediaUrl(serverUrl, active.data?.logo);
-	const name = active.data?.name ?? t("server.select");
+	// Offline the server can't be asked; the last one seen stands in.
+	const last = useLastServer(serverUrl);
+	const server = active.data ?? last;
+	const logo = mediaUrl(serverUrl, server?.logo);
+	const name = server?.name ?? t("server.select");
 
 	// Worklets copy what they capture: take the shared value, not `scroll`
 	// (it also holds the scroll handler).

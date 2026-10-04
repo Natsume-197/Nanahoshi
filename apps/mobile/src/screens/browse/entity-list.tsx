@@ -13,8 +13,10 @@ import { SearchField } from "@/components/search-field";
 import {
 	EmptyState,
 	ErrorState,
+	OfflineState,
 	RowSkeleton,
 	Spinner,
+	waitingOffline,
 } from "@/components/states";
 import { Text } from "@/components/text";
 import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
@@ -207,6 +209,8 @@ export function EntityList({ kind }: { kind: EntityKind }) {
 			ListEmptyComponent={
 				active.isError ? (
 					<ErrorState onRetry={() => active.refetch()} />
+				) : waitingOffline(active) ? (
+					<OfflineState />
 				) : active.isPending ? (
 					<RowSkeleton square />
 				) : (

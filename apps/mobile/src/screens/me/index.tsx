@@ -12,11 +12,12 @@ import { ChipRow } from "@/components/chip";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { LineTabs } from "@/components/line-tabs";
 import { askChoice } from "@/components/prompt";
-import { ErrorState } from "@/components/states";
+import { ErrorState, OfflineState } from "@/components/states";
 import { Text } from "@/components/text";
 import { TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
 import { clearDownloads } from "@/downloads/files";
+import { useIsOnline } from "@/downloads/provider";
 import { joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
@@ -192,6 +193,9 @@ export function Profile({ username: requested }: { username?: string }) {
 				)
 			: t("catalog_pages.empty_shelf");
 
+	// Offline the shelves can't load or change: say so instead of a stale grid.
+	const offline = !useIsOnline();
+
 	if (!isOwn && other.isError)
 		return <ErrorState onRetry={() => other.refetch()} />;
 
@@ -211,8 +215,9 @@ export function Profile({ username: requested }: { username?: string }) {
 			{isOwn ? <ProfileBar username={username} /> : null}
 			<TitleGrid
 				onScroll={bar.scrollProps.onScroll}
-				items={grid.items}
+				items={offline ? [] : grid.items}
 				query={grid.query}
+				empty={offline ? <OfflineState /> : undefined}
 				emptyTitle={emptyTitle}
 				emptyMessage={emptyMessage}
 				header={
@@ -228,16 +233,18 @@ export function Profile({ username: requested }: { username?: string }) {
 							onTitleOffset={bar.onTitleOffset}
 							profile={profile.data ?? null}
 						/>
-						<LineTabs
-							value={tab}
-							onChange={setTab}
-							options={[
-								{ value: "books", label: t("nav.books") },
-								{ value: "audiobooks", label: t("nav.audiobooks") },
-							]}
-						/>
-						{filters}
-						{grid.total != null ? (
+						{offline ? null : (
+							<LineTabs
+								value={tab}
+								onChange={setTab}
+								options={[
+									{ value: "books", label: t("nav.books") },
+									{ value: "audiobooks", label: t("nav.audiobooks") },
+								]}
+							/>
+						)}
+						{offline ? null : filters}
+						{!offline && grid.total != null ? (
 							<Text
 								variant="label"
 								tone="secondary"

@@ -27,7 +27,7 @@ export function DetailHeaderMenu({ target }: { target: BookTarget }) {
 	const percent =
 		state === "downloading" ? Math.round(download.status.progress * 100) : 0;
 	const downloadButton =
-		!download.allowed && state === "none"
+		!download.allowed && !busy && state !== "done"
 			? null
 			: busy
 				? {

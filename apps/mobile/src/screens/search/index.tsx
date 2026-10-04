@@ -19,8 +19,10 @@ import { SearchField } from "@/components/search-field";
 import {
 	EmptyState,
 	ErrorState,
+	OfflineState,
 	RowSkeleton,
 	Spinner,
+	waitingOffline,
 } from "@/components/states";
 import { Text } from "@/components/text";
 import { joinNames, titleOrUntitled } from "@/lib/format";
@@ -358,6 +360,8 @@ export function Search() {
 						/>
 					) : current.query.isError ? (
 						<ErrorState onRetry={() => void current.query.refetch()} />
+					) : waitingOffline(current.query) ? (
+						<OfflineState />
 					) : current.query.isPending ? (
 						<RowSkeleton count={6} />
 					) : (

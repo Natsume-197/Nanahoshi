@@ -4,10 +4,17 @@ import { DownloadsProvider } from "@/downloads/provider";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { type Api, createApi, createQueryClient } from "@/lib/api";
 import { createNanahoshiAuth, type NanahoshiAuth } from "@/lib/auth-client";
+import {
+	refetchAuthOnReconnect,
+	rememberActiveServer,
+} from "@/lib/last-server";
 import { connectQueryLifecycle } from "@/lib/query-lifecycle";
 import { restoreSavedQueries } from "@/lib/query-persist";
 import { readServerUrl, writeServerUrl } from "@/lib/server-url";
+import { installNetworkGuard } from "@/lib/simulated-offline";
 import { PlayerProvider } from "@/player/provider";
+
+installNetworkGuard();
 
 type ServerContextValue = {
 	serverUrl: string | null;
@@ -73,6 +80,7 @@ function Connection({
 				{/* Playback outlives every screen, so it lives with the connection. */}
 				{connection ? (
 					<PlayerProvider {...connection}>
+						<RememberActiveServer {...connection} />
 						<DownloadsProvider {...connection}>{children}</DownloadsProvider>
 					</PlayerProvider>
 				) : (
@@ -81,6 +89,24 @@ function Connection({
 			</ConnectionContext>
 		</QueryClientProvider>
 	);
+}
+
+function RememberActiveServer({
+	auth,
+	serverUrl,
+}: {
+	auth: NanahoshiAuth;
+	serverUrl: string;
+}) {
+	useMountEffect(() => {
+		const forget = rememberActiveServer(auth, serverUrl);
+		const stopRefetching = refetchAuthOnReconnect(auth);
+		return () => {
+			forget();
+			stopRefetching();
+		};
+	});
+	return null;
 }
 
 export function useServer() {

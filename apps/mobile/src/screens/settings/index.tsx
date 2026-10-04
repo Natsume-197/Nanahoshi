@@ -6,10 +6,12 @@ import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { Icon, icons } from "@/components/icon";
 import { Text } from "@/components/text";
 import { useAppearancePreference } from "@/lib/appearance";
+import { useDeveloperMode } from "@/lib/developer-mode";
 import { getLanguagePreference, t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { IS_ANDROID } from "@/lib/platform";
 import { LANGUAGE_NAMES } from "@/lib/preferences";
+import { useSimulatedOffline } from "@/lib/simulated-offline";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
@@ -27,6 +29,8 @@ export function SettingsScreen() {
 	const miniPlayerInset = useMiniPlayerInset();
 	const appearance = useAppearancePreference();
 	const language = getLanguagePreference();
+	const developer = useDeveloperMode();
+	const offline = useSimulatedOffline();
 	return (
 		<>
 			{IS_ANDROID ? <Stack.Screen options={{ title: "" }} /> : null}
@@ -94,6 +98,14 @@ export function SettingsScreen() {
 						label={t("settings.nav.about")}
 						href="/settings/about"
 					/>
+					{developer ? (
+						<GroupedRow
+							icon={icons.code}
+							label={t("mobile.settings.developer")}
+							value={offline ? t("mobile.settings.offline_on") : undefined}
+							href="/settings/developer"
+						/>
+					) : null}
 				</GroupedList>
 			</ScrollView>
 		</>

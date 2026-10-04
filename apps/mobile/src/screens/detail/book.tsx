@@ -8,7 +8,7 @@ import { byPrefix, LinkedNames } from "@/components/linked-names";
 import { RefreshControl } from "@/components/refresh-control";
 import { Shelf } from "@/components/shelf";
 import { useArrival } from "@/components/skeleton";
-import { ErrorState } from "@/components/states";
+import { ErrorState, waitingOffline } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
 import {
 	formatCount,
@@ -36,6 +36,7 @@ import {
 	InfoGrid,
 	SectionLabel,
 } from "./layout";
+import { OfflineTitle } from "./offline-title";
 import { Description, TagChips } from "./parts";
 import { TitleActions } from "./title-actions";
 import { useDetailHeader } from "./use-detail-header";
@@ -85,6 +86,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	const arrival = useArrival(!!book.data);
 
 	if (book.isError) return <ErrorState onRetry={() => book.refetch()} />;
+	if (waitingOffline(book)) return <OfflineTitle uuid={uuid} />;
 	if (!book.data)
 		return (
 			<>

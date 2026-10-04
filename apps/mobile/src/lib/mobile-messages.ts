@@ -37,7 +37,21 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.downloads.audiobook": "Audiobook",
 		"mobile.downloads.offline_title": "You're offline",
 		"mobile.downloads.offline_desc": "Your downloads are still here.",
-		"mobile.downloads.offline_action": "Downloads",
+		"mobile.offline.page_desc":
+			"This page needs a connection. Your downloads still open.",
+		"mobile.offline.see_downloads": "See downloads",
+		"mobile.downloads.no_books": "No books downloaded",
+		"mobile.downloads.no_audiobooks": "No audiobooks downloaded",
+		"mobile.offline.go_to_downloads": "Go to downloads",
+		"mobile.offline.no_downloads":
+			"Download books and audiobooks while connected to have them here.",
+		"mobile.offline.read": "Read",
+		"mobile.offline.listen": "Listen",
+		"mobile.offline.title_desc":
+			"Offline: showing what this phone saved. Details come back with the connection.",
+		"mobile.offline.read_unavailable": "Download to read offline",
+		"mobile.offline.listen_unavailable": "Download to listen offline",
+		"mobile.offline.on_device": "On this phone",
 		"mobile.members.offline": "Offline",
 		"mobile.player.bookmark": "Bookmark",
 		"mobile.player.bookmark_saved": "Saved",
@@ -113,6 +127,19 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.search.browse": "Browse all",
 		"mobile.settings.language_system": "Device language",
 		"mobile.settings.app_version": "App version",
+		"mobile.settings.developer": "Developer options",
+		"mobile.settings.offline_on": "Offline",
+		"mobile.settings.simulate_offline": "Simulate offline",
+		"mobile.settings.simulate_offline_desc":
+			"Act as if there were no connection to the server, without turning off Wi-Fi.",
+		"mobile.settings.developer_hide": "Hide developer options",
+		"mobile.settings.developer_steps":
+			"{count} more taps to show developer options.",
+		"mobile.settings.developer_steps_one":
+			"One more tap to show developer options.",
+		"mobile.settings.developer_unlocked":
+			"Developer options are now in Settings.",
+		"mobile.settings.developer_already": "Developer options are already on.",
 		"mobile.settings.banner_crop_title": "Adjust banner",
 		"mobile.settings.banner_crop_hint": "Drag and pinch to frame your banner.",
 		"mobile.collection.edit_title": "Edit collection",
@@ -259,7 +286,22 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.downloads.audiobook": "Audiolibro",
 		"mobile.downloads.offline_title": "Sin conexión",
 		"mobile.downloads.offline_desc": "Tus descargas siguen disponibles.",
-		"mobile.downloads.offline_action": "Descargas",
+		"mobile.offline.page_desc":
+			"Esta página necesita conexión. Tus descargas siguen abriéndose.",
+		"mobile.offline.see_downloads": "Ver descargas",
+		"mobile.downloads.no_books": "No hay libros descargados",
+		"mobile.downloads.no_audiobooks": "No hay audiolibros descargados",
+		"mobile.offline.go_to_downloads": "Ir a descargas",
+		"mobile.offline.no_downloads":
+			"Descarga libros y audiolibros con conexión para tenerlos aquí.",
+		"mobile.offline.read": "Leer",
+		"mobile.offline.listen": "Escuchar",
+		"mobile.offline.title_desc":
+			"Sin conexión: se muestra lo que guardó este teléfono. Los detalles vuelven con la conexión.",
+		"mobile.offline.read_unavailable": "Descárgalo para leer sin conexión",
+		"mobile.offline.listen_unavailable":
+			"Descárgalo para escuchar sin conexión",
+		"mobile.offline.on_device": "En este teléfono",
 		"mobile.members.offline": "Desconectado",
 		"mobile.player.bookmark": "Marcador",
 		"mobile.player.bookmark_saved": "Guardado",
@@ -338,6 +380,20 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.search.browse": "Explorar todo",
 		"mobile.settings.language_system": "Idioma del dispositivo",
 		"mobile.settings.app_version": "Versión de la app",
+		"mobile.settings.developer": "Opciones de desarrollador",
+		"mobile.settings.offline_on": "Sin conexión",
+		"mobile.settings.simulate_offline": "Simular sin conexión",
+		"mobile.settings.simulate_offline_desc":
+			"La app actúa como si no hubiera conexión con el servidor, sin apagar el Wi-Fi.",
+		"mobile.settings.developer_hide": "Ocultar opciones de desarrollador",
+		"mobile.settings.developer_steps":
+			"Faltan {count} toques para mostrar las opciones de desarrollador.",
+		"mobile.settings.developer_steps_one":
+			"Falta un toque para mostrar las opciones de desarrollador.",
+		"mobile.settings.developer_unlocked":
+			"Las opciones de desarrollador ya están en Ajustes.",
+		"mobile.settings.developer_already":
+			"Las opciones de desarrollador ya están activadas.",
 		"mobile.settings.banner_crop_title": "Ajustar banner",
 		"mobile.settings.banner_crop_hint":
 			"Arrastra y pellizca para encuadrar tu banner.",
@@ -490,7 +546,22 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.downloads.offline_title": "オフラインです",
 		"mobile.downloads.offline_desc":
 			"ダウンロードしたタイトルは引き続き利用できます。",
-		"mobile.downloads.offline_action": "ダウンロード",
+		"mobile.offline.page_desc":
+			"このページには接続が必要です。ダウンロード済みの作品は開けます。",
+		"mobile.offline.see_downloads": "ダウンロードを見る",
+		"mobile.downloads.no_books": "ダウンロード済みの本はありません",
+		"mobile.downloads.no_audiobooks":
+			"ダウンロード済みのオーディオブックはありません",
+		"mobile.offline.go_to_downloads": "ダウンロードへ",
+		"mobile.offline.no_downloads":
+			"接続中に本やオーディオブックをダウンロードすると、ここに表示されます。",
+		"mobile.offline.read": "読む",
+		"mobile.offline.listen": "聴く",
+		"mobile.offline.title_desc":
+			"オフライン：この端末に保存された内容を表示しています。詳細は接続が戻ると表示されます。",
+		"mobile.offline.read_unavailable": "オフラインで読むにはダウンロード",
+		"mobile.offline.listen_unavailable": "オフラインで聴くにはダウンロード",
+		"mobile.offline.on_device": "この端末",
 		"mobile.members.offline": "オフライン",
 		"mobile.player.bookmark": "ブックマーク",
 		"mobile.player.bookmark_saved": "保存しました",
@@ -567,6 +638,20 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.search.browse": "すべて見る",
 		"mobile.settings.language_system": "端末の言語",
 		"mobile.settings.app_version": "アプリのバージョン",
+		"mobile.settings.developer": "開発者向けオプション",
+		"mobile.settings.offline_on": "オフライン",
+		"mobile.settings.simulate_offline": "オフラインをシミュレート",
+		"mobile.settings.simulate_offline_desc":
+			"Wi-Fiを切らずに、サーバーに接続できない状態として動作します。",
+		"mobile.settings.developer_hide": "開発者向けオプションを非表示",
+		"mobile.settings.developer_steps":
+			"あと{count}回タップすると開発者向けオプションが表示されます。",
+		"mobile.settings.developer_steps_one":
+			"あと1回タップすると開発者向けオプションが表示されます。",
+		"mobile.settings.developer_unlocked":
+			"開発者向けオプションを設定に追加しました。",
+		"mobile.settings.developer_already":
+			"開発者向けオプションはすでに有効です。",
 		"mobile.settings.banner_crop_title": "バナーを調整",
 		"mobile.settings.banner_crop_hint":
 			"ドラッグとピンチでバナーの位置を調整します。",

@@ -1,10 +1,19 @@
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
+import { useRef } from "react";
 import { ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { icons } from "@/components/icon";
+import { showInfo } from "@/components/prompt";
 import { Text } from "@/components/text";
+import { developerMode } from "@/lib/developer-mode";
 import { t } from "@/lib/i18n";
+import {
+	ANNOUNCE_FROM,
+	NO_TAPS,
+	registerTap,
+	type TapState,
+} from "@/lib/tap-unlock";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useConnection } from "@/providers/app-provider";
 import { space } from "@/theme";
@@ -15,6 +24,26 @@ export function AboutSettingsScreen() {
 	const miniPlayerInset = useMiniPlayerInset();
 	const { serverUrl } = useConnection();
 	const open = (url: string) => () => void WebBrowser.openBrowserAsync(url);
+	const taps = useRef<TapState>(NO_TAPS);
+	const tapVersion = () => {
+		if (developerMode.isOn()) {
+			showInfo(t("mobile.settings.developer_already"));
+			return;
+		}
+		const tap = registerTap(taps.current, Date.now());
+		taps.current = tap.state;
+		if (tap.remaining === 0) {
+			taps.current = NO_TAPS;
+			void developerMode.set(true);
+			showInfo(t("mobile.settings.developer_unlocked"));
+		} else if (tap.state.count >= ANNOUNCE_FROM) {
+			showInfo(
+				tap.remaining === 1
+					? t("mobile.settings.developer_steps_one")
+					: t("mobile.settings.developer_steps", { count: tap.remaining }),
+			);
+		}
+	};
 	return (
 		<ScrollView
 			contentInsetAdjustmentBehavior="automatic"
@@ -34,6 +63,7 @@ export function AboutSettingsScreen() {
 				<GroupedRow
 					first
 					label={t("mobile.settings.app_version")}
+					onPress={tapVersion}
 					value={
 						Constants.expoConfig?.version ?? t("settings.about.unavailable")
 					}

@@ -25,7 +25,7 @@ import { Shelf } from "@/components/shelf";
 import { Bone, ShelfSkeleton, SkeletonPulse } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
-import { OfflineBanner } from "@/downloads/offline-banner";
+import { HomeOffline } from "@/downloads/home-offline";
 import { useIsOnline } from "@/downloads/provider";
 import { useCan } from "@/lib/abilities";
 import { joinNames, percent } from "@/lib/format";
@@ -92,9 +92,10 @@ export function Home() {
 	);
 	// No network, or a server that doesn't answer: downloads still open.
 	const offline = !useIsOnline() || libraries.isError;
-	const content = (
+	const content = offline ? (
+		<HomeOffline />
+	) : (
 		<>
-			{offline ? <OfflineBanner /> : null}
 			{libraries.isPending ? (
 				<ChipRowSkeleton />
 			) : categories.length > 1 ? (
@@ -120,7 +121,10 @@ export function Home() {
 			<ScrollView
 				ref={scrollRef}
 				contentInsetAdjustmentBehavior="never"
-				contentContainerStyle={{ paddingBottom: space.xxl + miniPlayerInset }}
+				contentContainerStyle={{
+					flexGrow: 1,
+					paddingBottom: space.xxl + miniPlayerInset,
+				}}
 				refreshControl={refreshControl}
 			>
 				{content}
@@ -154,6 +158,8 @@ function AndroidHome({
 				onScroll={appBar.onScroll}
 				scrollEventThrottle={16}
 				contentContainerStyle={{
+					// Lets the offline message centre in the screen.
+					flexGrow: 1,
 					paddingTop: insets.top + appBar.height,
 					paddingBottom: space.xxl + miniPlayerInset,
 				}}

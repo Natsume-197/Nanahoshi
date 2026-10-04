@@ -1,5 +1,7 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
+import { ChipRow } from "@/components/chip";
 import { Cover } from "@/components/cover";
 import { Icon, icons } from "@/components/icon";
 import { ProgressBar } from "@/components/progress-bar";
@@ -21,11 +23,14 @@ import { space, usePalette } from "@/theme";
 export function DownloadsScreen() {
 	const miniPlayerInset = useMiniPlayerInset();
 	const { titles, jobs } = useDownloadedTitles();
+	const [format, setFormat] = useState<"all" | "book" | "audiobook">("all");
 	const used = titles.reduce((sum, title) => sum + title.bytes, 0);
+	const shown =
+		format === "all" ? titles : titles.filter((title) => title.kind === format);
 
 	return (
 		<FlatList
-			data={titles}
+			data={shown}
 			keyExtractor={(item) => `${item.kind}:${item.uuid}`}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
@@ -34,27 +39,47 @@ export function DownloadsScreen() {
 			}}
 			ListHeaderComponent={
 				titles.length > 0 ? (
-					<Text
-						variant="caption"
-						tone="secondary"
-						style={{
-							paddingHorizontal: space.lg,
-							paddingBottom: space.sm,
-						}}
-					>
-						{t("mobile.downloads.usage", {
-							used: formatBytes(used, locale),
-							free: formatBytes(freeSpace(), locale),
-						})}
-					</Text>
+					<View style={{ gap: space.md, paddingBottom: space.sm }}>
+						<ChipRow
+							value={format}
+							onChange={setFormat}
+							options={[
+								{ value: "all", label: t("catalog_pages.all") },
+								{ value: "book", label: t("nav.books") },
+								{ value: "audiobook", label: t("nav.audiobooks") },
+							]}
+						/>
+						<Text
+							variant="caption"
+							tone="secondary"
+							style={{ paddingHorizontal: space.lg }}
+						>
+							{t("mobile.downloads.usage", {
+								used: formatBytes(used, locale),
+								free: formatBytes(freeSpace(), locale),
+							})}
+						</Text>
+					</View>
 				) : null
 			}
 			ListEmptyComponent={
-				<EmptyState
-					icon={icons.download}
-					title={t("mobile.downloads.empty_title")}
-					message={t("mobile.downloads.empty_desc")}
-				/>
+				titles.length > 0 ? (
+					// Only the filter is empty; there are downloads of the other kind.
+					<EmptyState
+						icon={icons.download}
+						title={t(
+							format === "audiobook"
+								? "mobile.downloads.no_audiobooks"
+								: "mobile.downloads.no_books",
+						)}
+					/>
+				) : (
+					<EmptyState
+						icon={icons.download}
+						title={t("mobile.downloads.empty_title")}
+						message={t("mobile.downloads.empty_desc")}
+					/>
+				)
 			}
 			renderItem={({ item }) => (
 				<DownloadRow item={item} job={jobs[item.uuid] ?? null} />

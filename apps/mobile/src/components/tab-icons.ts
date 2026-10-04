@@ -70,6 +70,8 @@ export function useAndroidTabIcons<Name extends string>(names: Name[]) {
 					),
 				staleTime: Number.POSITIVE_INFINITY,
 				gcTime: Number.POSITIVE_INFINITY,
+				// Drawn on the device: offline must not park them (no tab icons).
+				networkMode: "always",
 				enabled: TAB_ICONS_UNTINTED,
 			})),
 		),

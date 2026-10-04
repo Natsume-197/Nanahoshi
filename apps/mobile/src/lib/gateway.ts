@@ -1,4 +1,5 @@
 import { AppState } from "react-native";
+import { simulatedOffline } from "./simulated-offline";
 
 // The web's gateway socket (apps/web/src/lib/gateway). The server counts a
 // member as online only while one is open, so reading or listening on the phone
@@ -19,7 +20,7 @@ export function keepGatewayOpen({
 	let connecting = false;
 
 	const connect = async () => {
-		if (!wanted || socket || connecting) return;
+		if (!wanted || socket || connecting || simulatedOffline.isOn()) return;
 		connecting = true;
 		const cookie = await Promise.resolve(getCookie()).finally(() => {
 			connecting = false;
@@ -75,8 +76,13 @@ export function keepGatewayOpen({
 	};
 	follow(AppState.currentState);
 	const subscription = AppState.addEventListener("change", follow);
+	const unsubscribe = simulatedOffline.subscribe(() => {
+		if (simulatedOffline.isOn()) socket?.close();
+		else void connect();
+	});
 	return () => {
 		subscription.remove();
+		unsubscribe();
 		disconnect();
 	};
 }

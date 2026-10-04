@@ -8,7 +8,7 @@ import { byPrefix, LinkedNames } from "@/components/linked-names";
 import { RefreshControl } from "@/components/refresh-control";
 import { Shelf } from "@/components/shelf";
 import { useArrival } from "@/components/skeleton";
-import { ErrorState } from "@/components/states";
+import { ErrorState, waitingOffline } from "@/components/states";
 import { Text } from "@/components/text";
 import type { TileItem } from "@/components/title-tile";
 import {
@@ -41,6 +41,7 @@ import {
 	InfoGrid,
 	SectionLabel,
 } from "./layout";
+import { OfflineTitle } from "./offline-title";
 import { Description, TagChips } from "./parts";
 import { TitleActions } from "./title-actions";
 import { useDetailHeader } from "./use-detail-header";
@@ -87,6 +88,7 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 
 	if (audiobook.isError)
 		return <ErrorState onRetry={() => audiobook.refetch()} />;
+	if (waitingOffline(audiobook)) return <OfflineTitle uuid={uuid} />;
 	if (!audiobook.data)
 		return (
 			<>

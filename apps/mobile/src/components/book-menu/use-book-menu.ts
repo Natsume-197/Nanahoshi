@@ -2,7 +2,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Share } from "react-native";
 import { askChoice, showNotice, showUndo } from "@/components/prompt";
-import { type TitleDownloadState, useExports } from "@/downloads/provider";
+import {
+	type TitleDownloadState,
+	useExports,
+	useIsOnline,
+} from "@/downloads/provider";
 import { useDownloadActions } from "@/downloads/use-download-actions";
 import { useCan } from "@/lib/abilities";
 import { titleOrUntitled } from "@/lib/format";
@@ -45,6 +49,7 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		...orpc.readingProgress.getProgress.queryOptions(input),
 		enabled: fetch && !audio,
 	});
+	const online = useIsOnline();
 	const download = useDownloadActions(
 		audio ? "audiobook" : "book",
 		target.uuid,
@@ -58,7 +63,7 @@ export function useBookMenu(target: BookTarget, fetch: boolean) {
 		canDelete: can("book", "delete"),
 		canEditMetadata: can("book", "editMetadata"),
 		download: downloadMenuState(download.status.state, download.allowed),
-		canExport: can(audio ? "audiobook" : "book", "download"),
+		canExport: online && can(audio ? "audiobook" : "book", "download"),
 	};
 	const sections = buildBookMenu(target, state, {
 		listen: t("audiobook.listen"),

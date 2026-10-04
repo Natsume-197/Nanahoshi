@@ -10,8 +10,10 @@ import { SortButton } from "@/components/sort-button";
 import {
 	EmptyState,
 	ErrorState,
+	OfflineState,
 	ShelfSkeleton,
 	Spinner,
+	waitingOffline,
 } from "@/components/states";
 import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
 import { t } from "@/lib/i18n";
@@ -130,6 +132,8 @@ export function SeriesList({ initialFormat }: { initialFormat?: Format }) {
 			ListEmptyComponent={
 				query.isError ? (
 					<ErrorState onRetry={() => query.refetch()} />
+				) : waitingOffline(query) ? (
+					<OfflineState />
 				) : query.isPending ? (
 					<ShelfSkeleton width={width} audio={format === "audiobook"} />
 				) : (
