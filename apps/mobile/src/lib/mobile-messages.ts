@@ -167,6 +167,8 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.settings.app_version": "App version",
 		"mobile.settings.developer": "Developer options",
 		"mobile.settings.offline_on": "Offline",
+		"mobile.settings.theme_amoled": "AMOLED",
+		"mobile.settings.theme_amoled_desc": "Pure black, for OLED screens",
 		"mobile.settings.simulate_offline": "Simulate offline",
 		"mobile.settings.simulate_offline_desc":
 			"Act as if there were no connection to the server, without turning off Wi-Fi.",
@@ -459,6 +461,8 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.settings.app_version": "Versión de la app",
 		"mobile.settings.developer": "Opciones de desarrollador",
 		"mobile.settings.offline_on": "Sin conexión",
+		"mobile.settings.theme_amoled": "AMOLED",
+		"mobile.settings.theme_amoled_desc": "Negro puro, para pantallas OLED",
 		"mobile.settings.simulate_offline": "Simular sin conexión",
 		"mobile.settings.simulate_offline_desc":
 			"La app actúa como si no hubiera conexión con el servidor, sin apagar el Wi-Fi.",
@@ -756,6 +760,8 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.settings.app_version": "アプリのバージョン",
 		"mobile.settings.developer": "開発者向けオプション",
 		"mobile.settings.offline_on": "オフライン",
+		"mobile.settings.theme_amoled": "AMOLED",
+		"mobile.settings.theme_amoled_desc": "有機ELディスプレイ向けの純粋な黒",
 		"mobile.settings.simulate_offline": "オフラインをシミュレート",
 		"mobile.settings.simulate_offline_desc":
 			"Wi-Fiを切らずに、サーバーに接続できない状態として動作します。",

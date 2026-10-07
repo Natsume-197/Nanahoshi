@@ -15,7 +15,10 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalProvider } from "react-native-teleport";
 import { useDownloads, useExports } from "@/downloads/provider";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import { applyStoredAppearance } from "@/lib/appearance";
+import {
+	applyStoredAppearance,
+	useAppearancePreference,
+} from "@/lib/appearance";
 import type { NanahoshiAuth } from "@/lib/auth-client";
 import { keepGatewayOpen } from "@/lib/gateway";
 import { useLocale } from "@/lib/i18n";
@@ -29,7 +32,7 @@ import {
 	useMaybeConnection,
 } from "@/providers/app-provider";
 import { ReaderPool } from "@/reader/reader-pool";
-import { fontSources, palettes } from "@/theme";
+import { fontSources, paletteFor } from "@/theme";
 
 SplashScreen.preventAutoHideAsync();
 applyStoredAppearance();
@@ -51,7 +54,7 @@ export default function RootLayout() {
 	const [fontsLoaded] = useFonts(fontSources);
 	const locale = useLocale();
 	const base = scheme === "dark" ? DarkTheme : DefaultTheme;
-	const palette = scheme === "dark" ? palettes.dark : palettes.light;
+	const palette = paletteFor(scheme, useAppearancePreference());
 	// Navigation chrome takes the same canvas as the screens, so a push never
 	// flashes the library's default white/black between two graphite screens.
 	const theme = {

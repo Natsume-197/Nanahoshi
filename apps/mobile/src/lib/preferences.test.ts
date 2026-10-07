@@ -26,6 +26,7 @@ describe("appearance preference", () => {
 	it("keeps light and dark, anything else follows the system", () => {
 		expect(parseAppearancePreference("dark")).toBe("dark");
 		expect(parseAppearancePreference("light")).toBe("light");
+		expect(parseAppearancePreference("amoled")).toBe("amoled");
 		expect(parseAppearancePreference("sepia")).toBe("system");
 		expect(parseAppearancePreference(null)).toBe("system");
 	});
