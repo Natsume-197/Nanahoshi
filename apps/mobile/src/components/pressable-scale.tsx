@@ -1,12 +1,7 @@
 import { type ReactNode, type Ref, useState } from "react";
-import {
-	Pressable,
-	type PressableProps,
-	type StyleProp,
-	type View,
-	type ViewStyle,
-} from "react-native";
+import type { PressableProps, StyleProp, View, ViewStyle } from "react-native";
 import Animated from "react-native-reanimated";
+import { Pressable } from "@/components/pressable";
 import { motion } from "@/theme";
 
 /**

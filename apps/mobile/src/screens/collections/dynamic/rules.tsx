@@ -29,7 +29,7 @@ import {
 } from "@nanahoshi/api/routers/collections/collection-rules";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ActionMenuButton, type MenuItem } from "@/components/action-menu";
 import { Button } from "@/components/button";
 import { Chip } from "@/components/chip";
@@ -37,6 +37,7 @@ import { DateField } from "@/components/date-field";
 import { Icon, icons } from "@/components/icon";
 import { MenuSelect } from "@/components/menu-select";
 import { OptionSheet } from "@/components/option-sheet";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { locale, t } from "@/lib/i18n";

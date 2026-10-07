@@ -1,11 +1,12 @@
 import { Stack } from "expo-router";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ActionSheet } from "@/components/action-menu/action-sheet";
 import { isMenuGroup, type MenuItem } from "@/components/action-menu/types";
 import type { BookTarget } from "@/components/book-menu";
 import { useBookMenu } from "@/components/book-menu/use-book-menu";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Spinner } from "@/components/states";
 import { useDownloadActions } from "@/downloads/use-download-actions";
 import { t } from "@/lib/i18n";

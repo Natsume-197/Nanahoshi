@@ -1,6 +1,7 @@
 import { type Href, router } from "expo-router";
 import type { ReactNode, Ref } from "react";
-import { Pressable, type PressableProps, View } from "react-native";
+import { type PressableProps, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { IS_ANDROID } from "@/lib/platform";
 import { radius, shadows, space, usePalette } from "@/theme";
 import { Cover } from "./cover";

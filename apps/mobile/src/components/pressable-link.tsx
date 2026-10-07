@@ -1,5 +1,6 @@
 import { type Href, router } from "expo-router";
-import { Pressable, type PressableProps } from "react-native";
+import type { PressableProps } from "react-native";
+import { Pressable } from "@/components/pressable";
 
 /**
  * A Pressable that navigates. Use this instead of `<Link asChild><Pressable>`:

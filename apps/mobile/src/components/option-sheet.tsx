@@ -1,7 +1,8 @@
 import { BottomSheet, RNHostView } from "@expo/ui";
 import { useState } from "react";
-import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable } from "@/components/pressable";
 import { locale } from "@/lib/i18n";
 import { radius, sheetScrim, space, usePalette } from "@/theme";
 import { Icon, icons } from "./icon";

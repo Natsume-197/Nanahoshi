@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";

@@ -1,6 +1,7 @@
 import { type Href, router } from "expo-router";
 import { useState } from "react";
-import { Pressable, type PressableProps, View } from "react-native";
+import { type PressableProps, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { radius, space, usePalette } from "@/theme";

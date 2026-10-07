@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Button } from "@/components/button";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { t } from "@/lib/i18n";

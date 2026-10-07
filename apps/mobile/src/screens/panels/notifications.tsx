@@ -5,9 +5,10 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { FlatList, Pressable, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { Icon } from "@/components/icon";
 import { icons } from "@/components/icon-names";
+import { Pressable } from "@/components/pressable";
 import { askChoice, showNotice } from "@/components/prompt";
 import { RefreshControl } from "@/components/refresh-control";
 import {

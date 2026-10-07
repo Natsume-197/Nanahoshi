@@ -1,11 +1,12 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ActionMenuButton } from "@/components/action-menu";
 import { ActionSheet } from "@/components/action-menu/action-sheet";
 import { useCollectionMenu } from "@/components/collection-menu";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { SearchField } from "@/components/search-field";
 import { Text } from "@/components/text";
 import { TitleGrid } from "@/components/title-grid";

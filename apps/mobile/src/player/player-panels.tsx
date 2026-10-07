@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { FlatList, Pressable, TextInput, View } from "react-native";
+import { FlatList, TextInput, View } from "react-native";
 import Animated, {
 	cancelAnimation,
 	useAnimatedStyle,
@@ -10,6 +10,7 @@ import Animated, {
 	withTiming,
 } from "react-native-reanimated";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { haptics } from "@/lib/haptics";

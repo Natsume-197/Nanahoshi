@@ -1,8 +1,9 @@
 import { router } from "expo-router";
-import { Pressable, useColorScheme, View } from "react-native";
+import { useColorScheme, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { takeServerConnected } from "@/lib/auth-entry";

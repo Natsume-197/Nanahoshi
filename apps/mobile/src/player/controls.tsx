@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import {
-	ActivityIndicator,
-	Pressable,
-	type PressableProps,
-	View,
-} from "react-native";
+import { ActivityIndicator, type PressableProps, View } from "react-native";
 import Animated, {
 	Easing,
 	useAnimatedStyle,
@@ -13,6 +8,7 @@ import Animated, {
 	withTiming,
 } from "react-native-reanimated";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { haptics } from "@/lib/haptics";

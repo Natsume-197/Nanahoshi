@@ -1,6 +1,7 @@
 import { type Href, router } from "expo-router";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import type { SetupStep } from "@/lib/setup-flow";

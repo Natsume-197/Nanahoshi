@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { t } from "@/lib/i18n";
 import { fonts, radius, sizes, space, type, usePalette } from "@/theme";
 import { Icon, icons } from "./icon";

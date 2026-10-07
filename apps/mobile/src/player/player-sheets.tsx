@@ -1,8 +1,9 @@
 import { RNHostView } from "@expo/ui";
 import type { ReactNode } from "react";
-import { Pressable, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Sheet as BottomSheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { Toggle } from "@/components/toggle";

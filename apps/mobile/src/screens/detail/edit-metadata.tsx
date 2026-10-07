@@ -18,10 +18,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { DateField } from "@/components/date-field";
 import { HeaderButton } from "@/components/header-button";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { showNotice } from "@/components/prompt";
 import { FormSkeleton } from "@/components/skeleton";
 import { ErrorState } from "@/components/states";

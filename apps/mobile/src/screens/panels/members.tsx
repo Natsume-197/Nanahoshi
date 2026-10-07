@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Pressable, SectionList, View } from "react-native";
+import { SectionList, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { RefreshControl } from "@/components/refresh-control";
 import {
 	EmptyState,

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { radius, space, usePalette } from "@/theme";
 import { Text } from "./text";
 

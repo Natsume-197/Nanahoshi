@@ -1,6 +1,6 @@
 import { DatePickerDialog } from "@expo/ui/jetpack-compose";
 import { useState } from "react";
-import { Pressable } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { fromDateValue, toDateValue } from "@/lib/date-value";
 import { locale, t } from "@/lib/i18n";
 import { radius, sizes, space, usePalette } from "@/theme";

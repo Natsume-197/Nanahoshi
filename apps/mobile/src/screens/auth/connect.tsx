@@ -1,8 +1,9 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Icon, icons } from "@/components/icon";
 import { PillButton } from "@/components/pill-button";
+import { Pressable } from "@/components/pressable";
 import { Spinner } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";

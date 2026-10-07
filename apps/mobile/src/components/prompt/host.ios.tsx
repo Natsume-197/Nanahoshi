@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
+import { Pressable } from "@/components/pressable";
 import { EASE_OUT, radius, shadows, space, usePalette } from "@/theme";
 import { Icon, icons } from "../icon";
 import { Text } from "../text";

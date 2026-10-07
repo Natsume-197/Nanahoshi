@@ -1,8 +1,9 @@
 import type { ReadListenBarState } from "@nanahoshi/reader-bridge";
 import { router } from "expo-router";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import {

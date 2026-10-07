@@ -3,11 +3,12 @@ import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useScrollToTop } from "expo-router";
 import { type ReactNode, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookMenuTarget } from "@/components/book-menu";
 import { ChipRow } from "@/components/chip";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import {
 	CoverArt,
 	PortraitArt,

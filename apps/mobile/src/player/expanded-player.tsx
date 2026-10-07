@@ -5,7 +5,6 @@ import { type ReactNode, useState } from "react";
 import {
 	type LayoutChangeEvent,
 	Platform,
-	Pressable,
 	useWindowDimensions,
 	View,
 } from "react-native";
@@ -23,6 +22,7 @@ import { ActionSheet } from "@/components/action-menu/action-sheet";
 import { openAddToList } from "@/components/add-to-list/open";
 import { Cover } from "@/components/cover";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { localCoverUri } from "@/downloads/files";

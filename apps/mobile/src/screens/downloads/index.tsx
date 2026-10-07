@@ -1,9 +1,10 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { ChipRow } from "@/components/chip";
 import { Cover } from "@/components/cover";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { ProgressBar } from "@/components/progress-bar";
 import { EmptyState } from "@/components/states";
 import { Text } from "@/components/text";

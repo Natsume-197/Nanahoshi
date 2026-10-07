@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
 	useAnimatedStyle,
@@ -10,6 +10,7 @@ import Animated, {
 import { scheduleOnRN } from "react-native-worklets";
 import { Cover } from "@/components/cover";
 import { Icon, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY, IS_ANDROID } from "@/lib/platform";

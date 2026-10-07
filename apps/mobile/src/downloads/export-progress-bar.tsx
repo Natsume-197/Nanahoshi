@@ -1,5 +1,6 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Icon, type IconName, icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { ProgressBar } from "@/components/progress-bar";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";

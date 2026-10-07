@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { haptics } from "@/lib/haptics";
 import { sizes, space, usePalette } from "@/theme";
 import { Text } from "./text";

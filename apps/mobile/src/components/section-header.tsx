@@ -1,5 +1,6 @@
 import type { Href } from "expo-router";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { PressableLink } from "@/components/pressable-link";
 import { space, usePalette } from "@/theme";
 import { Icon, icons } from "./icon";

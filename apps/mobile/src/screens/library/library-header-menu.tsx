@@ -1,7 +1,7 @@
 import { router, Stack } from "expo-router";
-import { Pressable } from "react-native";
 import { Icon, icons } from "@/components/icon";
 import { useLibraryScan } from "@/components/library-menu/use-library-menu";
+import { Pressable } from "@/components/pressable";
 import { askChoice } from "@/components/prompt";
 import { useCan } from "@/lib/abilities";
 import { t } from "@/lib/i18n";

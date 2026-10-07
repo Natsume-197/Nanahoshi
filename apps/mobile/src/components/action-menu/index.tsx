@@ -8,7 +8,8 @@ import {
 } from "@expo/ui/jetpack-compose";
 import { fillMaxSize } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { usePalette } from "@/theme";
 import { Icon } from "../icon";
 import { MaterialIcon } from "./material-icon";

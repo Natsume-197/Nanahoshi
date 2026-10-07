@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable } from "react-native";
+import { ActivityIndicator } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { space, usePalette } from "@/theme";
 import { Text } from "./text";
 

@@ -1,5 +1,6 @@
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { Pressable } from "@/components/pressable";
 import { t } from "@/lib/i18n";
 import { serverHost } from "@/lib/server-reachability";
 import { useMaybeConnection, useServerStatus } from "@/providers/app-provider";
