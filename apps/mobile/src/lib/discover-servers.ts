@@ -63,6 +63,21 @@ export async function probeServer(
 	}
 }
 
+const PING_TIMEOUT_MS = 5000;
+
+/** Whether the server answers at all; a slow remote server still counts. */
+export async function pingServer(url: string): Promise<boolean> {
+	const ping = withTimeout(PING_TIMEOUT_MS, new AbortController().signal);
+	try {
+		await fetch(`${url}/api/auth/ok`, { signal: ping.signal });
+		return true;
+	} catch {
+		return false;
+	} finally {
+		ping.done();
+	}
+}
+
 function privateSubnet(ip: string | null) {
 	if (!ip) return null;
 	const parts = ip.split(".").map(Number);

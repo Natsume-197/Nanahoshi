@@ -1,6 +1,8 @@
 import { router } from "expo-router";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { t } from "@/lib/i18n";
+import { serverHost } from "@/lib/server-reachability";
+import { useMaybeConnection, useServerStatus } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
 import { Icon, type IconName, icons } from "./icon";
 import { Text } from "./text";
@@ -100,6 +102,8 @@ export function ErrorState({
 	detail?: string;
 }) {
 	const palette = usePalette();
+	const connection = useMaybeConnection();
+	const unreachable = useServerStatus().status === "unreachable";
 	return (
 		<View
 			style={{
@@ -111,7 +115,9 @@ export function ErrorState({
 		>
 			<Icon name={icons.warning} size={32} color={palette.textTertiary} />
 			<Text variant="headline" style={{ textAlign: "center" }}>
-				{t("mobile.error.title")}
+				{unreachable
+					? t("mobile.server.unreachable_title")
+					: t("mobile.error.title")}
 			</Text>
 			<Text
 				variant="subhead"
@@ -119,7 +125,11 @@ export function ErrorState({
 				selectable
 				style={{ textAlign: "center" }}
 			>
-				{detail ?? t("mobile.error.desc")}
+				{unreachable && connection
+					? t("mobile.server.unreachable_desc", {
+							host: serverHost(connection.serverUrl),
+						})
+					: (detail ?? t("mobile.error.desc"))}
 			</Text>
 			<Pressable
 				onPress={onRetry}

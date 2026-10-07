@@ -25,15 +25,16 @@ import { Shelf } from "@/components/shelf";
 import { Bone, ShelfSkeleton, SkeletonPulse } from "@/components/skeleton";
 import { EmptyState, ErrorState } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
-import { HomeOffline } from "@/downloads/home-offline";
+import { HomeOffline, HomeUnreachable } from "@/downloads/home-offline";
 import { useIsOnline } from "@/downloads/provider";
 import { useCan } from "@/lib/abilities";
 import { joinNames, percent } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { isUnanswered } from "@/lib/server-reachability";
 import { setupSteps } from "@/lib/setup-flow";
 import { useMiniPlayerInset } from "@/player/mini-player";
-import { useApi } from "@/providers/app-provider";
+import { useApi, useServerStatus } from "@/providers/app-provider";
 import { radius, sizes, space } from "@/theme";
 import {
 	ContinueCard,
@@ -90,12 +91,23 @@ export function Home() {
 			}}
 		/>
 	);
-	// No network, or a server that never answered: downloads still open. A
-	// failed refresh keeps what it already showed.
-	const offline =
-		!useIsOnline() || (libraries.isError && libraries.data === undefined);
-	const content = offline ? (
+	// No network, or a server that doesn't answer (off, or a new address):
+	// said apart, so Wi-Fi that works never reads as "you're offline". Once the
+	// server is known gone, cached rails give way instead of sitting on
+	// skeletons; a refresh that failed with an answer keeps what it showed.
+	const online = useIsOnline();
+	const server = useServerStatus();
+	const unreachable =
+		server.status === "unreachable" ||
+		(libraries.isError &&
+			libraries.data === undefined &&
+			isUnanswered(libraries.error));
+	const content = !online ? (
 		<HomeOffline />
+	) : unreachable ? (
+		<HomeUnreachable />
+	) : libraries.isError && libraries.data === undefined ? (
+		<ErrorState onRetry={() => libraries.refetch()} />
 	) : (
 		<>
 			{libraries.isPending ? (

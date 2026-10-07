@@ -57,6 +57,7 @@ export function GroupedList({
 
 export function GroupedRow({
 	icon,
+	leading,
 	label,
 	subtitle,
 	value,
@@ -69,6 +70,8 @@ export function GroupedRow({
 	disabled,
 }: {
 	icon?: IconName;
+	/** Art in the icon's place (an avatar). */
+	leading?: ReactNode;
 	label: string;
 	subtitle?: string;
 	value?: string;
@@ -87,6 +90,7 @@ export function GroupedRow({
 	const pressable = !!(href || onPress) && !disabled;
 	const content = (
 		<>
+			{leading}
 			{icon ? (
 				<Icon
 					name={icon}

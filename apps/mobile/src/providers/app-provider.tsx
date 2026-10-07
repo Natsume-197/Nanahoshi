@@ -1,15 +1,28 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { createContext, type ReactNode, use, useRef, useState } from "react";
+import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createContext,
+	type ReactNode,
+	use,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
+import { AppState } from "react-native";
 import { DownloadsProvider } from "@/downloads/provider";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { type Api, createApi, createQueryClient } from "@/lib/api";
 import { createNanahoshiAuth, type NanahoshiAuth } from "@/lib/auth-client";
+import { pingServer } from "@/lib/discover-servers";
 import {
 	refetchAuthOnReconnect,
 	rememberActiveServer,
 } from "@/lib/last-server";
 import { connectQueryLifecycle } from "@/lib/query-lifecycle";
 import { restoreSavedQueries } from "@/lib/query-persist";
+import {
+	createServerReachability,
+	type ServerReachability,
+} from "@/lib/server-reachability";
 import { readServerUrl, writeServerUrl } from "@/lib/server-url";
 import { installNetworkGuard } from "@/lib/simulated-offline";
 import { PlayerProvider } from "@/player/provider";
@@ -29,6 +42,7 @@ type ConnectionContextValue = {
 
 const ServerContext = createContext<ServerContextValue | null>(null);
 const ConnectionContext = createContext<ConnectionContextValue | null>(null);
+const ReachabilityContext = createContext<ServerReachability | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
 	const [serverUrl, setServerUrlState] = useState(readServerUrl);
@@ -64,10 +78,25 @@ function Connection({
 		return client;
 	});
 	const onUnauthorizedRef = useRef(() => {});
+	const [reachability] = useState(() =>
+		serverUrl
+			? createServerReachability({
+					probe: () => pingServer(serverUrl),
+					// Screens that failed while it was gone load again on their own.
+					onRecovered: () =>
+						void queryClient.refetchQueries({ type: "active" }),
+				})
+			: null,
+	);
 	const [connection] = useState(() => {
-		if (!serverUrl) return null;
+		if (!serverUrl || !reachability) return null;
 		const auth = createNanahoshiAuth(serverUrl);
-		const api = createApi(serverUrl, auth, () => onUnauthorizedRef.current());
+		const api = createApi(
+			serverUrl,
+			auth,
+			() => onUnauthorizedRef.current(),
+			reachability,
+		);
 		return { serverUrl, auth, api };
 	});
 	onUnauthorizedRef.current = () => {
@@ -77,15 +106,18 @@ function Connection({
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ConnectionContext value={connection}>
-				{/* Playback outlives every screen, so it lives with the connection. */}
-				{connection ? (
-					<PlayerProvider {...connection}>
-						<RememberActiveServer {...connection} />
-						<DownloadsProvider {...connection}>{children}</DownloadsProvider>
-					</PlayerProvider>
-				) : (
-					children
-				)}
+				<ReachabilityContext value={reachability}>
+					{/* Playback outlives every screen, so it lives with the connection. */}
+					{connection && reachability ? (
+						<PlayerProvider {...connection}>
+							<RememberActiveServer {...connection} />
+							<WatchServer reachability={reachability} />
+							<DownloadsProvider {...connection}>{children}</DownloadsProvider>
+						</PlayerProvider>
+					) : (
+						children
+					)}
+				</ReachabilityContext>
 			</ConnectionContext>
 		</QueryClientProvider>
 	);
@@ -107,6 +139,46 @@ function RememberActiveServer({
 		};
 	});
 	return null;
+}
+
+/** Asks the server on start, and again when the phone comes back online or
+ * to the foreground while it was gone; API requests report the rest. */
+function WatchServer({ reachability }: { reachability: ServerReachability }) {
+	useMountEffect(() => {
+		void reachability.check();
+		const online = onlineManager.subscribe((isOnline) => {
+			if (isOnline) void reachability.check();
+		});
+		const foreground = AppState.addEventListener("change", (status) => {
+			if (status === "active" && reachability.status() === "unreachable")
+				void reachability.check();
+		});
+		return () => {
+			online();
+			foreground.remove();
+			reachability.stop();
+		};
+	});
+	return null;
+}
+
+export type ServerStatus = {
+	status: "unknown" | "reachable" | "unreachable";
+	/** Resolves with whether the server answered. */
+	check: () => Promise<boolean>;
+};
+
+/** Whether the server answers; "reachable" outside a connection. */
+export function useServerStatus(): ServerStatus {
+	const reachability = use(ReachabilityContext);
+	const status = useSyncExternalStore(
+		(listener) => reachability?.subscribe(listener) ?? (() => {}),
+		() => reachability?.status() ?? "reachable",
+	);
+	return {
+		status,
+		check: () => reachability?.check() ?? Promise.resolve(true),
+	};
 }
 
 export function useServer() {

@@ -27,7 +27,9 @@ function candidatesFor(input: string, url: string) {
 	return [url, `${url}:7331`, `${url}:7333`];
 }
 
-export function Connect() {
+/** `signedIn`: the same server at a new address, from inside the app; the
+ * saved session comes along, so there is no sign-in step to carry on to. */
+export function Connect({ signedIn = false }: { signedIn?: boolean }) {
 	const { serverUrl, setServerUrl } = useServer();
 	const valueRef = useRef(serverUrl ?? "");
 	const [hasValue, setHasValue] = useState(!!serverUrl);
@@ -38,7 +40,11 @@ export function Connect() {
 	const [noneFound, setNoneFound] = useState(false);
 
 	const pick = async (url: string) => {
-		markServerConnected();
+		if (signedIn && url === serverUrl) {
+			if (router.canGoBack()) router.back();
+			return;
+		}
+		if (!signedIn) markServerConnected();
 		await setServerUrl(url);
 	};
 

@@ -26,10 +26,14 @@ export type ApiCall = { path: readonly string[]; input: unknown };
  * Same oRPC surface the web app uses. React Native has no cookie jar, so the
  * session cookie better-auth keeps in SecureStore is attached by hand.
  */
+/** Told whether each request reached the server. */
+export type ServerWatch = { answered: () => void; failed: () => void };
+
 export function createApi(
 	baseURL: string,
 	auth: NanahoshiAuth,
 	onUnauthorized: () => void,
+	watch?: ServerWatch,
 ) {
 	const callListeners = new Set<(call: ApiCall) => void>();
 	const link = new RPCLink({
@@ -48,7 +52,15 @@ export function createApi(
 			return cookie ? { Cookie: cookie } : {};
 		},
 		async fetch(request, init) {
-			const response = await fetch(request, { ...init, credentials: "omit" });
+			let response: Response;
+			try {
+				response = await fetch(request, { ...init, credentials: "omit" });
+			} catch (error) {
+				// A request we cancelled says nothing about the server.
+				if (!request.signal.aborted) watch?.failed();
+				throw error;
+			}
+			watch?.answered();
 			if (response.status === 401) onUnauthorized();
 			return response;
 		},

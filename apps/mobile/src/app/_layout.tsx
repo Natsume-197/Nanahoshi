@@ -34,7 +34,12 @@ import { fontSources, palettes } from "@/theme";
 SplashScreen.preventAutoHideAsync();
 applyStoredAppearance();
 
-const SETUP_ROUTES = ["setup/server", "setup/library", "setup/upload"];
+const SETUP_ROUTES = [
+	"setup/server",
+	"setup/library",
+	"setup/upload",
+	"server-address",
+];
 const SETUP_OPTIONS = {
 	presentation: "fullScreenModal",
 	animation: "slide_from_bottom",

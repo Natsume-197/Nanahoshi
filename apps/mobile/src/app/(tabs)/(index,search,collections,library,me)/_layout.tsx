@@ -183,6 +183,10 @@ export default function TabStack({ segment }: { segment: string }) {
 					options={{ title: t("settings.nav.appearance") }}
 				/>
 				<Stack.Screen
+					name="settings/servers"
+					options={{ title: t("server.select") }}
+				/>
+				<Stack.Screen
 					name="settings/language"
 					options={{ title: t("settings.nav.language") }}
 				/>

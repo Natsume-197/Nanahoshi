@@ -1913,7 +1913,7 @@
 	},
 	"server": {
 		"list_label": "サーバー",
-		"select": "ワークスペースを選択",
+		"select": "サーバーを選択",
 		"create": "サーバーを作成",
 		"create_desc": "この Nanahoshi インスタンスに別のサーバーを追加します。",
 		"created": "{name}を作成しました",

@@ -1950,7 +1950,7 @@
 	},
 	"server": {
 		"list_label": "Servidores",
-		"select": "Seleccionar espacio",
+		"select": "Seleccionar servidor",
 		"create": "Crear servidor",
 		"create_desc": "Añade otro servidor a esta instancia de Nanahoshi.",
 		"created": "{name} creado",

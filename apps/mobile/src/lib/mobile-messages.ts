@@ -119,6 +119,13 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.error.title": "Couldn't load this",
 		"mobile.error.action": "That didn't work. Try again.",
 		"mobile.error.desc": "Check your connection to the server and try again.",
+		"mobile.server.unreachable_title": "Can't reach your server",
+		"mobile.server.unreachable_desc":
+			"{host} isn't answering. It may be off, or it may have moved to another address.",
+		"mobile.server.change_address": "Change server address",
+		"mobile.server.still_unreachable": "Still not answering.",
+		"mobile.server.switch_unreachable":
+			"Couldn't switch: {host} isn't answering.",
 		"mobile.detail.listen": "Listen",
 		"mobile.detail.continue_listening": "Continue listening",
 		"mobile.detail.length": "Length",
@@ -403,6 +410,13 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.error.action": "No se pudo completar. Inténtalo de nuevo.",
 		"mobile.error.desc":
 			"Revisa la conexión con el servidor y vuelve a intentarlo.",
+		"mobile.server.unreachable_title": "No se puede conectar con tu servidor",
+		"mobile.server.unreachable_desc":
+			"{host} no responde. Puede estar apagado o haber cambiado de dirección.",
+		"mobile.server.change_address": "Cambiar dirección del servidor",
+		"mobile.server.still_unreachable": "Sigue sin responder.",
+		"mobile.server.switch_unreachable":
+			"No se pudo cambiar: {host} no responde.",
 		"mobile.detail.listen": "Escuchar",
 		"mobile.detail.continue_listening": "Seguir escuchando",
 		"mobile.detail.length": "Duración",
@@ -694,6 +708,13 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.error.title": "読み込めませんでした",
 		"mobile.error.action": "完了できませんでした。もう一度お試しください。",
 		"mobile.error.desc": "サーバーへの接続を確認して、もう一度お試しください。",
+		"mobile.server.unreachable_title": "サーバーに接続できません",
+		"mobile.server.unreachable_desc":
+			"{host} が応答しません。停止しているか、アドレスが変わった可能性があります。",
+		"mobile.server.change_address": "サーバーのアドレスを変更",
+		"mobile.server.still_unreachable": "まだ応答がありません。",
+		"mobile.server.switch_unreachable":
+			"切り替えられません:{host} が応答しません。",
 		"mobile.detail.listen": "聴く",
 		"mobile.detail.continue_listening": "続きを聴く",
 		"mobile.detail.length": "再生時間",

@@ -1,9 +1,14 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 import { Icon, icons } from "@/components/icon";
+import { PillButton } from "@/components/pill-button";
 import { PressableScale } from "@/components/pressable-scale";
+import { showNotice } from "@/components/prompt";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
+import { serverHost } from "@/lib/server-reachability";
+import { useConnection, useServerStatus } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
 import { useDownloadedTitles } from "./provider";
 
@@ -61,6 +66,65 @@ export function HomeOffline() {
 					</Text>
 				</PressableScale>
 			) : null}
+		</View>
+	);
+}
+
+/** Home when the phone has a network but the server doesn't answer: the
+ * server is off, or it moved to another address. Says which server, and
+ * offers the way out of each case. */
+export function HomeUnreachable() {
+	const palette = usePalette();
+	const { serverUrl } = useConnection();
+	const server = useServerStatus();
+	const { titles } = useDownloadedTitles();
+	const hasDownloads = titles.some((title) => title.complete);
+	const [checking, setChecking] = useState(false);
+	const retry = async () => {
+		setChecking(true);
+		const up = await server.check();
+		setChecking(false);
+		if (!up) showNotice(t("mobile.server.still_unreachable"));
+	};
+	return (
+		<View
+			style={{
+				flex: 1,
+				alignItems: "center",
+				justifyContent: "center",
+				gap: space.md,
+				paddingHorizontal: space.xxl,
+				paddingVertical: 64,
+			}}
+		>
+			<Icon name={icons.server} size={48} color={palette.textTertiary} />
+			<Text variant="title" style={{ textAlign: "center" }}>
+				{t("mobile.server.unreachable_title")}
+			</Text>
+			<Text variant="subhead" tone="secondary" style={{ textAlign: "center" }}>
+				{t("mobile.server.unreachable_desc", { host: serverHost(serverUrl) })}
+			</Text>
+			<View
+				style={{ alignSelf: "stretch", gap: space.sm, marginTop: space.md }}
+			>
+				<PillButton
+					label={t("common.retry")}
+					loading={checking}
+					onPress={() => void retry()}
+				/>
+				<PillButton
+					variant="quiet"
+					label={t("mobile.server.change_address")}
+					onPress={() => router.push("/server-address")}
+				/>
+				{hasDownloads ? (
+					<PillButton
+						variant="plain"
+						label={t("mobile.offline.go_to_downloads")}
+						onPress={() => router.push("/downloads")}
+					/>
+				) : null}
+			</View>
 		</View>
 	);
 }
