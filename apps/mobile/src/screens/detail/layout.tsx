@@ -1,10 +1,11 @@
 import { type Href, Link } from "expo-router";
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
-import { space, usePalette } from "@/theme";
+import { COVER_ASPECT, space, usePalette } from "@/theme";
 
 // One flat page, Fable-style: sections split by hairlines, no cards.
 
@@ -206,7 +207,7 @@ export function DetailSkeleton({ audio }: { audio: boolean }) {
 			<View style={{ alignItems: "center" }}>
 				{block(
 					cover,
-					audio ? cover : Math.round(cover * 1.5),
+					audio ? cover : Math.round(cover * COVER_ASPECT),
 					palette.coverRadius,
 				)}
 			</View>

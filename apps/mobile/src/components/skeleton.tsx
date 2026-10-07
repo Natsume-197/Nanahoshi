@@ -12,6 +12,7 @@ import Animated, {
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import { t } from "@/lib/i18n";
 import {
+	COVER_ASPECT,
 	EASE_OUT,
 	motion,
 	radius,
@@ -159,7 +160,8 @@ function TileArt({
 	if (shape === "series" || shape === "series-square") {
 		// SeriesTile: the cover sits 8pt down, its stack peeks out top-right.
 		const cover = width - 12;
-		const height = shape === "series" ? Math.round(cover * 1.5) : cover;
+		const height =
+			shape === "series" ? Math.round(cover * COVER_ASPECT) : cover;
 		return (
 			<View style={{ width, height: height + 8 }}>
 				<View style={{ position: "absolute", top: 0, left: 12, opacity: 0.5 }}>
@@ -171,7 +173,7 @@ function TileArt({
 			</View>
 		);
 	}
-	const height = shape === "book" ? width * 1.5 : width;
+	const height = shape === "book" ? width * COVER_ASPECT : width;
 	return <Bone width={width} height={height} radius={radius} />;
 }
 

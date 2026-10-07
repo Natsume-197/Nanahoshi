@@ -17,7 +17,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { coverUrl, HERO_BACKDROP_WIDTH, heroCoverWidth } from "@/lib/covers";
 import { useConnection } from "@/providers/app-provider";
-import { shadows, space, usePalette } from "@/theme";
+import { COVER_ASPECT, shadows, space, usePalette } from "@/theme";
 import { Cover } from "./cover";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
@@ -67,7 +67,8 @@ export function DetailHero({
 	const backdrop = coverUrl(serverUrl, cover, HERO_BACKDROP_WIDTH);
 	const bg = palette.background;
 	const top = insets.top + 64;
-	const coverHeight = shape === "audio" ? coverWidth : coverWidth * 1.5;
+	const coverHeight =
+		shape === "audio" ? coverWidth : coverWidth * COVER_ASPECT;
 	const washHeight = top + coverHeight + space.xl;
 	const still = useSharedValue(0);
 	const scroll = scrollY ?? still;

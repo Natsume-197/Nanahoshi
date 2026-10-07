@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { router, Stack, useIsFocused } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useRef, useState } from "react";
-import { Platform, Pressable, useWindowDimensions, View } from "react-native";
+import { Platform, useWindowDimensions, View } from "react-native";
 import Animated, {
 	type SharedValue,
 	useAnimatedStyle,
@@ -12,10 +12,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/components/chip";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { LineTabs } from "@/components/line-tabs";
+import { Pressable } from "@/components/pressable";
 import { askChoice } from "@/components/prompt";
 import { ErrorState, OfflineState } from "@/components/states";
 import { Text } from "@/components/text";
-import { TitleGrid } from "@/components/title-grid";
+import { GRID_GAP, TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
 import { useIsOnline } from "@/downloads/provider";
 import { joinNames } from "@/lib/format";
@@ -237,7 +238,7 @@ export function Profile({ username: requested }: { username?: string }) {
 				header={
 					<View
 						style={{
-							marginHorizontal: -(space.lg - space.sm / 2),
+							marginHorizontal: -(space.lg - GRID_GAP / 2),
 							paddingBottom: space.lg,
 							gap: space.lg,
 						}}

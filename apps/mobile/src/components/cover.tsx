@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { View } from "react-native";
 import { coverUrl } from "@/lib/covers";
 import { useConnection } from "@/providers/app-provider";
-import { usePalette } from "@/theme";
+import { COVER_ASPECT, usePalette } from "@/theme";
 import { Icon, icons } from "./icon";
 
 /** 2:3 for books, 1:1 for audiobooks — the shapes every reference app uses. */
@@ -29,7 +29,7 @@ export function Cover({
 	const palette = usePalette();
 	const { serverUrl } = useConnection();
 	const corner = rounded ?? palette.coverRadius;
-	const height = shape === "audio" ? width : Math.round(width * 1.5);
+	const height = shape === "audio" ? width : Math.round(width * COVER_ASPECT);
 	const uri = localUri ?? coverUrl(serverUrl, cover, width);
 
 	return (

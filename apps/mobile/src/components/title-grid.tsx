@@ -19,6 +19,9 @@ import {
 } from "./states";
 import { type TileItem, TitleTile } from "./title-tile";
 
+/** Space between the two columns; headers undo the half of it the list pads. */
+export const GRID_GAP = space.xl;
+
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<TileItem>);
 
 type Paged = {
@@ -33,8 +36,9 @@ type Paged = {
 };
 
 /**
- * The web's BOOK_GRID_CLASS on phones: two columns, 8pt apart, 16pt gutters,
- * shelf-tile anatomy. A whole grid of audiobooks switches to square frames.
+ * Two columns, 24pt apart, 16pt gutters, shelf-tile anatomy. The wide gap
+ * keeps covers from filling the screen edge to edge (Hoshi's grid, not the
+ * web's 8pt one). A whole grid of audiobooks switches to square frames.
  */
 export function TitleGrid({
 	items,
@@ -55,7 +59,7 @@ export function TitleGrid({
 	emptyTitle?: string;
 	emptyMessage?: string;
 }) {
-	const gap = space.sm;
+	const gap = GRID_GAP;
 	const width = useGridTileWidth(2, gap);
 	const listRef = useRef<FlashListRef<TileItem>>(null);
 	const miniPlayerInset = useMiniPlayerInset();

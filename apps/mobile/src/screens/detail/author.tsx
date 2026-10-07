@@ -6,7 +6,7 @@ import { ChipRow } from "@/components/chip";
 import { SearchField } from "@/components/search-field";
 import { SortButton } from "@/components/sort-button";
 import { Text } from "@/components/text";
-import { TitleGrid } from "@/components/title-grid";
+import { GRID_GAP, TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
 import { formatDuration, joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -152,7 +152,7 @@ export function AuthorDetail({ uuid }: { uuid: string }) {
 							) : null}
 						</View>
 						{both ? (
-							<View style={{ marginHorizontal: -(space.lg - space.sm / 2) }}>
+							<View style={{ marginHorizontal: -(space.lg - GRID_GAP / 2) }}>
 								<ChipRow
 									value={format}
 									onChange={setPicked}

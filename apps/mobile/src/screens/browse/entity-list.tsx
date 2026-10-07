@@ -25,7 +25,7 @@ import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
-import { radius, space, usePalette } from "@/theme";
+import { COVER_ASPECT, radius, space, usePalette } from "@/theme";
 
 export type EntityKind = "authors" | "narrators" | "publishers" | "genres";
 const PAGE = 40;
@@ -347,7 +347,7 @@ function GenreTile({
 	// breaks mid-word; it stands on the base either way.
 	const coverWidth = Math.round(
 		Math.min(
-			(height - GENRE_INSET) / (square ? 1 : 1.5),
+			(height - GENRE_INSET) / (square ? 1 : COVER_ASPECT),
 			width * GENRE_ARTWORK_SHARE,
 		),
 	);

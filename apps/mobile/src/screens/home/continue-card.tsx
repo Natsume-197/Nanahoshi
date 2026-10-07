@@ -11,7 +11,15 @@ import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import type { MediaKind } from "@/lib/routes";
 import { usePlayer } from "@/player/provider";
-import { radius, shadows, sizes, space, type, usePalette } from "@/theme";
+import {
+	COVER_ASPECT,
+	radius,
+	shadows,
+	sizes,
+	space,
+	type,
+	usePalette,
+} from "@/theme";
 
 export type ContinueItem = {
 	uuid: string;
@@ -115,7 +123,9 @@ export function ContinueCard({
 							<Cover
 								cover={item.cover}
 								color={item.color}
-								width={audio ? COVER_SLOT : Math.round(COVER_SLOT / 1.5)}
+								width={
+									audio ? COVER_SLOT : Math.round(COVER_SLOT / COVER_ASPECT)
+								}
 								shape={audio ? "audio" : "book"}
 								recyclingKey={item.uuid}
 							/>
@@ -175,7 +185,7 @@ export function ContinueSkeleton({ width }: { width: number }) {
 						}}
 					>
 						<Bone
-							width={Math.round(COVER_SLOT / 1.5)}
+							width={Math.round(COVER_SLOT / COVER_ASPECT)}
 							height={COVER_SLOT}
 							radius={palette.coverRadius}
 						/>

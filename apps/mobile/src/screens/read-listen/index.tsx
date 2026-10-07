@@ -27,7 +27,7 @@ import { routes } from "@/lib/routes";
 import { usePrefetchTitle } from "@/lib/title-queries";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
-import { space, usePalette } from "@/theme";
+import { COVER_ASPECT, space, usePalette } from "@/theme";
 import {
 	type AlignmentFilter,
 	type ReadListenSort,
@@ -204,7 +204,7 @@ function StackedCover({
 	const palette = usePalette();
 	const audioWidth = Math.round(width * 0.68);
 	return (
-		<View style={{ width, height: Math.round(width * 1.5) }}>
+		<View style={{ width, height: Math.round(width * COVER_ASPECT) }}>
 			<Cover
 				cover={pairing.ebook.cover}
 				color={pairing.ebook.mainColor}
@@ -215,7 +215,7 @@ function StackedCover({
 				style={{
 					position: "absolute",
 					right: Math.round(width * 0.06),
-					bottom: Math.round(width * 1.5 * 0.05),
+					bottom: Math.round(width * COVER_ASPECT * 0.05),
 					borderRadius: palette.coverRadius,
 					boxShadow: "0 8px 20px rgba(0, 0, 0, 0.4)",
 				}}
@@ -235,7 +235,7 @@ function StackedCover({
 /** Two rows of pair tiles while the first page loads. */
 function PairGridSkeleton({ width }: { width: number }) {
 	const palette = usePalette();
-	const height = Math.round(width * 1.5);
+	const height = Math.round(width * COVER_ASPECT);
 	const audioWidth = Math.round(width * 0.68);
 	return (
 		<SkeletonPulse>

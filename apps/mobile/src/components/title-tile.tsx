@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { titleOrUntitled } from "@/lib/format";
 import { type MediaKind, routes } from "@/lib/routes";
 import { usePrefetchTitle } from "@/lib/title-queries";
-import { usePalette } from "@/theme";
+import { COVER_ASPECT, usePalette } from "@/theme";
 import { BookMenuTarget } from "./book-menu";
 import { Cover } from "./cover";
 import { OfflineAvailability } from "./offline-availability";
@@ -42,7 +42,8 @@ export function TitleTile({
 	const palette = usePalette();
 	const prefetch = usePrefetchTitle();
 	const square = item.kind === "audiobook";
-	const frameHeight = frame === "square" ? width : Math.round(width * 1.5);
+	const frameHeight =
+		frame === "square" ? width : Math.round(width * COVER_ASPECT);
 	const plated = square && frame === "book";
 
 	return (

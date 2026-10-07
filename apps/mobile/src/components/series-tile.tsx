@@ -1,7 +1,7 @@
 import { Link } from "expo-router";
 import { View } from "react-native";
 import { type MediaKind, routes } from "@/lib/routes";
-import { usePalette } from "@/theme";
+import { COVER_ASPECT, usePalette } from "@/theme";
 import { Cover } from "./cover";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
@@ -28,7 +28,9 @@ export function SeriesTile({
 	const palette = usePalette();
 	const square = kind === "audiobook";
 	const coverWidth = width - 12;
-	const coverHeight = square ? coverWidth : Math.round(coverWidth * 1.5);
+	const coverHeight = square
+		? coverWidth
+		: Math.round(coverWidth * COVER_ASPECT);
 	return (
 		<Link href={routes.series(item.uuid, kind)} asChild>
 			<PressableScale

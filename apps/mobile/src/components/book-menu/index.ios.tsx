@@ -7,6 +7,7 @@ import {
 	type ViewStyle,
 } from "react-native";
 import { routes } from "@/lib/routes";
+import { COVER_ASPECT } from "@/theme";
 import { isMenuGroup, type MenuItem } from "../action-menu/types";
 import { Cover } from "../cover";
 import type { BookTarget } from "./model";
@@ -96,7 +97,10 @@ function usePreviewSize(target: BookTarget) {
 	const { width } = useWindowDimensions();
 	const audio = target.kind === "audiobook";
 	const side = Math.min(width - 96, audio ? 300 : 240);
-	return { width: side, height: audio ? side : Math.round(side * 1.5) };
+	return {
+		width: side,
+		height: audio ? side : Math.round(side * COVER_ASPECT),
+	};
 }
 
 /** Mounted only while the menu is up: its fetch fills the cache the

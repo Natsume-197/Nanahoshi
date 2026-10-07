@@ -3,7 +3,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { ChipRow } from "@/components/chip";
 import { SortButton } from "@/components/sort-button";
-import { TitleGrid } from "@/components/title-grid";
+import { GRID_GAP, TitleGrid } from "@/components/title-grid";
 import type { TileItem } from "@/components/title-tile";
 import { joinNames } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -63,7 +63,7 @@ export function Catalog({ initialFormat }: { initialFormat?: Format }) {
 						gap: space.md,
 						paddingTop: space.sm,
 						paddingBottom: space.lg,
-						marginHorizontal: -(space.lg - space.sm / 2),
+						marginHorizontal: -(space.lg - GRID_GAP / 2),
 					}}
 				>
 					{both ? (
