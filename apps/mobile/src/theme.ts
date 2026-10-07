@@ -134,6 +134,16 @@ export const radius = {
 	pill: 999,
 } as const;
 
+/** The app's one framed shape: an outline without a surface, for the few
+ * blocks that lead a page (Library's destinations). Pair
+ * it with `borderColor: palette.separator`. */
+export const outline = {
+	borderWidth: 1,
+	borderRadius: radius.card,
+	borderCurve: "continuous",
+	overflow: "hidden",
+} as const;
+
 /** Gen Interface JP (Inter + Noto Sans JP), the web's --font-sans. Android
  * can't synthesize weights for a custom face, so each weight is its own
  * family and Text picks it from fontWeight. */

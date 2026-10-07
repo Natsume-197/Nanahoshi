@@ -11,7 +11,7 @@ import { t } from "@/lib/i18n";
 import { IS_ANDROID } from "@/lib/platform";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
-import { radius, space, usePalette } from "@/theme";
+import { outline, space, usePalette } from "@/theme";
 
 type Destination = { href: Href; label: () => string; icon: IconName };
 
@@ -109,14 +109,6 @@ export function Library() {
 	);
 }
 
-/** The primary destinations' outline: a tile's shape without a surface. */
-const OUTLINE = {
-	borderWidth: 1,
-	borderRadius: radius.card,
-	borderCurve: "continuous" as const,
-	overflow: "hidden" as const,
-};
-
 /** A primary destination: icon over label, two across. */
 function QuickAction({
 	href,
@@ -141,7 +133,7 @@ function QuickAction({
 				justifyContent: "space-between",
 				gap: space.md,
 				padding: space.lg,
-				...OUTLINE,
+				...outline,
 				borderColor: palette.separator,
 				opacity: pressed && !IS_ANDROID ? 0.6 : 1,
 			})}

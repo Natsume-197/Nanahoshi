@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
-import type { ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
 import { icons } from "@/components/icon";
@@ -22,8 +21,6 @@ import { useSimulatedOffline } from "@/lib/simulated-offline";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
-
-const ART = 64;
 
 const APPEARANCE_LABELS = {
 	system: () => t("settings.appearance.theme_system"),
@@ -56,15 +53,12 @@ export function SettingsScreen() {
 					paddingBottom: space.lg + miniPlayerInset,
 				}}
 			>
-				<View style={{ paddingVertical: space.xs }}>
-					<ProfileCard />
-					<ServerCard />
-				</View>
+				<IdentityHeader />
 				{/* The profile card above already heads this group; a "Cuenta" title
 			    over a "Cuenta" row read twice. */}
 				<GroupedList>
+					<ServerRow />
 					<GroupedRow
-						first
 						icon={icons.link}
 						label={t("settings.nav.account")}
 						href="/settings/account"
@@ -138,7 +132,14 @@ export function SettingsScreen() {
 	);
 }
 
-function ProfileCard() {
+const AVATAR = 80;
+
+/**
+ * Who you are, then where: your photo and name centred, the server one quiet
+ * line under them that opens the server list. The banner stays on the Profile
+ * page, so opening it still feels like going somewhere.
+ */
+function IdentityHeader() {
 	const { orpc } = useApi();
 	const { serverUrl } = useConnection();
 	const palette = usePalette();
@@ -148,40 +149,58 @@ function ProfileCard() {
 	const name = profile.data?.name?.trim() || username;
 	const avatar = mediaUrl(serverUrl, profile.data?.image);
 	return (
-		<Card
-			onPress={() => router.push("/settings/profile")}
-			accessibilityLabel={t("settings.nav.profile")}
-			title={name}
-			subtitle={username ? `@${username}` : undefined}
-			art={
+		<View style={{ alignItems: "center", paddingBottom: space.lg }}>
+			<Pressable
+				onPress={() => router.push("/settings/profile")}
+				accessibilityRole="button"
+				accessibilityLabel={`${t("settings.nav.profile")}: ${name}`}
+				style={({ pressed }) => ({
+					alignItems: "center",
+					gap: space.md,
+					paddingTop: space.lg,
+					paddingHorizontal: space.lg,
+					opacity: pressed && !IS_ANDROID ? 0.7 : 1,
+				})}
+			>
 				<View
 					style={{
-						width: ART,
-						height: ART,
-						borderRadius: ART / 2,
+						width: AVATAR,
+						height: AVATAR,
+						borderRadius: AVATAR / 2,
 						overflow: "hidden",
 						alignItems: "center",
 						justifyContent: "center",
-						backgroundColor: palette.separator,
+						backgroundColor: palette.surface,
 					}}
 				>
 					{avatar ? (
 						<Image
 							source={{ uri: avatar }}
-							style={{ width: ART, height: ART }}
+							style={{ width: AVATAR, height: AVATAR }}
 							contentFit="cover"
 						/>
 					) : (
 						<Text variant="title">{name.slice(0, 1).toUpperCase()}</Text>
 					)}
 				</View>
-			}
-		/>
+				<View style={{ gap: 2, alignItems: "center" }}>
+					<Text variant="title" numberOfLines={1}>
+						{name}
+					</Text>
+					{username ? (
+						<Text variant="subhead" tone="secondary" numberOfLines={1}>
+							@{username}
+						</Text>
+					) : null}
+				</View>
+			</Pressable>
+		</View>
 	);
 }
 
-/** The server you're in, under who you are; tapping lists the others. */
-function ServerCard() {
+/** The server you're in, as a row like Appearance: its logo in the icon's
+ * place, its name as the value; opens the server list. */
+function ServerRow() {
 	const { auth, serverUrl } = useConnection();
 	const active = auth.useActiveOrganization();
 	// Offline the server can't be asked; the last one seen stands in.
@@ -189,18 +208,18 @@ function ServerCard() {
 	const server = active.data ?? last;
 	const name = server?.name ?? t("server.select");
 	return (
-		<Card
-			onPress={() => router.push("/settings/servers")}
-			accessibilityLabel={`${t("mobile.me.server")}: ${name}`}
-			title={name}
-			subtitle={t("mobile.me.server")}
-			art={
+		<GroupedRow
+			first
+			leading={
 				<ServerAvatar
 					name={name}
 					logo={mediaUrl(serverUrl, server?.logo)}
-					size={ART}
+					size={24}
 				/>
 			}
+			label={t("mobile.me.server")}
+			value={name}
+			href="/settings/servers"
 		/>
 	);
 }
@@ -229,52 +248,5 @@ function SignedInAs() {
 				{`Nanahoshi ${Platform.OS === "ios" ? "iOS" : "Android"} • ${Constants.expoConfig?.version ?? ""}`}
 			</Text>
 		</View>
-	);
-}
-
-/** Who you are and where: drawn as Collections draws its lists (large art,
- * bold name, one quiet line), so it reads apart from the icon rows below. */
-function Card({
-	onPress,
-	accessibilityLabel,
-	art,
-	title,
-	subtitle,
-}: {
-	onPress: () => void;
-	accessibilityLabel: string;
-	art: ReactNode;
-	title: string;
-	subtitle?: string;
-}) {
-	const palette = usePalette();
-	return (
-		<Pressable
-			onPress={onPress}
-			accessibilityRole="button"
-			accessibilityLabel={accessibilityLabel}
-			android_ripple={{ color: palette.ripple }}
-			style={({ pressed }) => ({
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 20,
-				paddingHorizontal: space.lg,
-				paddingVertical: space.md,
-				backgroundColor:
-					pressed && !IS_ANDROID ? palette.surfaceCardHover : "transparent",
-			})}
-		>
-			{art}
-			<View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-				<Text variant="rowTitle" numberOfLines={1}>
-					{title}
-				</Text>
-				{subtitle ? (
-					<Text variant="subhead" tone="secondary" numberOfLines={1}>
-						{subtitle}
-					</Text>
-				) : null}
-			</View>
-		</Pressable>
 	);
 }
