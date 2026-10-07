@@ -49,12 +49,12 @@ export function AboutSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
-				gap: space.xl,
 			}}
 		>
-			<View style={{ gap: space.xs, paddingHorizontal: space.sm }}>
+			<View
+				style={{ gap: space.xs, padding: space.lg, paddingBottom: space.xl }}
+			>
 				<Text variant="title">Nanahoshi</Text>
 				<Text variant="subhead" tone="secondary">
 					{t("settings.about.tagline")}
@@ -63,13 +63,14 @@ export function AboutSettingsScreen() {
 			<GroupedList>
 				<GroupedRow
 					first
+					inset
 					label={t("mobile.settings.app_version")}
 					onPress={tapVersion}
 					value={
 						Constants.expoConfig?.version ?? t("settings.about.unavailable")
 					}
 				/>
-				<GroupedRow label={t("nav.server")} value={serverUrl} />
+				<GroupedRow inset label={t("nav.server")} value={serverUrl} />
 			</GroupedList>
 			<GroupedList>
 				<GroupedRow

@@ -99,9 +99,7 @@ export function AccountSettingsScreen() {
 			keyboardShouldPersistTaps="handled"
 			automaticallyAdjustKeyboardInsets
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
-				gap: space.xl,
 			}}
 		>
 			<GroupedList
@@ -117,12 +115,14 @@ export function AccountSettingsScreen() {
 							? t("settings.account.discord_linked")
 							: t("settings.account.discord_connect")
 					}
-					value={
-						accounts.isPending
-							? undefined
-							: discord
-								? t("settings.account.connected")
-								: t("settings.account.connect")
+					trailing={
+						accounts.isPending ? null : (
+							<Text variant="label" tone={discord ? "secondary" : "accent"}>
+								{discord
+									? t("settings.account.connected")
+									: t("settings.account.connect")}
+							</Text>
+						)
 					}
 					disabled={
 						accounts.isPending ||
@@ -142,7 +142,13 @@ export function AccountSettingsScreen() {
 						<RowSkeleton count={2} />
 					</View>
 				) : (sessions.data ?? []).length === 0 ? (
-					<GroupedRow first label={t("settings.account.no_active_sessions")} />
+					<Text
+						variant="subhead"
+						tone="secondary"
+						style={{ paddingHorizontal: space.lg, paddingVertical: space.md }}
+					>
+						{t("settings.account.no_active_sessions")}
+					</Text>
 				) : (
 					(sessions.data ?? []).map((item, index) => {
 						const device = deviceLabel(item.userAgent);

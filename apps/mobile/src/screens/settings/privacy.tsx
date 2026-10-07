@@ -37,7 +37,6 @@ export function PrivacySettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
 			}}
 		>

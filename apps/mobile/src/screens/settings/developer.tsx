@@ -17,9 +17,7 @@ export function DeveloperSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
-				gap: space.xl,
 			}}
 		>
 			<GroupedList>
@@ -39,6 +37,7 @@ export function DeveloperSettingsScreen() {
 			<GroupedList>
 				<GroupedRow
 					first
+					inset
 					label={t("mobile.settings.developer_hide")}
 					onPress={async () => {
 						await hideDeveloperOptions();

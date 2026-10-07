@@ -1,27 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
+import Constants from "expo-constants";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
-import { Pressable, ScrollView, View } from "react-native";
+import type { ReactNode } from "react";
+import { Platform, ScrollView, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
-import { Icon, icons } from "@/components/icon";
+import { icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
+import { ServerAvatar } from "@/components/server-avatar";
 import { Text } from "@/components/text";
 import { clearDownloads } from "@/downloads/files";
 import { useSmartDownloads } from "@/downloads/smart-settings";
 import { useAppearancePreference } from "@/lib/appearance";
 import { useDeveloperMode } from "@/lib/developer-mode";
 import { getLanguagePreference, t } from "@/lib/i18n";
+import { useLastServer } from "@/lib/last-server";
 import { mediaUrl } from "@/lib/media";
 import { IS_ANDROID } from "@/lib/platform";
 import { LANGUAGE_NAMES } from "@/lib/preferences";
 import { useSimulatedOffline } from "@/lib/simulated-offline";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
-import { radius, space, usePalette } from "@/theme";
+import { space, usePalette } from "@/theme";
+
+const ART = 64;
 
 const APPEARANCE_LABELS = {
 	system: () => t("settings.appearance.theme_system"),
 	light: () => t("settings.appearance.theme_light"),
 	dark: () => t("settings.appearance.theme_dark"),
+	amoled: () => t("mobile.settings.theme_amoled"),
 };
 
 /** The web's personal settings as a native settings list: who you are on
@@ -37,36 +45,26 @@ export function SettingsScreen() {
 	const { auth } = useConnection();
 	return (
 		<>
-			{IS_ANDROID ? <Stack.Screen options={{ title: "" }} /> : null}
+			{/* Material's center-aligned top app bar. */}
+			{IS_ANDROID ? (
+				<Stack.Screen options={{ headerTitleAlign: "center" }} />
+			) : null}
 			<ScrollView
 				showsVerticalScrollIndicator={false}
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerStyle={{
-					padding: space.lg,
 					paddingBottom: space.lg + miniPlayerInset,
-					gap: space.xl,
 				}}
 			>
-				{IS_ANDROID ? (
-					<Text
-						variant="largeTitle"
-						accessibilityRole="header"
-						style={{ marginBottom: space.sm }}
-					>
-						{t("nav.settings")}
-					</Text>
-				) : null}
-				<ProfileCard />
+				<View style={{ paddingVertical: space.xs }}>
+					<ProfileCard />
+					<ServerCard />
+				</View>
 				{/* The profile card above already heads this group; a "Cuenta" title
 			    over a "Cuenta" row read twice. */}
 				<GroupedList>
 					<GroupedRow
 						first
-						icon={icons.account}
-						label={t("settings.nav.profile")}
-						href="/settings/profile"
-					/>
-					<GroupedRow
 						icon={icons.link}
 						label={t("settings.nav.account")}
 						href="/settings/account"
@@ -77,7 +75,7 @@ export function SettingsScreen() {
 						href="/settings/privacy"
 					/>
 				</GroupedList>
-				<GroupedList title={t("settings.group.preferences")}>
+				<GroupedList>
 					<GroupedRow
 						first
 						icon={icons.appearance}
@@ -134,6 +132,7 @@ export function SettingsScreen() {
 						onPress={() => void auth.signOut().then(clearDownloads)}
 					/>
 				</GroupedList>
+				<SignedInAs />
 			</ScrollView>
 		</>
 	);
@@ -149,60 +148,133 @@ function ProfileCard() {
 	const name = profile.data?.name?.trim() || username;
 	const avatar = mediaUrl(serverUrl, profile.data?.image);
 	return (
-		<Pressable
+		<Card
 			onPress={() => router.push("/settings/profile")}
-			accessibilityRole="button"
 			accessibilityLabel={t("settings.nav.profile")}
+			title={name}
+			subtitle={username ? `@${username}` : undefined}
+			art={
+				<View
+					style={{
+						width: ART,
+						height: ART,
+						borderRadius: ART / 2,
+						overflow: "hidden",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: palette.separator,
+					}}
+				>
+					{avatar ? (
+						<Image
+							source={{ uri: avatar }}
+							style={{ width: ART, height: ART }}
+							contentFit="cover"
+						/>
+					) : (
+						<Text variant="title">{name.slice(0, 1).toUpperCase()}</Text>
+					)}
+				</View>
+			}
+		/>
+	);
+}
+
+/** The server you're in, under who you are; tapping lists the others. */
+function ServerCard() {
+	const { auth, serverUrl } = useConnection();
+	const active = auth.useActiveOrganization();
+	// Offline the server can't be asked; the last one seen stands in.
+	const last = useLastServer(serverUrl);
+	const server = active.data ?? last;
+	const name = server?.name ?? t("server.select");
+	return (
+		<Card
+			onPress={() => router.push("/settings/servers")}
+			accessibilityLabel={`${t("mobile.me.server")}: ${name}`}
+			title={name}
+			subtitle={t("mobile.me.server")}
+			art={
+				<ServerAvatar
+					name={name}
+					logo={mediaUrl(serverUrl, server?.logo)}
+					size={ART}
+				/>
+			}
+		/>
+	);
+}
+
+/** Who is signed in and which build, quietly at the end, as Fable closes its
+ * settings. */
+function SignedInAs() {
+	const { auth } = useConnection();
+	const session = auth.useSession();
+	const email = session.data?.user.email;
+	return (
+		<View
+			style={{
+				alignItems: "center",
+				gap: space.xs,
+				paddingTop: space.xl,
+				paddingHorizontal: space.lg,
+			}}
+		>
+			{email ? (
+				<Text variant="subhead" tone="secondary" selectable>
+					{email}
+				</Text>
+			) : null}
+			<Text variant="caption" tone="tertiary">
+				{`Nanahoshi ${Platform.OS === "ios" ? "iOS" : "Android"} • ${Constants.expoConfig?.version ?? ""}`}
+			</Text>
+		</View>
+	);
+}
+
+/** Who you are and where: drawn as Collections draws its lists (large art,
+ * bold name, one quiet line), so it reads apart from the icon rows below. */
+function Card({
+	onPress,
+	accessibilityLabel,
+	art,
+	title,
+	subtitle,
+}: {
+	onPress: () => void;
+	accessibilityLabel: string;
+	art: ReactNode;
+	title: string;
+	subtitle?: string;
+}) {
+	const palette = usePalette();
+	return (
+		<Pressable
+			onPress={onPress}
+			accessibilityRole="button"
+			accessibilityLabel={accessibilityLabel}
 			android_ripple={{ color: palette.ripple }}
 			style={({ pressed }) => ({
 				flexDirection: "row",
 				alignItems: "center",
-				gap: space.md,
-				padding: space.lg,
-				borderRadius: radius.card,
-				borderCurve: "continuous",
-				overflow: "hidden",
-				backgroundColor: pressed
-					? palette.surfaceCardHover
-					: palette.surfaceCard,
+				gap: 20,
+				paddingHorizontal: space.lg,
+				paddingVertical: space.md,
+				backgroundColor:
+					pressed && !IS_ANDROID ? palette.surfaceCardHover : "transparent",
 			})}
 		>
-			<View
-				style={{
-					width: 56,
-					height: 56,
-					borderRadius: 28,
-					overflow: "hidden",
-					alignItems: "center",
-					justifyContent: "center",
-					backgroundColor: palette.separator,
-				}}
-			>
-				{avatar ? (
-					<Image
-						source={{ uri: avatar }}
-						style={{ width: 56, height: 56 }}
-						contentFit="cover"
-					/>
-				) : (
-					<Text variant="title">{name.slice(0, 1).toUpperCase()}</Text>
-				)}
-			</View>
-			<View style={{ flex: 1, gap: 2 }}>
-				<Text variant="headline" numberOfLines={1}>
-					{name}
+			{art}
+			<View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+				<Text variant="rowTitle" numberOfLines={1}>
+					{title}
 				</Text>
-				{username ? (
+				{subtitle ? (
 					<Text variant="subhead" tone="secondary" numberOfLines={1}>
-						@{username}
+						{subtitle}
 					</Text>
 				) : null}
 			</View>
-			<Icon
-				name={icons.chevronRight}
-				size={16}
-				color={IS_ANDROID ? palette.textTertiary : palette.textSecondary}
-			/>
 		</Pressable>
 	);
 }

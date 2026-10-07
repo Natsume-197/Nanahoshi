@@ -18,9 +18,14 @@ const OPTIONS: {
 	},
 	{ value: "light", label: () => t("settings.appearance.theme_light") },
 	{ value: "dark", label: () => t("settings.appearance.theme_dark") },
+	{
+		value: "amoled",
+		label: () => t("mobile.settings.theme_amoled"),
+		subtitle: () => t("mobile.settings.theme_amoled_desc"),
+	},
 ];
 
-/** Light, dark or the device's own: kept on this phone, applied at once. */
+/** Light, dark, AMOLED black or the device's own: kept on this phone, applied at once. */
 export function AppearanceSettingsScreen() {
 	const miniPlayerInset = useMiniPlayerInset();
 	const current = useAppearancePreference();
@@ -29,7 +34,6 @@ export function AppearanceSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
 			}}
 		>

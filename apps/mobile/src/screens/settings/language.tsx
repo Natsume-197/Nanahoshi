@@ -30,7 +30,6 @@ export function LanguageSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
 			}}
 		>

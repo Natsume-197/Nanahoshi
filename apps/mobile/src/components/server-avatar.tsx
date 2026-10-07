@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { usePalette } from "@/theme";
 import { Text } from "./text";
 
-/** A server's logo, or its initials on the primary color when it has none. */
+/** A server's logo, or its initials on a quiet surface when it has none. */
 export function ServerAvatar({
 	name,
 	logo,
@@ -22,7 +22,7 @@ export function ServerAvatar({
 				borderRadius: size * 0.29,
 				borderCurve: "continuous",
 				overflow: "hidden",
-				backgroundColor: palette.primary,
+				backgroundColor: palette.surface,
 				alignItems: "center",
 				justifyContent: "center",
 			}}
@@ -39,7 +39,7 @@ export function ServerAvatar({
 					style={{
 						fontSize: size * 0.43,
 						fontWeight: "600",
-						color: palette.onPrimary,
+						color: palette.text,
 					}}
 				>
 					{initials(name)}

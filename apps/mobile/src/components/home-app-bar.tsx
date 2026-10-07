@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Pressable, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 import Animated, {
 	useAnimatedScrollHandler,
 	useAnimatedStyle,
@@ -9,15 +9,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, type IconName, icons } from "@/components/icon";
-import { ServerAvatar } from "@/components/server-avatar";
-import { Bone, SkeletonPulse } from "@/components/skeleton";
+import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { nextAppBarOffset, settleAppBarOffset } from "@/lib/app-bar-scroll";
 import { t } from "@/lib/i18n";
-import { useLastServer } from "@/lib/last-server";
-import { mediaUrl } from "@/lib/media";
-import { useApi, useConnection } from "@/providers/app-provider";
-import { usePickServer } from "@/screens/panels/servers";
+import { useApi } from "@/providers/app-provider";
 import { EASE_OUT, usePalette } from "@/theme";
 
 /** A compact 56dp top bar (64 on tablets for the search field). */
@@ -57,27 +53,19 @@ export function useAppBarScroll() {
 type AppBarScroll = ReturnType<typeof useAppBarScroll>;
 
 /**
- * Home's top bar on Android: the server switcher (logo, name, chevron) leading,
- * downloads, friends and notifications trailing. It slides away while you read down and
+ * Home's top bar on Android: the page's title leading, downloads, friends
+ * and notifications trailing. It slides away while you read down and
  * returns the moment you scroll up. It keeps the page's own color throughout.
  */
 export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 	const palette = usePalette();
 	const insets = useSafeAreaInsets();
 	const wide = useWindowDimensions().width >= 768;
-	const { auth, serverUrl } = useConnection();
 	const { orpc } = useApi();
-	const active = auth.useActiveOrganization();
-	const pickServer = usePickServer();
 	const unread = useQuery({
 		...orpc.notifications.unreadCount.queryOptions(),
 		refetchInterval: 60_000,
 	});
-	// Offline the server can't be asked; the last one seen stands in.
-	const last = useLastServer(serverUrl);
-	const server = active.data ?? last;
-	const logo = mediaUrl(serverUrl, server?.logo);
-	const name = server?.name ?? t("server.select");
 
 	// Worklets copy what they capture: take the shared value, not `scroll`
 	// (it also holds the scroll handler).
@@ -107,15 +95,16 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 					slide,
 				]}
 			>
-				{active.isPending ? (
-					<ServerSwitcherSkeleton />
-				) : (
-					<ServerSwitcher
-						name={name}
-						logo={logo}
-						onPress={() => void pickServer()}
-					/>
-				)}
+				{/* Where PageHeader puts Collections' and Library's titles, so
+				    switching tabs leaves the heading in place. */}
+				<Text
+					variant="pageTitle"
+					accessibilityRole="header"
+					numberOfLines={1}
+					style={{ flexShrink: 1, alignSelf: "flex-start", marginTop: 16 }}
+				>
+					{t("nav.home")}
+				</Text>
 				{wide ? <SearchField /> : null}
 				<View style={{ flexDirection: "row", marginLeft: "auto" }}>
 					<Action
@@ -151,72 +140,6 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 				]}
 			/>
 		</>
-	);
-}
-
-/** The server's logo and name before the active server resolves, so the
- * bar never flashes "Select server". */
-function ServerSwitcherSkeleton() {
-	return (
-		<SkeletonPulse>
-			<View
-				style={{
-					minHeight: 44,
-					flexDirection: "row",
-					alignItems: "center",
-					gap: 10,
-				}}
-			>
-				<Bone width={28} height={28} radius={8} />
-				<Bone width={128} height={16} />
-			</View>
-		</SkeletonPulse>
-	);
-}
-
-function ServerSwitcher({
-	name,
-	logo,
-	onPress,
-}: {
-	name: string;
-	logo: string | null;
-	onPress: () => void;
-}) {
-	const palette = usePalette();
-	return (
-		<Pressable
-			accessibilityRole="button"
-			accessibilityLabel={`${t("server.select")}: ${name}`}
-			onPress={onPress}
-			android_ripple={{ color: palette.ripple, borderless: false }}
-			style={{
-				flexShrink: 1,
-				minHeight: 44,
-				marginLeft: -8,
-				paddingHorizontal: 8,
-				borderRadius: 24,
-				overflow: "hidden",
-				flexDirection: "row",
-				alignItems: "center",
-				gap: 10,
-			}}
-		>
-			<ServerAvatar name={name} logo={logo} />
-			<Text
-				numberOfLines={1}
-				accessibilityRole="header"
-				style={{
-					flexShrink: 1,
-					fontSize: 18,
-					lineHeight: 24,
-					fontWeight: "500",
-				}}
-			>
-				{name}
-			</Text>
-			<Icon name={icons.expand} size={20} color={palette.textSecondary} />
-		</Pressable>
 	);
 }
 

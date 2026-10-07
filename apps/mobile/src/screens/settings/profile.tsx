@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import { Stack } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
-import { Button } from "@/components/button";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
+import { HeaderButton } from "@/components/header-button";
 import { icons } from "@/components/icon";
+import { Pressable } from "@/components/pressable";
 import { showNotice } from "@/components/prompt";
 import { FormSkeleton } from "@/components/skeleton";
 import { ErrorState, Spinner } from "@/components/states";
@@ -22,7 +24,7 @@ import {
 } from "@/lib/profile-upload";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useConnection } from "@/providers/app-provider";
-import { radius, space, usePalette } from "@/theme";
+import { space, usePalette } from "@/theme";
 import { BannerCrop, type CropArea, type PickedImage } from "./banner-crop";
 
 // The server downscales wider banners anyway; sending more is wasted upload.
@@ -178,27 +180,42 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
 	return (
 		<>
+			{/* Save sits in the header and only shows once something changed. */}
+			<Stack.Screen
+				options={{
+					headerRight: () =>
+						changed ? (
+							<HeaderButton
+								label={t("common.save")}
+								strong
+								busy={save.isPending}
+								onPress={() => {
+									setSubmitted(true);
+									if (nameError || handleError) return;
+									save.mutate();
+								}}
+							/>
+						) : null,
+				}}
+			/>
 			<ScrollView
 				showsVerticalScrollIndicator={false}
 				contentInsetAdjustmentBehavior="automatic"
 				keyboardShouldPersistTaps="handled"
 				automaticallyAdjustKeyboardInsets
 				contentContainerStyle={{
-					padding: space.lg,
 					paddingBottom: space.lg + miniPlayerInset,
-					gap: space.xl,
 				}}
 			>
 				{/* The profile's own top: banner, with the photo overlapping it. */}
-				<View style={{ paddingBottom: AVATAR_SIZE / 2 }}>
+				<View style={{ paddingBottom: AVATAR_SIZE / 2 + space.lg }}>
 					<Pressable
 						onPress={() => void pick("header")}
 						accessibilityRole="button"
 						accessibilityLabel={t("settings.profile.change_banner")}
 						style={{
-							aspectRatio: 4,
-							borderRadius: radius.card,
-							borderCurve: "continuous",
+							// Edge to edge, as a profile's own header.
+							aspectRatio: 3,
 							overflow: "hidden",
 							backgroundColor: palette.surfaceCard,
 							alignItems: "center",
@@ -224,7 +241,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
 						style={{
 							position: "absolute",
 							left: space.lg,
-							bottom: 0,
+							bottom: space.lg,
 							width: AVATAR_SIZE,
 							height: AVATAR_SIZE,
 							borderRadius: AVATAR_SIZE / 2,
@@ -276,7 +293,15 @@ function ProfileForm({ profile }: { profile: Profile }) {
 					/>
 				</GroupedList>
 
-				<View style={{ gap: space.lg }}>
+				<View
+					style={{
+						gap: space.lg,
+						paddingHorizontal: space.lg,
+						paddingTop: space.lg,
+						borderTopWidth: StyleSheet.hairlineWidth,
+						borderColor: palette.separator,
+					}}
+				>
 					<View style={{ gap: space.xs }}>
 						<TextField
 							label={t("settings.profile.full_name")}
@@ -309,19 +334,12 @@ function ProfileForm({ profile }: { profile: Profile }) {
 							</Text>
 						) : null}
 					</View>
-					<GroupedList>
-						<GroupedRow first label={t("auth.email")} value={profile.email} />
-					</GroupedList>
-					<Button
-						label={t("settings.profile.save_changes")}
-						disabled={!changed}
-						loading={save.isPending}
-						onPress={() => {
-							setSubmitted(true);
-							if (nameError || handleError) return;
-							save.mutate();
-						}}
-					/>
+					<View style={{ gap: space.xs }}>
+						<Text variant="label">{t("auth.email")}</Text>
+						<Text variant="body" tone="secondary" selectable>
+							{profile.email}
+						</Text>
+					</View>
 				</View>
 			</ScrollView>
 			{cropping ? (

@@ -21,9 +21,7 @@ export function DownloadSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
-				gap: space.xl,
 			}}
 		>
 			<GroupedList footer={t("mobile.smart.footer")}>
@@ -40,6 +38,7 @@ export function DownloadSettingsScreen() {
 					}
 				/>
 				<GroupedRow
+					inset
 					label={t("mobile.smart.cellular")}
 					subtitle={t("mobile.smart.cellular_desc")}
 					trailing={

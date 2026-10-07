@@ -8,7 +8,6 @@ import { useMountEffect } from "@/hooks/use-mount-effect";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY } from "@/lib/platform";
 import { MiniPlayer } from "@/player/mini-player";
-import { usePickServer } from "@/screens/panels/servers";
 import { fonts, radius, usePalette } from "@/theme";
 
 /** Sheets and modals the floating mini player would sit on top of. */
@@ -33,7 +32,6 @@ export default function TabStack({ segment }: { segment: string }) {
 	const root = segment.match(/\((.*)\)/)?.[1] ?? "index";
 	const navigation = useNavigation();
 	const overlay = OVERLAY_ROUTE.test(usePathname());
-	const pickServer = usePickServer();
 	// Re-tapping the active tab returns to its root. Native tabs mean to do it
 	// themselves but can't find this stack inside the wrapper below.
 	useMountEffect(() =>
@@ -67,12 +65,6 @@ export default function TabStack({ segment }: { segment: string }) {
 				screenOptions={{
 					unstable_headerRightItems: ios
 						? () => [
-								{
-									type: "button",
-									label: t("server.select"),
-									icon: { type: "sfSymbol", name: "server.rack" },
-									onPress: () => void pickServer(),
-								},
 								{
 									type: "button",
 									label: t("mobile.downloads.title"),

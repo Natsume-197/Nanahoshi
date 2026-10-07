@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { ScrollView } from "react-native";
 import { GroupedList, GroupedRow } from "@/components/grouped-list";
-import { Icon, icons } from "@/components/icon";
-import { askChoice, showNotice } from "@/components/prompt";
+import { icons } from "@/components/icon";
+import { showNotice } from "@/components/prompt";
 import { ServerAvatar } from "@/components/server-avatar";
 import { Spinner } from "@/components/states";
 import { useIsAppOwner } from "@/lib/abilities";
@@ -13,7 +13,7 @@ import { serverHost } from "@/lib/server-reachability";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { usePlayer } from "@/player/provider";
 import { useConnection, useServerStatus } from "@/providers/app-provider";
-import { space, usePalette } from "@/theme";
+import { space } from "@/theme";
 
 /** Leaves the current server: stops playback, drops its cache, back to Home. */
 export function useSwitchServer() {
@@ -67,8 +67,6 @@ export function ServersSettingsScreen() {
 			showsVerticalScrollIndicator={false}
 			contentInsetAdjustmentBehavior="automatic"
 			contentContainerStyle={{
-				padding: space.lg,
-				gap: space.lg,
 				paddingBottom: space.lg + miniPlayerInset,
 			}}
 		>
@@ -113,66 +111,4 @@ export function ServersSettingsScreen() {
 			) : null}
 		</ScrollView>
 	);
-}
-
-const CREATE_SERVER = "__create_server__";
-
-/**
- * Asks with the sheet every other pick-one list uses (Material on Android,
- * the system action sheet on iOS); the current server carries the check.
- */
-export function usePickServer() {
-	const { auth, serverUrl } = useConnection();
-	const organizations = auth.useListOrganizations();
-	const active = auth.useActiveOrganization();
-	const switchServer = useSwitchServer();
-	const isOwner = useIsAppOwner();
-	const palette = usePalette();
-	return async () => {
-		const current = active.data?.id;
-		const picked = await askChoice({
-			title: t("server.select"),
-			options: [
-				...(organizations.data ?? []).map((organization) => ({
-					id: organization.id,
-					label: organization.name,
-					leading: (
-						<ServerAvatar
-							name={organization.name}
-							logo={mediaUrl(serverUrl, organization.logo)}
-							size={36}
-						/>
-					),
-					selected: organization.id === current,
-				})),
-				...(isOwner
-					? [
-							{
-								id: CREATE_SERVER,
-								label: t("server.create"),
-								// In the avatars' slot, so its label lines up with theirs.
-								leading: (
-									<View
-										style={{
-											width: 36,
-											height: 36,
-											alignItems: "center",
-											justifyContent: "center",
-										}}
-									>
-										<Icon
-											name={icons.plus}
-											size={24}
-											color={palette.textSecondary}
-										/>
-									</View>
-								),
-							},
-						]
-					: []),
-			],
-		});
-		if (picked === CREATE_SERVER) router.push("/setup/server");
-		else if (picked && picked !== current) switchServer.mutate(picked);
-	};
 }

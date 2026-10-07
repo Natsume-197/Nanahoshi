@@ -1,11 +1,15 @@
+import type { ColorSchemeName } from "react-native";
 import { useColorScheme } from "react-native";
 import { cubicBezier, Easing } from "react-native-reanimated";
+import { useAppearancePreference } from "@/lib/appearance";
+import type { AppearancePreference } from "@/lib/preferences";
 
 /**
  * Tokens resolved from apps/web/src/index.css (its OKLab color-mix values
  * computed to hex) so the phone app is the same product as the web: a white
  * canvas with system-gray chrome in light mode; graphite with a darker chrome
- * and the lavender primary in dark mode.
+ * in dark mode. The accent is ink in both: the app is monochrome, colour comes
+ * from the covers.
  */
 const light = {
 	background: "#ffffff",
@@ -29,7 +33,7 @@ const light = {
 	primary: "#1e1e20",
 	onPrimary: "#fcfcfc",
 	accent: "#1e1e20",
-	accentSoft: "#f0eef3",
+	accentSoft: "#f0f0f2",
 	progressTrack: "rgba(0,0,0,0.45)",
 	progress: "#f7f7f7",
 	coverEdge: "rgba(0,0,0,0.10)",
@@ -45,11 +49,11 @@ const light = {
 
 const dark: typeof light = {
 	// The web's dark canvas (--background) and its darker chrome (--sidebar).
-	background: "#1f1f20",
+	background: "#1b1b1d",
 	chrome: "#161617",
-	card: "#272729",
-	sheet: "#1f1f20",
-	surfaceCard: "#272729",
+	card: "#28282a",
+	sheet: "#1b1b1d",
+	surfaceCard: "#28282a",
 	surfaceCardHover: "#343436",
 	surface: "#373638",
 	input: "#2d2c2e",
@@ -58,11 +62,11 @@ const dark: typeof light = {
 	textTertiary: "#6d6e75",
 	navInactive: "#aeaeaf",
 	navIndicator: "#373638",
-	separator: "#3a3a3b",
-	primary: "#8b7a9e",
-	onPrimary: "#000000",
-	accent: "#8b7a9e",
-	accentSoft: "#2f2b35",
+	separator: "#313133",
+	primary: "#e6e6e8",
+	onPrimary: "#1b1b1d",
+	accent: "#e6e6e8",
+	accentSoft: "#2d2c2e",
 	progressTrack: "rgba(0,0,0,0.45)",
 	progress: "#f7f7f7",
 	coverEdge: "rgba(255,255,255,0.10)",
@@ -74,13 +78,40 @@ const dark: typeof light = {
 	coverRadius: 2.5,
 };
 
+/** Dark on true black: OLED pixels switch off. Surfaces climb from #000 in
+ * the same steps as dark so cards still read as cards. */
+const amoled: typeof light = {
+	...dark,
+	background: "#000000",
+	chrome: "#000000",
+	card: "#141416",
+	sheet: "#111113",
+	surfaceCard: "#141416",
+	surfaceCardHover: "#202022",
+	surface: "#202022",
+	input: "#1a1a1c",
+	navIndicator: "#262628",
+	separator: "#232325",
+	onPrimary: "#000000",
+	accentSoft: "#1a1a1c",
+	skeleton: "#1a1a1c",
+};
+
 export type Palette = typeof light;
 
-export function usePalette(): Palette {
-	return useColorScheme() === "dark" ? dark : light;
+export function paletteFor(
+	scheme: ColorSchemeName,
+	preference: AppearancePreference,
+): Palette {
+	if (scheme !== "dark") return light;
+	return preference === "amoled" ? amoled : dark;
 }
 
-export const palettes = { light, dark };
+export function usePalette(): Palette {
+	return paletteFor(useColorScheme(), useAppearancePreference());
+}
+
+export const palettes = { light, dark, amoled };
 
 /** 4pt rhythm; 16pt page gutter like the web's phone layout. */
 export const space = {
@@ -118,6 +149,7 @@ export const fontSources = {
 	"GenInterfaceJP-Medium": require("../assets/fonts/GenInterfaceJP-Medium.ttf"),
 	"GenInterfaceJP-SemiBold": require("../assets/fonts/GenInterfaceJP-SemiBold.ttf"),
 	"GenInterfaceJP-Bold": require("../assets/fonts/GenInterfaceJP-Bold.ttf"),
+	SymbolsFilled: require("../assets/fonts/SymbolsFilled.ttf"),
 };
 
 /**
@@ -196,6 +228,10 @@ export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 /** A drag's settle or snap; spread `velocity` from the gesture into it. */
 export const SNAP_SPRING = { duration: 300, dampingRatio: 0.8 } as const;
+
+/** A book cover's height over its width: B6 bunko/light-novel proportions
+ * (Hoshi's grid), a little shorter than the web's 2:3; covers fit by crop. */
+export const COVER_ASPECT = 1.42;
 
 /** Fixed sizes that several components share. */
 export const sizes = {

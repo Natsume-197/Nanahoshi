@@ -17,8 +17,14 @@ export function applyStoredAppearance() {
 }
 
 function apply(preference: AppearancePreference) {
+	// AMOLED is a dark scheme to the OS and native controls; only our
+	// palette tells it apart.
 	Appearance.setColorScheme(
-		preference === "system" ? "unspecified" : preference,
+		preference === "system"
+			? "unspecified"
+			: preference === "amoled"
+				? "dark"
+				: preference,
 	);
 }
 

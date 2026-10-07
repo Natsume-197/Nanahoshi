@@ -12,7 +12,7 @@ export const LANGUAGE_NAMES: Record<Language, string> = {
 	ja: "日本語",
 };
 
-export type AppearancePreference = "system" | "light" | "dark";
+export type AppearancePreference = "system" | "light" | "dark" | "amoled";
 
 function isLanguage(value: string | null | undefined): value is Language {
 	return (LANGUAGES as readonly string[]).includes(value ?? "");
@@ -35,5 +35,7 @@ export function resolveLanguage(
 export function parseAppearancePreference(
 	stored: string | null,
 ): AppearancePreference {
-	return stored === "light" || stored === "dark" ? stored : "system";
+	return stored === "light" || stored === "dark" || stored === "amoled"
+		? stored
+		: "system";
 }
