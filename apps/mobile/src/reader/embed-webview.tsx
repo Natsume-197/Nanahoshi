@@ -304,12 +304,16 @@ export function EmbedWebView({
 						);
 						return;
 					case "invalidate":
-						void queryClient.invalidateQueries({
-							queryKey:
-								message.target === "reading-progress"
-									? api.orpc.readingProgress.key()
-									: api.orpc.recommendations.key(),
-						});
+						// The page saves progress every 45 s while reading: that only
+						// marks the lists stale; closing the book refreshes them.
+						void queryClient.invalidateQueries(
+							message.target === "reading-progress"
+								? {
+										queryKey: api.orpc.readingProgress.key(),
+										refetchType: "none",
+									}
+								: { queryKey: api.orpc.recommendations.key() },
+						);
 						return;
 					case "back-result": {
 						const pending = backed.current;
@@ -322,6 +326,9 @@ export function EmbedWebView({
 					case "closed": {
 						const [first] = closing.current;
 						first?.();
+						void queryClient.invalidateQueries({
+							queryKey: api.orpc.readingProgress.key(),
+						});
 						return;
 					}
 					case "error":

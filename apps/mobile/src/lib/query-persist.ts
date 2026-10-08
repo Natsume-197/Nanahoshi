@@ -3,9 +3,11 @@ import { File, Paths } from "expo-file-system";
 import { AppState } from "react-native";
 import { restoreQueries, serializeQueries } from "./query-snapshot";
 
-// Written a while after the last answer, off the busy moments, and right
-// away when the app leaves the screen (it may never come back).
-const SAVE_DELAY = 3000;
+// Written at most every half minute, off the busy moments (a save serializes
+// the whole snapshot on the JS thread), and right away when the app leaves
+// the screen (it may never come back).
+const SAVE_DELAY = 30_000;
+const IDLE_TIMEOUT = 3000;
 
 const snapshotFile = (serverUrl: string) =>
 	new File(
@@ -56,7 +58,7 @@ export function keepQueriesSaved(client: QueryClient, serverUrl: string) {
 		dirty = true;
 		if (timer || idle !== undefined) return;
 		timer = setTimeout(() => {
-			idle = requestIdleCallback(save, { timeout: SAVE_DELAY });
+			idle = requestIdleCallback(save, { timeout: IDLE_TIMEOUT });
 		}, SAVE_DELAY);
 	});
 	const appState = AppState.addEventListener("change", (status) => {

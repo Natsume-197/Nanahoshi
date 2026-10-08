@@ -11,6 +11,10 @@ const VERSION = 1;
 /** Older than this, a saved answer is more misleading than a skeleton. */
 export const SNAPSHOT_MAX_AGE = 7 * 24 * 60 * 60_000;
 
+/** The screens a cold start shows, not a week of every detail page touched:
+ * the cache only grows (24 h gcTime) and the whole file is rewritten. */
+export const SNAPSHOT_MAX_QUERIES = 120;
+
 const serializer = new StandardRPCJsonSerializer();
 
 type Snapshot = { version: number; json: unknown; meta: unknown };
@@ -34,7 +38,10 @@ export const shouldSnapshot = (query: Query) =>
  * infinite list keeps its first page only (a restore would refetch them all).
  */
 export function serializeQueries(client: QueryClient): string | null {
-	const state = dehydrate(client, { shouldDehydrateQuery: shouldSnapshot });
+	const kept = pickForSnapshot(client.getQueryCache().getAll());
+	const state = dehydrate(client, {
+		shouldDehydrateQuery: (query) => kept.has(query),
+	});
 	const queries = state.queries.map((query) =>
 		isInfinite(query.state.data)
 			? {
@@ -52,6 +59,18 @@ export function serializeQueries(client: QueryClient): string | null {
 	const [json, meta, maps] = serializer.serialize({ mutations: [], queries });
 	if (maps.length > 0) return null;
 	return JSON.stringify({ version: VERSION, json, meta } satisfies Snapshot);
+}
+
+/** What is on screen first, then the most recently answered, up to the cap. */
+function pickForSnapshot(queries: Query[]): Set<Query> {
+	const ranked = queries
+		.filter(shouldSnapshot)
+		.sort(
+			(a, b) =>
+				Number(b.getObserversCount() > 0) - Number(a.getObserversCount() > 0) ||
+				b.state.dataUpdatedAt - a.state.dataUpdatedAt,
+		);
+	return new Set(ranked.slice(0, SNAPSHOT_MAX_QUERIES));
 }
 
 export function restoreQueries(

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import {
 	restoreQueries,
 	SNAPSHOT_MAX_AGE,
+	SNAPSHOT_MAX_QUERIES,
 	serializeQueries,
 } from "./query-snapshot";
 
@@ -79,5 +80,38 @@ describe("query snapshot", () => {
 		const target = roundTrip(source);
 		const query = target.getQueryCache().find({ queryKey: key });
 		expect(query?.isStaleByTime(5 * 60_000)).toBe(true);
+	});
+});
+
+describe("query snapshot size", () => {
+	it("keeps the screens in use and the newest answers, up to the cap", () => {
+		const source = new QueryClient();
+		const onScreen = orpcKey(["books", "listRecent"], { limit: 20 });
+		// Older than every detail page, yet kept: it is on screen.
+		source.setQueryData(onScreen, ["home"], {
+			updatedAt: Date.now() - 24 * 60 * 60_000,
+		});
+		const observer = new QueryObserver(source, {
+			queryKey: onScreen,
+			enabled: false,
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		for (let index = 0; index < SNAPSHOT_MAX_QUERIES + 10; index++)
+			source.setQueryData(
+				orpcKey(["books", "getBookWithMetadata"], { uuid: `b${index}` }),
+				{ uuid: `b${index}` },
+				{ updatedAt: Date.now() - index * 1000 },
+			);
+
+		const target = roundTrip(source);
+		unsubscribe();
+		expect(target.getQueryData<unknown>(onScreen)).toEqual(["home"]);
+		const detail = (index: number) =>
+			target.getQueryData<unknown>(
+				orpcKey(["books", "getBookWithMetadata"], { uuid: `b${index}` }),
+			);
+		expect(detail(0)).toEqual({ uuid: "b0" });
+		expect(detail(SNAPSHOT_MAX_QUERIES + 9)).toBeUndefined();
+		expect(target.getQueryCache().getAll()).toHaveLength(SNAPSHOT_MAX_QUERIES);
 	});
 });
