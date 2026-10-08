@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { Directory, File, Paths } from "expo-file-system";
 import { loadAsync, renderToImageAsync } from "expo-font";
 import {
 	type AndroidSymbol,
@@ -39,6 +40,43 @@ async function renderFilledSymbol(name: string, size: number, color: string) {
 	});
 }
 
+// Bump when the glyphs or their drawing change.
+const ICONS = new Directory(Paths.document, "tab-icons-v1");
+
+/**
+ * Each render writes a new PNG to the cache that nothing deletes: thousands
+ * after enough launches. The first one per glyph and colour is kept here and
+ * reused on every later launch.
+ */
+async function keptOnDisk(
+	key: string,
+	render: () => Promise<ImageSourcePropType | null>,
+): Promise<ImageSourcePropType | null> {
+	const image = new File(ICONS, `${key}.png`);
+	const meta = new File(ICONS, `${key}.json`);
+	if (image.exists && meta.exists) {
+		try {
+			return { ...JSON.parse(meta.textSync()), uri: image.uri };
+		} catch {
+			// Rendered again below.
+		}
+	}
+	const rendered = await render();
+	if (!rendered || typeof rendered !== "object" || !("uri" in rendered))
+		return rendered;
+	if (!rendered.uri) return rendered;
+	try {
+		ICONS.create({ idempotent: true, intermediates: true });
+		if (image.exists) image.delete();
+		new File(rendered.uri).moveSync(image);
+		const { uri: _uri, ...size } = rendered;
+		meta.write(JSON.stringify(size));
+		return { ...size, uri: image.uri };
+	} catch {
+		return rendered;
+	}
+}
+
 export type TabIconSource = {
 	default: ImageSourcePropType;
 	selected: ImageSourcePropType;
@@ -61,12 +99,16 @@ export function useAndroidTabIcons<Name extends string>(names: Name[]) {
 		queries: names.flatMap((name) =>
 			variants.map(({ color, filled }) => ({
 				queryKey: ["tab-icon", name, color, filled],
-				queryFn: async () =>
-					(filled ? await renderFilledSymbol(name, 24, color) : null) ??
-					unstable_getMaterialSymbolSourceAsync(
-						name as AndroidSymbol,
-						24,
-						color,
+				queryFn: () =>
+					keptOnDisk(
+						`${name}-24-${color.slice(1)}-${filled ? 1 : 0}`,
+						async () =>
+							(filled ? await renderFilledSymbol(name, 24, color) : null) ??
+							unstable_getMaterialSymbolSourceAsync(
+								name as AndroidSymbol,
+								24,
+								color,
+							),
 					),
 				staleTime: Number.POSITIVE_INFINITY,
 				gcTime: Number.POSITIVE_INFINITY,

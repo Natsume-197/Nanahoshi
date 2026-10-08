@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useFonts } from "expo-font";
 import { NavigationBar } from "expo-navigation-bar";
 import { router } from "expo-router";
 import {
@@ -20,6 +19,7 @@ import {
 	useAppearancePreference,
 } from "@/lib/appearance";
 import type { NanahoshiAuth } from "@/lib/auth-client";
+import { sweepLeftoverCache } from "@/lib/cache-sweep";
 import { keepGatewayOpen } from "@/lib/gateway";
 import { useLocale } from "@/lib/i18n";
 import { forgetSavedQueries, keepQueriesSaved } from "@/lib/query-persist";
@@ -32,7 +32,7 @@ import {
 	useMaybeConnection,
 } from "@/providers/app-provider";
 import { ReaderPool } from "@/reader/reader-pool";
-import { fontSources, paletteFor } from "@/theme";
+import { paletteFor } from "@/theme";
 
 SplashScreen.preventAutoHideAsync();
 applyStoredAppearance();
@@ -51,10 +51,13 @@ const SETUP_OPTIONS = {
 
 export default function RootLayout() {
 	const scheme = useColorScheme();
-	const [fontsLoaded] = useFonts(fontSources);
 	const locale = useLocale();
 	const base = scheme === "dark" ? DarkTheme : DefaultTheme;
 	const palette = paletteFor(scheme, useAppearancePreference());
+	useMountEffect(() => {
+		const idle = requestIdleCallback(sweepLeftoverCache);
+		return () => cancelIdleCallback(idle);
+	});
 	// Navigation chrome takes the same canvas as the screens, so a push never
 	// flashes the library's default white/black between two graphite screens.
 	const theme = {
@@ -80,7 +83,7 @@ export default function RootLayout() {
 					    language remounts the navigation (playback and cache stay). */}
 					{/* Lets the pooled reader page move into the reader screen. */}
 					<PortalProvider>
-						{fontsLoaded ? <RootNavigator key={locale} /> : null}
+						<RootNavigator key={locale} />
 					</PortalProvider>
 				</AppProvider>
 			</ThemeProvider>
@@ -96,6 +99,9 @@ function RootNavigator() {
 
 function SessionNavigator({ auth }: { auth: NanahoshiAuth }) {
 	const { data, isPending } = auth.useSession();
+	// A saved session opens the app at once; the server only gets to say no
+	// (a 401 signs out), it doesn't get to hold the splash.
+	const ready = !isPending || data !== null;
 	return (
 		<>
 			{/* Signing out must not leave someone else's book or screens behind. */}
@@ -103,10 +109,10 @@ function SessionNavigator({ auth }: { auth: NanahoshiAuth }) {
 			{data ? <StayOnline /> : null}
 			{data ? (
 				<ReaderPool key={data.user.id} userId={data.user.id}>
-					<Navigator signedIn ready={!isPending} />
+					<Navigator signedIn ready={ready} />
 				</ReaderPool>
 			) : (
-				<Navigator signedIn={false} ready={!isPending} />
+				<Navigator signedIn={false} ready={ready} />
 			)}
 		</>
 	);

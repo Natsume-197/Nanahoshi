@@ -146,21 +146,14 @@ export const outline = {
 
 /** Gen Interface JP (Inter + Noto Sans JP), the web's --font-sans. Android
  * can't synthesize weights for a custom face, so each weight is its own
- * family and Text picks it from fontWeight. */
+ * family and Text picks it from fontWeight. Embedded at build time by the
+ * expo-font plugin (app.json), subset by scripts/subset-fonts.py. */
 export const fonts = {
 	"400": "GenInterfaceJP-Regular",
 	"500": "GenInterfaceJP-Medium",
 	"600": "GenInterfaceJP-SemiBold",
 	"700": "GenInterfaceJP-Bold",
 } as const;
-
-export const fontSources = {
-	"GenInterfaceJP-Regular": require("../assets/fonts/GenInterfaceJP-Regular.ttf"),
-	"GenInterfaceJP-Medium": require("../assets/fonts/GenInterfaceJP-Medium.ttf"),
-	"GenInterfaceJP-SemiBold": require("../assets/fonts/GenInterfaceJP-SemiBold.ttf"),
-	"GenInterfaceJP-Bold": require("../assets/fonts/GenInterfaceJP-Bold.ttf"),
-	SymbolsFilled: require("../assets/fonts/SymbolsFilled.ttf"),
-};
 
 /**
  * Type ramp. The last four steps are the web's own component sizes (measured

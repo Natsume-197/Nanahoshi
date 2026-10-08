@@ -34,7 +34,18 @@
 				}
 			],
 			"expo-localization",
-			"expo-font",
+			[
+				"expo-font",
+				{
+					"fonts": [
+						"./assets/fonts/GenInterfaceJP-Regular.ttf",
+						"./assets/fonts/GenInterfaceJP-Medium.ttf",
+						"./assets/fonts/GenInterfaceJP-SemiBold.ttf",
+						"./assets/fonts/GenInterfaceJP-Bold.ttf",
+						"./assets/fonts/SymbolsFilled.ttf"
+					]
+				}
+			],
 			[
 				"expo-audio",
 				{
