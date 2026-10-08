@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { nextAppBarOffset, settleAppBarOffset } from "./app-bar-scroll";
+import {
+	nextAppBarOffset,
+	pinnedRowTop,
+	settleAppBarOffset,
+} from "./app-bar-scroll";
 
 const H = 64;
 
@@ -25,4 +29,13 @@ test("a half-shown bar settles to the nearer end, but never hides at the top", (
 	expect(settleAppBarOffset(-40, 800, H)).toBe(-H);
 	expect(settleAppBarOffset(-20, 800, H)).toBe(0);
 	expect(settleAppBarOffset(-40, 30, H)).toBe(0);
+});
+
+test("pinned tabs ride with the page, then hold under the bar", () => {
+	// Tabs laid out 300pt down, bar bottom at 80.
+	expect(pinnedRowTop(300, 0, 80)).toBe(300);
+	expect(pinnedRowTop(300, 200, 80)).toBe(100);
+	expect(pinnedRowTop(300, 1000, 80)).toBe(80);
+	// The bar sliding away takes the pin line up with it.
+	expect(pinnedRowTop(300, 1000, 24)).toBe(24);
 });

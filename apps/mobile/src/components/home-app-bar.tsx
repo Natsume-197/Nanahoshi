@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useWindowDimensions, View } from "react-native";
+import type { ReactNode } from "react";
+import { useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, {
 	useAnimatedScrollHandler,
 	useAnimatedStyle,
@@ -47,7 +48,7 @@ export function useAppBarScroll() {
 				offset.set(withTiming(target, { duration: 150, easing: EASE_OUT }));
 		},
 	});
-	return { onScroll, offset, height };
+	return { onScroll, offset, height, scrollY: lastY };
 }
 
 type AppBarScroll = ReturnType<typeof useAppBarScroll>;
@@ -58,8 +59,6 @@ type AppBarScroll = ReturnType<typeof useAppBarScroll>;
  * returns the moment you scroll up. It keeps the page's own color throughout.
  */
 export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
-	const palette = usePalette();
-	const insets = useSafeAreaInsets();
 	const wide = useWindowDimensions().width >= 768;
 	const { orpc } = useApi();
 	const unread = useQuery({
@@ -67,6 +66,51 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 		refetchInterval: 60_000,
 	});
 
+	return (
+		<AppBarFrame
+			scroll={scroll}
+			style={{ paddingRight: 4, gap: wide ? 16 : 0 }}
+		>
+			<AppBarTitle title={t("nav.home")} />
+			{wide ? <SearchField /> : null}
+			<View style={{ flexDirection: "row", marginLeft: "auto" }}>
+				<Action
+					label={t("mobile.downloads.title")}
+					icon={icons.download}
+					onPress={() => router.push("/downloads")}
+				/>
+				<Action
+					label={t("aria.friends_activity")}
+					icon={{ ios: "person.2", android: "group" }}
+					onPress={() => router.push("/friends")}
+				/>
+				<Action
+					label={t("notifications.title")}
+					icon={{ ios: "bell", android: "notifications" }}
+					badge={(unread.data?.count ?? 0) > 0}
+					onPress={() => router.push("/notifications")}
+				/>
+			</View>
+		</AppBarFrame>
+	);
+}
+
+/**
+ * The sliding bar itself, for any tab root on Android: absolute over the
+ * scroll view, in the page's own color, with the status bar covered so
+ * content scrolls under it, not through it.
+ */
+export function AppBarFrame({
+	scroll,
+	style,
+	children,
+}: {
+	scroll: AppBarScroll;
+	style?: ViewStyle;
+	children: ReactNode;
+}) {
+	const palette = usePalette();
+	const insets = useSafeAreaInsets();
 	// Worklets copy what they capture: take the shared value, not `scroll`
 	// (it also holds the scroll handler).
 	const { offset } = scroll;
@@ -74,7 +118,6 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 	const slide = useAnimatedStyle(() => ({
 		transform: [{ translateY: offset.get() }],
 	}));
-
 	return (
 		<>
 			<Animated.View
@@ -86,46 +129,17 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 						right: 0,
 						height: scroll.height,
 						paddingLeft: 16,
-						paddingRight: 4,
+						paddingRight: 16,
 						flexDirection: "row",
 						alignItems: "center",
-						gap: wide ? 16 : 0,
 					},
 					surface,
+					style,
 					slide,
 				]}
 			>
-				{/* Where PageHeader puts Collections' and Library's titles, so
-				    switching tabs leaves the heading in place. */}
-				<Text
-					variant="pageTitle"
-					accessibilityRole="header"
-					numberOfLines={1}
-					style={{ flexShrink: 1, alignSelf: "flex-start", marginTop: 16 }}
-				>
-					{t("nav.home")}
-				</Text>
-				{wide ? <SearchField /> : null}
-				<View style={{ flexDirection: "row", marginLeft: "auto" }}>
-					<Action
-						label={t("mobile.downloads.title")}
-						icon={icons.download}
-						onPress={() => router.push("/downloads")}
-					/>
-					<Action
-						label={t("aria.friends_activity")}
-						icon={{ ios: "person.2", android: "group" }}
-						onPress={() => router.push("/friends")}
-					/>
-					<Action
-						label={t("notifications.title")}
-						icon={{ ios: "bell", android: "notifications" }}
-						badge={(unread.data?.count ?? 0) > 0}
-						onPress={() => router.push("/notifications")}
-					/>
-				</View>
+				{children}
 			</Animated.View>
-			{/* Covers the status bar so content scrolls under it, not through it. */}
 			<View
 				pointerEvents="none"
 				style={[
@@ -140,6 +154,21 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 				]}
 			/>
 		</>
+	);
+}
+
+/** Where PageHeader puts a tab's title, so switching tabs leaves the
+ * heading in place. */
+export function AppBarTitle({ title }: { title: string }) {
+	return (
+		<Text
+			variant="pageTitle"
+			accessibilityRole="header"
+			numberOfLines={1}
+			style={{ flexShrink: 1, alignSelf: "flex-start", marginTop: 16 }}
+		>
+			{title}
+		</Text>
 	);
 }
 

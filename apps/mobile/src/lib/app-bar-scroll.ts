@@ -26,3 +26,14 @@ export function settleAppBarOffset(
 	if (y < height) return 0;
 	return offset < -height / 2 ? -height : 0;
 }
+
+/** A sticky row's top on screen: it rides with the content until it meets
+ * `pinTop` (the bottom of whatever bar sits above it), then stays there. */
+export function pinnedRowTop(
+	anchorY: number,
+	scrollY: number,
+	pinTop: number,
+): number {
+	"worklet";
+	return Math.max(pinTop, anchorY - scrollY);
+}

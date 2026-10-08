@@ -2,12 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { useScrollToTop } from "expo-router";
 import { useRef, useState } from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
+import Animated, { useDerivedValue } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CollectionMenuTarget } from "@/components/collection-menu";
 import { CollectionRow } from "@/components/collection-row";
 import { Fab } from "@/components/fab";
 import { openFormSheet } from "@/components/form-sheet/open";
+import {
+	AppBarFrame,
+	AppBarTitle,
+	useAppBarScroll,
+} from "@/components/home-app-bar";
 import { LineTabs } from "@/components/line-tabs";
 import { PageHeader } from "@/components/page-header";
+import { PinnedRow, PinnedSlot, usePinnedRow } from "@/components/pinned-row";
 import { RefreshControl } from "@/components/refresh-control";
 import { RowSkeleton } from "@/components/states";
 import { Text } from "@/components/text";
@@ -31,6 +39,15 @@ const FORMATS: Format[] = ["ebook", "audiobook"];
  */
 export function Collections() {
 	const miniPlayerInset = useMiniPlayerInset();
+	const insets = useSafeAreaInsets();
+	// Android: the title rides in Home's enter-always bar, back on any scroll up.
+	const appBar = useAppBarScroll();
+	// Android: the tabs stick under the bar and slide up with it.
+	const pinned = usePinnedRow();
+	// Worklets copy what they capture: never `appBar` (it holds the handler).
+	const { offset, height: barHeight } = appBar;
+	const barTop = insets.top;
+	const pinTop = useDerivedValue(() => barTop + barHeight + offset.get());
 	const scrollRef = useRef<ScrollView>(null);
 	const pagerRef = useRef<ScrollView>(null);
 	useScrollToTop(scrollRef);
@@ -60,41 +77,52 @@ export function Collections() {
 		if (next) setFormat(next);
 	};
 
+	// Line tabs run edge to edge, as on the profile.
+	const tabs = (
+		<LineTabs
+			value={format}
+			onChange={showFormat}
+			options={[
+				{ value: "ebook", label: t("collection.book_lists") },
+				{ value: "audiobook", label: t("collection.audiobook_lists") },
+			]}
+		/>
+	);
+
 	return (
 		<View style={{ flex: 1 }}>
-			<ScrollView
+			<Animated.ScrollView
 				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
+				onScroll={IS_ANDROID ? appBar.onScroll : undefined}
+				scrollEventThrottle={16}
 				contentInsetAdjustmentBehavior={
 					process.env.EXPO_OS === "ios" ? "never" : "automatic"
 				}
-				contentContainerStyle={{ paddingBottom: 96 + miniPlayerInset }}
+				contentContainerStyle={{
+					paddingTop: IS_ANDROID ? insets.top + appBar.height : 0,
+					paddingBottom: 96 + miniPlayerInset,
+				}}
 				refreshControl={
 					<RefreshControl
+						progressViewOffset={
+							IS_ANDROID ? insets.top + appBar.height : undefined
+						}
 						onRefresh={() =>
 							Promise.all([shelves.refetch(), collections.refetch()])
 						}
 					/>
 				}
 			>
-				<PageHeader title={t("nav.collections")} />
-				{/* Line tabs run edge to edge, as on the profile; iOS's segmented
-				    control keeps the page margins. */}
-				<View
-					style={{
-						paddingHorizontal: IS_ANDROID ? 0 : space.lg,
-						paddingTop: space.xl,
-					}}
-				>
-					<LineTabs
-						value={format}
-						onChange={showFormat}
-						options={[
-							{ value: "ebook", label: t("collection.book_lists") },
-							{ value: "audiobook", label: t("collection.audiobook_lists") },
-						]}
-					/>
-				</View>
+				{IS_ANDROID ? null : <PageHeader title={t("nav.collections")} />}
+				{IS_ANDROID ? (
+					<PinnedSlot pinned={pinned} marginTop={space.xl} />
+				) : (
+					// iOS's segmented control keeps the page margins.
+					<View style={{ paddingHorizontal: space.lg, paddingTop: space.xl }}>
+						{tabs}
+					</View>
+				)}
 				<ScrollView
 					ref={pagerRef}
 					horizontal
@@ -127,7 +155,17 @@ export function Collections() {
 						</View>
 					))}
 				</ScrollView>
-			</ScrollView>
+			</Animated.ScrollView>
+			{IS_ANDROID ? (
+				<PinnedRow pinned={pinned} scrollY={appBar.scrollY} pinTop={pinTop}>
+					{tabs}
+				</PinnedRow>
+			) : null}
+			{IS_ANDROID ? (
+				<AppBarFrame scroll={appBar}>
+					<AppBarTitle title={t("nav.collections")} />
+				</AppBarFrame>
+			) : null}
 
 			<Fab
 				label={t("collection.create_title")}

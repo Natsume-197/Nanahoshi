@@ -7,11 +7,13 @@ import { Platform, useWindowDimensions, View } from "react-native";
 import Animated, {
 	type SharedValue,
 	useAnimatedStyle,
+	useDerivedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/components/chip";
 import { Icon, type IconName, icons } from "@/components/icon";
 import { LineTabs } from "@/components/line-tabs";
+import { PinnedRow, PinnedSlot, usePinnedRow } from "@/components/pinned-row";
 import { Pressable } from "@/components/pressable";
 import { askChoice } from "@/components/prompt";
 import { ErrorState, OfflineState } from "@/components/states";
@@ -163,6 +165,11 @@ export function Profile({ username: requested }: { username?: string }) {
 	});
 	const insets = useSafeAreaInsets();
 	const { width } = useWindowDimensions();
+	// The tabs stick where the banner pins, so books ⇄ audiobooks is always
+	// one tap away.
+	const pinned = usePinnedRow();
+	const { barBottom } = bar;
+	const pinTop = useDerivedValue(() => barBottom);
 	// Full bleed under the status bar; the 4:1 banner crops to its middle.
 	const bannerHeight = insets.top + Math.max(150, Math.round(width / 2.4));
 
@@ -248,16 +255,7 @@ export function Profile({ username: requested }: { username?: string }) {
 							onTitleOffset={bar.onTitleOffset}
 							profile={profile.data ?? null}
 						/>
-						{offline ? null : (
-							<LineTabs
-								value={tab}
-								onChange={setTab}
-								options={[
-									{ value: "books", label: t("nav.books") },
-									{ value: "audiobooks", label: t("nav.audiobooks") },
-								]}
-							/>
-						)}
+						{offline ? null : <PinnedSlot pinned={pinned} />}
 						{offline ? null : filters}
 						{!offline && grid.total != null ? (
 							<Text
@@ -271,6 +269,18 @@ export function Profile({ username: requested }: { username?: string }) {
 					</View>
 				}
 			/>
+			{offline ? null : (
+				<PinnedRow pinned={pinned} scrollY={bar.scrollY} pinTop={pinTop}>
+					<LineTabs
+						value={tab}
+						onChange={setTab}
+						options={[
+							{ value: "books", label: t("nav.books") },
+							{ value: "audiobooks", label: t("nav.audiobooks") },
+						]}
+					/>
+				</PinnedRow>
+			)}
 			{/* Over the page, in this order: the banner, then the avatar. */}
 			<ProfileBanner
 				scrollY={bar.scrollY}
