@@ -252,6 +252,8 @@ export function EntityList({ kind }: { kind: EntityKind }) {
 							item.cover ? (
 								<Cover
 									cover={item.cover}
+									// A recycled row must not show the last item's cover meanwhile.
+									recyclingKey={item.cover}
 									width={item.square ? 48 : 40}
 									shape={item.square ? "audio" : "book"}
 								/>
@@ -378,6 +380,7 @@ function GenreTile({
 				>
 					<Cover
 						cover={cover}
+						recyclingKey={cover}
 						width={coverWidth}
 						shape={square ? "audio" : "book"}
 					/>

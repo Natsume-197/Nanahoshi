@@ -61,6 +61,11 @@ export function Collections() {
 		audiobook: 0,
 	});
 	const [swiping, setSwiping] = useState(false);
+	// The other format's page (every row a mosaic of covers) mounts the first
+	// time someone heads to it, not on opening the tab.
+	const [mounted, setMounted] = useState<Format[]>(["ebook"]);
+	const mount = (page: Format) =>
+		setMounted((pages) => (pages.includes(page) ? pages : [...pages, page]));
 	const shelves = useQuery(orpc.shelves.summaries.queryOptions());
 	const collections = useQuery(orpc.collections.list.queryOptions());
 	const pagerHeight = swiping
@@ -68,6 +73,7 @@ export function Collections() {
 		: heights[format];
 
 	const showFormat = (next: Format) => {
+		mount(next);
 		setFormat(next);
 		pagerRef.current?.scrollTo({ x: FORMATS.indexOf(next) * width });
 	};
@@ -131,7 +137,10 @@ export function Collections() {
 					showsHorizontalScrollIndicator={false}
 					overScrollMode="never"
 					bounces={false}
-					onScrollBeginDrag={() => setSwiping(true)}
+					onScrollBeginDrag={() => {
+						setSwiping(true);
+						for (const page of FORMATS) mount(page);
+					}}
 					onMomentumScrollEnd={(event) =>
 						settle(event.nativeEvent.contentOffset.x)
 					}
@@ -151,7 +160,9 @@ export function Collections() {
 								);
 							}}
 						>
-							<CollectionsPage format={page} />
+							{mounted.includes(page) ? (
+								<CollectionsPage format={page} />
+							) : null}
 						</View>
 					))}
 				</ScrollView>
