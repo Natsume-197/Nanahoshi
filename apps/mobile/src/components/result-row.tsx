@@ -21,6 +21,7 @@ export function ResultRow({
 	href,
 	onPress,
 	onPressIn,
+	onPressOut,
 	onLongPress,
 	artwork,
 	title,
@@ -33,6 +34,7 @@ export function ResultRow({
 	href?: Href;
 	onPress?: () => void;
 	onPressIn?: () => void;
+	onPressOut?: () => void;
 	onLongPress?: PressableProps["onLongPress"];
 	artwork: ReactNode;
 	title: string;
@@ -49,6 +51,7 @@ export function ResultRow({
 			android_ripple={{ color: palette.ripple }}
 			onLongPress={onLongPress}
 			onPressIn={onPressIn}
+			onPressOut={onPressOut}
 			onPress={() => {
 				onPress?.();
 				if (href) router.push(href);

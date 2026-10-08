@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
+import { useRef } from "react";
 import { Dimensions } from "react-native";
 import { useApi, useConnection } from "@/providers/app-provider";
 import type { Api } from "./api";
@@ -55,4 +56,36 @@ export function usePrefetchTitle() {
 		].filter((uri): uri is string => uri !== null);
 		if (images.length > 0) void Image.prefetch(images);
 	};
+}
+
+// A finger resting this long means a tap is coming; a scroll's touch lifts
+// (press out) sooner, and no longer loads a page nobody opens.
+const DWELL_MS = 120;
+
+/**
+ * Press handlers that prefetch a title: after a short dwell, or at the tap
+ * itself (a quick tap lifts before the dwell). Spread `onPressIn` and
+ * `onPressOut`; call `onPress` before navigating.
+ */
+export function usePrefetchOnPress() {
+	const prefetch = usePrefetchTitle();
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const cancel = () => {
+		if (timer.current) clearTimeout(timer.current);
+		timer.current = null;
+	};
+	return (kind: MediaKind, uuid: string, cover?: string | null) => ({
+		onPressIn: () => {
+			cancel();
+			timer.current = setTimeout(() => {
+				timer.current = null;
+				prefetch(kind, uuid, cover);
+			}, DWELL_MS);
+		},
+		onPressOut: cancel,
+		onPress: () => {
+			cancel();
+			prefetch(kind, uuid, cover);
+		},
+	});
 }

@@ -24,7 +24,7 @@ import { useGridTileWidth } from "@/hooks/use-grid-tile-width";
 import { joinNames, titleOrUntitled } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
-import { usePrefetchTitle } from "@/lib/title-queries";
+import { usePrefetchOnPress } from "@/lib/title-queries";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { COVER_ASPECT, space, usePalette } from "@/theme";
@@ -143,7 +143,7 @@ function PairTile({
 	pairing: ReadListenPairing;
 	width: number;
 }) {
-	const prefetch = usePrefetchTitle();
+	const prefetch = usePrefetchOnPress();
 	const { audiobook } = pairing;
 	const authors = joinNames(audiobook.authors);
 	return (
@@ -161,10 +161,11 @@ function PairTile({
 			{(onLongPress) => (
 				<PressableScale
 					scaleOnPress={false}
-					onPressIn={() =>
-						prefetch("audiobook", audiobook.uuid, audiobook.cover)
-					}
-					onPress={() => router.push(routes.title("audiobook", audiobook.uuid))}
+					{...prefetch("audiobook", audiobook.uuid, audiobook.cover)}
+					onPress={() => {
+						prefetch("audiobook", audiobook.uuid, audiobook.cover).onPress();
+						router.push(routes.title("audiobook", audiobook.uuid));
+					}}
 					onLongPress={onLongPress}
 					accessibilityRole="button"
 					accessibilityLabel={[titleOrUntitled(audiobook.title), authors]

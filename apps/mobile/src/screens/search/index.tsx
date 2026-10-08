@@ -36,7 +36,7 @@ import {
 	hitKey,
 	useSearchHistory,
 } from "@/lib/search-history";
-import { usePrefetchTitle } from "@/lib/title-queries";
+import { usePrefetchOnPress } from "@/lib/title-queries";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
@@ -396,7 +396,7 @@ function HitRow({
 	onSelect?: () => void;
 	trailing?: ReactNode;
 }) {
-	const prefetch = usePrefetchTitle();
+	const prefetch = usePrefetchOnPress();
 	const common = { onPress: onSelect, trailing };
 	switch (hit.type) {
 		case "book":
@@ -415,10 +415,16 @@ function HitRow({
 					{(onLongPress) => (
 						<ResultRow
 							{...common}
+							{...prefetch(audio ? "audiobook" : "book", hit.uuid, hit.cover)}
+							onPress={() => {
+								prefetch(
+									audio ? "audiobook" : "book",
+									hit.uuid,
+									hit.cover,
+								).onPress();
+								onSelect?.();
+							}}
 							href={routes.title(audio ? "audiobook" : "book", hit.uuid)}
-							onPressIn={() =>
-								prefetch(audio ? "audiobook" : "book", hit.uuid, hit.cover)
-							}
 							onLongPress={onLongPress}
 							artwork={
 								<CoverArt
