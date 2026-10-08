@@ -57,7 +57,18 @@ export function DateField({
 						initialDate={date ? date.toISOString() : null}
 						confirmButtonLabel={t("common.apply")}
 						dismissButtonLabel={t("common.cancel")}
-						color={palette.card}
+						// Material fills unset keys with its stock purple.
+						color={palette.text}
+						elementColors={{
+							containerColor: palette.card,
+							selectedDayContainerColor: palette.text,
+							selectedDayContentColor: palette.background,
+							todayDateBorderColor: palette.text,
+							todayContentColor: palette.text,
+							selectedYearContainerColor: palette.text,
+							selectedYearContentColor: palette.background,
+							currentYearContentColor: palette.text,
+						}}
 						onDateSelected={(picked) => {
 							setOpen(false);
 							onChange(toDateValue(picked));

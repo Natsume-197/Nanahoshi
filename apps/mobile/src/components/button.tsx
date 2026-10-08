@@ -17,7 +17,7 @@ const SIZES = {
 } as const;
 
 /** The web's Button: 44pt, rounded-xl, 14pt medium label. `primary` is the
- * theme primary (lavender in dark, near-black in light), `outline` is the
+ * theme's ink (white in dark, near-black in light), like the detail's Read, `outline` is the
  * bordered ghost ("Sign in with Discord"), `secondary` a quiet muted fill. */
 export function Button({
 	label,

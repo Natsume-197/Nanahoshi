@@ -8,6 +8,22 @@
 @source "../../../../packages/ui/src";
 @source "../../../../packages/reader/src";
 
+/* The phone is monochrome (src/theme.ts): the web's lavender dark primary
+   would make the reader's buttons the app's only purple. */
+.dark {
+	--primary: #e6e6e8;
+	--primary-foreground: #1b1b1d;
+	--ring: color-mix(in oklab, #e6e6e8 45%, #1b1b1d);
+	--sidebar-primary: var(--primary);
+	--sidebar-primary-foreground: var(--primary-foreground);
+	--sidebar-ring: var(--ring);
+	--chart-1: var(--primary);
+	--chart-2: color-mix(in oklab, var(--primary) 80%, var(--background));
+	--chart-3: color-mix(in oklab, var(--primary) 60%, var(--background));
+	--chart-4: color-mix(in oklab, var(--primary) 40%, var(--background));
+	--chart-5: color-mix(in oklab, var(--primary) 20%, var(--background));
+}
+
 html,
 body {
 	overscroll-behavior: none;
