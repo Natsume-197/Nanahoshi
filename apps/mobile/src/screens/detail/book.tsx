@@ -10,6 +10,7 @@ import { Shelf } from "@/components/shelf";
 import { useArrival } from "@/components/skeleton";
 import { ErrorState, waitingOffline } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
+import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	formatCount,
 	joinNames,
@@ -23,6 +24,7 @@ import { routes } from "@/lib/routes";
 import { bookDetailQueries } from "@/lib/title-queries";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
+import { useWarmReader } from "@/reader/reader-pool";
 import { space } from "@/theme";
 import { BookCopies, DuplicateNotice } from "./book-copies";
 import { BookFileDetails, bookDate } from "./book-file-details";
@@ -43,6 +45,8 @@ import { useDetailHeader } from "./use-detail-header";
 
 type Tab = "overview" | "reading" | "file" | "copies";
 
+const WARM_READER_DELAY_MS = 600;
+
 /**
  * Book detail, Fable's flat page: hero, then tabs — the overview (synopsis,
  * facts in two columns, rails), reading history, file and copies.
@@ -52,6 +56,12 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	const { orpc } = useApi();
 	const queries = bookDetailQueries(orpc, uuid);
 	const [tab, setTab] = useState<Tab>("overview");
+	// Reading is likely from here: boot the reader page once the push settles.
+	const warmReader = useWarmReader();
+	useMountEffect(() => {
+		const timer = setTimeout(warmReader, WARM_READER_DELAY_MS);
+		return () => clearTimeout(timer);
+	});
 	const book = useQuery(queries.detail);
 	const progress = useQuery(queries.progress);
 	const similar = useQuery(

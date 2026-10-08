@@ -1,3 +1,4 @@
+import "./file-fetch";
 import { dismissTopOverlay } from "@nanahoshi/reader/interaction/back-dismiss";
 import "./styles.css";
 import { readerQueryUtils } from "@nanahoshi/reader/host/reader-host";

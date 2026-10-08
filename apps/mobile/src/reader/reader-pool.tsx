@@ -17,14 +17,12 @@ import { EmbedWebView, type ReaderWebViewHandle } from "./embed-webview";
 import { readerPageQuery } from "./reader-page";
 
 const STANDBY_HOST = "reader-standby";
-// Booting the page competes with the app's own first screens; wait for them.
-const WARM_UP_DELAY_MS = 1500;
 
-type PoolState = { host: string | null; visible: boolean };
+type PoolState = { host: string | null; visible: boolean; warm: boolean };
 const noop = (_next?: Href) => {};
 
 function createPool() {
-	let state: PoolState = { host: null, visible: false };
+	let state: PoolState = { host: null, visible: false, warm: false };
 	const listeners = new Set<() => void>();
 	const set = (next: Partial<PoolState>) => {
 		state = { ...state, ...next };
@@ -41,6 +39,10 @@ function createPool() {
 			return () => listeners.delete(listener);
 		},
 		get: () => state,
+		/** Boots the page ahead of a likely read. */
+		warmUp() {
+			if (!state.warm) set({ warm: true });
+		},
 		/** Booted and not holding another book. */
 		available: () => !!handle.current && !state.host,
 		claim(host: string, leaveScreen: (next?: Href) => void) {
@@ -68,7 +70,9 @@ const PoolContext = createContext<ReaderPoolValue | null>(null);
 /**
  * A reader page booted ahead of time and kept loaded between books, so opening
  * one skips starting the WebView and its page. It waits in a hidden host and
- * is moved (not remounted) into the reader screen that claims it.
+ * is moved (not remounted) into the reader screen that claims it. It boots on
+ * a sign of reading (a book's page, a closed reader), not at launch: a page
+ * nobody opens is a renderer process held for the whole session.
  */
 export function ReaderPool({
 	userId,
@@ -79,19 +83,14 @@ export function ReaderPool({
 }) {
 	const [pool] = useState(createPool);
 	const state = useSyncExternalStore(pool.subscribe, pool.get);
-	const page = useQuery(readerPageQuery);
-	const [warm, setWarm] = useState(false);
-	useMountEffect(() => {
-		const timer = setTimeout(() => setWarm(true), WARM_UP_DELAY_MS);
-		return () => clearTimeout(timer);
-	});
+	const page = useQuery({ ...readerPageQuery, enabled: state.warm });
 
 	return (
 		<PoolContext value={pool}>
 			{children}
 			{/* Laid out like a screen, so the page boots at its real size. */}
 			<PortalHost name={STANDBY_HOST} style={styles.standby} />
-			{warm && page.data ? (
+			{state.warm && page.data ? (
 				<Portal hostName={state.host ?? STANDBY_HOST} style={styles.fill}>
 					<EmbedWebView
 						userId={userId}
@@ -107,6 +106,12 @@ export function ReaderPool({
 	);
 }
 
+/** Boots the pooled page, so the next book opens without starting it. */
+export function useWarmReader() {
+	const pool = use(PoolContext);
+	return () => pool?.warmUp();
+}
+
 /**
  * The pooled reader for one reader screen: claimed on mount, given back on
  * unmount. Null when it is busy or not booted yet; the screen then boots a
@@ -120,10 +125,12 @@ export function usePooledReader(
 	const navigation = useNavigation();
 	const [pooled, setPooled] = useState(() => !!pool?.available());
 	useMountEffect(() => {
-		if (!pool || !pooled) return;
+		if (!pool) return;
+		// This book booted a page of its own; the next one opens on the pool.
+		if (!pooled) return () => pool.warmUp();
 		if (!pool.claim(host, leaveScreen)) {
 			setPooled(false);
-			return;
+			return () => pool.warmUp();
 		}
 		// Another screen stacked on the reader takes the system bars back.
 		const focus = navigation.addListener("focus", () =>

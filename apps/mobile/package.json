@@ -10,7 +10,7 @@
 		"check-types": "node scripts/check-types.mjs",
 		"apk": "bash scripts/build-apk.sh release",
 		"apk:debug": "bash scripts/build-apk.sh debug",
-		"reader:bundle": "bun run --cwd reader-embed build && mkdir -p assets/reader && cp reader-embed/dist/index.html assets/reader/reader.html"
+		"reader:bundle": "bun run --cwd reader-embed build && node scripts/reader-bundle.mjs"
 	},
 	"dependencies": {
 		"@better-auth/expo": "1.7.5",

@@ -34,8 +34,23 @@ function dropPdfiumDefaultWasm(): Plugin {
 	};
 }
 
-// One self-contained HTML the mobile app ships and opens from file://, where
-// the page can fetch nothing: scripts, styles, fonts and wasm are all inlined.
+// Fonts and wasm stay files beside the page (the app copies them next to it):
+// inlined as base64 they made an 18 MB page that every launch parsed, though
+// a page only reads a font when it draws with it and wasm when a PDF or a
+// comic opens. Runs after singlefile, which inlines everything by default.
+function keepBinariesAsFiles(): Plugin {
+	return {
+		name: "keep-binaries-as-files",
+		enforce: "post",
+		config(config) {
+			config.build ??= {};
+			config.build.assetsInlineLimit = (file) => !/\.(woff2?|wasm)$/.test(file);
+		},
+	};
+}
+
+// One HTML with its scripts and styles inlined, opened from file:// by the
+// mobile app, plus the fonts and wasm it loads by relative URL.
 export default defineConfig({
 	plugins: [
 		dropWoffFallbacks(),
@@ -43,9 +58,9 @@ export default defineConfig({
 		tailwindcss(),
 		viteReact(),
 		viteSingleFile(),
+		keepBinariesAsFiles(),
 	],
 	build: {
-		assetsInlineLimit: Number.MAX_SAFE_INTEGER,
 		target: "es2022",
 	},
 	resolve: {
