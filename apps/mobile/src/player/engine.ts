@@ -145,6 +145,7 @@ const AUTOPLAY_NEXT_KEY = "nanahoshi.audio-autoplay-next";
 const ACTIVE_BOOK_KEY = "nanahoshi.audio-active-book";
 /** Up Next is looked up once this close to the end of the book. */
 const UP_NEXT_LEAD_SECONDS = 300;
+const TICK_MS = 1000;
 const SYNC_INTERVAL_MS = 45_000;
 const COMPLETION_THRESHOLD = 0.95;
 
@@ -265,10 +266,10 @@ export class PlayerEngine {
 		const appState: NativeEventSubscription = AppState.addEventListener(
 			"change",
 			(state) => {
-				if (state !== "active") void this.sync();
+				if (state !== "active") void this.sync(undefined, { quiet: true });
 			},
 		);
-		const tick = setInterval(() => this.onTick(), 1000);
+		const tick = setInterval(() => this.onTick(), TICK_MS);
 		this.disposers = [
 			() => status.remove(),
 			() => appState.remove(),
@@ -742,6 +743,9 @@ export class PlayerEngine {
 
 	// ── native events ──────────────────────────────────────────────────────
 	private onStatus(status: AudioStatus) {
+		// Android stops JS timers with the screen off; the player's own status
+		// updates keep coming, so they drive the sleep timer and saves there.
+		if (Date.now() - this.lastTick >= TICK_MS) this.onTick();
 		const book = this.snapshot.book;
 		if (!book) return;
 		if (this.pendingSeek !== null && status.isLoaded) {
@@ -796,7 +800,8 @@ export class PlayerEngine {
 		if (this.snapshot.book?.uuid === uuid) this.set({ endCard: true });
 	}
 
-	/** Once a second: sleep timer countdown and the periodic progress save. */
+	/** Once a second (the interval, or status updates in the background):
+	 * sleep timer countdown and the periodic progress save. */
 	private onTick() {
 		const now = Date.now();
 		const elapsed = (now - this.lastTick) / 1000;
@@ -829,7 +834,7 @@ export class PlayerEngine {
 			this.lastSyncAt !== null &&
 			now - this.lastSyncAt >= SYNC_INTERVAL_MS
 		)
-			void this.sync();
+			void this.sync(undefined, { quiet: true });
 	}
 
 	private sleepRemaining(mode: SleepMode): number {
@@ -851,7 +856,7 @@ export class PlayerEngine {
 	private syncQueue: Promise<void> = Promise.resolve();
 
 	/** Save the position (the web's usePlayerSync), serialized. */
-	sync(status?: "completed") {
+	sync(status?: "completed", { quiet = false }: { quiet?: boolean } = {}) {
 		const book = this.snapshot.book;
 		if (!book) return this.syncQueue;
 		const time = this.snapshot.time;
@@ -883,8 +888,13 @@ export class PlayerEngine {
 			try {
 				await this.deps.api.client.listeningProgress.saveProgress(input);
 				const { orpc } = this.deps.api;
+				// Periodic and background saves only mark progress stale: a
+				// refetch of every progress list each 45 s re-sorted Continue
+				// under the listener and rewrote the saved cache. Pause, stop
+				// and finishing refresh them now.
 				void this.deps.queryClient.invalidateQueries({
 					queryKey: orpc.listeningProgress.key(),
+					refetchType: quiet && !done ? "none" : "active",
 				});
 				if (firstCompletion)
 					void this.deps.queryClient.invalidateQueries({
