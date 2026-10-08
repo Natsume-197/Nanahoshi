@@ -1,14 +1,15 @@
 import { Image } from "expo-image";
 import { View } from "react-native";
 import Animated, {
+	cancelAnimation,
 	Easing,
+	useAnimatedReaction,
 	useAnimatedStyle,
+	useDerivedValue,
 	useReducedMotion,
 	useSharedValue,
-	withRepeat,
 	withTiming,
 } from "react-native-reanimated";
-import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
 	coverWidth,
 	marqueeDistance,
@@ -19,6 +20,8 @@ import { space, usePalette } from "@/theme";
 const GAP = space.sm;
 /** Points per second: a slow drift, felt more than watched. */
 const SPEED = 7;
+/** Loops per run: progress only climbs, its fraction is the position. */
+const LOOPS = 10_000;
 
 /**
  * fable.co's moving shelf (Storytel's cover wall): rows of book and
@@ -28,9 +31,12 @@ const SPEED = 7;
 export function CoverShelf({
 	rows,
 	coverHeight,
+	active = true,
 }: {
 	rows: ShelfCover[][];
 	coverHeight: number;
+	/** Off screen (another slide, a screen on top): the drift pauses. */
+	active?: boolean;
 }) {
 	return (
 		<View
@@ -46,6 +52,7 @@ export function CoverShelf({
 						covers={row}
 						height={coverHeight}
 						reverse={index % 2 === 1}
+						active={active}
 						// Rows start at different points so no column lines up.
 						offset={index * coverHeight * 0.3}
 					/>
@@ -60,28 +67,39 @@ function MarqueeRow({
 	height,
 	reverse,
 	offset,
+	active,
 }: {
 	covers: ShelfCover[];
 	height: number;
 	reverse: boolean;
 	offset: number;
+	active: boolean;
 }) {
 	const palette = usePalette();
 	const reduced = useReducedMotion();
 	const distance = marqueeDistance(covers, height, GAP);
+	const loop = (distance / SPEED) * 1000;
 	const progress = useSharedValue(0);
-	useMountEffect(() => {
-		if (reduced) return;
-		progress.value = withRepeat(
-			withTiming(1, {
-				duration: (distance / SPEED) * 1000,
-				easing: Easing.linear,
-			}),
-			-1,
-		);
-	});
+	const running = useDerivedValue(() => active && !reduced);
+	// It kept moving under the sign-in screens and on the other slides; now
+	// it stops there and picks up where it was.
+	useAnimatedReaction(
+		() => running.get(),
+		(on) => {
+			if (!on) {
+				cancelAnimation(progress);
+				return;
+			}
+			progress.set(
+				withTiming(progress.get() + LOOPS, {
+					duration: loop * LOOPS,
+					easing: Easing.linear,
+				}),
+			);
+		},
+	);
 	const style = useAnimatedStyle(() => {
-		const travel = progress.value * distance;
+		const travel = (progress.get() % 1) * distance;
 		return {
 			transform: [
 				{ translateX: -offset - (reverse ? distance - travel : travel) },

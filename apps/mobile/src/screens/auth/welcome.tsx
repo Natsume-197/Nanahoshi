@@ -1,4 +1,9 @@
-import { Redirect, router, useLocalSearchParams } from "expo-router";
+import {
+	Redirect,
+	router,
+	useIsFocused,
+	useLocalSearchParams,
+} from "expo-router";
 import { type ReactNode, useState } from "react";
 import { useColorScheme, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -65,6 +70,8 @@ function Intro() {
 	const pager = useAnimatedRef<Animated.ScrollView>();
 	const scrollX = useSharedValue(0);
 	const [slide, setSlide] = useState(0);
+	// /enter is pushed over this screen, which stays mounted beneath it.
+	const focused = useIsFocused();
 	const onScroll = useAnimatedScrollHandler((event) => {
 		scrollX.value = event.contentOffset.x;
 	});
@@ -106,7 +113,7 @@ function Intro() {
 					title={t("mobile.welcome.title")}
 					lead={t("mobile.welcome.lead")}
 				>
-					<CoverWall />
+					<CoverWall active={focused && slide === 0} />
 				</Slide>
 				<Slide
 					width={width}
@@ -232,7 +239,7 @@ function Slide({
 }
 
 /** The first slide's picture: covers tilted and drifting, edge to edge. */
-function CoverWall() {
+function CoverWall({ active }: { active: boolean }) {
 	const { width, height } = useWindowDimensions();
 	const coverHeight = Math.round(Math.min(140, height * 0.14));
 	return (
@@ -248,7 +255,11 @@ function CoverWall() {
 					transform: [{ rotate: TILT }],
 				}}
 			>
-				<CoverShelf rows={WALL_ROWS} coverHeight={coverHeight} />
+				<CoverShelf
+					rows={WALL_ROWS}
+					coverHeight={coverHeight}
+					active={active}
+				/>
 			</Animated.View>
 		</View>
 	);
