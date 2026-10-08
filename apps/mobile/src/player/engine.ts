@@ -22,6 +22,12 @@ import { coverUrl } from "@/lib/covers";
 import { titleOrUntitled } from "@/lib/format";
 import { parseServerTime } from "@/lib/server-time";
 import { decodeActiveBook, encodeActiveBook } from "./active-book";
+import {
+	type BookPreview,
+	guessStart,
+	type PendingBook,
+	pendingBook,
+} from "./pending";
 import { resolveBookSpeed } from "./speed";
 import {
 	activeChapterIndex,
@@ -107,6 +113,9 @@ export type PlayerSnapshot = {
 	book: PlayerBook | null;
 	/** Book being fetched before it can play (drives the button spinner). */
 	loadingUuid: string | null;
+	/** The tapped book while it loads, or after it failed to: the mini player
+	 * shows it so a tap never looks like nothing happened. */
+	pending: PendingBook | null;
 	playing: boolean;
 	buffering: boolean;
 	/** Position in the whole book, across files. */
@@ -190,6 +199,7 @@ export class PlayerEngine {
 	private snapshot: PlayerSnapshot = {
 		book: null,
 		loadingUuid: null,
+		pending: null,
 		playing: false,
 		buffering: false,
 		time: 0,
@@ -285,7 +295,7 @@ export class PlayerEngine {
 			this.deps.serverUrl,
 		);
 		if (!uuid || this.snapshot.book || this.snapshot.loadingUuid) return;
-		await this.play(uuid, { autoplay: false });
+		await this.play(uuid, { autoplay: false, quiet: true });
 		const after = this.getSnapshot();
 		if (!after.book) {
 			// Kept: offline looks the same as a deleted book, and the next
@@ -302,23 +312,60 @@ export class PlayerEngine {
 	 * Start (or resume) an audiobook from where the server says we left it.
 	 * Read & Listen loads it paused (autoplay false) and starts it itself.
 	 */
-	async play(uuid: string, { autoplay = true }: { autoplay?: boolean } = {}) {
+	async play(
+		uuid: string,
+		{
+			autoplay = true,
+			preview,
+			quiet = false,
+		}: {
+			autoplay?: boolean;
+			/** What the tapped card already shows, for the mini player while
+			 * the book loads. */
+			preview?: BookPreview;
+			/** A restore at launch: no card while loading, none if it fails. */
+			quiet?: boolean;
+		} = {},
+	) {
 		if (this.snapshot.book?.uuid === uuid) {
 			if (autoplay && !this.snapshot.playing) this.resume();
 			return;
 		}
-		this.set({ loadingUuid: uuid, error: false });
+		const { orpc, client } = this.deps.api;
+		const detailsQuery = orpc.audiobooks.getDetails.queryOptions({
+			input: { uuid },
+		});
+		// A downloaded book plays from disk right away; the server is only
+		// asked for the position, and not for long.
+		const local = findDownloadedAudiobook(uuid);
+		const cached = this.deps.queryClient.getQueryData(detailsQuery.queryKey);
+		this.set({
+			loadingUuid: uuid,
+			error: false,
+			pending: quiet
+				? null
+				: pendingBook(
+						uuid,
+						[
+							local ? stripTracks(local.book) : null,
+							cached ? playerBookFrom(uuid, cached) : null,
+							preview,
+						],
+						this.knownStart(uuid, !!local),
+					),
+		});
 		try {
-			const { orpc, client } = this.deps.api;
-			// A downloaded book plays from disk right away; the server is only
-			// asked for the position, and not for long.
-			const local = findDownloadedAudiobook(uuid);
 			const [details, progress] = await Promise.all([
 				local
 					? null
-					: this.deps.queryClient.ensureQueryData(
-							orpc.audiobooks.getDetails.queryOptions({ input: { uuid } }),
-						),
+					: this.deps.queryClient.ensureQueryData({
+							...detailsQuery,
+							// The card is already saying "loading": fail in seconds, not
+							// after the default three retries, and fail offline instead of
+							// pausing until the network comes back.
+							retry: 1,
+							networkMode: "always",
+						}),
 				withTimeout(
 					client.listeningProgress.getProgress({ bookUuid: uuid }),
 					local ? PROGRESS_TIMEOUT_MS : null,
@@ -371,9 +418,11 @@ export class PlayerEngine {
 			this.savedTime = start;
 			writeStored(ACTIVE_BOOK_KEY, encodeActiveBook(this.deps.serverUrl, uuid));
 			this.player.volume = 1;
+			// loadingUuid holds until the first file is in and playing, so the
+			// button goes spinner → pause without a play frame between.
 			this.set({
 				book,
-				loadingUuid: null,
+				pending: null,
 				time: start,
 				rate,
 				defaultRate,
@@ -389,12 +438,64 @@ export class PlayerEngine {
 			});
 			this.fileIndex = -1; // force the first file to load for this book
 			await this.seek(start, autoplay);
+			if (this.snapshot.loadingUuid === uuid) this.set({ loadingUuid: null });
 			this.player.setPlaybackRate(rate);
 			this.lastSyncAt = Date.now();
 		} catch {
-			this.set({ loadingUuid: null, error: true });
+			if (this.snapshot.loadingUuid !== uuid) {
+				// Loaded, then failed to start: the card's own error line says so.
+				if (this.snapshot.book?.uuid === uuid) this.set({ error: true });
+				// Otherwise dismissed or superseded meanwhile: nothing to report.
+				return;
+			}
+			const pending = this.snapshot.pending;
+			this.set({
+				loadingUuid: null,
+				pending: pending?.uuid === uuid ? { ...pending, failed: true } : null,
+				error: !pending,
+			});
 		}
 	}
+
+	/** Where the book will most likely start, from what the phone already
+	 * has (no request): its download's position, then any cached progress. */
+	private knownStart(uuid: string, downloaded: boolean): number | null {
+		const { orpc } = this.deps.api;
+		const queryClient = this.deps.queryClient;
+		const progress = queryClient.getQueryData(
+			orpc.listeningProgress.getProgress.queryKey({
+				input: { bookUuid: uuid },
+			}),
+		);
+		const listed = queryClient
+			.getQueriesData({ queryKey: orpc.listeningProgress.listInProgress.key() })
+			.flatMap(([, data]) => (Array.isArray(data) ? data : []))
+			.find((entry) => entry.bookUuid === uuid);
+		const server = progress ?? listed;
+		return guessStart(
+			downloaded ? readLocalPosition(uuid)?.time : null,
+			server
+				? {
+						time: server.currentTimeSeconds,
+						completed: server.status === "completed",
+					}
+				: null,
+		);
+	}
+
+	/** Try the book that failed to load again. */
+	retryPending = () => {
+		const pending = this.snapshot.pending;
+		if (!pending) return;
+		const { uuid, failed: _, ...preview } = pending;
+		void this.play(uuid, { preview });
+	};
+
+	/** Put away the card of a book that is loading or failed; whatever was
+	 * playing before shows again. */
+	dismissPending = () => {
+		this.set({ pending: null, loadingUuid: null });
+	};
 
 	private async ensureSession() {
 		if (this.sessionReady) return;
@@ -635,6 +736,7 @@ export class PlayerEngine {
 			endCard: false,
 			upNext: null,
 			error: false,
+			pending: null,
 		});
 	};
 

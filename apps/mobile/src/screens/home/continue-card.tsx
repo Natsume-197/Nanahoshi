@@ -71,7 +71,15 @@ export function ContinueCard({
 			});
 		haptics.tap();
 		if (player.getSnapshot().book?.uuid === item.uuid) player.toggle();
-		else void player.play(item.uuid);
+		else
+			void player.play(item.uuid, {
+				preview: {
+					title: item.title ?? "",
+					cover: item.cover,
+					color: item.color,
+					authors: item.authors ? [item.authors] : [],
+				},
+			});
 	};
 
 	return (

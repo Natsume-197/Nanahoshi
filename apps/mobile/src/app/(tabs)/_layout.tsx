@@ -37,7 +37,7 @@ export default function TabsLayout() {
 		setOrg({ id: activeId, epoch: org.id ? org.epoch + 1 : org.epoch });
 	const session = auth.useSession();
 	const profile = useQuery(orpc.profile.getProfile.queryOptions());
-	const playing = usePlayerState((s) => s.book !== null);
+	const playing = usePlayerState((s) => s.book !== null || s.pending !== null);
 	// The expanded player opens over the tabs; the bar stays put beneath it.
 	const hideTabs = ![
 		"/player",

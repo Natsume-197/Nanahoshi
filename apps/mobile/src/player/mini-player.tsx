@@ -1,8 +1,10 @@
 import { router } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { StyleSheet, View } from "react-native";
+import type { ReactNode } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+	FadeIn,
 	useAnimatedStyle,
 	useSharedValue,
 	withSpring,
@@ -14,6 +16,7 @@ import { Pressable } from "@/components/pressable";
 import { Text } from "@/components/text";
 import { t } from "@/lib/i18n";
 import { HAS_TAB_ACCESSORY, IS_ANDROID } from "@/lib/platform";
+import { useServerStatus } from "@/providers/app-provider";
 import { SNAP_SPRING, shadows, space, usePalette } from "@/theme";
 import {
 	JumpButton,
@@ -22,8 +25,9 @@ import {
 	usePlayLabel,
 } from "./controls";
 import type { PlayerBook } from "./engine";
+import { type PendingBook, pendingChapter } from "./pending";
 import { usePlayer, usePlayerState } from "./provider";
-import { activeChapterIndex } from "./timing";
+import { activeChapterIndex, type Chapter } from "./timing";
 
 /** The floating card (Spotify's mini player): its height, and the air
  * around it so the page shows on every side. */
@@ -35,7 +39,7 @@ const CARD_LIFT = 12;
 /** Room a scrolling page leaves at its end so the floating card never
  * covers its last row. */
 export function useMiniPlayerInset() {
-	const shown = usePlayerState((s) => s.book !== null);
+	const shown = usePlayerState((s) => s.book !== null || s.pending !== null);
 	return shown && !HAS_TAB_ACCESSORY
 		? MINI_PLAYER_HEIGHT + CARD_INSET + CARD_LIFT
 		: 0;
@@ -65,20 +69,28 @@ function useCardInk() {
  */
 export function MiniPlayer() {
 	const book = usePlayerState((s) => s.book);
-	if (!book) return null;
-	return <Card book={book} />;
+	const pending = usePlayerState((s) => s.pending);
+	// A tapped book shows at once, loading or failed: never a silent tap.
+	if (!book && !pending) return null;
+	return <Card book={book} pending={pending} />;
 }
 
-function Card({ book }: { book: PlayerBook }) {
-	const player = usePlayer();
-	const playLabel = usePlayLabel();
+/** The floating card itself: follows the finger, up opens, down puts away. */
+function FloatingCard({
+	onOpen,
+	onDismiss,
+	children,
+}: {
+	onOpen: () => void;
+	onDismiss: () => void;
+	children: ReactNode;
+}) {
 	const cardInk = useCardInk();
 	const offset = useSharedValue(0);
 	const style = useAnimatedStyle(() => ({
 		transform: [{ translateY: offset.get() }],
 		opacity: 1 - Math.max(0, offset.get()) / MINI_PLAYER_HEIGHT,
 	}));
-	const stop = () => void player.stop();
 	// The card follows the finger: up opens the player (YouTube Music,
 	// Spotify), down puts it away and stops playback.
 	const swipe = Gesture.Pan()
@@ -92,7 +104,7 @@ function Card({ book }: { book: PlayerBook }) {
 			const y = event.translationY;
 			const velocity = event.velocityY;
 			if (y < -32 || velocity < -400) {
-				scheduleOnRN(openPlayer);
+				scheduleOnRN(onOpen);
 				offset.set(withSpring(0, SNAP_SPRING));
 			} else if (y > MINI_PLAYER_HEIGHT / 2 || velocity > 800) {
 				// Carries the flick's speed; clamped so it never bounces back up.
@@ -102,7 +114,7 @@ function Card({ book }: { book: PlayerBook }) {
 						{ ...SNAP_SPRING, velocity, overshootClamping: true },
 						(finished) => {
 							"worklet";
-							if (finished) scheduleOnRN(stop);
+							if (finished) scheduleOnRN(onDismiss);
 						},
 					),
 				);
@@ -134,114 +146,224 @@ function Card({ book }: { book: PlayerBook }) {
 						style,
 					]}
 				>
-					<Pressable
-						accessibilityRole="button"
-						accessibilityLabel={t("audiobook.player_expand")}
-						accessibilityHint={book.title}
-						accessibilityActions={[
-							{ name: "dismiss", label: t("audiobook.player_stop") },
-						]}
-						onAccessibilityAction={(event) => {
-							if (event.nativeEvent.actionName === "dismiss") stop();
-						}}
-						onPress={openPlayer}
-						android_ripple={{ color: cardInk.ripple }}
-						style={({ pressed }) => ({
-							flex: 1,
-							flexDirection: "row",
-							alignItems: "center",
-							gap: space.sm,
-							paddingLeft: space.sm,
-							paddingRight: space.sm,
-							backgroundColor:
-								pressed && !IS_ANDROID ? cardInk.ripple : "transparent",
-						})}
-					>
-						<Cover
-							cover={book.cover}
-							color={book.color}
-							width={44}
-							shape="audio"
-							rounded={4}
-						/>
-						<TrackMeta book={book} />
-						{/* Two 40pt cells side by side, held off the edge by the card's
-						    padding. */}
-						<View style={{ flexDirection: "row", alignItems: "center" }}>
-							<JumpButton
-								direction="back"
-								color={cardInk.text}
-								size={22}
-								box={40}
-							/>
-							<TransportButton
-								icon={icons.play}
-								label={playLabel}
-								color={cardInk.text}
-								box={40}
-								onPress={player.toggle}
-							>
-								<PlayPauseGlyph size={26} color={cardInk.text} />
-							</TransportButton>
-						</View>
-					</Pressable>
-					<ProgressLine book={book} />
+					{children}
 				</Animated.View>
 			</GestureDetector>
 		</View>
 	);
 }
 
-/** Title, then the current chapter (or the author before chapters load). */
-function TrackMeta({ book }: { book: PlayerBook }) {
+/**
+ * One card from the tap to playback: loading, failed and playing are the
+ * same tree with a different status line and controls, so going from one to
+ * the next changes text in place; the cover never remounts (its reveal
+ * would blink).
+ */
+function Card({
+	book,
+	pending,
+}: {
+	book: PlayerBook | null;
+	pending: PendingBook | null;
+}) {
+	const player = usePlayer();
+	const playLabel = usePlayLabel();
+	const cardInk = useCardInk();
+	// The tapped book leads while it loads; the playing one otherwise.
+	const shown = pending ?? book;
+	if (!shown) return null;
+	const stop = () => void player.stop();
+	const open = pending
+		? pending.failed
+			? player.retryPending
+			: () => {}
+		: openPlayer;
+	const dismiss = pending ? player.dismissPending : stop;
+	const title = shown.title || t("mobile.player.untitled");
+	return (
+		<FloatingCard onOpen={open} onDismiss={dismiss}>
+			<Pressable
+				accessibilityRole="button"
+				accessibilityLabel={pending ? title : t("audiobook.player_expand")}
+				accessibilityHint={pending ? undefined : title}
+				accessibilityState={{ busy: !!pending && !pending.failed }}
+				accessibilityActions={[
+					{ name: "dismiss", label: t("audiobook.player_stop") },
+				]}
+				onAccessibilityAction={(event) => {
+					if (event.nativeEvent.actionName === "dismiss") dismiss();
+				}}
+				onPress={
+					pending
+						? pending.failed
+							? player.retryPending
+							: undefined
+						: openPlayer
+				}
+				android_ripple={{ color: cardInk.ripple }}
+				style={({ pressed }) => ({
+					flex: 1,
+					flexDirection: "row",
+					alignItems: "center",
+					gap: space.sm,
+					paddingLeft: space.sm,
+					paddingRight: space.sm,
+					backgroundColor:
+						pressed && !IS_ANDROID ? cardInk.ripple : "transparent",
+				})}
+			>
+				<Cover
+					cover={shown.cover}
+					color={shown.color}
+					width={44}
+					shape="audio"
+					rounded={4}
+				/>
+				<View style={{ flex: 1, marginLeft: 2 }}>
+					<Text
+						variant="label"
+						numberOfLines={1}
+						style={{ color: cardInk.text, fontWeight: "600" }}
+					>
+						{title}
+					</Text>
+					{pending ? (
+						<PendingLine key={pending.uuid} pending={pending} />
+					) : book ? (
+						<TrackLine book={book} />
+					) : null}
+				</View>
+				{/* Two 40pt cells side by side, held off the edge by the card's
+				    padding. The same two while loading (the main one spins), so
+				    the card only swaps a glyph when playback starts. */}
+				<View
+					pointerEvents={pending ? "box-none" : "auto"}
+					style={{ flexDirection: "row", alignItems: "center" }}
+				>
+					<View pointerEvents={pending ? "none" : "auto"}>
+						<JumpButton
+							direction="back"
+							color={cardInk.text}
+							size={22}
+							box={40}
+						/>
+					</View>
+					{pending?.failed ? (
+						<TransportButton
+							icon={icons.retry}
+							label={t("common.retry")}
+							color={cardInk.text}
+							box={40}
+							onPress={player.retryPending}
+						/>
+					) : (
+						<TransportButton
+							icon={icons.play}
+							label={playLabel}
+							color={cardInk.text}
+							box={40}
+							onPress={pending ? undefined : player.toggle}
+						>
+							<PlayPauseGlyph size={26} color={cardInk.text} />
+						</TransportButton>
+					)}
+				</View>
+			</Pressable>
+			{book && !pending ? <ProgressLine book={book} /> : null}
+		</FloatingCard>
+	);
+}
+
+/** Under the title while a tapped book loads: the chapter it will open on
+ * when the phone already knows it (so nothing changes once it plays), else
+ * the author. The spinner says it is loading; only a failure gets words. */
+function PendingLine({ pending }: { pending: PendingBook }) {
+	const palette = usePalette();
+	const cardInk = useCardInk();
+	const unreachable = useServerStatus().status === "unreachable";
+	const chapter = pendingChapter(pending);
+	const text = pending.failed
+		? unreachable
+			? t("mobile.player.unreachable")
+			: t("mobile.player.failed")
+		: chapter
+			? chapterName(chapter)
+			: pending.authors.join(", ");
+	return (
+		<StatusLine
+			text={text}
+			alert={pending.failed}
+			warningColor={palette.danger}
+			color={cardInk.secondary}
+		/>
+	);
+}
+
+/** Under the title while playing: the chapter, the author before chapters
+ * load, or that playback failed. */
+function TrackLine({ book }: { book: PlayerBook }) {
 	const palette = usePalette();
 	const cardInk = useCardInk();
 	const chapterIndex = usePlayerState((s) =>
 		activeChapterIndex(book.chapters, s.time),
 	);
 	const error = usePlayerState((s) => s.error);
-	const line =
-		chapterLabel(book, chapterIndex) ??
-		(book.authors.join(", ") || book.narrators.join(", "));
+	const line = error
+		? t("audiobook.playback_error")
+		: (chapterLabel(book, chapterIndex) ??
+			(book.authors.join(", ") || book.narrators.join(", ")));
+	if (!line) return null;
 	return (
-		<View style={{ flex: 1, marginLeft: 2 }}>
-			<Text
-				variant="label"
-				numberOfLines={1}
-				style={{ color: cardInk.text, fontWeight: "600" }}
-			>
-				{book.title}
-			</Text>
-			{error ? (
-				<View
-					accessibilityRole="alert"
-					style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-				>
-					<Icon name={icons.warning} size={12} color={palette.danger} />
-					<Text
-						variant="caption"
-						numberOfLines={1}
-						style={{ color: cardInk.secondary, flexShrink: 1 }}
-					>
-						{t("audiobook.playback_error")}
-					</Text>
-				</View>
-			) : line ? (
-				<Text
-					variant="caption"
-					numberOfLines={1}
-					style={{ color: cardInk.secondary }}
-				>
-					{line}
-				</Text>
+		<StatusLine
+			text={line}
+			alert={error}
+			warningColor={palette.danger}
+			color={cardInk.secondary}
+		/>
+	);
+}
+
+/** The card's second line; the same element in every state, so going from
+ * the author to "Loading…" to the chapter only fades its text in place. */
+function StatusLine({
+	text,
+	alert,
+	warningColor,
+	color,
+}: {
+	text: string;
+	alert: boolean;
+	warningColor: string;
+	color: string;
+}) {
+	return (
+		<Animated.View
+			key={text}
+			entering={FadeIn.duration(180)}
+			accessibilityRole={alert ? "alert" : undefined}
+			style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+		>
+			{alert ? (
+				<Icon name={icons.warning} size={12} color={warningColor} />
 			) : null}
-		</View>
+			<Text
+				variant="caption"
+				numberOfLines={1}
+				style={{ color, flexShrink: 1 }}
+			>
+				{/* A space keeps the line's height, so the title never shifts. */}
+				{text || " "}
+			</Text>
+		</Animated.View>
 	);
 }
 
 function chapterLabel(book: PlayerBook, index: number) {
 	const chapter = book.chapters[index];
-	if (!chapter) return null;
+	return chapter ? chapterName(chapter, index) : null;
+}
+
+function chapterName(chapter: Chapter, index = chapter.index) {
 	return (
 		chapter.title ?? t("audiobook.chapter_fallback", { number: index + 1 })
 	);
@@ -290,12 +412,14 @@ function ProgressLine({ book }: { book: PlayerBook }) {
  */
 export function PlayerAccessory() {
 	const book = usePlayerState((s) => s.book);
+	const pending = usePlayerState((s) => s.pending);
 	const placement = NativeTabs.BottomAccessory.usePlacement();
 	const palette = usePalette();
 	const player = usePlayer();
 	const playLabel = usePlayLabel();
-	if (!book) return null;
 	const inline = placement === "inline";
+	if (pending) return <PendingAccessory pending={pending} inline={inline} />;
+	if (!book) return null;
 	return (
 		<Pressable
 			accessibilityRole="button"
@@ -351,5 +475,67 @@ function AccessorySubtitle({ book }: { book: PlayerBook }) {
 		<Text variant="caption" tone="secondary" numberOfLines={1}>
 			{line}
 		</Text>
+	);
+}
+
+/** The accessory's take on a book that is loading or failed to. */
+function PendingAccessory({
+	pending,
+	inline,
+}: {
+	pending: PendingBook;
+	inline: boolean;
+}) {
+	const palette = usePalette();
+	const player = usePlayer();
+	const unreachable = useServerStatus().status === "unreachable";
+	const chapter = pendingChapter(pending);
+	// Same line as the card: the chapter it will open on, else the author.
+	const status = pending.failed
+		? unreachable
+			? t("mobile.player.unreachable")
+			: t("mobile.player.failed")
+		: chapter
+			? chapterName(chapter)
+			: pending.authors.join(", ");
+	return (
+		<Pressable
+			accessibilityRole="button"
+			accessibilityLabel={[pending.title || t("mobile.player.untitled"), status]
+				.filter(Boolean)
+				.join(", ")}
+			onPress={pending.failed ? player.retryPending : undefined}
+			style={{
+				flex: 1,
+				flexDirection: "row",
+				alignItems: "center",
+				gap: 10,
+				paddingLeft: inline ? 6 : 8,
+				paddingRight: 12,
+			}}
+		>
+			<Cover
+				cover={pending.cover}
+				color={pending.color}
+				width={inline ? 28 : 34}
+				shape="audio"
+				rounded={inline ? 14 : 8}
+			/>
+			<View style={{ flex: 1 }}>
+				<Text variant="label" numberOfLines={1}>
+					{pending.title || t("mobile.player.untitled")}
+				</Text>
+				{inline ? null : (
+					<Text variant="caption" tone="secondary" numberOfLines={1}>
+						{status}
+					</Text>
+				)}
+			</View>
+			{pending.failed ? (
+				<Icon name={icons.retry} size={20} color={palette.text} />
+			) : (
+				<ActivityIndicator color={palette.text} />
+			)}
+		</Pressable>
 	);
 }

@@ -82,9 +82,30 @@ export function PlayPauseGlyph({
 	const playing = usePlayerState((s) => s.playing);
 	const loading = usePlayerState((s) => s.loadingUuid !== null);
 	const error = usePlayerState((s) => s.error);
-	if (loading) return <ActivityIndicator color={color} />;
-	const name = error ? icons.retry : playing ? icons.pause : icons.play;
-	return <Icon name={name} size={size} color={color} />;
+	// The glyph stays mounted under the spinner, already showing the pause a
+	// load ends in: a glyph mounted only then draws a frame late and blinks.
+	const name = error
+		? icons.retry
+		: playing || loading
+			? icons.pause
+			: icons.play;
+	return (
+		<View
+			style={{
+				width: size,
+				height: size,
+				alignItems: "center",
+				justifyContent: "center",
+			}}
+		>
+			<View style={{ opacity: loading ? 0 : 1 }}>
+				<Icon name={name} size={size} color={color} />
+			</View>
+			{loading ? (
+				<ActivityIndicator color={color} style={{ position: "absolute" }} />
+			) : null}
+		</View>
+	);
 }
 
 export function usePlayLabel() {

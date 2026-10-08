@@ -121,7 +121,14 @@ function useBookMenuRunner(
 		play: () =>
 			player.getSnapshot().book?.uuid === bookUuid
 				? player.toggle()
-				: player.play(bookUuid),
+				: player.play(bookUuid, {
+						preview: {
+							title: target.title ?? "",
+							cover: target.cover,
+							color: target.color ?? null,
+							authors: target.subtitle ? [target.subtitle] : [],
+						},
+					}),
 		details: () => router.push(routes.title(target.kind, bookUuid)),
 		addToList: () =>
 			openAddToList({ uuid: bookUuid, kind: audio ? "audiobook" : "ebook" }),

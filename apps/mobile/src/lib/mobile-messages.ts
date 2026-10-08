@@ -126,6 +126,9 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.server.still_unreachable": "Still not answering.",
 		"mobile.server.switch_unreachable":
 			"Couldn't switch: {host} isn't answering.",
+		"mobile.player.failed": "Couldn't load · Tap to retry",
+		"mobile.player.unreachable": "Server isn't answering · Tap to retry",
+		"mobile.player.untitled": "Audiobook",
 		"mobile.detail.listen": "Listen",
 		"mobile.detail.continue_listening": "Continue listening",
 		"mobile.detail.length": "Length",
@@ -419,6 +422,10 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.server.still_unreachable": "Sigue sin responder.",
 		"mobile.server.switch_unreachable":
 			"No se pudo cambiar: {host} no responde.",
+		"mobile.player.failed": "No se pudo cargar · Toca para reintentar",
+		"mobile.player.unreachable":
+			"El servidor no responde · Toca para reintentar",
+		"mobile.player.untitled": "Audiolibro",
 		"mobile.detail.listen": "Escuchar",
 		"mobile.detail.continue_listening": "Seguir escuchando",
 		"mobile.detail.length": "Duración",
@@ -719,6 +726,9 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.server.still_unreachable": "まだ応答がありません。",
 		"mobile.server.switch_unreachable":
 			"切り替えられません:{host} が応答しません。",
+		"mobile.player.failed": "読み込めませんでした · タップして再試行",
+		"mobile.player.unreachable": "サーバーが応答しません · タップして再試行",
+		"mobile.player.untitled": "オーディオブック",
 		"mobile.detail.listen": "聴く",
 		"mobile.detail.continue_listening": "続きを聴く",
 		"mobile.detail.length": "再生時間",
