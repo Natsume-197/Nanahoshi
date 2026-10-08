@@ -72,7 +72,7 @@ export function Shelf({
 					showsHorizontalScrollIndicator={false}
 					contentContainerStyle={{ paddingHorizontal: gutter, gap: space.lg }}
 					initialNumToRender={3}
-					windowSize={5}
+					windowSize={3}
 				/>
 			)}
 		</View>

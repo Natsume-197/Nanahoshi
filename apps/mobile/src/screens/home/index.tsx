@@ -5,11 +5,14 @@ import { useRef, useState } from "react";
 import {
 	FlatList,
 	type RefreshControlProps,
-	ScrollView,
+	type ScrollView,
 	useWindowDimensions,
 	View,
 } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, {
+	useAnimatedScrollHandler,
+	useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/components/chip";
 import { CollectionCard } from "@/components/collection-card";
@@ -41,6 +44,11 @@ import {
 	type ContinueItem,
 	ContinueSkeleton,
 } from "./continue-card";
+import {
+	LazySections,
+	LazySectionsProvider,
+	useLazySections,
+} from "./lazy-sections";
 import { SeriesShelf } from "./series-shelf";
 import { SetupChecklist } from "./setup-checklist";
 
@@ -55,7 +63,6 @@ const COLLECTION_CARD_WIDTH = 168;
  * the same default order as the web home layout.
  */
 export function Home() {
-	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc } = useApi();
 	const insets = useSafeAreaInsets();
 	const scrollRef = useRef<ScrollView>(null);
@@ -132,18 +139,9 @@ export function Home() {
 
 	if (process.env.EXPO_OS === "ios")
 		return (
-			<ScrollView
-				showsVerticalScrollIndicator={false}
-				ref={scrollRef}
-				contentInsetAdjustmentBehavior="never"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: space.xxl + miniPlayerInset,
-				}}
-				refreshControl={refreshControl}
-			>
+			<IosHome scrollRef={scrollRef} refreshControl={refreshControl}>
 				{content}
-			</ScrollView>
+			</IosHome>
 		);
 	// Android: the server / friends / notifications bar lives on Home only;
 	// the other tabs open straight onto their own title.
@@ -165,6 +163,7 @@ function AndroidHome({
 }) {
 	const insets = useSafeAreaInsets();
 	const appBar = useAppBarScroll();
+	const lazy = useLazySections(appBar.scrollY);
 	const miniPlayerInset = useMiniPlayerInset();
 	return (
 		<View style={{ flex: 1 }}>
@@ -172,6 +171,7 @@ function AndroidHome({
 				showsVerticalScrollIndicator={false}
 				ref={scrollRef}
 				onScroll={appBar.onScroll}
+				onContentSizeChange={lazy.onContentSizeChange}
 				scrollEventThrottle={16}
 				contentContainerStyle={{
 					// Lets the offline message centre in the screen.
@@ -181,10 +181,48 @@ function AndroidHome({
 				}}
 				refreshControl={refreshControl}
 			>
-				{children}
+				<LazySectionsProvider revealed={lazy.revealed}>
+					{children}
+				</LazySectionsProvider>
 			</Animated.ScrollView>
 			<HomeAppBar scroll={appBar} />
 		</View>
+	);
+}
+
+function IosHome({
+	scrollRef,
+	refreshControl,
+	children,
+}: {
+	scrollRef: React.RefObject<ScrollView | null>;
+	refreshControl: React.ReactElement<RefreshControlProps>;
+	children: React.ReactNode;
+}) {
+	const miniPlayerInset = useMiniPlayerInset();
+	const scrollY = useSharedValue(0);
+	const onScroll = useAnimatedScrollHandler((event) => {
+		scrollY.set(event.contentOffset.y);
+	});
+	const lazy = useLazySections(scrollY);
+	return (
+		<Animated.ScrollView
+			showsVerticalScrollIndicator={false}
+			ref={scrollRef}
+			onScroll={onScroll}
+			onContentSizeChange={lazy.onContentSizeChange}
+			scrollEventThrottle={16}
+			contentInsetAdjustmentBehavior="never"
+			contentContainerStyle={{
+				flexGrow: 1,
+				paddingBottom: space.xxl + miniPlayerInset,
+			}}
+			refreshControl={refreshControl}
+		>
+			<LazySectionsProvider revealed={lazy.revealed}>
+				{children}
+			</LazySectionsProvider>
+		</Animated.ScrollView>
 	);
 }
 
@@ -228,17 +266,19 @@ function HomeSections() {
 	if (probe.isError) return <ErrorState onRetry={() => probe.refetch()} />;
 	return (
 		<Stack>
-			<ContinueSection format="all" />
-			<RecentlyAddedSection format="all" />
-			<RecommendationsSection format="books" />
-			<RecommendationsSection format="audiobooks" />
-			<PopularSection format="all" />
-			<DiscoverCollectionsSection />
-			<YourCollectionsSection />
-			<BookSeriesSection />
-			<AudiobookSeriesSection />
-			<RandomSection format="books" />
-			<RandomSection format="audiobooks" />
+			<LazySections>
+				<ContinueSection format="all" />
+				<RecentlyAddedSection format="all" />
+				<RecommendationsSection format="books" />
+				<RecommendationsSection format="audiobooks" />
+				<PopularSection format="all" />
+				<DiscoverCollectionsSection />
+				<YourCollectionsSection />
+				<BookSeriesSection />
+				<AudiobookSeriesSection />
+				<RandomSection format="books" />
+				<RandomSection format="audiobooks" />
+			</LazySections>
 			<EmptyHomeNotice />
 		</Stack>
 	);
@@ -248,12 +288,18 @@ function HomeSections() {
 function CategorySections({ format }: { format: "books" | "audiobooks" }) {
 	return (
 		<Stack>
-			<ContinueSection format={format} />
-			<RecentlyAddedSection format={format} />
-			<RecommendationsSection format={format} />
-			<PopularSection format={format} />
-			{format === "books" ? <BookSeriesSection /> : <AudiobookSeriesSection />}
-			<RandomSection format={format} />
+			<LazySections>
+				<ContinueSection format={format} />
+				<RecentlyAddedSection format={format} />
+				<RecommendationsSection format={format} />
+				<PopularSection format={format} />
+				{format === "books" ? (
+					<BookSeriesSection />
+				) : (
+					<AudiobookSeriesSection />
+				)}
+				<RandomSection format={format} />
+			</LazySections>
 		</Stack>
 	);
 }
@@ -324,6 +370,9 @@ function ContinueSection({ format }: { format: Format }) {
 			) : (
 				<FlatList
 					horizontal
+					// Only what fits, and a screen either side.
+					initialNumToRender={3}
+					windowSize={3}
 					data={items}
 					keyExtractor={(item) => `${item.kind}:${item.uuid}`}
 					renderItem={({ item }) => <ContinueCard item={item} width={width} />}
@@ -519,6 +568,9 @@ function CollectionsRail({
 			) : (
 				<FlatList
 					horizontal
+					// Only what fits, and a screen either side.
+					initialNumToRender={3}
+					windowSize={3}
 					data={collections}
 					keyExtractor={(item) => item.id}
 					showsHorizontalScrollIndicator={false}

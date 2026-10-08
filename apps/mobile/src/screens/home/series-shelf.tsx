@@ -34,6 +34,9 @@ export function SeriesShelf({
 			) : (
 				<FlatList
 					horizontal
+					// Only what fits, and a screen either side.
+					initialNumToRender={3}
+					windowSize={3}
 					data={items}
 					keyExtractor={(item) => item.uuid}
 					showsHorizontalScrollIndicator={false}
