@@ -1,6 +1,10 @@
 import type { TopHit } from "@nanahoshi/api/routers/search/search.model";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useScrollToTop } from "expo-router";
 import { type ReactNode, useRef, useState } from "react";
 import { View } from "react-native";
@@ -81,6 +85,7 @@ function isShown(hit: TopHit): hit is Hit {
 export function Search() {
 	const miniPlayerInset = useMiniPlayerInset();
 	const { orpc, client } = useApi();
+	const queryClient = useQueryClient();
 	const insets = useSafeAreaInsets();
 	const palette = usePalette();
 	const listRef = useRef<FlashListRef<Hit>>(null);
@@ -92,23 +97,30 @@ export function Search() {
 	const [field, setField] = useState({ key: 0, text: "" });
 	const active = query.length > 0;
 
-	const top = useQuery({
+	const topOptions = {
 		...orpc.search.top.queryOptions({
 			input: { query, limit: 20, pageSize: PAGE },
 		}),
-		enabled: active,
 		staleTime: 60_000,
-	});
+	};
+	const top = useQuery({ ...topOptions, enabled: active });
 	const books = useInfiniteQuery({
 		queryKey: ["books", "search", query],
-		queryFn: ({ pageParam }) =>
-			client.books.search({
+		queryFn: async ({ pageParam }) => {
+			// The ranked search already brings the first page (as on the web):
+			// sharing it saves a request and a full-text search per query.
+			if (!pageParam) {
+				const first = await queryClient.fetchQuery(topOptions);
+				if (first.mediaPages) return first.mediaPages.books;
+			}
+			return client.books.search({
 				query,
 				cursor: pageParam,
 				limit: PAGE,
 				sort: "relevance",
 				compact: true,
-			}),
+			});
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (last) => last.pagination.cursor ?? undefined,
 		enabled: active && (filter === "all" || filter === "books"),
@@ -116,14 +128,21 @@ export function Search() {
 	});
 	const audiobooks = useInfiniteQuery({
 		queryKey: ["audiobooks", "search", query],
-		queryFn: ({ pageParam }) =>
-			client.audiobooks.search({
+		queryFn: async ({ pageParam }) => {
+			// The ranked search already brings the first page (as on the web):
+			// sharing it saves a request and a full-text search per query.
+			if (!pageParam) {
+				const first = await queryClient.fetchQuery(topOptions);
+				if (first.mediaPages) return first.mediaPages.audiobooks;
+			}
+			return client.audiobooks.search({
 				query,
 				cursor: pageParam,
 				limit: PAGE,
 				sort: "relevance",
 				compact: true,
-			}),
+			});
+		},
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: (last) => last.pagination.cursor ?? undefined,
 		enabled: active && (filter === "all" || filter === "audiobooks"),
