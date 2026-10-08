@@ -199,3 +199,28 @@ export function smartOrigin(entry: SmartEntry): DownloadReason | null {
 		reasons.find((reason) => reason.type === "collection") ?? reasons[0] ?? null
 	);
 }
+
+/** Opening the app or a network change resyncs at most this often. */
+export const AMBIENT_SYNC_MS = 15 * 60_000;
+
+/**
+ * Whether a trigger that says nothing new (back to the app, a network change,
+ * back online) is worth reloading the shelves and offline collections for:
+ * only in the foreground, and not again within a quarter hour of a sync that
+ * reached the server. A sync that ran offline is retried at once.
+ */
+export function ambientSyncDue({
+	now,
+	lastSyncAt,
+	lastSyncOnline,
+	foreground,
+}: {
+	now: number;
+	lastSyncAt: number | null;
+	lastSyncOnline: boolean;
+	foreground: boolean;
+}): boolean {
+	if (!foreground) return false;
+	if (lastSyncAt === null || !lastSyncOnline) return true;
+	return now - lastSyncAt >= AMBIENT_SYNC_MS;
+}

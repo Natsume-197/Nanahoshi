@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { DownloadReason } from "./model";
 import {
+	AMBIENT_SYNC_MS,
+	ambientSyncDue,
 	daysUntilCleared,
 	FINISHED_GRACE_MS,
 	keepForever,
@@ -265,5 +267,34 @@ describe("smartOrigin", () => {
 				]),
 			),
 		).toEqual({ type: "collection", id: "c1", name: "Viaje" });
+	});
+});
+
+describe("ambientSyncDue", () => {
+	const now = 10 * AMBIENT_SYNC_MS;
+	const base = { now, lastSyncOnline: true, foreground: true };
+
+	test("checking the phone again soon after a sync reloads nothing", () => {
+		expect(ambientSyncDue({ ...base, lastSyncAt: now - 60_000 })).toBe(false);
+		expect(ambientSyncDue({ ...base, lastSyncAt: now - AMBIENT_SYNC_MS })).toBe(
+			true,
+		);
+	});
+
+	test("the first trigger, and one after an offline sync, always run", () => {
+		expect(ambientSyncDue({ ...base, lastSyncAt: null })).toBe(true);
+		expect(
+			ambientSyncDue({
+				...base,
+				lastSyncAt: now - 1000,
+				lastSyncOnline: false,
+			}),
+		).toBe(true);
+	});
+
+	test("network changes in the background never sync", () => {
+		expect(
+			ambientSyncDue({ ...base, lastSyncAt: null, foreground: false }),
+		).toBe(false);
 	});
 });

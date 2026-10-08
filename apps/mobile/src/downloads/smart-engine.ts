@@ -7,6 +7,7 @@ import { listDownloads, readEntry, readSmartState } from "./files";
 import type { DownloadManager } from "./manager";
 import type { DownloadKind, DownloadReason } from "./model";
 import {
+	ambientSyncDue,
 	NEXT_VOLUME_AT,
 	nextInSeries,
 	planSync,
@@ -59,6 +60,8 @@ export class SmartDownloads {
 	/** Cancelled from the notification: no new downloads until the app starts
 	 * again or the user downloads something by hand. */
 	private paused = false;
+	private lastSyncAt: number | null = null;
+	private lastSyncOnline = false;
 
 	constructor(private readonly deps: Deps) {}
 
@@ -67,15 +70,15 @@ export class SmartDownloads {
 		const stops = [
 			this.deps.api.onCall((call) => this.onCall(call)),
 			onlineManager.subscribe((online) => {
-				if (online) this.schedule();
+				if (online) this.ambient();
 			}),
 			smartDownloads.subscribe(() => this.schedule()),
 			smartOnCellular.subscribe(() => this.schedule()),
 		];
 		const app = AppState.addEventListener("change", (state) => {
-			if (state === "active") this.schedule();
+			if (state === "active") this.ambient();
 		});
-		const network = Network.addNetworkStateListener(() => this.schedule());
+		const network = Network.addNetworkStateListener(() => this.ambient());
 		this.schedule();
 		return () => {
 			for (const stop of stops) stop();
@@ -93,6 +96,20 @@ export class SmartDownloads {
 		if (!this.paused) return;
 		this.paused = false;
 		this.schedule();
+	}
+
+	/** A trigger that says nothing new: every foregrounding and Wi-Fi handoff
+	 * reloaded four shelves and every offline collection. */
+	private ambient() {
+		if (
+			ambientSyncDue({
+				now: Date.now(),
+				lastSyncAt: this.lastSyncAt,
+				lastSyncOnline: this.lastSyncOnline,
+				foreground: AppState.currentState === "active",
+			})
+		)
+			this.schedule();
 	}
 
 	/** Runs a sync soon; calls in a burst share one. */
@@ -235,6 +252,8 @@ export class SmartDownloads {
 		if (!serverId) return;
 		const { manager } = this.deps;
 		const entries = listDownloads(serverId);
+		this.lastSyncAt = Date.now();
+		this.lastSyncOnline = onlineManager.isOnline();
 		const { wanted, loaded } = onlineManager.isOnline()
 			? await this.loadSources(serverId, smartDownloads.isOn())
 			: { wanted: [], loaded: new Set<string>() };
