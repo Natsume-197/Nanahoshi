@@ -36,6 +36,7 @@ import { formatDuration } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import type { MediaKind } from "@/lib/routes";
+import { refreshTitles } from "@/lib/title-invalidation";
 import { audiobookDetailQueries, bookDetailQueries } from "@/lib/title-queries";
 import { useApi } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
@@ -231,7 +232,7 @@ function MatchFlow({ source }: { source: Source }) {
 		onSuccess: async (applied) => {
 			if (!applied) return showNotice(t("match.no_data"));
 			haptics.success();
-			await queryClient.invalidateQueries();
+			await refreshTitles(queryClient);
 			router.back();
 		},
 		onError: (error) => showNotice(error.message || t("match.apply_failed")),

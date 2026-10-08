@@ -31,6 +31,7 @@ import { TextField } from "@/components/text-field";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import type { MediaKind } from "@/lib/routes";
+import { refreshTitles } from "@/lib/title-invalidation";
 import { audiobookDetailQueries, bookDetailQueries } from "@/lib/title-queries";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
@@ -116,7 +117,7 @@ function useSave<T>(send: (input: T) => Promise<unknown>) {
 		onSuccess: async () => {
 			haptics.success();
 			// The title shows on its page, in lists, rails and search.
-			await queryClient.invalidateQueries();
+			await refreshTitles(queryClient);
 			router.back();
 		},
 		onError: (error) =>

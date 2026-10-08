@@ -13,6 +13,7 @@ import { titleOrUntitled } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
+import { refreshTitles } from "@/lib/title-invalidation";
 import { titleWebUrl } from "@/lib/web-links";
 import { usePlayer, usePlayerState } from "@/player/provider";
 import { useApi, useConnection } from "@/providers/app-provider";
@@ -198,7 +199,7 @@ function useBookMenuRunner(
 			if (!result) return showNotice(t("toast.metadata_fetch_failed"));
 			if (!result.success) return showNotice(t("toast.metadata_none_found"));
 			haptics.success();
-			await queryClient.invalidateQueries();
+			await refreshTitles(queryClient);
 		},
 		restoreMetadata: async () => {
 			const result = await (audio
@@ -208,7 +209,7 @@ function useBookMenuRunner(
 			if (!result) return showNotice(t("toast.metadata_restore_failed"));
 			if (!result.success) return showNotice(t("toast.metadata_none_original"));
 			haptics.success();
-			await queryClient.invalidateQueries();
+			await refreshTitles(queryClient);
 		},
 		delete: async () => {
 			const answer = await askChoice({
@@ -226,7 +227,7 @@ function useBookMenuRunner(
 			await client.books
 				.deletePermanently({ uuid: bookUuid })
 				// A deleted title can be on any list; refetch what's showing.
-				.then(() => queryClient.invalidateQueries())
+				.then(() => refreshTitles(queryClient))
 				.catch(() => showNotice(t("toast.book_delete_permanently_failed")));
 		},
 	};
