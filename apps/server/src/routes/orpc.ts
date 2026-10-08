@@ -4,6 +4,7 @@ import { appRouter } from "@nanahoshi/api/routers/index";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { RPCHandler } from "@orpc/server/fetch";
+import { BatchHandlerPlugin } from "@orpc/server/plugins";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import type { Hono } from "hono";
 
@@ -16,7 +17,10 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
 	interceptors: [errorHandlerInterceptor],
 });
 
+// The phone batches a screen's queries into one request (and one session
+// lookup): React Native caps requests per host at 5.
 export const rpcHandler = new RPCHandler(appRouter, {
+	plugins: [new BatchHandlerPlugin()],
 	interceptors: [errorHandlerInterceptor],
 });
 

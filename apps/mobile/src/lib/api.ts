@@ -1,6 +1,7 @@
 import type { AppRouter } from "@nanahoshi/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { BatchLinkPlugin } from "@orpc/client/plugins";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryClient } from "@tanstack/react-query";
@@ -29,6 +30,17 @@ export type ApiCall = { path: readonly string[]; input: unknown };
 /** Told whether each request reached the server. */
 export type ServerWatch = { answered: () => void; failed: () => void };
 
+const isBatch = (url: string) => url.includes("/__batch__");
+
+/** Uploads stay single requests: a batch would buffer the whole file. */
+function carriesFile(body: unknown): boolean {
+	if (body instanceof Blob || body instanceof FormData) return true;
+	if (!body || typeof body !== "object") return false;
+	return Object.values(body).some(
+		(value) => value instanceof Blob || value instanceof FormData,
+	);
+}
+
 export function createApi(
 	baseURL: string,
 	auth: NanahoshiAuth,
@@ -36,8 +48,20 @@ export function createApi(
 	watch?: ServerWatch,
 ) {
 	const callListeners = new Set<(call: ApiCall) => void>();
+	// A server from before batching answers the batch URL with 404: from
+	// then on every call goes on its own.
+	let batching = true;
 	const link = new RPCLink({
 		url: `${baseURL}/rpc`,
+		plugins: [
+			// React Native allows 5 requests per host at once: Home's ~18
+			// queries went out in waves. Buffered, as RN can't read a stream.
+			new BatchLinkPlugin({
+				groups: [{ condition: () => true, context: {} }],
+				mode: "buffered",
+				exclude: ({ request }) => !batching || carriesFile(request.body),
+			}),
+		],
 		// Every caller (screens, the player, the reader's bridge) goes through
 		// here, so what it saved can be watched in one place.
 		interceptors: [
@@ -62,6 +86,7 @@ export function createApi(
 			}
 			watch?.answered();
 			if (response.status === 401) onUnauthorized();
+			if (response.status === 404 && isBatch(request.url)) batching = false;
 			return response;
 		},
 	});
