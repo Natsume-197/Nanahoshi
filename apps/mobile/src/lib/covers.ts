@@ -4,6 +4,7 @@ import {
 	masterWidthFromFilename,
 } from "@nanahoshi/api/lib/cover-ladder";
 import { PixelRatio } from "react-native";
+import { coverBucket } from "./cover-bucket";
 
 /**
  * Covers are served (unauthenticated) from the server's resize cache, which
@@ -19,10 +20,7 @@ export function coverUrl(
 	if (!cover) return null;
 	const filename = cover.split("/").pop();
 	if (!filename) return null;
-	const wanted = Math.ceil(slotWidth * PixelRatio.get());
-	const bucket =
-		ALLOWED_DIMS.find((dim) => dim >= wanted) ??
-		ALLOWED_DIMS[ALLOWED_DIMS.length - 1];
+	const bucket = coverBucket(Math.ceil(slotWidth * PixelRatio.get()));
 	const master = masterWidthFromFilename(filename);
 	const width = master ? Math.min(bucket, snapDown(master)) : bucket;
 	return `${serverUrl}/api/data/covers/${encodeURIComponent(filename)}?width=${width}&quality=${COVER_QUALITY}`;
