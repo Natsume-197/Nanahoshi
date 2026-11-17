@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { AppState, PermissionsAndroid, Platform } from "react-native";
+import { APP_SCHEME } from "@/lib/app-scheme";
 import { locale, t } from "@/lib/i18n";
 import { downloadNotification } from "../../modules/download-notification";
 import { readEntry } from "./files";
@@ -129,7 +130,7 @@ export function connectDownloadNotification(
 								? "mobile.notify.ready_one"
 								: "mobile.notify.ready_desc",
 						),
-			link: "nanahoshi://downloads",
+			link: `${APP_SCHEME}://downloads`,
 			// A failure needs the user even when smart downloads hit it.
 			quiet: quiet && failed.length === 0,
 			retryLabel: failed.length > 0 ? t("common.retry") : null,

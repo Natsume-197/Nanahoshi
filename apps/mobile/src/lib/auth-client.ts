@@ -2,6 +2,7 @@ import { expoClient } from "@better-auth/expo/client";
 import { organizationClient, usernameClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import * as SecureStore from "expo-secure-store";
+import { APP_SCHEME } from "./app-scheme";
 
 const AUTH_TIMEOUT_MS = 10_000;
 
@@ -14,7 +15,7 @@ export function createNanahoshiAuth(baseURL: string) {
 			usernameClient(),
 			organizationClient(),
 			expoClient({
-				scheme: "nanahoshi",
+				scheme: APP_SCHEME,
 				storagePrefix: "nanahoshi",
 				storage: SecureStore,
 			}),

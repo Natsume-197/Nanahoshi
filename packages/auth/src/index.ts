@@ -236,12 +236,14 @@ const authConfig = {
 		provider: "pg",
 		schema,
 	}),
-	// The native app (apps/mobile) signs in from its own URL scheme; Expo Go
-	// during development reports an exp:// origin instead.
+	// The native app (apps/mobile) signs in from its own URL scheme; its
+	// development build uses nanahoshi-dev and may point at any server.
 	trustedOrigins: [
 		env.CORS_ORIGIN,
 		"nanahoshi://",
 		"nanahoshi://*",
+		"nanahoshi-dev://",
+		"nanahoshi-dev://*",
 		...(process.env.NODE_ENV === "production" ? [] : ["exp://**"]),
 	],
 	emailAndPassword: {

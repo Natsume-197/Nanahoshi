@@ -4,9 +4,9 @@
 	"version": "0.1.0",
 	"main": "expo-router/entry",
 	"scripts": {
-		"start": "bun run reader:bundle && expo start",
-		"android": "bun run reader:bundle && expo run:android",
-		"ios": "bun run reader:bundle && expo run:ios",
+		"start": "bun run reader:bundle && APP_VARIANT=development expo start",
+		"android": "bun run reader:bundle && APP_VARIANT=development bash scripts/prebuild-android.sh && APP_VARIANT=development expo run:android",
+		"ios": "bun run reader:bundle && APP_VARIANT=development expo run:ios",
 		"check-types": "node scripts/check-types.mjs",
 		"apk": "bash scripts/build-apk.sh release",
 		"apk:debug": "bash scripts/build-apk.sh debug",

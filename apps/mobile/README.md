@@ -7,8 +7,18 @@ Expo (SDK 57) app for Android and iOS. Talks to the same oRPC API as `apps/web`.
 ```sh
 bun install                         # from the repo root
 bun run dev                         # backend (API on :7333 in development)
-bun run --cwd apps/mobile start     # Metro; scan the QR code with Expo Go
+bun run --cwd apps/mobile start     # Metro for the Nanahoshi Dev build
 ```
+
+## Development and production side by side
+
+`bun run start`, `bun run android` and `bun run ios` build **Nanahoshi Dev**
+(`app.nanahoshi.mobile.dev`, scheme `nanahoshi-dev`), a separate app that
+installs next to the production one. `bun run apk` builds production
+(`app.nanahoshi.mobile`); `APP_VARIANT=development bun run apk` builds the dev
+app as a standalone APK. `android/` is regenerated automatically when you switch
+variants (`scripts/prebuild-android.sh`), so the first build after a switch is
+a full one. Each app keeps its own session, downloads and settings.
 
 The app looks for Nanahoshi servers on the phone's Wi-Fi (ports 7331 and
 7333). You can also type the address, e.g. `192.168.1.37:7333`; from the Android
