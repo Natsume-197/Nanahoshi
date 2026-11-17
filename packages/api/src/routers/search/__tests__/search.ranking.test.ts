@@ -135,4 +135,26 @@ describe("rankTopResults", () => {
 
 		expect(first).toMatchObject({ type: "read-listen", id: "pair-1" });
 	});
+
+	test("book and audiobook hits keep their cover colour", () => {
+		const pools = emptyPools();
+		pools.books.push({
+			uuid: "book-1",
+			title: "Kokoro",
+			filename: "kokoro.epub",
+			mainColor: "#aa3322",
+		});
+		pools.audiobooks.push({
+			uuid: "audio-1",
+			title: "Kokoro",
+			filename: "kokoro.m4b",
+		});
+
+		const hits = rankTopResults(pools, "kokoro", 5);
+		const color = (type: string) =>
+			hits.find((hit) => hit.type === type && "color" in hit)?.color;
+
+		expect(color("book")).toBe("#aa3322");
+		expect(color("audiobook")).toBeNull();
+	});
 });

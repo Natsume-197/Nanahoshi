@@ -44,6 +44,7 @@ export type TopResultPools = {
 		titleRomaji?: string | null;
 		filename: string;
 		cover?: string | null;
+		mainColor?: string | null;
 		authors?: AuthorRef[] | null;
 		ratingCount?: number | null;
 	}[];
@@ -64,6 +65,7 @@ export type TopResultPools = {
 		title?: string | null;
 		filename: string;
 		cover?: string | null;
+		mainColor?: string | null;
 		authors?: AuthorRef[] | null;
 	}[];
 	readListen: {
@@ -106,6 +108,7 @@ export function rankTopResults(
 				title: b.title ?? null,
 				filename: b.filename,
 				cover: b.cover ?? null,
+				color: b.mainColor ?? null,
 				authors: b.authors ?? [],
 			},
 			names: [b.title, b.titleRomaji, ...(b.authors ?? []).map((a) => a.name)],
@@ -152,6 +155,7 @@ export function rankTopResults(
 				title: ab.title ?? null,
 				filename: ab.filename,
 				cover: ab.cover ?? null,
+				color: ab.mainColor ?? null,
 				authors: ab.authors ?? [],
 			},
 			names: [ab.title, ...(ab.authors ?? []).map((a) => a.name)],

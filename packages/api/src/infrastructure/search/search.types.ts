@@ -182,4 +182,7 @@ export interface SearchBooksResponse {
 	};
 }
 
-export type SearchBookHit = Omit<BookComplete, "id">;
+// Rows carry the cover colour as `mainColor`, like audiobook hits.
+export type SearchBookHit = Omit<BookComplete, "id"> & {
+	mainColor: string | null;
+};

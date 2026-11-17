@@ -17,6 +17,8 @@ export type TopHit =
 			title: string | null;
 			filename: string;
 			cover: string | null;
+			/** Cover colour, for a placeholder before the image loads. */
+			color?: string | null;
 			authors: { id?: number | null; name: string }[];
 	  }
 	| {
