@@ -11,7 +11,7 @@ import { type LayoutChangeEvent, View } from "react-native";
 import { Pressable } from "@/components/pressable";
 import { space, usePalette } from "@/theme";
 import { MaterialIcon } from "./action-menu/material-icon";
-import { Icon, icons } from "./icon";
+import { Icon, type IconName, icons } from "./icon";
 import { Text as Label } from "./text";
 
 /** Sort order as a quiet text button that drops a Material menu, the
@@ -21,7 +21,10 @@ export function SortButton<T extends string>({
 	value,
 	options,
 	onChange,
+	icon = icons.sort,
 }: {
+	/** Leading glyph; null for a plain "All ▾" filter. */
+	icon?: IconName | null;
 	value: T;
 	options: readonly { value: T; label: string }[];
 	onChange: (value: T) => void;
@@ -88,7 +91,9 @@ export function SortButton<T extends string>({
 					paddingHorizontal: space.xs,
 				}}
 			>
-				<Icon name={icons.sort} size={16} color={palette.textSecondary} />
+				{icon ? (
+					<Icon name={icon} size={16} color={palette.textSecondary} />
+				) : null}
 				<Label variant="subhead" style={{ color: palette.text }}>
 					{current?.label ?? ""}
 				</Label>

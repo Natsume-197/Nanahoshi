@@ -74,17 +74,17 @@ export function HomeAppBar({ scroll }: { scroll: AppBarScroll }) {
 			<AppBarTitle title={t("nav.home")} />
 			{wide ? <SearchField /> : null}
 			<View style={{ flexDirection: "row", marginLeft: "auto" }}>
-				<Action
+				<AppBarAction
 					label={t("mobile.downloads.title")}
 					icon={icons.download}
 					onPress={() => router.push("/downloads")}
 				/>
-				<Action
+				<AppBarAction
 					label={t("aria.friends_activity")}
 					icon={{ ios: "person.2", android: "group" }}
 					onPress={() => router.push("/friends")}
 				/>
-				<Action
+				<AppBarAction
 					label={t("notifications.title")}
 					icon={{ ios: "bell", android: "notifications" }}
 					badge={(unread.data?.count ?? 0) > 0}
@@ -173,7 +173,7 @@ export function AppBarTitle({ title }: { title: string }) {
 }
 
 /** A standard 48dp icon button with the platform's round ripple. */
-function Action({
+export function AppBarAction({
 	label,
 	icon,
 	badge,

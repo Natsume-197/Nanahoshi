@@ -11,8 +11,12 @@ export function LineTabs<T extends string>({
 	value,
 	onChange,
 	scrollable = false,
+	centered = false,
 }: {
 	scrollable?: boolean;
+	/** A few labels side by side in the middle, each underlined only under
+	 * its own text, with no rule across the page. */
+	centered?: boolean;
 	options: readonly { value: T; label: string }[];
 	value: T;
 	onChange: (value: T) => void;
@@ -23,8 +27,9 @@ export function LineTabs<T extends string>({
 			accessibilityRole="tablist"
 			style={{
 				flexDirection: "row",
-				gap: scrollable ? space.xl : 0,
-				borderBottomWidth: scrollable ? 0 : 1,
+				justifyContent: centered ? "center" : undefined,
+				gap: scrollable || centered ? space.xl : 0,
+				borderBottomWidth: scrollable || centered ? 0 : 1,
 				borderColor: palette.separator,
 			}}
 		>
@@ -40,10 +45,10 @@ export function LineTabs<T extends string>({
 							onChange(option.value);
 						}}
 						style={{
-							flex: scrollable ? undefined : 1,
+							flex: scrollable || centered ? undefined : 1,
 							minHeight: scrollable ? 56 : sizes.control,
 							justifyContent: "center",
-							paddingHorizontal: scrollable ? 0 : space.md,
+							paddingHorizontal: scrollable || centered ? 0 : space.md,
 						}}
 					>
 						<Text
@@ -51,7 +56,7 @@ export function LineTabs<T extends string>({
 							numberOfLines={scrollable ? 1 : 2}
 							style={{
 								textAlign: "center",
-								fontSize: scrollable ? 15 : undefined,
+								fontSize: scrollable || centered ? 15 : undefined,
 								fontWeight: "600",
 								color: active ? palette.text : palette.textSecondary,
 							}}

@@ -1,7 +1,7 @@
 import { Host, Picker } from "@expo/ui";
 import { useColorScheme, View } from "react-native";
 import { space, usePalette } from "@/theme";
-import { Icon, icons } from "./icon";
+import { Icon, type IconName, icons } from "./icon";
 
 /** Sort order as a native menu (expo-ui's Picker, appearance "menu"): a
  * compact button that opens the platform's own dropdown. */
@@ -9,7 +9,10 @@ export function SortButton<T extends string>({
 	value,
 	options,
 	onChange,
+	icon = icons.sort,
 }: {
+	/** Leading glyph; null for a plain "All ▾" filter. */
+	icon?: IconName | null;
 	value: T;
 	options: readonly { value: T; label: string }[];
 	onChange: (value: T) => void;
@@ -25,7 +28,9 @@ export function SortButton<T extends string>({
 				alignSelf: "flex-start",
 			}}
 		>
-			<Icon name={icons.sort} size={14} color={palette.textSecondary} />
+			{icon ? (
+				<Icon name={icon} size={14} color={palette.textSecondary} />
+			) : null}
 			<Host matchContents colorScheme={scheme === "dark" ? "dark" : "light"}>
 				<Picker
 					selectedValue={value}

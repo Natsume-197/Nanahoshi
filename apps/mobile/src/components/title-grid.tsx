@@ -21,6 +21,8 @@ import { type TileItem, TitleTile } from "./title-tile";
 
 /** Space between the two columns; headers undo the half of it the list pads. */
 export const GRID_GAP = space.xl;
+/** Covers-only grids sit close, as photo grids do. */
+export const BARE_GAP = space.sm;
 
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<TileItem>);
 
@@ -48,7 +50,12 @@ export function TitleGrid({
 	emptyMessage,
 	empty,
 	onScroll,
+	columns = 2,
+	bare = false,
 }: {
+	/** Covers only, tighter: a profile's shelf. */
+	bare?: boolean;
+	columns?: number;
 	/** A worklet scroll handler; the header then draws under the bars. */
 	onScroll?: ScrollHandlerProcessed<Record<string, unknown>>;
 	/** Replaces the empty state outright (a profile's overview tab). */
@@ -59,8 +66,8 @@ export function TitleGrid({
 	emptyTitle?: string;
 	emptyMessage?: string;
 }) {
-	const gap = GRID_GAP;
-	const width = useGridTileWidth(2, gap);
+	const gap = bare ? BARE_GAP : GRID_GAP;
+	const width = useGridTileWidth(columns, gap);
 	const listRef = useRef<FlashListRef<TileItem>>(null);
 	const miniPlayerInset = useMiniPlayerInset();
 	// Re-tapping the tab scrolls a root grid back up (no-op on pushed pages).
@@ -74,7 +81,7 @@ export function TitleGrid({
 			ref={listRef}
 			showsVerticalScrollIndicator={false}
 			data={items}
-			numColumns={2}
+			numColumns={columns}
 			contentInsetAdjustmentBehavior={onScroll ? "never" : "automatic"}
 			onScroll={onScroll}
 			scrollEventThrottle={onScroll ? 16 : undefined}
@@ -101,7 +108,7 @@ export function TitleGrid({
 					<OfflineState />
 				) : query.isPending ? (
 					<View style={{ marginHorizontal: -(space.lg - gap / 2) }}>
-						<ShelfSkeleton width={width} />
+						<ShelfSkeleton width={width} gap={gap} captions={!bare} />
 					</View>
 				) : (
 					<EmptyState
@@ -113,11 +120,17 @@ export function TitleGrid({
 			}
 			ListFooterComponent={query.isFetchingNextPage ? <Spinner /> : null}
 			renderItem={({ item }) => (
-				<View style={{ paddingHorizontal: gap / 2, paddingBottom: space.xl }}>
+				<View
+					style={{
+						paddingHorizontal: gap / 2,
+						paddingBottom: bare ? gap : space.xl,
+					}}
+				>
 					<TitleTile
 						item={item}
 						width={width}
 						frame={allSquare ? "square" : "book"}
+						bare={bare}
 					/>
 				</View>
 			)}

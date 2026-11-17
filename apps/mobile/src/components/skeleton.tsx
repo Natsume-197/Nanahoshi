@@ -118,21 +118,25 @@ export function ShelfSkeleton({
 	audio,
 	shape = audio ? "square" : "book",
 	gutter = space.lg,
+	gap = space.lg,
+	captions = true,
 }: {
 	width: number;
 	audio?: boolean;
 	shape?: "book" | "square" | "series" | "series-square" | "collection";
 	gutter?: number;
+	gap?: number;
+	captions?: boolean;
 }) {
 	const palette = usePalette();
 	const screen = useWindowDimensions().width;
-	const count = Math.min(6, Math.ceil(screen / (width + space.lg)));
+	const count = Math.min(6, Math.ceil(screen / (width + gap)));
 	return (
 		<SkeletonPulse>
 			<View
 				style={{
 					flexDirection: "row",
-					gap: space.lg,
+					gap,
 					paddingHorizontal: gutter,
 					overflow: "hidden",
 				}}
@@ -140,7 +144,7 @@ export function ShelfSkeleton({
 				{KEYS.slice(0, count).map((key) => (
 					<View key={key} style={{ width, gap: 12 }}>
 						<TileArt shape={shape} width={width} radius={palette.coverRadius} />
-						<TileCaption width={width} />
+						{captions ? <TileCaption width={width} /> : null}
 					</View>
 				))}
 			</View>

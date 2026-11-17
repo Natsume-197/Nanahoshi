@@ -40,10 +40,13 @@ export function TitleTile({
 	item,
 	width,
 	frame = "book",
+	bare = false,
 }: {
 	item: TileItem;
 	width: number;
 	frame?: "book" | "square";
+	/** Cover only: no title or author under it. */
+	bare?: boolean;
 }) {
 	const palette = usePalette();
 	const online = useIsOnline();
@@ -85,7 +88,7 @@ export function TitleTile({
 					accessibilityLabel={[titleOrUntitled(item.title), item.subtitle]
 						.filter(Boolean)
 						.join(", ")}
-					style={{ width, gap: 12 }}
+					style={{ width, gap: bare ? 0 : 12 }}
 				>
 					<View
 						style={{
@@ -130,21 +133,23 @@ export function TitleTile({
 							    session and downloads subscriptions. */}
 						{online ? null : <OfflineTick uuid={item.uuid} />}
 					</View>
-					<View style={{ gap: 4, paddingHorizontal: 2, minHeight: 64 }}>
-						<Text numberOfLines={2} variant="tileTitle">
-							{titleOrUntitled(item.title)}
-						</Text>
-						{item.subtitle ? (
-							<Text
-								variant="subhead"
-								tone="secondary"
-								numberOfLines={1}
-								style={{ lineHeight: 22 }}
-							>
-								{item.subtitle}
+					{bare ? null : (
+						<View style={{ gap: 4, paddingHorizontal: 2, minHeight: 64 }}>
+							<Text numberOfLines={2} variant="tileTitle">
+								{titleOrUntitled(item.title)}
 							</Text>
-						) : null}
-					</View>
+							{item.subtitle ? (
+								<Text
+									variant="subhead"
+									tone="secondary"
+									numberOfLines={1}
+									style={{ lineHeight: 22 }}
+								>
+									{item.subtitle}
+								</Text>
+							) : null}
+						</View>
+					)}
 				</PressableScale>
 			)}
 		</BookMenuTarget>
