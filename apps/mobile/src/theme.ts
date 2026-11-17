@@ -4,100 +4,11 @@ import { cubicBezier, Easing } from "react-native-reanimated";
 import { useAppearancePreference } from "@/lib/appearance";
 import type { AppearancePreference } from "@/lib/preferences";
 
-/**
- * Tokens resolved from apps/web/src/index.css (its OKLab color-mix values
- * computed to hex) so the phone app is the same product as the web: a white
- * canvas with system-gray chrome in light mode; graphite with a darker chrome
- * in dark mode. The accent is ink in both: the app is monochrome, colour comes
- * from the covers.
- */
-const light = {
-	background: "#ffffff",
-	chrome: "#f5f5f7", // --sidebar: tab bar
-	card: "#ffffff",
-	/** Bottom sheets and their rows: the page's own colour, set apart by the
-	 * scrim and their rounded top, not a lighter fill. */
-	sheet: "#ffffff",
-	/** --surface-card: grouped lists, hub tiles, panels on the canvas. */
-	surfaceCard: "#f7f7f8",
-	surfaceCardHover: "#f2f2f4",
-	surface: "#f5f5f7", // --muted: chips, skeletons
-	input: "#ebebed",
-	text: "#1e1e20",
-	textSecondary: "#6b6b70",
-	textTertiary: "#9a9a9f",
-	navInactive: "#555557",
-	/** Material's pill behind the selected tab: neutral, never the accent. */
-	navIndicator: "#e4e4e7",
-	separator: "#e4e4e7",
-	primary: "#1e1e20",
-	onPrimary: "#fcfcfc",
-	accent: "#1e1e20",
-	accentSoft: "#f0f0f2",
-	progressTrack: "rgba(0,0,0,0.45)",
-	progress: "#f7f7f7",
-	coverEdge: "rgba(0,0,0,0.10)",
-	skeleton: "#f0f0f2",
-	danger: "#dc2626",
-	/** --warning: locked metadata fields. */
-	warning: "#905300",
-	/** Android press ripple on rows and icon buttons. */
-	ripple: "rgba(0,0,0,0.08)",
-	/** --radius 0.5rem → rounded-md covers. */
-	coverRadius: 6,
-};
+import { type Palette, palettes } from "./palettes";
 
-const dark: typeof light = {
-	// The web's dark canvas (--background) and its darker chrome (--sidebar).
-	background: "#1b1b1d",
-	chrome: "#161617",
-	card: "#28282a",
-	sheet: "#1b1b1d",
-	surfaceCard: "#28282a",
-	surfaceCardHover: "#343436",
-	surface: "#373638",
-	input: "#2d2c2e",
-	text: "#e6e6e8",
-	textSecondary: "#96979e",
-	textTertiary: "#6d6e75",
-	navInactive: "#aeaeaf",
-	navIndicator: "#373638",
-	separator: "#313133",
-	primary: "#e6e6e8",
-	onPrimary: "#1b1b1d",
-	accent: "#e6e6e8",
-	accentSoft: "#2d2c2e",
-	progressTrack: "rgba(0,0,0,0.45)",
-	progress: "#f7f7f7",
-	coverEdge: "rgba(255,255,255,0.10)",
-	skeleton: "#2d2c2e",
-	danger: "#ef4444",
-	warning: "#efa831",
-	ripple: "rgba(255,255,255,0.10)",
-	/** Dark theme's --radius is 0.2rem, so covers are nearly square. */
-	coverRadius: 2.5,
-};
+export type { Palette } from "./palettes";
 
-/** Dark on true black: OLED pixels switch off. Surfaces climb from #000 in
- * the same steps as dark so cards still read as cards. */
-const amoled: typeof light = {
-	...dark,
-	background: "#000000",
-	chrome: "#000000",
-	card: "#141416",
-	sheet: "#111113",
-	surfaceCard: "#141416",
-	surfaceCardHover: "#202022",
-	surface: "#202022",
-	input: "#1a1a1c",
-	navIndicator: "#262628",
-	separator: "#232325",
-	onPrimary: "#000000",
-	accentSoft: "#1a1a1c",
-	skeleton: "#1a1a1c",
-};
-
-export type Palette = typeof light;
+const { light, dark, amoled } = palettes;
 
 export function paletteFor(
 	scheme: ColorSchemeName,
@@ -111,7 +22,7 @@ export function usePalette(): Palette {
 	return paletteFor(useColorScheme(), useAppearancePreference());
 }
 
-export const palettes = { light, dark, amoled };
+export { palettes };
 
 /** 4pt rhythm; 16pt page gutter like the web's phone layout. */
 export const space = {
