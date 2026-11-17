@@ -8,9 +8,13 @@ mock.module("expo-secure-store", () => ({
 	setItem: () => undefined,
 }));
 
-const { currentChapter, headerSolidProgress, primaryAction } = await import(
-	"./detail-model"
-);
+const {
+	currentChapter,
+	detailHero,
+	headerSolidProgress,
+	narratorLine,
+	primaryAction,
+} = await import("./detail-model");
 
 describe("primaryAction", () => {
 	test("an unread book just says Read", () => {
@@ -91,5 +95,57 @@ describe("headerSolidProgress", () => {
 		expect(
 			headerSolidProgress({ titleOffset: null, barBottom: 80, scrollY: 9000 }),
 		).toBe(0);
+	});
+});
+
+describe("detailHero", () => {
+	const seed = {
+		title: "Kokoro",
+		cover: "c.jpg",
+		color: "#112233",
+		authors: [{ uuid: "s", name: "Sōseki" }],
+	};
+
+	test("before the detail answers, the tapped tile draws the hero", () => {
+		expect(detailHero(undefined, seed)).toEqual({
+			title: "Kokoro",
+			subtitle: null,
+			cover: "c.jpg",
+			color: "#112233",
+			authors: [{ uuid: "s", name: "Sōseki" }],
+		});
+	});
+
+	test("the detail replaces the seed, filename standing in for no title", () => {
+		const hero = detailHero(
+			{
+				title: null,
+				filename: "kokoro.epub",
+				subtitle: "A novel",
+				cover: "d.jpg",
+				mainColor: null,
+				authors: [],
+			},
+			seed,
+		);
+		expect(hero?.title).toBe("kokoro.epub");
+		expect(hero?.subtitle).toBe("A novel");
+		expect(hero?.cover).toBe("d.jpg");
+		expect(hero?.authors).toEqual([]);
+	});
+
+	test("no detail and no seed (a deep link) leaves the skeleton", () => {
+		expect(detailHero(undefined, null)).toBeNull();
+	});
+});
+
+describe("narratorLine", () => {
+	test("while only the tile is known, the line keeps its place", () => {
+		expect(narratorLine(undefined)).toBe("reserve");
+	});
+
+	test("the detail fills it, or takes it away when there is no narrator", () => {
+		expect(narratorLine([{ uuid: "n", name: "Narrator" }])).toBe("names");
+		expect(narratorLine([])).toBe("none");
 	});
 });

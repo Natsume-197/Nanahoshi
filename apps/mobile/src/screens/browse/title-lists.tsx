@@ -36,6 +36,7 @@ export function LibraryTitles({ uuid }: { uuid: string }) {
 		cover: item.cover,
 		color: item.mainColor,
 		subtitle: joinNames(item.authors),
+		authors: item.authors,
 	}));
 	return <TitleGrid items={items} query={titles} />;
 }
@@ -61,6 +62,7 @@ export function ShelfTitles({
 		cover: item.cover,
 		color: item.mainColor,
 		subtitle: joinNames(item.authors),
+		authors: item.authors,
 	}));
 	return (
 		<TitleGrid
@@ -111,6 +113,7 @@ export function EntityTitles({
 		cover: item.cover,
 		color: item.mainColor,
 		subtitle: joinNames(item.authors),
+		authors: item.authors,
 	}));
 	return <TitleGrid items={items} query={titles} />;
 }
@@ -139,6 +142,7 @@ export function NarratorTitles({ uuid }: { uuid: string }) {
 		cover: item.cover ?? null,
 		color: item.mainColor ?? null,
 		subtitle: joinNames(item.authors),
+		authors: item.authors,
 	}));
 	return <TitleGrid items={items} query={titles} />;
 }

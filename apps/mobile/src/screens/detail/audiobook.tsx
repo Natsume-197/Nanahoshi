@@ -11,17 +11,16 @@ import { useArrival } from "@/components/skeleton";
 import { ErrorState, waitingOffline } from "@/components/states";
 import { Text } from "@/components/text";
 import type { TileItem } from "@/components/title-tile";
-import {
-	formatDuration,
-	joinNames,
-	languageName,
-	percent,
-	titleOrUntitled,
-} from "@/lib/format";
+import { formatDuration, joinNames, languageName, percent } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { htmlToText } from "@/lib/plain-text";
 import { routes } from "@/lib/routes";
-import { audiobookDetailQueries } from "@/lib/title-queries";
+import {
+	audiobookDetailQueries,
+	audiobookSeriesQuery,
+	moreByAuthorQueries,
+} from "@/lib/title-queries";
+import { authorKey, titleSeed } from "@/lib/title-seed";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
@@ -30,10 +29,11 @@ import {
 	AudiobookTechnical,
 } from "./audiobook-technical";
 import { bookDate } from "./book-file-details";
-import { currentChapter } from "./detail-model";
+import { currentChapter, detailHero, narratorLine } from "./detail-model";
 import { DetailReading } from "./detail-reading";
 import { DetailHeaderMenu } from "./header-menu";
 import {
+	DetailBodySkeleton,
 	DetailColumn,
 	DetailSkeleton,
 	DetailTabs,
@@ -67,29 +67,28 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 	const progress = useQuery(queries.progress);
 	const seriesUuid = audiobook.data?.series?.uuid;
 	const series = useQuery({
-		...orpc.audiobooks.listBySeries.queryOptions({
-			input: { seriesUuid: seriesUuid ?? "" },
-		}),
+		...audiobookSeriesQuery(orpc, seriesUuid ?? ""),
 		enabled: !!seriesUuid,
 	});
-	const authorUuids =
-		audiobook.data?.authors.map((author) => author.uuid) ?? [];
+	// The tapped tile's authors start this with the detail, not after it.
+	const seed = titleSeed("audiobook", uuid);
+	const hero = detailHero(
+		audiobook.data && { ...audiobook.data, filename: null },
+		seed,
+	);
+	const authorUuids = authorKey(hero?.authors ?? []);
 	const more = useQuery({
-		...orpc.audiobooks.search.queryOptions({
-			input: { filters: { authorUuids }, limit: 20, sort: "newest" },
-		}),
+		...moreByAuthorQueries(orpc, authorUuids).audiobooks,
 		enabled: authorUuids.length > 0,
 	});
-	const detailHeader = useDetailHeader(
-		audiobook.data ? titleOrUntitled(audiobook.data.title) : "",
-	);
+	const detailHeader = useDetailHeader(hero?.title ?? "");
 
-	const arrival = useArrival(!!audiobook.data);
+	const arrival = useArrival(!!hero);
 
 	if (audiobook.isError)
 		return <ErrorState onRetry={() => audiobook.refetch()} />;
 	if (waitingOffline(audiobook)) return <OfflineTitle uuid={uuid} />;
-	if (!audiobook.data)
+	if (!hero)
 		return (
 			<>
 				<Stack.Screen options={{ title: "" }} />
@@ -97,7 +96,7 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 			</>
 		);
 	const data = audiobook.data;
-	const duration = progress.data?.durationSeconds || data.duration;
+	const duration = progress.data?.durationSeconds || data?.duration;
 	const position = progress.data?.currentTimeSeconds ?? 0;
 	const listened = percent(position, duration);
 
@@ -128,10 +127,11 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 			cover: item.cover ?? null,
 			color: item.mainColor ?? null,
 			subtitle: joinNames(item.authors),
+			authors: item.authors,
 		}));
 	const tabs = [
 		{ value: "overview" as const, label: t("audiobook.tab_overview") },
-		...(data.chapters.length > 1
+		...((data?.chapters.length ?? 0) > 1
 			? [{ value: "chapters" as const, label: t("audiobook.tab_chapters") }]
 			: []),
 		{ value: "listening" as const, label: t("listening_title") },
@@ -140,10 +140,10 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 	const target = {
 		uuid,
 		kind: "audiobook" as const,
-		title: data.title,
-		cover: data.cover,
-		color: data.mainColor,
-		subtitle: joinNames(data.authors),
+		title: data ? data.title : (seed?.title ?? null),
+		cover: hero.cover,
+		color: hero.color,
+		subtitle: joinNames(hero.authors),
 		onDetailPage: true,
 	};
 
@@ -170,27 +170,40 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 					uuid={uuid}
 					onTitleOffset={detailHeader.onTitleOffset}
 					scrollY={detailHeader.scrollY}
-					cover={data.cover}
-					color={data.mainColor}
+					cover={hero.cover}
+					color={hero.color}
 					shape="audio"
-					title={titleOrUntitled(data.title)}
-					subtitle={data.subtitle}
+					title={hero.title}
+					subtitle={hero.subtitle}
 					people={
 						<View style={{ gap: space.xs }}>
 							<LinkedNames
 								prefix={byPrefix(t("mobile.detail.by", { names: "\u0000" }))}
-								people={data.authors}
+								people={hero.authors}
 								hrefFor={(author) => routes.author(author.uuid)}
 							/>
-							<LinkedNames
-								quiet
-								prefix={t("audiobook.narrated_by")}
-								people={data.narrators}
-								hrefFor={(narrator) => ({
-									pathname: "/narrator/[uuid]",
-									params: { uuid: narrator.uuid, name: narrator.name },
-								})}
-							/>
+							{narratorLine(data?.narrators) === "reserve" ? (
+								// Tiles don't know the narrators: hold their line so the
+								// buttons don't drop when the detail lands.
+								<Text
+									variant="subhead"
+									style={{ opacity: 0 }}
+									accessibilityElementsHidden
+									importantForAccessibility="no-hide-descendants"
+								>
+									{t("audiobook.narrated_by")}
+								</Text>
+							) : (
+								<LinkedNames
+									quiet
+									prefix={t("audiobook.narrated_by")}
+									people={data?.narrators ?? []}
+									hrefFor={(narrator) => ({
+										pathname: "/narrator/[uuid]",
+										params: { uuid: narrator.uuid, name: narrator.name },
+									})}
+								/>
+							)}
 						</View>
 					}
 					actions={
@@ -204,91 +217,101 @@ export function AudiobookDetail({ uuid }: { uuid: string }) {
 					}
 				/>
 
-				<DetailColumn>
-					<View style={{ marginTop: space.xl, marginBottom: space.xl }}>
-						<DetailTabs options={tabs} value={tab} onChange={setTab} />
-					</View>
-					{tab === "overview" ? (
-						<>
-							{data.description ? (
-								<View style={{ gap: space.sm }}>
-									<SectionLabel>{t("book.meta_description")}</SectionLabel>
-									<Description text={htmlToText(data.description)} />
-								</View>
-							) : null}
-							{data.description ? <Divider /> : null}
-							<InfoGrid
-								items={[
-									{
-										label: t("book.format"),
-										value: t("home.format_audiobook"),
-									},
-									formatDuration(data.duration)
-										? {
-												label: t("audiobook.duration"),
-												value: formatDuration(data.duration) ?? "",
-											}
-										: null,
-									data.publisherName
-										? { label: t("book.publisher"), value: data.publisherName }
-										: null,
-									data.publishedDate
-										? {
-												label: t("book.published"),
-												value:
-													bookDate(data.publishedDate) ?? data.publishedDate,
-											}
-										: null,
-									data.languageCode
-										? {
-												label: t("audiobook.language"),
-												value:
-													languageName(data.languageCode) ?? data.languageCode,
-											}
-										: null,
-									data.libraryName
-										? { label: t("audiobook.library"), value: data.libraryName }
-										: null,
-									data.isbn ? { label: "ISBN", value: data.isbn } : null,
-									data.asin ? { label: "ASIN", value: data.asin } : null,
-								]}
-							/>
-							{data.genres.length + data.tags.length > 0 ? (
-								<View style={{ marginTop: space.lg }}>
-									<TagChips
-										tags={[
-											...data.genres.map((genre) => ({
-												key: genre.uuid,
-												label: genre.name,
-												href: {
-													pathname: "/genre/[uuid]" as const,
-													params: { uuid: genre.uuid, name: genre.name },
-												},
-											})),
-											...data.tags.map((tag) => ({
-												key: tag.uuid,
-												label: tag.name,
-												href: {
-													pathname: "/tag/[uuid]" as const,
-													params: { uuid: tag.uuid, name: tag.name },
-												},
-											})),
-										]}
-									/>
-								</View>
-							) : null}
-							<Divider />
-						</>
-					) : tab === "chapters" ? (
-						<Chapters chapters={data.chapters} position={position} />
-					) : tab === "listening" ? (
-						<DetailReading uuid={uuid} audio />
-					) : (
-						<AudiobookTechnical data={data} />
-					)}
-				</DetailColumn>
+				{data ? null : <DetailBodySkeleton />}
+				{data ? (
+					<DetailColumn>
+						<View style={{ marginTop: space.xl, marginBottom: space.xl }}>
+							<DetailTabs options={tabs} value={tab} onChange={setTab} />
+						</View>
+						{tab === "overview" ? (
+							<>
+								{data.description ? (
+									<View style={{ gap: space.sm }}>
+										<SectionLabel>{t("book.meta_description")}</SectionLabel>
+										<Description text={htmlToText(data.description)} />
+									</View>
+								) : null}
+								{data.description ? <Divider /> : null}
+								<InfoGrid
+									items={[
+										{
+											label: t("book.format"),
+											value: t("home.format_audiobook"),
+										},
+										formatDuration(data.duration)
+											? {
+													label: t("audiobook.duration"),
+													value: formatDuration(data.duration) ?? "",
+												}
+											: null,
+										data.publisherName
+											? {
+													label: t("book.publisher"),
+													value: data.publisherName,
+												}
+											: null,
+										data.publishedDate
+											? {
+													label: t("book.published"),
+													value:
+														bookDate(data.publishedDate) ?? data.publishedDate,
+												}
+											: null,
+										data.languageCode
+											? {
+													label: t("audiobook.language"),
+													value:
+														languageName(data.languageCode) ??
+														data.languageCode,
+												}
+											: null,
+										data.libraryName
+											? {
+													label: t("audiobook.library"),
+													value: data.libraryName,
+												}
+											: null,
+										data.isbn ? { label: "ISBN", value: data.isbn } : null,
+										data.asin ? { label: "ASIN", value: data.asin } : null,
+									]}
+								/>
+								{data.genres.length + data.tags.length > 0 ? (
+									<View style={{ marginTop: space.lg }}>
+										<TagChips
+											tags={[
+												...data.genres.map((genre) => ({
+													key: genre.uuid,
+													label: genre.name,
+													href: {
+														pathname: "/genre/[uuid]" as const,
+														params: { uuid: genre.uuid, name: genre.name },
+													},
+												})),
+												...data.tags.map((tag) => ({
+													key: tag.uuid,
+													label: tag.name,
+													href: {
+														pathname: "/tag/[uuid]" as const,
+														params: { uuid: tag.uuid, name: tag.name },
+													},
+												})),
+											]}
+										/>
+									</View>
+								) : null}
+								<Divider />
+							</>
+						) : tab === "chapters" ? (
+							<Chapters chapters={data.chapters} position={position} />
+						) : tab === "listening" ? (
+							<DetailReading uuid={uuid} audio />
+						) : (
+							<AudiobookTechnical data={data} />
+						)}
+					</DetailColumn>
+				) : null}
 
-				{tab === "overview" ? (
+				{data && tab === "overview" ? (
 					<View
 						style={{
 							gap: 40,

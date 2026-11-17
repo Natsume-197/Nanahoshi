@@ -177,6 +177,41 @@ export function DetailTabs<T extends string>({
 	);
 }
 
+/** Under a hero drawn from the tapped tile: the tabs' row at its real
+ * height, so the tabs land where it was, then a few lines of synopsis. */
+export function DetailBodySkeleton() {
+	const palette = usePalette();
+	const line = (width: `${number}%`) => (
+		<View
+			style={{
+				width,
+				height: 14,
+				borderRadius: 6,
+				backgroundColor: palette.skeleton,
+			}}
+		/>
+	);
+	return (
+		<DetailColumn>
+			<View
+				accessibilityRole="progressbar"
+				style={{
+					marginVertical: space.xl,
+					height: 49,
+					borderBottomWidth: 1,
+					borderColor: palette.separator,
+				}}
+			/>
+			<View style={{ gap: space.sm }}>
+				{line("30%")}
+				{line("100%")}
+				{line("92%")}
+				{line("64%")}
+			</View>
+		</DetailColumn>
+	);
+}
+
 /** Loading shape of the hero: cover, title, byline, the two actions. */
 export function DetailSkeleton({ audio }: { audio: boolean }) {
 	const palette = usePalette();

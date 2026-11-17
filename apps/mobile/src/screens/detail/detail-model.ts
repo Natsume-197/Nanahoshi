@@ -1,5 +1,49 @@
-import { formatDuration } from "@/lib/format";
+import { formatDuration, titleOrUntitled } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import type { SeedPerson, TitleSeed } from "@/lib/title-seed";
+
+export type HeroFields = {
+	title: string;
+	subtitle: string | null;
+	cover: string | null;
+	color: string | null;
+	authors: SeedPerson[];
+};
+
+/**
+ * What the hero draws: the detail once it is here, until then what the tapped
+ * tile showed (the rest of the page waits on the detail), else nothing.
+ */
+export function detailHero(
+	data:
+		| {
+				title?: string | null;
+				filename?: string | null;
+				subtitle?: string | null;
+				cover?: string | null;
+				mainColor?: string | null;
+				authors: SeedPerson[];
+		  }
+		| undefined,
+	seed: TitleSeed | null,
+): HeroFields | null {
+	if (data)
+		return {
+			title: titleOrUntitled(data.title ?? data.filename),
+			subtitle: data.subtitle ?? null,
+			cover: data.cover ?? null,
+			color: data.mainColor ?? null,
+			authors: data.authors,
+		};
+	if (!seed) return null;
+	return {
+		title: titleOrUntitled(seed.title),
+		subtitle: null,
+		cover: seed.cover,
+		color: seed.color,
+		authors: seed.authors,
+	};
+}
 
 /** Label and second line of the hero's primary button. */
 export function primaryAction({
@@ -68,4 +112,16 @@ export function headerSolidProgress({
 	if (titleOffset === null) return 0;
 	const past = scrollY + barBottom - titleOffset;
 	return Math.min(1, Math.max(0, past / HEADER_FADE));
+}
+
+/**
+ * The audiobook hero's narrator line: held empty while only the tapped tile
+ * is known (tiles don't carry narrators), then the names, or gone for a
+ * title that has none.
+ */
+export function narratorLine(
+	narrators: readonly unknown[] | undefined,
+): "reserve" | "names" | "none" {
+	if (narrators === undefined) return "reserve";
+	return narrators.length > 0 ? "names" : "none";
 }

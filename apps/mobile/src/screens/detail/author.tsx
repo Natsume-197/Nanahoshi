@@ -84,8 +84,9 @@ export function AuthorDetail({ uuid }: { uuid: string }) {
 					kind: "book",
 					title: item.title ?? null,
 					cover: item.cover ?? null,
-					color: item.color ?? null,
+					color: item.mainColor ?? null,
 					subtitle: joinNames(item.authors),
+					authors: item.authors,
 				}));
 
 	const total = bookTotal + audioTotal;

@@ -11,26 +11,27 @@ import { useArrival } from "@/components/skeleton";
 import { ErrorState, waitingOffline } from "@/components/states";
 import type { TileItem } from "@/components/title-tile";
 import { useMountEffect } from "@/hooks/use-mount-effect";
-import {
-	formatCount,
-	joinNames,
-	languageName,
-	percent,
-	titleOrUntitled,
-} from "@/lib/format";
+import { formatCount, joinNames, languageName, percent } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { htmlToText } from "@/lib/plain-text";
 import { routes } from "@/lib/routes";
-import { bookDetailQueries } from "@/lib/title-queries";
+import {
+	bookDetailQueries,
+	bookSeriesQuery,
+	moreByAuthorQueries,
+} from "@/lib/title-queries";
+import { authorKey, titleSeed } from "@/lib/title-seed";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { useWarmReader } from "@/reader/reader-pool";
 import { space } from "@/theme";
 import { BookCopies, DuplicateNotice } from "./book-copies";
 import { BookFileDetails, bookDate } from "./book-file-details";
+import { detailHero } from "./detail-model";
 import { DetailReading } from "./detail-reading";
 import { DetailHeaderMenu } from "./header-menu";
 import {
+	DetailBodySkeleton,
 	DetailColumn,
 	DetailSkeleton,
 	DetailTabs,
@@ -71,33 +72,29 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	);
 	const seriesUuid = book.data?.series?.uuid;
 	const series = useQuery({
-		...orpc.books.listBySeries.queryOptions({
-			input: { seriesUuid: seriesUuid ?? "" },
-		}),
+		...bookSeriesQuery(orpc, seriesUuid ?? ""),
 		enabled: !!seriesUuid,
 	});
-	const authorUuids = book.data?.authors.map((author) => author.uuid) ?? [];
+	// The tapped tile's authors start these with the detail, not after it.
+	const seed = titleSeed("book", uuid);
+	const hero = detailHero(book.data, seed);
+	const authorUuids = authorKey(hero?.authors ?? []);
+	const more = moreByAuthorQueries(orpc, authorUuids);
 	const moreBooks = useQuery({
-		...orpc.books.search.queryOptions({
-			input: { filters: { authorUuids }, limit: 20, sort: "newest" },
-		}),
+		...more.books,
 		enabled: authorUuids.length > 0,
 	});
 	const moreAudio = useQuery({
-		...orpc.audiobooks.search.queryOptions({
-			input: { filters: { authorUuids }, limit: 20, sort: "newest" },
-		}),
+		...more.audiobooks,
 		enabled: authorUuids.length > 0,
 	});
-	const detailHeader = useDetailHeader(
-		book.data ? titleOrUntitled(book.data.title ?? book.data.filename) : "",
-	);
+	const detailHeader = useDetailHeader(hero?.title ?? "");
 
-	const arrival = useArrival(!!book.data);
+	const arrival = useArrival(!!hero);
 
 	if (book.isError) return <ErrorState onRetry={() => book.refetch()} />;
 	if (waitingOffline(book)) return <OfflineTitle uuid={uuid} />;
-	if (!book.data)
+	if (!hero)
 		return (
 			<>
 				<Stack.Screen options={{ title: "" }} />
@@ -107,7 +104,7 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	const data = book.data;
 	const read = percent(
 		progress.data?.exploredCharCount,
-		progress.data?.bookCharCount ?? data.amountChars,
+		progress.data?.bookCharCount ?? data?.amountChars,
 	);
 
 	const seriesItems: TileItem[] = (series.data ?? []).map((item) => ({
@@ -129,8 +126,9 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			kind: "book" as const,
 			title: item.title ?? null,
 			cover: item.cover ?? null,
-			color: item.color ?? null,
+			color: item.mainColor ?? null,
 			subtitle: joinNames(item.authors),
+			authors: item.authors,
 		})),
 		...(moreAudio.data?.audiobooks ?? []).map((item) => ({
 			uuid: item.uuid,
@@ -139,10 +137,11 @@ export function BookDetail({ uuid }: { uuid: string }) {
 			cover: item.cover ?? null,
 			color: item.mainColor ?? null,
 			subtitle: joinNames(item.authors),
+			authors: item.authors,
 		})),
 	].filter((item) => item.uuid !== uuid && !inSeries.has(item.uuid));
 
-	const copies = data.otherCopies?.length ?? 0;
+	const copies = data?.otherCopies?.length ?? 0;
 	const tabs = [
 		{ value: "overview" as const, label: t("book.tab_overview") },
 		{ value: "reading" as const, label: t("reading_title") },
@@ -159,10 +158,10 @@ export function BookDetail({ uuid }: { uuid: string }) {
 	const target = {
 		uuid,
 		kind: "book" as const,
-		title: data.title,
-		cover: data.cover,
-		color: data.mainColor,
-		subtitle: joinNames(data.authors),
+		title: data ? data.title : (seed?.title ?? null),
+		cover: hero.cover,
+		color: hero.color,
+		subtitle: joinNames(hero.authors),
 		onDetailPage: true,
 	};
 
@@ -187,143 +186,149 @@ export function BookDetail({ uuid }: { uuid: string }) {
 					uuid={uuid}
 					onTitleOffset={detailHeader.onTitleOffset}
 					scrollY={detailHeader.scrollY}
-					cover={data.cover}
-					color={data.mainColor}
+					cover={hero.cover}
+					color={hero.color}
 					shape="book"
-					title={titleOrUntitled(data.title ?? data.filename)}
-					subtitle={data.subtitle}
+					title={hero.title}
+					subtitle={hero.subtitle}
 					people={
 						<LinkedNames
 							prefix={byPrefix(t("mobile.detail.by", { names: "\u0000" }))}
-							people={data.authors}
+							people={hero.authors}
 							hrefFor={(author) => routes.author(author.uuid)}
 						/>
 					}
 					actions={<TitleActions uuid={uuid} kind="ebook" progress={read} />}
 				/>
 
-				<DetailColumn>
-					<View style={{ marginTop: space.xl, marginBottom: space.xl }}>
-						<DetailTabs options={tabs} value={tab} onChange={setTab} />
-					</View>
-					{tab === "overview" ? (
-						<>
-							{data.description ? (
-								<View style={{ gap: space.sm }}>
-									<SectionLabel>{t("book.meta_description")}</SectionLabel>
-									<Description text={htmlToText(data.description)} />
-								</View>
-							) : null}
-							{data.description ? <Divider /> : null}
-							<InfoGrid
-								items={[
-									{ label: t("book.format"), value: t("home.format_book") },
-									data.pageCount
-										? {
-												label: t("book.pages"),
-												value: t("book.pages_count", { count: data.pageCount }),
-											}
-										: data.amountChars
+				{data ? null : <DetailBodySkeleton />}
+				{data ? (
+					<DetailColumn>
+						<View style={{ marginTop: space.xl, marginBottom: space.xl }}>
+							<DetailTabs options={tabs} value={tab} onChange={setTab} />
+						</View>
+						{tab === "overview" ? (
+							<>
+								{data.description ? (
+									<View style={{ gap: space.sm }}>
+										<SectionLabel>{t("book.meta_description")}</SectionLabel>
+										<Description text={htmlToText(data.description)} />
+									</View>
+								) : null}
+								{data.description ? <Divider /> : null}
+								<InfoGrid
+									items={[
+										{ label: t("book.format"), value: t("home.format_book") },
+										data.pageCount
 											? {
-													label: t("book.characters"),
-													value: formatCount(data.amountChars),
+													label: t("book.pages"),
+													value: t("book.pages_count", {
+														count: data.pageCount,
+													}),
+												}
+											: data.amountChars
+												? {
+														label: t("book.characters"),
+														value: formatCount(data.amountChars),
+													}
+												: null,
+										data.publisher
+											? {
+													label: t("book.publisher"),
+													value: data.publisher.name,
+													href: {
+														pathname: "/publisher/[uuid]",
+														params: { uuid: data.publisher.uuid },
+													},
 												}
 											: null,
-									data.publisher
-										? {
-												label: t("book.publisher"),
-												value: data.publisher.name,
-												href: {
-													pathname: "/publisher/[uuid]",
-													params: { uuid: data.publisher.uuid },
-												},
-											}
-										: null,
-									data.publishedDate
-										? {
-												label: t("book.published"),
-												value:
-													bookDate(data.publishedDate) ?? data.publishedDate,
-											}
-										: null,
-									data.languageCode
-										? {
-												label: t("book.language"),
-												value:
-													languageName(data.languageCode) ?? data.languageCode,
-											}
-										: null,
-									data.rating != null
-										? {
-												label: t("mobile.detail.rating"),
-												value: `★ ${data.rating.toFixed(1)}${data.ratingCount != null ? ` (${formatCount(data.ratingCount)})` : ""}`,
-											}
-										: null,
-									data.libraryName && data.libraryUuid
-										? {
-												label: t("book.library"),
-												value: data.libraryName,
-												href: {
-													pathname: "/library/[uuid]",
-													params: { uuid: data.libraryUuid },
-												},
-											}
-										: null,
-									data.isbn13 ? { label: "ISBN", value: data.isbn13 } : null,
-									!data.isbn13 && data.isbn10
-										? { label: "ISBN", value: data.isbn10 }
-										: null,
-									data.asin
-										? {
-												label: "ASIN",
-												value: data.asin,
-												onPress: () =>
-													void Linking.openURL(
-														`https://www.amazon.co.jp/dp/${encodeURIComponent(data.asin ?? "")}`,
-													),
-											}
-										: null,
-								]}
-							/>
-							{data.genres.length + data.tags.length > 0 ? (
-								<View style={{ marginTop: space.lg }}>
-									<TagChips
-										tags={[
-											...data.genres.map((genre) => ({
-												key: genre.uuid,
-												label: genre.name,
-												href: {
-													pathname: "/genre/[uuid]" as const,
-													params: { uuid: genre.uuid, name: genre.name },
-												},
-											})),
-											...data.tags.map((tag) => ({
-												key: tag.uuid,
-												label: tag.name,
-												href: {
-													pathname: "/tag/[uuid]" as const,
-													params: { uuid: tag.uuid, name: tag.name },
-												},
-											})),
-										]}
-									/>
-								</View>
-							) : null}
-							<Divider />
-						</>
-					) : tab === "reading" ? (
-						<DetailReading uuid={uuid} />
-					) : tab === "copies" ? (
-						<BookCopies book={data} />
-					) : (
-						<View style={{ gap: space.xl }}>
-							<DuplicateNotice book={data} />
-							<BookFileDetails book={data} />
-						</View>
-					)}
-				</DetailColumn>
+										data.publishedDate
+											? {
+													label: t("book.published"),
+													value:
+														bookDate(data.publishedDate) ?? data.publishedDate,
+												}
+											: null,
+										data.languageCode
+											? {
+													label: t("book.language"),
+													value:
+														languageName(data.languageCode) ??
+														data.languageCode,
+												}
+											: null,
+										data.rating != null
+											? {
+													label: t("mobile.detail.rating"),
+													value: `★ ${data.rating.toFixed(1)}${data.ratingCount != null ? ` (${formatCount(data.ratingCount)})` : ""}`,
+												}
+											: null,
+										data.libraryName && data.libraryUuid
+											? {
+													label: t("book.library"),
+													value: data.libraryName,
+													href: {
+														pathname: "/library/[uuid]",
+														params: { uuid: data.libraryUuid },
+													},
+												}
+											: null,
+										data.isbn13 ? { label: "ISBN", value: data.isbn13 } : null,
+										!data.isbn13 && data.isbn10
+											? { label: "ISBN", value: data.isbn10 }
+											: null,
+										data.asin
+											? {
+													label: "ASIN",
+													value: data.asin,
+													onPress: () =>
+														void Linking.openURL(
+															`https://www.amazon.co.jp/dp/${encodeURIComponent(data.asin ?? "")}`,
+														),
+												}
+											: null,
+									]}
+								/>
+								{data.genres.length + data.tags.length > 0 ? (
+									<View style={{ marginTop: space.lg }}>
+										<TagChips
+											tags={[
+												...data.genres.map((genre) => ({
+													key: genre.uuid,
+													label: genre.name,
+													href: {
+														pathname: "/genre/[uuid]" as const,
+														params: { uuid: genre.uuid, name: genre.name },
+													},
+												})),
+												...data.tags.map((tag) => ({
+													key: tag.uuid,
+													label: tag.name,
+													href: {
+														pathname: "/tag/[uuid]" as const,
+														params: { uuid: tag.uuid, name: tag.name },
+													},
+												})),
+											]}
+										/>
+									</View>
+								) : null}
+								<Divider />
+							</>
+						) : tab === "reading" ? (
+							<DetailReading uuid={uuid} />
+						) : tab === "copies" ? (
+							<BookCopies book={data} />
+						) : (
+							<View style={{ gap: space.xl }}>
+								<DuplicateNotice book={data} />
+								<BookFileDetails book={data} />
+							</View>
+						)}
+					</DetailColumn>
+				) : null}
 
-				{tab === "overview" ? (
+				{data && tab === "overview" ? (
 					<View
 						style={{
 							gap: 40,
@@ -370,9 +375,11 @@ export function BookDetail({ uuid }: { uuid: string }) {
 												? "audiobook"
 												: "book",
 										title: item.seriesName ?? item.book.title,
+										detailTitle: item.book.title,
 										cover: item.book.cover,
 										color: item.book.mainColor,
 										subtitle: joinNames(item.book.authors),
+										authors: item.book.authors,
 									}))}
 							/>
 						) : null}

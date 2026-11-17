@@ -33,11 +33,12 @@ export function PressableScale({
 			ref={ref}
 			pressRetentionOffset={16}
 			onPressIn={(event) => {
-				setPressed(true);
+				// Without the scale nothing reads `pressed`: no render per touch.
+				if (scaleOnPress) setPressed(true);
 				onPressIn?.(event);
 			}}
 			onPressOut={(event) => {
-				setPressed(false);
+				if (scaleOnPress) setPressed(false);
 				onPressOut?.(event);
 			}}
 		>

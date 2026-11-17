@@ -60,6 +60,7 @@ export function CollectionDetail({ id }: { id: string }) {
 		cover: item.cover ?? null,
 		color: item.mainColor ?? null,
 		subtitle: joinNames(item.authors ?? []),
+		authors: item.authors ?? [],
 	}));
 	const total =
 		items.data?.pages[0]?.pagination.totalHits ?? collection?.bookCount ?? 0;

@@ -12,6 +12,11 @@ import { useCan } from "@/lib/abilities";
 import { titleOrUntitled } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
+import {
+	patchQueries,
+	withoutBook,
+	withoutRecommendation,
+} from "@/lib/optimistic";
 import { routes } from "@/lib/routes";
 import { refreshTitles } from "@/lib/title-invalidation";
 import { titleWebUrl } from "@/lib/web-links";
@@ -150,16 +155,31 @@ function useBookMenuRunner(
 			);
 		},
 		removeFromContinue: async () => {
-			if (audio)
-				await client.listeningProgress.saveProgress({
-					bookUuid,
-					status: "unstarted",
-				});
-			else
-				await client.readingProgress.saveProgress({
-					bookUuid,
-					status: "unread",
-				});
+			// Off the rail at once; back with a notice if the save fails.
+			const undo = await patchQueries<{ bookUuid: string }[]>(
+				queryClient,
+				{
+					queryKey: audio
+						? orpc.listeningProgress.listInProgress.key()
+						: orpc.readingProgress.listInProgress.key(),
+				},
+				(list) => withoutBook(list, bookUuid),
+			);
+			try {
+				if (audio)
+					await client.listeningProgress.saveProgress({
+						bookUuid,
+						status: "unstarted",
+					});
+				else
+					await client.readingProgress.saveProgress({
+						bookUuid,
+						status: "unread",
+					});
+			} catch {
+				undo();
+				return showNotice(t("mobile.error.action"));
+			}
 			await queryClient.invalidateQueries({
 				queryKey: audio
 					? orpc.listeningProgress.key()
@@ -167,20 +187,36 @@ function useBookMenuRunner(
 			});
 		},
 		notInterested: async () => {
-			await client.recommendations.notInterested({ bookUuid });
-			await queryClient.invalidateQueries({
-				queryKey: orpc.recommendations.key(),
-			});
+			const undo = await patchQueries<Recommendations>(
+				queryClient,
+				{ queryKey: orpc.recommendations.key() },
+				(data) =>
+					data && typeof data === "object"
+						? withoutRecommendation(data, bookUuid)
+						: data,
+			);
+			try {
+				await client.recommendations.notInterested({ bookUuid });
+			} catch {
+				undo();
+				return showNotice(t("mobile.error.action"));
+			}
+			// The rail already dropped it, so the undo is offered now, not after
+			// the (slow) feed refetch; taking it back puts the rail back at once.
+			const refresh = () =>
+				queryClient.invalidateQueries({
+					queryKey: orpc.recommendations.key(),
+				});
 			showUndo(t("recs.not_interested_toast"), () => {
+				void queryClient
+					.cancelQueries({ queryKey: orpc.recommendations.key() })
+					.then(undo);
 				void client.recommendations
 					.undoNotInterested({ bookUuid })
-					.then(() =>
-						queryClient.invalidateQueries({
-							queryKey: orpc.recommendations.key(),
-						}),
-					)
+					.then(refresh)
 					.catch(() => showNotice(t("mobile.error.action")));
 			});
+			await refresh();
 		},
 		editMetadata: () =>
 			router.push({
@@ -236,6 +272,8 @@ function useBookMenuRunner(
 		void Promise.resolve(handlers[action.id]()).catch(() => undefined);
 	};
 }
+
+type Recommendations = Parameters<typeof withoutRecommendation>[0];
 
 function downloadMenuState(
 	state: TitleDownloadState["state"],

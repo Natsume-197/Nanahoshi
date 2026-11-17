@@ -67,6 +67,7 @@ function toTile(row: ShelfRow, kind: TileItem["kind"]): TileItem {
 		cover: row.cover,
 		color: row.mainColor ?? null,
 		subtitle: joinNames(row.authors ?? []),
+		authors: row.authors ?? [],
 	};
 }
 

@@ -41,9 +41,11 @@ import {
 	useSearchHistory,
 } from "@/lib/search-history";
 import { usePrefetchOnPress } from "@/lib/title-queries";
+import { seedPeople } from "@/lib/title-seed";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { space, usePalette } from "@/theme";
+import { emptyListState, keepResultsSince, pagesFor } from "./search-model";
 
 type Filter =
 	| "all"
@@ -96,6 +98,8 @@ export function Search() {
 	// Picking a recent query remounts the field with it as its text.
 	const [field, setField] = useState({ key: 0, text: "" });
 	const active = query.length > 0;
+	const [clearedAt, setClearedAt] = useState(0);
+	const keepResults = keepResultsSince(clearedAt);
 
 	const topOptions = {
 		...orpc.search.top.queryOptions({
@@ -103,7 +107,12 @@ export function Search() {
 		}),
 		staleTime: 60_000,
 	};
-	const top = useQuery({ ...topOptions, enabled: active });
+	// Between keystrokes the last results stay up instead of a skeleton.
+	const top = useQuery({
+		...topOptions,
+		enabled: active,
+		placeholderData: keepResults,
+	});
 	const books = useInfiniteQuery({
 		queryKey: ["books", "search", query],
 		queryFn: async ({ pageParam }) => {
@@ -125,6 +134,7 @@ export function Search() {
 		getNextPageParam: (last) => last.pagination.cursor ?? undefined,
 		enabled: active && (filter === "all" || filter === "books"),
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const audiobooks = useInfiniteQuery({
 		queryKey: ["audiobooks", "search", query],
@@ -147,12 +157,14 @@ export function Search() {
 		getNextPageParam: (last) => last.pagination.cursor ?? undefined,
 		enabled: active && (filter === "all" || filter === "audiobooks"),
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const series = useQuery({
 		queryKey: ["series", "search", query],
 		queryFn: () => client.series.search({ query, limit: 10 }),
 		enabled: active && filter === "series",
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const audioSeries = useQuery({
 		queryKey: ["audiobook-series", "search", query],
@@ -160,24 +172,28 @@ export function Search() {
 			client.audiobooks.listSeries({ query, limit: 50, sort: "name" }),
 		enabled: active && (filter === "series" || filter === "audiobooks"),
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const authors = useQuery({
 		queryKey: ["authors", "search", query],
 		queryFn: () => client.authors.search({ query }),
 		enabled: active && filter === "authors",
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const narrators = useQuery({
 		queryKey: ["narrators", "search", query],
 		queryFn: () => client.narrators.list({ query, limit: 50, sort: "name" }),
 		enabled: active && filter === "narrators",
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 	const collections = useQuery({
 		queryKey: ["collections", "search", query],
 		queryFn: () => client.collections.search({ query, limit: 20 }),
 		enabled: active && filter === "collections",
 		staleTime: 60_000,
+		placeholderData: keepResults,
 	});
 
 	const audioSeriesHits: Hit[] = (audioSeries.data ?? []).map((entry) => ({
@@ -189,18 +205,22 @@ export function Search() {
 		author: null,
 	}));
 
-	const bookHits = (books.data?.pages.flatMap((page) => page.books) ?? []).map(
+	// Under fresh top hits, only fresh pages (the previous text's would mix in).
+	const bookPages = pagesFor(books, top.isPlaceholderData);
+	const audiobookPages = pagesFor(audiobooks, top.isPlaceholderData);
+	const bookHits = (bookPages?.pages.flatMap((page) => page.books) ?? []).map(
 		(item): Hit => ({
 			type: "book",
 			uuid: item.uuid,
 			title: item.title ?? null,
 			filename: item.filename,
 			cover: item.cover ?? null,
+			color: item.mainColor ?? null,
 			authors: item.authors ?? [],
 		}),
 	);
 	const audiobookHits = (
-		audiobooks.data?.pages.flatMap((page) => page.audiobooks) ?? []
+		audiobookPages?.pages.flatMap((page) => page.audiobooks) ?? []
 	).map(
 		(item): Hit => ({
 			type: "audiobook",
@@ -208,6 +228,7 @@ export function Search() {
 			title: item.title ?? null,
 			filename: item.filename,
 			cover: item.cover ?? null,
+			color: item.mainColor ?? null,
 			authors: item.authors,
 		}),
 	);
@@ -244,6 +265,7 @@ export function Search() {
 					title: item.title ?? null,
 					filename: item.filename,
 					cover: item.cover ?? null,
+					color: item.mainColor ?? null,
 					authors: item.authors ?? [],
 				}),
 			),
@@ -261,6 +283,7 @@ export function Search() {
 						title: item.title ?? null,
 						filename: item.filename,
 						cover: item.cover ?? null,
+						color: item.mainColor ?? null,
 						authors: item.authors,
 					}),
 				),
@@ -295,6 +318,12 @@ export function Search() {
 		},
 	} as const;
 	const current = sources[filter];
+	const emptyState = emptyListState({
+		isError: current.query.isError,
+		offline: waitingOffline(current.query),
+		isPending: current.query.isPending,
+		isPlaceholderData: current.query.isPlaceholderData,
+	});
 	const paged =
 		filter === "books" ? books : filter === "audiobooks" ? audiobooks : null;
 	const loadMore = () => {
@@ -316,6 +345,7 @@ export function Search() {
 	}));
 
 	const onQuery = (next: string) => {
+		if (next.length === 0) setClearedAt(Date.now());
 		setQuery(next);
 		setFilter("all");
 	};
@@ -379,11 +409,11 @@ export function Search() {
 							}}
 							onRemove={remove}
 						/>
-					) : current.query.isError ? (
+					) : emptyState === "error" ? (
 						<ErrorState onRetry={() => void current.query.refetch()} />
-					) : waitingOffline(current.query) ? (
+					) : emptyState === "offline" ? (
 						<OfflineState />
-					) : current.query.isPending ? (
+					) : emptyState === "loading" ? (
 						<RowSkeleton count={6} />
 					) : (
 						<EmptyState
@@ -421,6 +451,12 @@ function HitRow({
 		case "book":
 		case "audiobook": {
 			const audio = hit.type === "audiobook";
+			const press = prefetch(audio ? "audiobook" : "book", hit.uuid, {
+				title: hit.title ?? hit.filename,
+				cover: hit.cover,
+				color: hit.color ?? null,
+				authors: seedPeople(hit.authors),
+			});
 			return (
 				<BookMenuTarget
 					target={{
@@ -434,13 +470,9 @@ function HitRow({
 					{(onLongPress) => (
 						<ResultRow
 							{...common}
-							{...prefetch(audio ? "audiobook" : "book", hit.uuid, hit.cover)}
+							{...press}
 							onPress={() => {
-								prefetch(
-									audio ? "audiobook" : "book",
-									hit.uuid,
-									hit.cover,
-								).onPress();
+								press.onPress();
 								onSelect?.();
 							}}
 							href={routes.title(audio ? "audiobook" : "book", hit.uuid)}

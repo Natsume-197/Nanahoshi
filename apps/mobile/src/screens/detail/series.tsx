@@ -80,6 +80,7 @@ export function SeriesDetail({
 					position: item.position ?? null,
 					author: item.authors[0]?.name ?? "",
 					subtitle: joinNames(item.authors),
+					authors: item.authors,
 				}));
 
 	const needle = query.toLowerCase();

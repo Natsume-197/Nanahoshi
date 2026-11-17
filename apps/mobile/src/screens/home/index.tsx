@@ -1,5 +1,5 @@
 import type { RecommendationItem } from "@nanahoshi/api/routers/recommendations/recommendations.model";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useScrollToTop } from "expo-router";
 import { useRef, useState } from "react";
 import {
@@ -44,6 +44,7 @@ import {
 	type ContinueItem,
 	ContinueSkeleton,
 } from "./continue-card";
+import { isHomeQuery } from "./home-refresh";
 import {
 	LazySections,
 	LazySectionsProvider,
@@ -85,17 +86,18 @@ export function Home() {
 	const category = categories.some((option) => option.value === picked)
 		? picked
 		: "home";
-	const [refreshKey, setRefreshKey] = useState(0);
+	const queryClient = useQueryClient();
 	const appBarHeight = useAppBarHeight();
 
 	const refreshControl = (
 		<RefreshControl
 			// Android: the spinner drops in below the app bar, not behind it.
 			progressViewOffset={insets.top + appBarHeight}
-			onRefresh={async () => {
-				await libraries.refetch();
-				setRefreshKey((key) => key + 1);
-			}}
+			// Refetches what the drawn sections show, in place: the rails stay
+			// mounted, the random ones reshuffle and "For you" recomputes.
+			onRefresh={() =>
+				queryClient.refetchQueries({ predicate: isHomeQuery, type: "active" })
+			}
 		/>
 	);
 	// No network, or a server that doesn't answer (off, or a new address):
@@ -126,12 +128,9 @@ export function Home() {
 			) : null}
 			<View style={{ paddingTop: space.md }}>
 				{category === "home" ? (
-					<HomeSections key={`home-${refreshKey}`} />
+					<HomeSections />
 				) : (
-					<CategorySections
-						key={`${category}-${refreshKey}`}
-						format={category}
-					/>
+					<CategorySections key={category} format={category} />
 				)}
 			</View>
 		</>
@@ -413,6 +412,7 @@ function RecentlyAddedSection({ format }: { format: Format }) {
 				cover: book.cover,
 				color: book.mainColor,
 				subtitle: joinNames(book.authors),
+				authors: book.authors,
 			} satisfies TileItem,
 		})),
 		...(format === "books" ? [] : (audiobooks.data ?? [])).map((book) => ({
@@ -424,6 +424,7 @@ function RecentlyAddedSection({ format }: { format: Format }) {
 				cover: book.cover,
 				color: book.mainColor,
 				subtitle: joinNames(book.authors),
+				authors: book.authors,
 			} satisfies TileItem,
 		})),
 	]
@@ -453,6 +454,7 @@ function toTile(item: RecommendationItem): TileItem {
 		cover: item.book.cover,
 		color: item.book.mainColor,
 		subtitle: joinNames(item.book.authors),
+		authors: item.book.authors,
 	};
 }
 
@@ -695,6 +697,7 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 					cover: book.cover,
 					color: book.mainColor,
 					subtitle: joinNames(book.authors),
+					authors: book.authors,
 				}))
 			: audiobooks.data?.map((book) => ({
 					uuid: book.uuid,
@@ -703,6 +706,7 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 					cover: book.cover,
 					color: book.mainColor,
 					subtitle: joinNames(book.authors),
+					authors: book.authors,
 				}));
 	return (
 		<Shelf

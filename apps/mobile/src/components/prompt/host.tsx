@@ -9,6 +9,7 @@ import {
 import { fillMaxWidth, padding } from "@expo/ui/jetpack-compose/modifiers";
 import { useRef, useSyncExternalStore } from "react";
 import { useMountEffect } from "@/hooks/use-mount-effect";
+import { untilReady } from "@/lib/until-ready";
 import { usePalette } from "@/theme";
 import { ActionSheet } from "../action-menu/action-sheet";
 import { choices, notices } from "./index";
@@ -69,17 +70,27 @@ function NoticeSnackbar({ notice }: { notice: Notice }) {
 	const palette = usePalette();
 	const host = useRef<SnackbarHostRef>(null);
 	useMountEffect(() => {
-		void host.current
-			?.showSnackbar({
+		let gone = false;
+		const show = () => {
+			const ref = host.current;
+			if (!ref) return Promise.reject(new Error("no host"));
+			return ref.showSnackbar({
 				message: notice.message,
 				actionLabel: notice.action?.label,
 				duration: notice.action ? "long" : "short",
-			})
+			});
+		};
+		// The native host only takes calls after its first composition, which
+		// comes after this mount: the first call is rejected.
+		void untilReady(show, { stopped: () => gone })
 			.then((result) => {
 				if (result === "actionPerformed") notices.act(notice.id);
 			})
 			// The host unmounts when the notice expires, which rejects the call.
 			.catch(() => undefined);
+		return () => {
+			gone = true;
+		};
 	});
 	return (
 		<Host

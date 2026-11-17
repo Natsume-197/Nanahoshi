@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Icon, icons } from "@/components/icon";
 import { Pressable } from "@/components/pressable";
+import { showNotice } from "@/components/prompt";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
+import {
+	patchQueries,
+	withMembership,
+	withShelfStatus,
+} from "@/lib/optimistic";
 import { IS_ANDROID } from "@/lib/platform";
 import { type ShelfStatus, shelfMeta } from "@/lib/shelves";
+import { inSeenOrder } from "@/lib/stable-order";
 import { useApi } from "@/providers/app-provider";
 import { radius, space, usePalette } from "@/theme";
 import { fromBucket, useShelfStatus } from "./use-shelf-status";
@@ -29,32 +37,74 @@ export function useAddToList(uuid: string, kind: "ebook" | "audiobook") {
 		}),
 	);
 
-	const invalidateShelves = () =>
-		Promise.all([
-			queryClient.invalidateQueries({ queryKey: orpc.bookShelf.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.audiobookShelf.key() }),
-			queryClient.invalidateQueries({ queryKey: orpc.shelves.key() }),
-		]);
+	// Every tap shows at once; a failed save puts the old state back. The
+	// refetch waits for the last of a burst, so it never undoes a later tap.
+	const shelfMutation = ["add-to-list", "shelf", uuid];
+	const shelfKey =
+		kind === "audiobook"
+			? orpc.audiobookShelf.get.queryKey({ input: { bookUuid: uuid } })
+			: orpc.bookShelf.get.queryKey({ input: { bookUuid: uuid } });
+	const shelfOptions = <V,>(status: (input: V) => string | null) => ({
+		mutationKey: shelfMutation,
+		onMutate: (input: V) =>
+			patchQueries<{ status: string } | null>(
+				queryClient,
+				{ queryKey: shelfKey, exact: true },
+				(entry) => withShelfStatus(entry, status(input)),
+			),
+		onError: (_error: unknown, _input: unknown, undo?: () => void) => {
+			undo?.();
+			showNotice(t("mobile.error.action"));
+		},
+		onSettled: () => {
+			if (queryClient.isMutating({ mutationKey: shelfMutation }) > 1) return;
+			return Promise.all([
+				queryClient.invalidateQueries({ queryKey: orpc.bookShelf.key() }),
+				queryClient.invalidateQueries({ queryKey: orpc.audiobookShelf.key() }),
+				queryClient.invalidateQueries({ queryKey: orpc.shelves.key() }),
+			]);
+		},
+	});
 	const setBook = useMutation({
 		...orpc.bookShelf.set.mutationOptions(),
-		onSettled: invalidateShelves,
+		...shelfOptions((input: { status: string }) => input.status),
 	});
 	const setAudio = useMutation({
 		...orpc.audiobookShelf.set.mutationOptions(),
-		onSettled: invalidateShelves,
+		...shelfOptions((input: { status: string }) => input.status),
 	});
 	const removeBook = useMutation({
 		...orpc.bookShelf.remove.mutationOptions(),
-		onSettled: invalidateShelves,
+		...shelfOptions(() => null),
 	});
 	const removeAudio = useMutation({
 		...orpc.audiobookShelf.remove.mutationOptions(),
-		onSettled: invalidateShelves,
+		...shelfOptions(() => null),
+	});
+	const membershipMutation = ["add-to-list", "membership", uuid];
+	const membershipKey = orpc.collections.listBookMemberships.queryKey({
+		input: { bookUuid: uuid },
 	});
 	const membership = useMutation({
 		...orpc.collections.setBookMembership.mutationOptions(),
-		onSettled: () =>
-			queryClient.invalidateQueries({ queryKey: orpc.collections.key() }),
+		mutationKey: membershipMutation,
+		onMutate: (input) =>
+			patchQueries<NonNullable<typeof memberships.data>>(
+				queryClient,
+				{ queryKey: membershipKey, exact: true },
+				(list) => withMembership(list, input.collectionId, input.inCollection),
+			),
+		onError: (_error, _input, undo) => {
+			undo?.();
+			showNotice(t("mobile.error.action"));
+		},
+		onSettled: () => {
+			if (queryClient.isMutating({ mutationKey: membershipMutation }) > 1)
+				return;
+			return queryClient.invalidateQueries({
+				queryKey: orpc.collections.key(),
+			});
+		},
 	});
 
 	const pickShelf = (bucket: ShelfStatus) => {
@@ -87,9 +137,15 @@ export function useAddToList(uuid: string, kind: "ebook" | "audiobook") {
 			inCollection: !collection.inCollection,
 		});
 	};
-	const collections = (memberships.data ?? []).filter(
+	const manual = (memberships.data ?? []).filter(
 		(collection) => collection.kind === "manual",
 	);
+	// The server sorts by last update, so each save would move the row just
+	// tapped; while the sheet is open rows stay where they first appeared.
+	const [seen, setSeen] = useState<string[] | null>(null);
+	if (seen === null && memberships.data)
+		setSeen(manual.map((collection) => collection.id));
+	const collections = inSeenOrder(manual, seen ?? []);
 	return { bucket: current.bucket, collections, pickShelf, toggleCollection };
 }
 

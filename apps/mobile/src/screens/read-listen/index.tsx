@@ -25,6 +25,7 @@ import { joinNames, titleOrUntitled } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { usePrefetchOnPress } from "@/lib/title-queries";
+import { seedPeople } from "@/lib/title-seed";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi } from "@/providers/app-provider";
 import { COVER_ASPECT, space, usePalette } from "@/theme";
@@ -146,6 +147,12 @@ function PairTile({
 	const prefetch = usePrefetchOnPress();
 	const { audiobook } = pairing;
 	const authors = joinNames(audiobook.authors);
+	const press = prefetch("audiobook", audiobook.uuid, {
+		title: audiobook.title,
+		cover: audiobook.cover,
+		color: audiobook.mainColor ?? null,
+		authors: seedPeople(audiobook.authors),
+	});
 	return (
 		<BookMenuTarget
 			target={{
@@ -161,9 +168,9 @@ function PairTile({
 			{(onLongPress) => (
 				<PressableScale
 					scaleOnPress={false}
-					{...prefetch("audiobook", audiobook.uuid, audiobook.cover)}
+					{...press}
 					onPress={() => {
-						prefetch("audiobook", audiobook.uuid, audiobook.cover).onPress();
+						press.onPress();
 						router.push(routes.title("audiobook", audiobook.uuid));
 					}}
 					onLongPress={onLongPress}

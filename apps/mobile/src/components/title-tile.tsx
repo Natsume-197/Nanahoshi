@@ -1,12 +1,14 @@
 import { router } from "expo-router";
 import { View } from "react-native";
+import { useIsOnline } from "@/downloads/provider";
 import { titleOrUntitled } from "@/lib/format";
 import { type MediaKind, routes } from "@/lib/routes";
 import { usePrefetchOnPress } from "@/lib/title-queries";
+import { seedPeople } from "@/lib/title-seed";
 import { COVER_ASPECT, usePalette } from "@/theme";
 import { BookMenuTarget } from "./book-menu";
 import { Cover } from "./cover";
-import { OfflineAvailability } from "./offline-availability";
+import { OfflineTick } from "./offline-availability";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
 
@@ -21,6 +23,10 @@ export type TileItem = {
 	progress?: number;
 	/** From a recommendation feed: its actions offer "Not interested". */
 	recommendation?: boolean;
+	/** The authors behind `subtitle`, so the detail can draw its byline. */
+	authors?: readonly { uuid?: string | null; name?: string | null }[] | null;
+	/** The title's own name when `title` shows another (its series). */
+	detailTitle?: string | null;
 };
 
 /**
@@ -40,7 +46,13 @@ export function TitleTile({
 	frame?: "book" | "square";
 }) {
 	const palette = usePalette();
-	const prefetch = usePrefetchOnPress()(item.kind, item.uuid, item.cover);
+	const online = useIsOnline();
+	const prefetch = usePrefetchOnPress()(item.kind, item.uuid, {
+		title: item.detailTitle !== undefined ? item.detailTitle : item.title,
+		cover: item.cover,
+		color: item.color ?? null,
+		authors: seedPeople(item.authors),
+	});
 	const square = item.kind === "audiobook";
 	const frameHeight =
 		frame === "square" ? width : Math.round(width * COVER_ASPECT);
@@ -75,48 +87,49 @@ export function TitleTile({
 						.join(", ")}
 					style={{ width, gap: 12 }}
 				>
-					<OfflineAvailability uuid={item.uuid}>
-						<View
-							style={{
-								width,
-								height: frameHeight,
-								borderRadius: palette.coverRadius,
-								overflow: "hidden",
-								justifyContent: "center",
-								backgroundColor: plated
-									? platedBackground(item.color, palette.surface)
-									: undefined,
-							}}
-						>
-							<Cover
-								cover={item.cover}
-								color={item.color}
-								width={width}
-								shape={square ? "audio" : "book"}
-								recyclingKey={item.uuid}
-							/>
-							{item.progress && item.progress > 0 ? (
+					<View
+						style={{
+							width,
+							height: frameHeight,
+							borderRadius: palette.coverRadius,
+							overflow: "hidden",
+							justifyContent: "center",
+							backgroundColor: plated
+								? platedBackground(item.color, palette.surface)
+								: undefined,
+						}}
+					>
+						<Cover
+							cover={item.cover}
+							color={item.color}
+							width={width}
+							shape={square ? "audio" : "book"}
+							recyclingKey={item.uuid}
+						/>
+						{item.progress && item.progress > 0 ? (
+							<View
+								style={{
+									position: "absolute",
+									left: 0,
+									right: 0,
+									bottom: 0,
+									height: 4,
+									backgroundColor: palette.progressTrack,
+								}}
+							>
 								<View
 									style={{
-										position: "absolute",
-										left: 0,
-										right: 0,
-										bottom: 0,
-										height: 4,
-										backgroundColor: palette.progressTrack,
+										width: `${item.progress}%`,
+										height: "100%",
+										backgroundColor: palette.progress,
 									}}
-								>
-									<View
-										style={{
-											width: `${item.progress}%`,
-											height: "100%",
-											backgroundColor: palette.progress,
-										}}
-									/>
-								</View>
-							) : null}
-						</View>
-					</OfflineAvailability>
+								/>
+							</View>
+						) : null}
+						{/* Online there is nothing to tell apart: no per-tile
+							    session and downloads subscriptions. */}
+						{online ? null : <OfflineTick uuid={item.uuid} />}
+					</View>
 					<View style={{ gap: 4, paddingHorizontal: 2, minHeight: 64 }}>
 						<Text numberOfLines={2} variant="tileTitle">
 							{titleOrUntitled(item.title)}
