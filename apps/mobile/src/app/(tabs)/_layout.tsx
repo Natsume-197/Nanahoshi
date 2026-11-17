@@ -16,6 +16,7 @@ import { haptics } from "@/lib/haptics";
 import { t } from "@/lib/i18n";
 import { mediaUrl } from "@/lib/media";
 import { HAS_TAB_ACCESSORY } from "@/lib/platform";
+import { useTabAvatar } from "@/lib/use-tab-avatar";
 import { PlayerAccessory } from "@/player/mini-player";
 import { usePlayerState } from "@/player/provider";
 import { useApi, useConnection } from "@/providers/app-provider";
@@ -55,9 +56,7 @@ export default function TabsLayout() {
 		profile.data?.image ?? session.data?.user.image,
 	);
 	// A round PNG from the server: native tab icons can't be clipped here.
-	const avatarImage = avatar
-		? `${avatar}${avatar.includes("?") ? "&" : "?"}format=png&shape=circle`
-		: null;
+	const avatarImage = useTabAvatar(avatar);
 	const drawn = useAndroidTabIcons([
 		"home",
 		"search",
