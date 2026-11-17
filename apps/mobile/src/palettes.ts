@@ -12,6 +12,8 @@ const light = {
 	surfaceCardHover: "#e8e6dc",
 	surface: "#f0eee6", // chips, pressed rows
 	input: "#e8e6dc",
+	/** The search field's edge, as on Claude's composer. */
+	fieldBorder: "#d9d7cc",
 	text: "#141413",
 	textSecondary: "#5e5d59",
 	textTertiary: "#87867f",
@@ -47,6 +49,7 @@ const dark: typeof light = {
 	surfaceCardHover: "#2a2a28",
 	surface: "#2a2a28",
 	input: "#20201e",
+	fieldBorder: "#3c3c3a",
 	text: "#f9f9f7",
 	textSecondary: "#a3a29b",
 	textTertiary: "#75746e",
@@ -80,6 +83,7 @@ const amoled: typeof light = {
 	surfaceCardHover: "#1c1c1a",
 	surface: "#1c1c1a",
 	input: "#161615",
+	fieldBorder: "#2c2c2a",
 	navIndicator: "#262624",
 	separator: "#1f1f1d",
 	onPrimary: "#000000",

@@ -49,6 +49,9 @@ export function SearchField({
 				paddingRight: space.md,
 				borderRadius: radius.card,
 				borderCurve: "continuous",
+				// Claude's composer: a fine edge, about two device pixels.
+				borderWidth: 0.6,
+				borderColor: palette.fieldBorder,
 				backgroundColor: palette.input,
 			}}
 		>

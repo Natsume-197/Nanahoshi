@@ -53,6 +53,13 @@ describe.each(Object.entries(palettes))("%s palette", (_name, palette) => {
 			).toBeGreaterThanOrEqual(3);
 	});
 
+	test("the search field's edge shows against the field and the page", () => {
+		for (const ground of ["input", "background"] as const)
+			expect(
+				contrast(palette.fieldBorder, palette[ground]),
+			).toBeGreaterThanOrEqual(1.15);
+	});
+
 	test("raised surfaces step away from the canvas", () => {
 		expect(palette.surfaceCard).not.toBe(palette.background);
 		expect(palette.navIndicator).not.toBe(palette.chrome);
