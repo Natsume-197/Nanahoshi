@@ -20,7 +20,6 @@
 		"@orpc/client": "catalog:",
 		"@orpc/tanstack-query": "^1.15.1",
 		"@shopify/flash-list": "2.0.2",
-		"@shopify/react-native-skia": "2.6.2",
 		"@tanstack/react-query": "^5.103.1",
 		"better-auth": "catalog:",
 		"expo": "~57.0.25",
