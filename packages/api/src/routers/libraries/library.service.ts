@@ -9,7 +9,7 @@ import {
 import { logger } from "../../lib/logger";
 import { enqueueMetadataEnrichmentBulk } from "../../modules/metadataEnrichment/metadata-enrichment.admission";
 import { createAudiobookJobs } from "../../modules/scanning/audiobookJobCreator";
-import { reconcileLibraryWatcher } from "../../modules/scanning/library-watcher";
+import { requestLibraryWatcherRefresh } from "../../modules/scanning/library-watcher";
 import type { LibraryScanMode } from "../../modules/scanning/libraryScanner";
 import { scanPathLibrary } from "../../modules/scanning/libraryScanner";
 import {
@@ -41,7 +41,7 @@ import { libraryRepository } from "./library.repository";
 import { pathAccess } from "./path-access";
 
 async function refreshLibraryWatcher(libraryId: number): Promise<void> {
-	await reconcileLibraryWatcher(libraryId).catch((err) =>
+	await requestLibraryWatcherRefresh(libraryId).catch((err) =>
 		logger.error(
 			{ err, libraryId },
 			"[Library] Failed to update real-time watcher",

@@ -41,7 +41,7 @@ mock.module("../../../routers/libraries/library.repository", () => ({
 	libraryRepository: {
 		findAll,
 		getServerIdByLibraryId: mock((libraryId: number) =>
-			Promise.resolve(libraryId === 1 || libraryId === 2 ? "server-1" : null),
+			Promise.resolve(libraryId <= 3 ? "server-1" : null),
 		),
 	},
 }));
@@ -61,7 +61,26 @@ const watcherLogger = {
 };
 mock.module("../../../lib/logger", () => ({ logger: watcherLogger }));
 
-const { startLibraryWatchers } = await import("../library-watcher");
+const publish = mock((..._args: unknown[]) => Promise.resolve(1));
+mock.module("../../../infrastructure/queue/redis", () => ({
+	redis: { publish },
+}));
+let onChannelMessage: ((message: string) => void) | null = null;
+mock.module("../../../infrastructure/queue/pubsub", () => ({
+	subscribeChannel: (
+		_channel: string,
+		onMessage: (message: string) => void,
+	) => {
+		onChannelMessage = onMessage;
+		return async () => {
+			onChannelMessage = null;
+		};
+	},
+}));
+
+const { requestLibraryWatcherRefresh, startLibraryWatchers } = await import(
+	"../library-watcher"
+);
 
 describe("library watcher", () => {
 	beforeEach(() => {
@@ -138,6 +157,34 @@ describe("library watcher", () => {
 			]);
 		}
 
+		await watchers.close();
+	});
+
+	test("a library created in the API process reaches the worker's watchers", async () => {
+		await requestLibraryWatcherRefresh(3);
+		expect(publish).toHaveBeenCalledWith("library:watchers", "3");
+
+		const watchers = await startLibraryWatchers({ watchFilesystem: watch });
+		watch.mockClear();
+		findAll.mockImplementationOnce(() =>
+			Promise.resolve([
+				{
+					id: 3,
+					serverId: "server-1",
+					realtimeWatchEnabled: true,
+					paths: [{ path: "/library/new", isEnabled: true }],
+				},
+			]),
+		);
+		onChannelMessage?.("3");
+		jest.useRealTimers();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(watch).toHaveBeenCalledWith(
+			"/library/new",
+			{ recursive: true },
+			expect.any(Function),
+		);
 		await watchers.close();
 	});
 });

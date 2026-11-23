@@ -126,6 +126,12 @@ mock.module("../../../modules/scanning/audiobookJobCreator", () => ({
 // Scheduler talks to Redis — stub it so update/delete don't open a connection.
 const mockRegisterSchedule = mock(() => Promise.resolve());
 const mockUnregisterSchedule = mock(() => Promise.resolve());
+const requestLibraryWatcherRefresh = mock((_libraryId: number) =>
+	Promise.resolve(),
+);
+mock.module("../../../modules/scanning/library-watcher", () => ({
+	requestLibraryWatcherRefresh,
+}));
 mock.module("../../../modules/scanning/scheduled-scan.scheduler", () => ({
 	registerLibrarySchedule: mockRegisterSchedule,
 	unregisterLibrarySchedule: mockUnregisterSchedule,
@@ -667,6 +673,8 @@ describe("library.service — org-scoped authorization", () => {
 				"user-1",
 			);
 			expect(created.initialScanStatus).toBe("started");
+			// The worker watches the new folder right away, not after a restart.
+			expect(requestLibraryWatcherRefresh).toHaveBeenCalledWith(7);
 
 			expect(mockCreateTask).toHaveBeenCalledWith(
 				expect.objectContaining({

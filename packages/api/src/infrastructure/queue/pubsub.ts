@@ -24,6 +24,20 @@ export function lazySubscriber(
 	};
 }
 
+/** A dedicated subscriber for one channel, for a long-lived listener (the
+ * worker's watchers); returns how to stop it. */
+export function subscribeChannel(
+	channel: string,
+	onMessage: (message: string) => void,
+): () => Promise<void> {
+	const sub = new Redis(redis.options);
+	sub.subscribe(channel).catch(() => {});
+	sub.on("message", (_channel, message) => onMessage(message));
+	return async () => {
+		await sub.quit().catch(() => {});
+	};
+}
+
 /** Interest index add: get-or-create the bucket Set, then add the value. */
 export function addToBucket<T>(
 	map: Map<string, Set<T>>,

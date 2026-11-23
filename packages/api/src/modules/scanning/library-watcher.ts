@@ -1,13 +1,17 @@
 import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { subscribeChannel } from "../../infrastructure/queue/pubsub";
 import { scheduledScanQueue } from "../../infrastructure/queue/queues/scheduled-scan.queue";
+import { redis } from "../../infrastructure/queue/redis";
 import { logger } from "../../lib/logger";
 import type { LibraryComplete } from "../../routers/libraries/library.model";
 import { libraryRepository } from "../../routers/libraries/library.repository";
 
 const log = logger.child({ component: "library-watcher" });
 const DEBOUNCE_MS = 5_000;
+// Libraries change in the API process; the watchers live in the worker's.
+const WATCHER_CHANNEL = "library:watchers";
 
 type ClosableWatcher = { close(): void };
 type WatchFilesystem = (
@@ -21,6 +25,7 @@ type WatchFilesystem = (
 const watchersByLibrary = new Map<number, ClosableWatcher[]>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 let started = false;
+let watchFilesystem: WatchFilesystem = fs.watch;
 let excludedRealtimeWatchRoots: string[] = [];
 
 function unescapeMountPath(value: string): string {
@@ -140,7 +145,23 @@ export async function reconcileLibraryWatcher(
 		closeLibraryWatcher(libraryId);
 		return;
 	}
-	installLibraryWatcher(library, serverId, fs.watch);
+	installLibraryWatcher(library, serverId, watchFilesystem);
+}
+
+/**
+ * A library or its folders changed: watch what it has now. Only the worker
+ * holds watchers, so a change made in the API process is sent to it.
+ */
+export async function requestLibraryWatcherRefresh(
+	libraryId: number,
+): Promise<void> {
+	if (started) return reconcileLibraryWatcher(libraryId);
+	// Never hold the request on Redis: the next worker start watches it anyway.
+	redis
+		.publish(WATCHER_CHANNEL, String(libraryId))
+		.catch((err) =>
+			log.warn({ err, libraryId }, "Could not notify the library watcher"),
+		);
 }
 
 /**
@@ -155,6 +176,7 @@ export async function startLibraryWatchers(options?: {
 	close(): Promise<void>;
 }> {
 	started = true;
+	watchFilesystem = options?.watchFilesystem ?? fs.watch;
 	excludedRealtimeWatchRoots = fuseMountRoots(
 		await (
 			options?.readMountInfo ?? (() => readFile("/proc/self/mountinfo", "utf8"))
@@ -164,12 +186,15 @@ export async function startLibraryWatchers(options?: {
 	for (const library of libraries) {
 		const serverId = await libraryRepository.getServerIdByLibraryId(library.id);
 		if (!serverId) continue;
-		installLibraryWatcher(
-			library,
-			serverId,
-			options?.watchFilesystem ?? fs.watch,
-		);
+		installLibraryWatcher(library, serverId, watchFilesystem);
 	}
+	const unsubscribe = subscribeChannel(WATCHER_CHANNEL, (message) => {
+		const libraryId = Number(message);
+		if (!Number.isInteger(libraryId)) return;
+		reconcileLibraryWatcher(libraryId).catch((err) =>
+			log.warn({ err, libraryId }, "Library watcher refresh failed"),
+		);
+	});
 
 	log.info(
 		{
@@ -183,6 +208,7 @@ export async function startLibraryWatchers(options?: {
 	);
 	return {
 		async close() {
+			await unsubscribe();
 			started = false;
 			excludedRealtimeWatchRoots = [];
 			for (const timer of timers.values()) clearTimeout(timer);
