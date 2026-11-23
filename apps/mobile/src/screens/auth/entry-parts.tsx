@@ -91,6 +91,14 @@ export function SignInOptions({
 				label={t("mobile.welcome.continue_email")}
 				onPress={() => router.push("/sign-in")}
 			/>
+			{/* Signed in on the web: its QR is the quickest way in. */}
+			<PaperButton
+				plain
+				paper={paper}
+				icon={icons.qrScan}
+				label={t("mobile.pair.scan")}
+				onPress={() => router.push("/scan")}
+			/>
 			<LegalLine
 				paper={paper}
 				terms={sso.data?.legal?.terms ?? `${serverUrl}/legal/terms`}
