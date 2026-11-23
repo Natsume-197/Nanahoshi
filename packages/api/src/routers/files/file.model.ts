@@ -25,3 +25,14 @@ export const GetDirectoriesInput = z.object({
 			message: "Path must be absolute",
 		}),
 });
+
+export const PreviewFolderInput = z.object({
+	location: z
+		.string()
+		.min(1)
+		.max(1024)
+		.refine((s) => !s.includes("\0"), { message: "Invalid path" })
+		.refine((s) => s.startsWith("/") || /^[A-Za-z]:[\\/]/.test(s), {
+			message: "Path must be absolute",
+		}),
+});

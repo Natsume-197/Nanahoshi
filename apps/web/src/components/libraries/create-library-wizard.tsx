@@ -18,6 +18,7 @@ import { BookOpen, Headphones, Info, Plus, X } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useMemo, useRef, useState } from "react";
 import { m } from "@/paraglide/messages";
 import { DirectoryPicker } from "./directory-picker";
+import { FolderPreviewHint } from "./folder-preview-hint";
 import {
 	type MetadataDraft,
 	MetadataSection,
@@ -77,7 +78,24 @@ export function CreateLibraryWizard({
 	const [name, setName] = useState("");
 	const [mediaType, setMediaType] = useState<MediaType>("ebook");
 	const nextPathId = useRef(1);
-	const [paths, setPaths] = useState([{ id: 0, value: "" }]);
+	const [paths, setPaths] = useState([{ id: 0, value: "", settled: "" }]);
+	// Each folder is looked into once typing pauses, not at every keystroke.
+	const settleTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+	const settlePath = (id: number, value: string) => {
+		clearTimeout(settleTimers.current.get(id));
+		settleTimers.current.set(
+			id,
+			setTimeout(
+				() =>
+					setPaths((current) =>
+						current.map((item) =>
+							item.id === id ? { ...item, settled: value.trim() } : item,
+						),
+					),
+				450,
+			),
+		);
+	};
 	const initialMetadata = useMemo<MetadataDraft>(
 		() => ({
 			metadataProviders:
@@ -341,50 +359,54 @@ export function CreateLibraryWizard({
 							</Field>
 							<div className="flex flex-col gap-2">
 								{paths.map((path, index) => (
-									<div key={path.id} className="flex items-center gap-2">
-										<div className="min-w-0 flex-1">
-											<DirectoryPicker
-												inputId={
-													index === 0 ? "wizard-library-folder-0" : undefined
-												}
-												placeholder={
-													mediaType === "audiobook"
-														? m["library.path_audiobooks_placeholder"]()
-														: m["library.path_placeholder"]()
-												}
-												value={path.value}
-												onChange={(value) => {
-													setSubmitError(null);
-													if (value.trim()) setShowFolderError(false);
-													setPaths((current) =>
-														current.map((item, i) =>
-															i === index ? { ...item, value } : item,
-														),
-													);
-												}}
-												inputLabel={m["library.folder_path_number"]({
-													number: index + 1,
-												})}
-											/>
+									<div key={path.id} className="flex flex-col gap-1.5">
+										<div className="flex items-center gap-2">
+											<div className="min-w-0 flex-1">
+												<DirectoryPicker
+													inputId={
+														index === 0 ? "wizard-library-folder-0" : undefined
+													}
+													placeholder={
+														mediaType === "audiobook"
+															? m["library.path_audiobooks_placeholder"]()
+															: m["library.path_placeholder"]()
+													}
+													value={path.value}
+													onChange={(value) => {
+														setSubmitError(null);
+														if (value.trim()) setShowFolderError(false);
+														setPaths((current) =>
+															current.map((item, i) =>
+																i === index ? { ...item, value } : item,
+															),
+														);
+														settlePath(path.id, value);
+													}}
+													inputLabel={m["library.folder_path_number"]({
+														number: index + 1,
+													})}
+												/>
+											</div>
+											{paths.length > 1 && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon-sm"
+													className="shrink-0 text-muted-foreground"
+													onClick={() =>
+														setPaths((current) =>
+															current.filter((_, i) => i !== index),
+														)
+													}
+													aria-label={m["library.remove_folder_number"]({
+														number: index + 1,
+													})}
+												>
+													<X aria-hidden className="size-4" />
+												</Button>
+											)}
 										</div>
-										{paths.length > 1 && (
-											<Button
-												type="button"
-												variant="ghost"
-												size="icon-sm"
-												className="shrink-0 text-muted-foreground"
-												onClick={() =>
-													setPaths((current) =>
-														current.filter((_, i) => i !== index),
-													)
-												}
-												aria-label={m["library.remove_folder_number"]({
-													number: index + 1,
-												})}
-											>
-												<X aria-hidden className="size-4" />
-											</Button>
-										)}
+										<FolderPreviewHint path={path.settled} />
 									</div>
 								))}
 								<Button
@@ -395,7 +417,7 @@ export function CreateLibraryWizard({
 									onClick={() =>
 										setPaths((current) => [
 											...current,
-											{ id: nextPathId.current++, value: "" },
+											{ id: nextPathId.current++, value: "", settled: "" },
 										])
 									}
 								>

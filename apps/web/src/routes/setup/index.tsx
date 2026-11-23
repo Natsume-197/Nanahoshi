@@ -1,23 +1,16 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { CreateWorkspaceForm } from "@/components/forms/create-workspace-form";
+import { SetupFlow } from "@/components/onboarding/setup-flow";
+import { reachServer } from "@/lib/auth-session-error";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/setup/")({
 	beforeLoad: async () => {
-		const { configured } = await client.setup.ssoStatus();
+		const { configured } = await reachServer(() => client.setup.ssoStatus());
 		if (configured) {
 			throw redirect({
 				to: "/dashboard",
 			});
 		}
 	},
-	component: SetupRoutePage,
+	component: SetupFlow,
 });
-
-function SetupRoutePage() {
-	return (
-		<main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
-			<CreateWorkspaceForm />
-		</main>
-	);
-}

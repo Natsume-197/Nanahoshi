@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 
 import { SignInForm } from "@/components/forms/sign-in-form";
+import { reachServer } from "@/lib/auth-session-error";
 import { optionalAppPath, optionalString } from "@/lib/search-validators";
 import { client } from "@/utils/orpc";
 
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/login")({
 			throw redirect({ to: "/dashboard" });
 		}
 		// One public request supplies both the setup gate and auth methods.
-		const sso = await client.setup.ssoStatus();
+		const sso = await reachServer(() => client.setup.ssoStatus());
 		if (!sso.configured) {
 			throw redirect({ to: "/setup" });
 		}

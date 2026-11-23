@@ -45,6 +45,17 @@ mock.module("@/utils/orpc", () => ({
 			},
 		},
 		files: {
+			previewFolder: {
+				queryOptions: ({ input }: { input: { location: string } }) => ({
+					queryKey: ["preview-folder", input.location],
+					queryFn: async () => ({
+						state: "ok",
+						ebooks: 3,
+						audiobooks: 0,
+						partial: false,
+					}),
+				}),
+			},
 			getDirectories: {
 				queryOptions: () => ({
 					queryKey: ["directories"],

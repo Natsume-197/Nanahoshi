@@ -36,6 +36,17 @@ export const getRouter = () => {
 					/>
 				);
 			}
+			if (sessionErrorKind === "unreachable") {
+				return (
+					<ErrorPage
+						title={m["auth.server_unreachable_title"]()}
+						description={m["auth.server_unreachable_description"]()}
+						retryLabel={m["auth.session_retry"]()}
+						showHome={false}
+						onRetry={() => window.location.reload()}
+					/>
+				);
+			}
 			if (sessionErrorKind === "unavailable") {
 				return (
 					<ErrorPage

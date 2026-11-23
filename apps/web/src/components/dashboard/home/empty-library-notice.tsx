@@ -1,14 +1,15 @@
 import type { Task } from "@nanahoshi/api/modules/taskManager";
 import { Button } from "@nanahoshi/ui/components/button";
+import { Input } from "@nanahoshi/ui/components/input";
 import { Books, CircleNotch } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { type JSX, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { type FormEvent, type JSX, useState } from "react";
 import { useSettingsModal } from "@/components/layout/settings-modal-context";
-import { CreateLibraryWizard } from "@/components/libraries/create-library-wizard";
 import { LibraryTaskProgress } from "@/components/libraries/library-task-progress";
 import { useAbilities } from "@/hooks/use-abilities";
-import { useCreateLibrary } from "@/hooks/use-create-library";
 import { useSession } from "@/hooks/use-session";
+import { inviteCodeFrom } from "@/lib/invite-code";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 import { pickActiveImport } from "./import-task";
@@ -70,24 +71,8 @@ const STEPS = [
 ] as const;
 
 /** New-admin onboarding: what happens, in order, with one clear next action
- * that deep-links straight into the create-library wizard. */
+ * into the guided welcome flow. */
 function GettingStartedNotice(): JSX.Element {
-	const [creating, setCreating] = useState(false);
-	const createLibrary = useCreateLibrary({
-		onCreated: () => setCreating(false),
-	});
-	if (creating)
-		return (
-			<CreateLibraryWizard
-				heading={m["home.add_first_library"]()}
-				onOpenChange={setCreating}
-				onSubmit={(data) =>
-					createLibrary.mutateAsync(data).then(() => undefined)
-				}
-				isPending={createLibrary.isPending}
-			/>
-		);
-
 	return (
 		<NoticeShell>
 			<div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground shadow-card">
@@ -121,8 +106,8 @@ function GettingStartedNotice(): JSX.Element {
 					</li>
 				))}
 			</ol>
-			<Button variant="default" onClick={() => setCreating(true)}>
-				{m["home.add_first_library"]()}
+			<Button asChild variant="default">
+				<Link to="/welcome">{m["home.add_first_library"]()}</Link>
 			</Button>
 		</NoticeShell>
 	);
@@ -145,7 +130,56 @@ function PassiveEmptyNotice({ hasOrg }: { hasOrg: boolean }): JSX.Element {
 					{hasOrg ? m["home.empty_member"]() : m["home.empty_no_server"]()}
 				</p>
 			</div>
+			<InvitePaste hint={hasOrg ? m["home.invite_other"]() : null} />
 		</NoticeShell>
+	);
+}
+
+/** Nobody is left without a next step: an invite link pasted here opens it. */
+function InvitePaste({ hint }: { hint: string | null }): JSX.Element {
+	const navigate = useNavigate();
+	const [value, setValue] = useState("");
+	const [invalid, setInvalid] = useState(false);
+	const submit = (event: FormEvent) => {
+		event.preventDefault();
+		const code = inviteCodeFrom(value);
+		setInvalid(!code);
+		if (code) void navigate({ to: "/invite/$code", params: { code } });
+	};
+	return (
+		<form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-2">
+			{hint && <p className="text-muted-foreground text-sm">{hint}</p>}
+			<label htmlFor="invite-paste" className="sr-only">
+				{m["home.invite_paste_label"]()}
+			</label>
+			<div className="flex gap-2">
+				<Input
+					id="invite-paste"
+					value={value}
+					onChange={(event) => {
+						setValue(event.target.value);
+						setInvalid(false);
+					}}
+					placeholder={m["home.invite_paste_placeholder"]()}
+					autoComplete="off"
+					aria-invalid={invalid || undefined}
+					aria-describedby={invalid ? "invite-paste-error" : undefined}
+					className="h-10 flex-1"
+				/>
+				<Button type="submit" disabled={!value.trim()}>
+					{m["home.invite_paste_action"]()}
+				</Button>
+			</div>
+			{invalid && (
+				<p
+					id="invite-paste-error"
+					role="alert"
+					className="text-destructive text-sm"
+				>
+					{m["home.invite_paste_invalid"]()}
+				</p>
+			)}
+		</form>
 	);
 }
 

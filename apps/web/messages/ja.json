@@ -271,7 +271,7 @@
 			"policy_title": "アカウントを作成できるユーザー",
 			"policy_desc": "1つのサーバーだけでなく、インスタンス全体に適用されます。既存のアカウントは常にサインインできます。",
 			"invite_only": "招待制",
-			"invite_only_desc": "新規アカウントには招待リンクまたはサーバーへのメール招待が必要です。",
+			"invite_only_desc": "新規アカウントにはサーバーへの招待リンクが必要です。",
 			"closed": "停止中",
 			"closed_desc": "アカウントは作成できません。招待リンクは既存のアカウントでのみ利用できます。",
 			"methods_title": "登録方法",
@@ -389,7 +389,7 @@
 			"name_required": "名前を入力してください"
 		},
 		"discord": {
-			"desc": "Discordサーバーのメンバー資格とロールに基づき、招待リンクから参加できるユーザーを制限します。メールによる直接招待には適用されません。条件を設定しない場合は、誰でも参加できます。",
+			"desc": "Discordサーバーのメンバー資格とロールに基づき、招待リンクから参加できるユーザーを制限します。条件を設定しない場合は、誰でも参加できます。",
 			"rule_hint": "参加するには、少なくとも1つの条件を満たす必要があります。各条件にはサーバーへの参加が必要で、特定のロールも任意で指定できます。アカウントにDiscordを連携している必要があります。",
 			"requirements_title": "条件を満たすユーザー",
 			"active_rules": "有効な条件",
@@ -799,7 +799,7 @@
 		"slug": "識別子",
 		"slug_placeholder": "my-library",
 		"slug_hint": "名前から生成される短い固有IDです。編集できます。",
-		"username_placeholder": "your-username",
+		"username_placeholder": "your_username",
 		"repeat_password": "パスワードを再入力",
 		"repeat_password_placeholder": "パスワードを確認",
 		"next": "次へ",
@@ -818,7 +818,7 @@
 		"sign_in_subtitle": "続行するにはライブラリにログインしてください。",
 		"create_account": "アカウントを作成",
 		"sign_up_subtitle": "ライブラリへのアクセスを設定して始めましょう。",
-		"invite_only_note": "このサーバーは招待制です。管理者からの招待リンクまたはメール招待が必要です。",
+		"invite_only_note": "このサーバーは招待制です。管理者からの招待リンクが必要です。",
 		"signup_closed_note": "現在、このインスタンスでは新規アカウントを受け付けていません。誤りと思われる場合は管理者にお問い合わせください。",
 		"email_signup_disabled_note": "このサーバーではメールでの登録が無効です。代わりに以下の方法を使用してください。",
 		"session_rate_limited_title": "リクエストが多すぎます",
@@ -861,7 +861,9 @@
 			"username_min": "ユーザー名は3文字以上にしてください",
 			"username_max": "ユーザー名は30文字以内にしてください",
 			"username_chars": "英字、数字、ピリオド、アンダースコアのみ使用できます"
-		}
+		},
+		"server_unreachable_title": "サーバーに接続できません",
+		"server_unreachable_description": "Nanahoshiが応答していません。起動したばかりの場合は、数秒待ってからもう一度お試しください。"
 	},
 	"nav": {
 		"resize_rail": "サイドバーのサイズを変更",
@@ -2156,7 +2158,12 @@
 					"countPlural=other": "{count}作品"
 				}
 			}
-		]
+		],
+		"invite_paste_label": "招待リンクまたはコード",
+		"invite_paste_placeholder": "招待リンクを貼り付け",
+		"invite_paste_action": "参加",
+		"invite_paste_invalid": "招待リンクではないようです。",
+		"invite_other": "別のサーバーに招待されましたか？リンクをここに貼り付けてください。"
 	},
 	"entity_page": {
 		"search_placeholder": "本を検索…",
@@ -2868,5 +2875,95 @@
 	"reading_goal_per_day": "1日あたり約{amount}",
 	"reading_vs_average": "1日の平均: {average}",
 	"listening_title": "リスニング履歴",
-	"reading_whole_book": "本全体"
+	"reading_whole_book": "本全体",
+	"onboarding": {
+		"step_of": "ステップ {step} / {total}",
+		"hello_title": "あなたの本棚を、あなたの家に。",
+		"hello_lead": "Nanahoshiは本とオーディオブックを一か所にまとめ、どのデバイスでも読んだり聴いたりできます。設定は1分ほどで終わります。",
+		"hello_start": "はじめる",
+		"name_title": "ライブラリの名前は？",
+		"name_lead": "招待した人にもこの名前が表示されます。あとから変更できます。",
+		"name_placeholder": "マイライブラリ",
+		"name_idea_home": "おうち図書館",
+		"name_idea_shelf": "本棚",
+		"name_idea_nook": "読書の隅",
+		"name_blocked": "名前を入力してください。",
+		"continue": "続ける",
+		"account_title": "アカウントを作成",
+		"account_lead": "あなたが{name}の管理者になります。",
+		"username_hint": "このユーザー名でもサインインできます。",
+		"password_show": "パスワードを表示",
+		"password_hide": "パスワードを隠す",
+		"account_blocked_email": "メールアドレスを入力してください。",
+		"account_blocked_username": "3文字以上のユーザー名を入力してください。",
+		"account_blocked_password": "8文字以上のパスワードを入力してください。",
+		"account_create": "ライブラリを作成",
+		"account_creating": "作成中…",
+		"books_title": "本はどこにありますか？",
+		"books_lead": "Nanahoshiが表紙・著者・シリーズと一緒に自動で取り込みます。",
+		"books_folder": "このサーバーにある",
+		"books_folder_desc": "フォルダを指定すると、中身をすべて取り込みます。",
+		"books_folder_found": "{folder} フォルダが見つかりました。",
+		"books_upload": "ここからアップロードする",
+		"books_upload_desc": "EPUB、PDF、コミックなどのファイルをドラッグしてください。オーディオブックはサーバーのフォルダに置いてください。",
+		"folder_title": "本のフォルダ",
+		"folder_lead": "あとから追加したものも自動で表示されます。",
+		"folder_label": "サーバー上のフォルダ",
+		"folder_action": "本を取り込む",
+		"upload_title": "アップロード先はどこにしますか？",
+		"upload_lead": "アップロードした本はサーバーのこのフォルダに保存されます。",
+		"upload_action": "アップロードへ進む",
+		"books_blocked_folder": "フォルダを選択してください。",
+		"books_blocked_unreadable": "Nanahoshiはまだこのフォルダを読み取れません。",
+		"books_looking": "中身を確認しています…",
+		"books_creating": "ライブラリを準備しています…",
+		"folder_unreadable": "このフォルダを開けません。パスを確認し、Dockerを使っている場合はコンテナにマウントされているか確認してください。",
+		"count_books": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=other": "{count}冊の本"
+				}
+			}
+		],
+		"count_audiobooks": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=other": "{count}件のオーディオブック"
+				}
+			}
+		],
+		"count_titles": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=other": "{count}タイトル"
+				}
+			}
+		],
+		"found": "{what}が見つかりました。",
+		"found_at_least": "少なくとも{what}が見つかりました。",
+		"found_and": "{first}と{second}",
+		"found_note": "すべて取り込まれます。",
+		"found_upload_note": "これらも取り込まれます。",
+		"empty_folder": "このフォルダは今は空です。あとから入れたものは自動で表示されます。",
+		"empty_folder_upload": "今は空です。アップロードの準備ができています。",
+		"importing_title": "本を取り込んでいます…",
+		"importing_lead": "表紙やシリーズが見つかり次第表示されます。このページを離れてもバックグラウンドで続きます。",
+		"importing_leave": "ライブラリへ",
+		"ready_title": "ライブラリの準備ができました",
+		"ready_lead": "本棚に{titles}が並びました。表紙もシリーズも揃っています。",
+		"ready_action": "読みはじめる",
+		"ready_phone": "スマートフォンでも読む",
+		"empty_title": "まだ本がありません",
+		"empty_lead": "フォルダは接続されていますが、取り込むものがありませんでした。本をアップロードするか、フォルダに入れると自動で表示されます。",
+		"empty_upload": "本をアップロード",
+		"empty_no_folder": "アップロードするには、ライブラリにフォルダを追加してください。",
+		"uploading_title": "本をアップロード中",
+		"uploading_lead": "ファイルをボックスにドロップしてください。終わったらここに取り込みます。"
+	}
 }

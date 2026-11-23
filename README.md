@@ -77,7 +77,10 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
    docker compose up -d
    ```
 
-Open your configured URL (default `http://localhost:7331`), create your account and add a library.
+Open your configured URL (default `http://localhost:7331`). A short setup names your
+library and creates the administrator account, then asks where your books are: the
+`books` folder mounted above is suggested, and Nanahoshi shows what it found before
+importing. To use the phone app, scan the code under Settings → Mobile app.
 
 ## Local development
 
@@ -98,8 +101,8 @@ VITE_SERVER_URL=http://nanahoshi-dev.localhost:7333 bun run dev
 ```
 
 The web application is available at `http://nanahoshi-dev.localhost:7332` and the API at
-`http://nanahoshi-dev.localhost:7333` with the development settings above. The first account created on
-a fresh installation becomes the instance administrator.
+`http://nanahoshi-dev.localhost:7333` with the development settings above. A fresh installation opens
+the setup at `/setup`; the account created there becomes the instance administrator.
 
 ## Contribution and attribution
 

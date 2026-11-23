@@ -271,7 +271,7 @@
 			"policy_title": "Who can create an account",
 			"policy_desc": "Applies to the whole instance, not just one server. Existing accounts can always sign in.",
 			"invite_only": "Invite only",
-			"invite_only_desc": "New accounts require an invite link or an email invitation to a server.",
+			"invite_only_desc": "New accounts require an invite link to a server.",
 			"closed": "Closed",
 			"closed_desc": "Nobody can create an account — invite links only work for people who already have one.",
 			"methods_title": "Sign-up methods",
@@ -389,7 +389,7 @@
 			"name_required": "Name is required"
 		},
 		"discord": {
-			"desc": "Restrict who can join via invite links based on Discord server membership and roles. Direct email invitations bypass these rules. If no rules are set, anyone can join.",
+			"desc": "Restrict who can join via invite links based on Discord server membership and roles. If no rules are set, anyone can join.",
 			"rule_hint": "Users must satisfy at least one rule to join. Each rule requires guild membership and optionally a specific role. Users must have Discord linked in their account.",
 			"requirements_title": "Who meets the requirements",
 			"active_rules": "Active Rules",
@@ -799,7 +799,7 @@
 		"slug": "Identifier",
 		"slug_placeholder": "my-library",
 		"slug_hint": "Short unique ID, generated from the name. You can edit it.",
-		"username_placeholder": "your-username",
+		"username_placeholder": "your_username",
 		"repeat_password": "Repeat password",
 		"repeat_password_placeholder": "Confirm password",
 		"next": "Next",
@@ -818,7 +818,7 @@
 		"sign_in_subtitle": "Sign in to your library to continue.",
 		"create_account": "Create your account",
 		"sign_up_subtitle": "Set up your access to the library to get started.",
-		"invite_only_note": "This server is invite-only: you need an invite link or an email invitation from an administrator.",
+		"invite_only_note": "This server is invite-only: you need an invite link from an administrator.",
 		"signup_closed_note": "This instance isn't accepting new accounts right now. Contact an administrator if you think this is a mistake.",
 		"email_signup_disabled_note": "Email sign-up is disabled on this server. Use one of the options below instead.",
 		"session_rate_limited_title": "Too many requests",
@@ -861,7 +861,9 @@
 			"username_min": "Username must be at least 3 characters",
 			"username_max": "Username must be 30 characters or less",
 			"username_chars": "Only letters, numbers, periods and underscores"
-		}
+		},
+		"server_unreachable_title": "Can't reach the server",
+		"server_unreachable_description": "Nanahoshi isn't answering right now. If you just started it, give it a few seconds and try again."
 	},
 	"nav": {
 		"resize_rail": "Resize sidebar",
@@ -2193,7 +2195,12 @@
 					"countPlural=other": "{count} audiobooks"
 				}
 			}
-		]
+		],
+		"invite_paste_label": "Invite link or code",
+		"invite_paste_placeholder": "Paste your invite link",
+		"invite_paste_action": "Join",
+		"invite_paste_invalid": "That doesn't look like an invite link.",
+		"invite_other": "Invited to another server? Paste the link here."
 	},
 	"entity_page": {
 		"search_placeholder": "Search books…",
@@ -2923,5 +2930,98 @@
 	"reading_goal_per_day": "~{amount} a day",
 	"reading_vs_average": "Your average: {average} a day",
 	"listening_title": "Listening history",
-	"reading_whole_book": "Whole book"
+	"reading_whole_book": "Whole book",
+	"onboarding": {
+		"step_of": "Step {step} of {total}",
+		"hello_title": "Your library, at home.",
+		"hello_lead": "Nanahoshi keeps your books and audiobooks in one place and lets you read and listen on any device. Setting it up takes a minute.",
+		"hello_start": "Get started",
+		"name_title": "What should we call your library?",
+		"name_lead": "Everyone you invite will see this name. You can change it anytime.",
+		"name_placeholder": "My library",
+		"name_idea_home": "Home library",
+		"name_idea_shelf": "The bookshelf",
+		"name_idea_nook": "Reading nook",
+		"name_blocked": "Type a name to continue.",
+		"continue": "Continue",
+		"account_title": "Create your account",
+		"account_lead": "You'll be the one who looks after {name}.",
+		"username_hint": "You can also sign in with it.",
+		"password_show": "Show password",
+		"password_hide": "Hide password",
+		"account_blocked_email": "Enter your email to continue.",
+		"account_blocked_username": "Pick a username of at least 3 characters.",
+		"account_blocked_password": "Use a password of at least 8 characters.",
+		"account_create": "Create my library",
+		"account_creating": "Creating…",
+		"books_title": "Where are your books?",
+		"books_lead": "Nanahoshi brings them in with covers, authors and series, all on its own.",
+		"books_folder": "They're already on this server",
+		"books_folder_desc": "Point to the folder and we'll import everything in it.",
+		"books_folder_found": "We found a {folder} folder ready to go.",
+		"books_upload": "I'll upload them from here",
+		"books_upload_desc": "Drag in your EPUB, PDF, comic and other files. Audiobooks go in a server folder.",
+		"folder_title": "Your books folder",
+		"folder_lead": "Anything you add to it later shows up on its own.",
+		"folder_label": "Folder on the server",
+		"folder_action": "Import my books",
+		"upload_title": "Where should uploads be kept?",
+		"upload_lead": "Books you upload are saved in this folder on the server.",
+		"upload_action": "Continue to upload",
+		"books_blocked_folder": "Choose a folder to continue.",
+		"books_blocked_unreadable": "Nanahoshi can't read that folder yet.",
+		"books_looking": "Looking inside…",
+		"books_creating": "Setting up your library…",
+		"folder_unreadable": "Nanahoshi can't open this folder. Check the path, and if you use Docker, that the folder is mounted into the container.",
+		"count_books": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} book",
+					"countPlural=other": "{count} books"
+				}
+			}
+		],
+		"count_audiobooks": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} audiobook",
+					"countPlural=other": "{count} audiobooks"
+				}
+			}
+		],
+		"count_titles": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} title",
+					"countPlural=other": "{count} titles"
+				}
+			}
+		],
+		"found": "We found {what}.",
+		"found_at_least": "We found at least {what}.",
+		"found_and": "{first} and {second}",
+		"found_note": "They'll all come in.",
+		"found_upload_note": "They'll come in too.",
+		"empty_folder": "This folder is empty for now. That's fine: anything you put in it later shows up on its own.",
+		"empty_folder_upload": "It's empty for now, ready for your uploads.",
+		"importing_title": "Bringing in your books…",
+		"importing_lead": "Covers and series appear as they're found. You can leave; it keeps going in the background.",
+		"importing_leave": "Go to my library",
+		"ready_title": "Your library is ready",
+		"ready_lead": "You have {titles} on your shelf, with covers and series.",
+		"ready_action": "Start reading",
+		"ready_phone": "Read on your phone too",
+		"empty_title": "No books here yet",
+		"empty_lead": "Your folder is connected but had nothing to import. Upload some books, or add them to the folder and they'll appear on their own.",
+		"empty_upload": "Upload books",
+		"empty_no_folder": "Add a folder to a library to upload into it.",
+		"uploading_title": "Uploading your books",
+		"uploading_lead": "Drop your files in the box. When you're done, we'll bring them in here."
+	}
 }

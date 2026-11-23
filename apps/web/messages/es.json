@@ -271,7 +271,7 @@
 			"policy_title": "Quién puede crear una cuenta",
 			"policy_desc": "Se aplica a toda la instancia, no solo a un servidor. Las cuentas existentes siempre pueden iniciar sesión.",
 			"invite_only": "Solo con invitación",
-			"invite_only_desc": "Las cuentas nuevas requieren un enlace de invitación o una invitación por correo a un servidor.",
+			"invite_only_desc": "Las cuentas nuevas requieren un enlace de invitación a un servidor.",
 			"closed": "Cerrado",
 			"closed_desc": "Nadie puede crear una cuenta — los enlaces de invitación solo sirven para quienes ya tienen una.",
 			"methods_title": "Métodos de registro",
@@ -389,7 +389,7 @@
 			"name_required": "El nombre es obligatorio"
 		},
 		"discord": {
-			"desc": "Restringe quién puede unirse mediante enlaces de invitación según su pertenencia a servidores y roles de Discord. Las invitaciones directas por correo omiten estas reglas. Si no hay reglas, cualquiera puede unirse.",
+			"desc": "Restringe quién puede unirse mediante enlaces de invitación según su pertenencia a servidores y roles de Discord. Si no hay reglas, cualquiera puede unirse.",
 			"rule_hint": "Los usuarios deben cumplir al menos una regla para unirse. Cada regla requiere pertenecer al servidor y, opcionalmente, tener un rol específico. Los usuarios deben tener Discord vinculado en su cuenta.",
 			"requirements_title": "Quién cumple los requisitos",
 			"active_rules": "Reglas activas",
@@ -799,7 +799,7 @@
 		"slug": "Identificador",
 		"slug_placeholder": "mi-biblioteca",
 		"slug_hint": "ID corto y único, generado a partir del nombre. Puedes editarlo.",
-		"username_placeholder": "tu-usuario",
+		"username_placeholder": "tu_usuario",
 		"repeat_password": "Repite la contraseña",
 		"repeat_password_placeholder": "Confirma la contraseña",
 		"next": "Siguiente",
@@ -818,7 +818,7 @@
 		"sign_in_subtitle": "Inicia sesión en tu biblioteca para continuar.",
 		"create_account": "Crea tu cuenta",
 		"sign_up_subtitle": "Configura tu acceso a la biblioteca para empezar.",
-		"invite_only_note": "Este servidor requiere invitación: necesitas un enlace de invitación o una invitación por correo de un administrador.",
+		"invite_only_note": "Este servidor requiere invitación: necesitas un enlace de invitación de un administrador.",
 		"signup_closed_note": "Esta instancia no acepta cuentas nuevas ahora mismo. Contacta con un administrador si crees que es un error.",
 		"email_signup_disabled_note": "El registro por correo está desactivado en este servidor. Usa una de las opciones de abajo.",
 		"session_rate_limited_title": "Demasiadas solicitudes",
@@ -861,7 +861,9 @@
 			"username_min": "El nombre de usuario debe tener al menos 3 caracteres",
 			"username_max": "El nombre de usuario debe tener 30 caracteres o menos",
 			"username_chars": "Solo letras, números, puntos y guiones bajos"
-		}
+		},
+		"server_unreachable_title": "No se puede conectar con el servidor",
+		"server_unreachable_description": "Nanahoshi no responde ahora mismo. Si acabas de iniciarlo, espera unos segundos y vuelve a intentarlo."
 	},
 	"nav": {
 		"resize_rail": "Cambiar el tamaño de la barra lateral",
@@ -2193,7 +2195,12 @@
 					"countPlural=other": "{count} audiolibros"
 				}
 			}
-		]
+		],
+		"invite_paste_label": "Enlace o código de invitación",
+		"invite_paste_placeholder": "Pega tu enlace de invitación",
+		"invite_paste_action": "Unirme",
+		"invite_paste_invalid": "Eso no parece un enlace de invitación.",
+		"invite_other": "¿Te invitaron a otro servidor? Pega aquí el enlace."
 	},
 	"entity_page": {
 		"search_placeholder": "Buscar libros…",
@@ -2923,5 +2930,98 @@
 	"reading_goal_per_day": "~{amount} al día",
 	"reading_vs_average": "Tu media: {average} al día",
 	"listening_title": "Historial de escucha",
-	"reading_whole_book": "Todo el libro"
+	"reading_whole_book": "Todo el libro",
+	"onboarding": {
+		"step_of": "Paso {step} de {total}",
+		"hello_title": "Tu biblioteca, en casa.",
+		"hello_lead": "Nanahoshi reúne tus libros y audiolibros en un solo lugar y te deja leerlos y escucharlos desde cualquier dispositivo. Configurarlo lleva un minuto.",
+		"hello_start": "Empezar",
+		"name_title": "¿Cómo llamamos a tu biblioteca?",
+		"name_lead": "Lo verán todas las personas que invites. Puedes cambiarlo cuando quieras.",
+		"name_placeholder": "Mi biblioteca",
+		"name_idea_home": "Biblioteca de casa",
+		"name_idea_shelf": "La estantería",
+		"name_idea_nook": "Rincón de lectura",
+		"name_blocked": "Escribe un nombre para continuar.",
+		"continue": "Continuar",
+		"account_title": "Crea tu cuenta",
+		"account_lead": "Serás quien cuide de {name}.",
+		"username_hint": "También puedes iniciar sesión con él.",
+		"password_show": "Mostrar contraseña",
+		"password_hide": "Ocultar contraseña",
+		"account_blocked_email": "Escribe tu correo para continuar.",
+		"account_blocked_username": "Elige un nombre de usuario de al menos 3 caracteres.",
+		"account_blocked_password": "Usa una contraseña de al menos 8 caracteres.",
+		"account_create": "Crear mi biblioteca",
+		"account_creating": "Creando…",
+		"books_title": "¿Dónde están tus libros?",
+		"books_lead": "Nanahoshi los trae con portadas, autores y series, sin que hagas nada más.",
+		"books_folder": "Ya están en este servidor",
+		"books_folder_desc": "Indica la carpeta e importamos todo lo que contenga.",
+		"books_folder_found": "Encontramos una carpeta {folder} lista para usar.",
+		"books_upload": "Los subiré desde aquí",
+		"books_upload_desc": "Arrastra tus EPUB, PDF, cómics y demás archivos. Los audiolibros van en una carpeta del servidor.",
+		"folder_title": "Tu carpeta de libros",
+		"folder_lead": "Lo que añadas después aparecerá solo.",
+		"folder_label": "Carpeta en el servidor",
+		"folder_action": "Importar mis libros",
+		"upload_title": "¿Dónde guardamos lo que subas?",
+		"upload_lead": "Los libros que subas se guardan en esta carpeta del servidor.",
+		"upload_action": "Continuar a la subida",
+		"books_blocked_folder": "Elige una carpeta para continuar.",
+		"books_blocked_unreadable": "Nanahoshi todavía no puede leer esa carpeta.",
+		"books_looking": "Mirando qué hay dentro…",
+		"books_creating": "Preparando tu biblioteca…",
+		"folder_unreadable": "Nanahoshi no puede abrir esta carpeta. Revisa la ruta y, si usas Docker, que la carpeta esté montada en el contenedor.",
+		"count_books": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} libro",
+					"countPlural=other": "{count} libros"
+				}
+			}
+		],
+		"count_audiobooks": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} audiolibro",
+					"countPlural=other": "{count} audiolibros"
+				}
+			}
+		],
+		"count_titles": [
+			{
+				"declarations": ["input count", "local countPlural = count: plural"],
+				"selectors": ["countPlural"],
+				"match": {
+					"countPlural=one": "{count} título",
+					"countPlural=other": "{count} títulos"
+				}
+			}
+		],
+		"found": "Encontramos {what}.",
+		"found_at_least": "Encontramos al menos {what}.",
+		"found_and": "{first} y {second}",
+		"found_note": "Entrarán todos.",
+		"found_upload_note": "También entrarán.",
+		"empty_folder": "Esta carpeta está vacía por ahora. No pasa nada: lo que pongas en ella después aparecerá solo.",
+		"empty_folder_upload": "Está vacía por ahora, lista para lo que subas.",
+		"importing_title": "Trayendo tus libros…",
+		"importing_lead": "Las portadas y las series aparecen a medida que se encuentran. Puedes irte; sigue en segundo plano.",
+		"importing_leave": "Ir a mi biblioteca",
+		"ready_title": "Tu biblioteca está lista",
+		"ready_lead": "Tienes {titles} en tu estantería, con portadas y series.",
+		"ready_action": "Empezar a leer",
+		"ready_phone": "Lee también en tu móvil",
+		"empty_title": "Aún no hay libros aquí",
+		"empty_lead": "Tu carpeta está conectada pero no tenía nada que importar. Sube algunos libros, o ponlos en la carpeta y aparecerán solos.",
+		"empty_upload": "Subir libros",
+		"empty_no_folder": "Añade una carpeta a una biblioteca para subir libros a ella.",
+		"uploading_title": "Subiendo tus libros",
+		"uploading_lead": "Suelta tus archivos en el cuadro. Cuando termines, los traemos aquí."
+	}
 }

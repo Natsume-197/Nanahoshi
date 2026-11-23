@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	getSessionErrorKind,
+	reachServer,
 	resolveSessionLookup,
 	SESSION_RATE_LIMIT_ERROR_CODE,
 	SESSION_UNAVAILABLE_ERROR_CODE,
@@ -37,4 +38,12 @@ describe("session lookup errors", () => {
 		).toBe("rate_limited");
 		expect(getSessionErrorKind(new Error("unrelated"))).toBeNull();
 	});
+});
+
+test("a server that doesn't answer is named as such, not as a fetch error", async () => {
+	const error = await reachServer(() =>
+		Promise.reject(new TypeError("Failed to fetch")),
+	).catch((caught: unknown) => caught);
+	expect(getSessionErrorKind(error)).toBe("unreachable");
+	expect(await reachServer(() => Promise.resolve(42))).toBe(42);
 });

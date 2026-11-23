@@ -15,8 +15,10 @@ import {
 	GetReaderUrlInput,
 	GetSeriesDownloadUrlInput,
 	GetSignedDownloadUrlInput,
+	PreviewFolderInput,
 } from "./file.model";
 import * as service from "./file.service";
+import { previewFolder } from "./folder-preview";
 
 export const fileRouter = {
 	getReaderUrl: protectedProcedure
@@ -104,4 +106,8 @@ export const fileRouter = {
 		.handler(async ({ input }) => {
 			return await service.getDirectories(input.location);
 		}),
+
+	previewFolder: requirePermission("library", "managePaths")
+		.input(PreviewFolderInput)
+		.handler(({ input }) => previewFolder(input.location)),
 };

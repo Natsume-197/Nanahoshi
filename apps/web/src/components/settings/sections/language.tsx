@@ -7,7 +7,7 @@ import type { Locale } from "@/paraglide/runtime";
 
 // Language names are shown as endonyms (in their own language), the standard
 // convention for a language switcher regardless of the active UI locale.
-const LOCALE_NAMES: Record<Locale, string> = {
+export const LOCALE_NAMES: Record<Locale, string> = {
 	en: "English",
 	es: "Español",
 	ja: "日本語",

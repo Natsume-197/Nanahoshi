@@ -4,6 +4,7 @@ import {
 	type SearchSchemaInput,
 } from "@tanstack/react-router";
 import { SignUpForm } from "@/components/forms/sign-up-form";
+import { reachServer } from "@/lib/auth-session-error";
 import { optionalAppPath, optionalString } from "@/lib/search-validators";
 import { client } from "@/utils/orpc";
 
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/sign-up")({
 			throw redirect({ to: "/dashboard" });
 		}
 		// One public request supplies both the setup gate and registration methods.
-		const sso = await client.setup.ssoStatus();
+		const sso = await reachServer(() => client.setup.ssoStatus());
 		if (!sso.configured) {
 			throw redirect({ to: "/setup" });
 		}
