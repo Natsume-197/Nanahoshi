@@ -3,17 +3,20 @@ export const INTRO_SLIDES = 3;
 export const LAST_SLIDE = INTRO_SLIDES - 1;
 
 /**
- * The story is told once: someone signing out again, or coming back from
- * picking a server, goes straight to the sign-in page.
+ * The story is told once: someone signing out again, coming back from
+ * picking a server, or whose phone already knows one (an invite link, a QR)
+ * goes straight to the sign-in page.
  */
 export function skipIntro({
 	seen,
 	justConnected,
+	knowsServer,
 }: {
 	seen: boolean;
 	justConnected: boolean;
+	knowsServer: boolean;
 }): boolean {
-	return seen || justConnected;
+	return seen || justConnected || knowsServer;
 }
 
 /** The page a horizontal pager rests on, from its scroll offset. */

@@ -112,10 +112,13 @@ export function SetupDone({
 	title,
 	lead,
 	footer,
+	visual,
 }: {
 	title: string;
 	lead?: string;
 	footer: ReactNode;
+	/** In place of the check: what was made (the first covers, say). */
+	visual?: ReactNode;
 }) {
 	const palette = usePalette();
 	useMountEffect(() => {
@@ -131,24 +134,30 @@ export function SetupDone({
 					gap: space.xl,
 				}}
 			>
-				<Animated.View
-					entering={ZoomIn.springify().damping(14).delay(80)}
-					style={{
-						width: 72,
-						height: 72,
-						borderRadius: radius.pill,
-						alignItems: "center",
-						justifyContent: "center",
-						backgroundColor: palette.accentSoft,
-					}}
-				>
-					<Icon
-						name={icons.check}
-						size={34}
-						color={palette.accent}
-						weight="bold"
-					/>
-				</Animated.View>
+				{visual ? (
+					<Animated.View entering={ZoomIn.springify().damping(14).delay(80)}>
+						{visual}
+					</Animated.View>
+				) : (
+					<Animated.View
+						entering={ZoomIn.springify().damping(14).delay(80)}
+						style={{
+							width: 72,
+							height: 72,
+							borderRadius: radius.pill,
+							alignItems: "center",
+							justifyContent: "center",
+							backgroundColor: palette.accentSoft,
+						}}
+					>
+						<Icon
+							name={icons.check}
+							size={34}
+							color={palette.accent}
+							weight="bold"
+						/>
+					</Animated.View>
+				)}
 				<Animated.View
 					entering={FadeIn.duration(motion.base).easing(EASE_OUT).delay(160)}
 					style={{ gap: space.sm }}

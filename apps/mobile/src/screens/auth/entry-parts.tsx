@@ -38,6 +38,25 @@ export function SignInOptions({
 		const result = await auth.signIn.social({ provider, callbackURL: "/" });
 		if (result?.error) showNotice(t("mobile.signin.provider_failed"));
 	};
+	// A fresh install has no accounts yet: its first admin is created on the
+	// web's /setup, so signing in here could never work.
+	if (sso.data?.configured === false)
+		return (
+			<>
+				<Text
+					variant="body"
+					style={{ color: paper.inkSoft, fontSize: 15, lineHeight: 22 }}
+				>
+					{t("mobile.enter.unconfigured_lead")}
+				</Text>
+				<PaperButton
+					filled
+					paper={paper}
+					label={t("mobile.enter.unconfigured_action")}
+					onPress={() => router.push("/setup/instance")}
+				/>
+			</>
+		);
 	return (
 		<>
 			{sso.data?.google ? (
@@ -170,9 +189,11 @@ export function ServerRow({
 				>
 					{offline
 						? t("mobile.welcome.server_offline")
-						: name
-							? host
-							: t("mobile.enter.server")}
+						: sso.data?.configured === false
+							? t("mobile.enter.unconfigured")
+							: name
+								? host
+								: t("mobile.enter.server")}
 				</Text>
 			</View>
 			<Text

@@ -3,15 +3,27 @@ import { LAST_SLIDE, skipIntro, slideAt } from "./welcome-intro";
 
 describe("skipIntro", () => {
 	it("tells the story the first time", () => {
-		expect(skipIntro({ seen: false, justConnected: false })).toBe(false);
+		expect(
+			skipIntro({ seen: false, justConnected: false, knowsServer: false }),
+		).toBe(false);
 	});
 
 	it("goes straight to sign-in once the story was seen", () => {
-		expect(skipIntro({ seen: true, justConnected: false })).toBe(true);
+		expect(
+			skipIntro({ seen: true, justConnected: false, knowsServer: false }),
+		).toBe(true);
 	});
 
 	it("goes straight to sign-in right after picking a server", () => {
-		expect(skipIntro({ seen: false, justConnected: true })).toBe(true);
+		expect(
+			skipIntro({ seen: false, justConnected: true, knowsServer: false }),
+		).toBe(true);
+	});
+
+	it("skips the story when the phone already knows a server", () => {
+		expect(
+			skipIntro({ seen: false, justConnected: false, knowsServer: true }),
+		).toBe(true);
 	});
 });
 

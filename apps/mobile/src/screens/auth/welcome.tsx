@@ -21,6 +21,7 @@ import { Text } from "@/components/text";
 import { serverJustConnected } from "@/lib/auth-entry";
 import { t } from "@/lib/i18n";
 import { introSeen, markIntroSeen } from "@/lib/intro-seen";
+import { readServerUrl } from "@/lib/server-url";
 import { welcomeCoverRows } from "@/lib/welcome-covers";
 import {
 	INTRO_SLIDES,
@@ -57,7 +58,11 @@ export function Welcome() {
 	const [skip] = useState(
 		() =>
 			tour !== "1" &&
-			skipIntro({ seen: introSeen(), justConnected: serverJustConnected() }),
+			skipIntro({
+				seen: introSeen(),
+				justConnected: serverJustConnected(),
+				knowsServer: !!readServerUrl(),
+			}),
 	);
 	if (skip) return <Redirect href="/enter" />;
 	return <Intro />;

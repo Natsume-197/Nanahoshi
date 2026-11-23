@@ -38,6 +38,7 @@ SplashScreen.preventAutoHideAsync();
 applyStoredAppearance();
 
 const SETUP_ROUTES = [
+	"setup/books",
 	"setup/server",
 	"setup/library",
 	"setup/upload",
@@ -174,6 +175,8 @@ function Navigator({ signedIn, ready }: { signedIn: boolean; ready: boolean }) {
 				<Stack.Screen name="invite" options={SETUP_OPTIONS} />
 				{/* The web's "Mobile app" QR: signs this phone in on its own. */}
 				<Stack.Screen name="pair" options={SETUP_OPTIONS} />
+				{/* A fresh server's first admin, set up from the phone. */}
+				<Stack.Screen name="setup/instance" options={SETUP_OPTIONS} />
 			</Stack>
 			{/* Signed out too: an invite reopens after switching servers. */}
 			<ResumeRoute />

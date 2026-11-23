@@ -281,6 +281,17 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "and",
 		"mobile.welcome.legal_privacy": "Privacy Policy",
 		"mobile.welcome.server_offline": "Not responding",
+		"mobile.enter.unconfigured": "Not set up yet",
+		"mobile.books.upload_title": "Upload them from this phone",
+		"mobile.books.upload_desc":
+			"Pick files on this phone. Audiobooks go in a server folder.",
+		"mobile.books.background": "Keep going in the background",
+		"mobile.books.progress": "{done} of {total}",
+		"mobile.books.empty_lead":
+			"The folder is connected but had nothing to import. Upload books from this phone, or put them in the folder and they'll appear on their own.",
+		"mobile.books.later": "Not now",
+		"mobile.setup.folder_nothing_yet":
+			"Nothing to import here yet. Anything you add later shows up on its own.",
 		"mobile.pair.scan": "Scan QR code",
 		"mobile.pair.scan_title": "Scan the code",
 		"mobile.pair.scan_hint":
@@ -309,6 +320,9 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.pair.invalid_title": "Not a connection code",
 		"mobile.pair.invalid_lead":
 			"This link doesn't carry a server and a code. Show a new one on the web under Settings → Mobile app.",
+		"mobile.enter.unconfigured_lead":
+			"This server is brand new. Give it a name and create its admin account, right here.",
+		"mobile.enter.unconfigured_action": "Set up this server",
 		"mobile.intro.next": "Next",
 		"mobile.intro.start": "Get started",
 		"mobile.intro.sign_in": "Sign in",
@@ -623,6 +637,17 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "y la",
 		"mobile.welcome.legal_privacy": "Política de privacidad",
 		"mobile.welcome.server_offline": "No responde",
+		"mobile.enter.unconfigured": "Aún sin configurar",
+		"mobile.books.upload_title": "Subirlos desde este teléfono",
+		"mobile.books.upload_desc":
+			"Elige archivos de este teléfono. Los audiolibros van en una carpeta del servidor.",
+		"mobile.books.background": "Seguir en segundo plano",
+		"mobile.books.progress": "{done} de {total}",
+		"mobile.books.empty_lead":
+			"La carpeta está conectada pero no tenía nada que importar. Sube libros desde este teléfono, o ponlos en la carpeta y aparecerán solos.",
+		"mobile.books.later": "Ahora no",
+		"mobile.setup.folder_nothing_yet":
+			"Aquí no hay nada que importar todavía. Lo que añadas después aparecerá solo.",
 		"mobile.pair.scan": "Escanear código QR",
 		"mobile.pair.scan_title": "Escanea el código",
 		"mobile.pair.scan_hint":
@@ -653,6 +678,9 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.pair.invalid_title": "No es un código de conexión",
 		"mobile.pair.invalid_lead":
 			"Este enlace no trae un servidor y un código. Muestra uno nuevo en la web, en Ajustes → App móvil.",
+		"mobile.enter.unconfigured_lead":
+			"Este servidor es nuevo. Ponle nombre y crea su cuenta de administrador, aquí mismo.",
+		"mobile.enter.unconfigured_action": "Configurar este servidor",
 		"mobile.intro.next": "Siguiente",
 		"mobile.intro.start": "Empezar",
 		"mobile.intro.sign_in": "Iniciar sesión",
@@ -963,6 +991,17 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "と",
 		"mobile.welcome.legal_privacy": "プライバシーポリシー",
 		"mobile.welcome.server_offline": "応答なし",
+		"mobile.enter.unconfigured": "未設定",
+		"mobile.books.upload_title": "このスマートフォンからアップロード",
+		"mobile.books.upload_desc":
+			"このスマートフォンのファイルを選択します。オーディオブックはサーバーのフォルダに置いてください。",
+		"mobile.books.background": "バックグラウンドで続ける",
+		"mobile.books.progress": "{done} / {total}",
+		"mobile.books.empty_lead":
+			"フォルダは接続されていますが、取り込むものがありませんでした。このスマートフォンから本をアップロードするか、フォルダに入れると自動で表示されます。",
+		"mobile.books.later": "あとで",
+		"mobile.setup.folder_nothing_yet":
+			"ここにはまだ取り込むものがありません。あとから追加したものは自動で表示されます。",
 		"mobile.pair.scan": "QRコードをスキャン",
 		"mobile.pair.scan_title": "コードをスキャン",
 		"mobile.pair.scan_hint":
@@ -992,6 +1031,9 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.pair.invalid_title": "接続コードではありません",
 		"mobile.pair.invalid_lead":
 			"このリンクにはサーバーとコードが含まれていません。Webの設定 → モバイルアプリで新しいコードを表示してください。",
+		"mobile.enter.unconfigured_lead":
+			"このサーバーはまだ設定されていません。ここで名前を付けて管理者アカウントを作成できます。",
+		"mobile.enter.unconfigured_action": "このサーバーを設定",
 		"mobile.intro.next": "次へ",
 		"mobile.intro.start": "はじめる",
 		"mobile.intro.sign_in": "ログイン",

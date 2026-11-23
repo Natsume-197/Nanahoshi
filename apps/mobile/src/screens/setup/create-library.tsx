@@ -210,18 +210,26 @@ function NameStep({
  * list): tap to go in, the crumbs to go up, and the bottom button takes the
  * folder you're in. A typed path covers servers that can't be browsed.
  */
-function FolderStep({
+export function FolderStep({
 	progress,
 	onBack,
 	pending,
 	error,
 	onPick,
+	title = t("mobile.setup.library_folder_title"),
+	lead = t("mobile.setup.library_folder_lead"),
+	actionLabel = t("mobile.setup.library_create"),
+	leading,
 }: {
-	progress: { index: number; total: number };
+	progress?: { index: number; total: number };
 	onBack?: () => void;
 	pending: boolean;
 	error: string | null;
 	onPick: (path: string) => void;
+	title?: string;
+	lead?: string;
+	actionLabel?: string;
+	leading?: "back" | "close" | "none";
 }) {
 	const { orpc } = useApi();
 	const palette = usePalette();
@@ -248,8 +256,9 @@ function FolderStep({
 		<SetupStep
 			step={progress}
 			onBack={onBack}
-			title={t("mobile.setup.library_folder_title")}
-			lead={t("mobile.setup.library_folder_lead")}
+			leading={leading}
+			title={title}
+			lead={lead}
 			footer={
 				<>
 					{error ? (
@@ -263,7 +272,7 @@ function FolderStep({
 						</Text>
 					) : null}
 					<Button
-						label={t("mobile.setup.library_create")}
+						label={actionLabel}
 						onPress={pick}
 						loading={pending}
 						// Scanning the whole disk is never what anyone means.
@@ -336,6 +345,7 @@ function FolderStep({
 							</View>
 						))}
 					</ScrollView>
+					{path !== "/" ? <FolderCounts path={path} /> : null}
 					<View
 						style={{
 							borderRadius: radius.card,
@@ -391,6 +401,56 @@ function FolderStep({
 			)}
 		</SetupStep>
 	);
+}
+
+/** What creating a library here would bring in, before creating it. */
+function FolderCounts({ path }: { path: string }) {
+	const { orpc } = useApi();
+	const preview = useQuery({
+		...orpc.files.previewFolder.queryOptions({ input: { location: path } }),
+		staleTime: 30_000,
+		retry: false,
+	});
+	if (preview.isPending)
+		return (
+			<Text variant="subhead" tone="tertiary">
+				{t("onboarding.books_looking")}
+			</Text>
+		);
+	const found = preview.data && foundText(preview.data);
+	return (
+		<Text
+			variant="subhead"
+			tone={found ? "primary" : "tertiary"}
+			accessibilityLiveRegion="polite"
+		>
+			{found ?? t("mobile.setup.folder_nothing_yet")}
+		</Text>
+	);
+}
+
+function foundText({
+	state,
+	ebooks,
+	audiobooks,
+	partial,
+}: {
+	state: string;
+	ebooks: number;
+	audiobooks: number;
+	partial: boolean;
+}): string | null {
+	if (state !== "ok") return null;
+	const parts: string[] = [];
+	if (ebooks > 0) parts.push(t("onboarding.count_books", { count: ebooks }));
+	if (audiobooks > 0)
+		parts.push(t("onboarding.count_audiobooks", { count: audiobooks }));
+	const [first, second] = parts;
+	if (!first) return null;
+	const what = second ? t("onboarding.found_and", { first, second }) : first;
+	return partial
+		? t("onboarding.found_at_least", { what })
+		: t("onboarding.found", { what });
 }
 
 function FolderRow({

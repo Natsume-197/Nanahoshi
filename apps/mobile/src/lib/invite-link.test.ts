@@ -5,7 +5,9 @@ mock.module("expo-secure-store", () => ({
 	setItemAsync: async () => {},
 	deleteItemAsync: async () => {},
 }));
-const { inviteHref, parseInviteLink } = await import("./invite-link");
+const { inviteCodeFrom, inviteHref, parseInviteLink } = await import(
+	"./invite-link"
+);
 
 test("reads a deep link from the web invite page", () => {
 	expect(
@@ -46,4 +48,10 @@ test("the resumed invite joins on arrival only when asked", () => {
 	const invite = { server: "https://books.example", code: "abc", link: "x" };
 	expect(inviteHref(invite).params).not.toHaveProperty("join");
 	expect(inviteHref(invite, { join: true }).params.join).toBe("1");
+});
+
+test("a pasted invite link or code gives its code", () => {
+	expect(inviteCodeFrom("https://books.example/invite/aB3xY9")).toBe("aB3xY9");
+	expect(inviteCodeFrom("aB3xY9")).toBe("aB3xY9");
+	expect(inviteCodeFrom("https://books.example/dashboard")).toBeNull();
 });

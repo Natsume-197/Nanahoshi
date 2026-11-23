@@ -22,6 +22,7 @@ import {
 	useAppBarScroll,
 } from "@/components/home-app-bar";
 import { icons } from "@/components/icon";
+import { InvitePaste } from "@/components/invite-paste";
 import { RefreshControl } from "@/components/refresh-control";
 import { SectionHeader } from "@/components/section-header";
 import { Shelf } from "@/components/shelf";
@@ -35,7 +36,7 @@ import { joinNames, percent } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { routes } from "@/lib/routes";
 import { isUnanswered } from "@/lib/server-reachability";
-import { setupSteps } from "@/lib/setup-flow";
+import { isImporting, setupSteps } from "@/lib/setup-flow";
 import { useMiniPlayerInset } from "@/player/mini-player";
 import { useApi, useServerStatus } from "@/providers/app-provider";
 import { radius, sizes, space } from "@/theme";
@@ -725,16 +726,25 @@ function RandomSection({ format }: { format: "books" | "audiobooks" }) {
 /** Nothing imported yet: the web's member-facing empty library notice. */
 function EmptyHomeNotice() {
 	const { orpc } = useApi();
-	const books = useQuery(
-		orpc.books.listRecent.queryOptions({
+	const tasks = useQuery({
+		...orpc.tasks.getActiveTasks.queryOptions(),
+		refetchInterval: (query) => (isImporting(query.state.data) ? 3000 : false),
+	});
+	const importing = isImporting(tasks.data);
+	// While an import runs, keep looking for the first titles to land.
+	const titlesRefetch = importing ? 5000 : false;
+	const books = useQuery({
+		...orpc.books.listRecent.queryOptions({
 			input: { limit: LIMIT, compact: true },
 		}),
-	);
-	const audiobooks = useQuery(
-		orpc.audiobooks.listRecent.queryOptions({
+		refetchInterval: titlesRefetch,
+	});
+	const audiobooks = useQuery({
+		...orpc.audiobooks.listRecent.queryOptions({
 			input: { limit: LIMIT, compact: true },
 		}),
-	);
+		refetchInterval: titlesRefetch,
+	});
 	const libraries = useQuery(orpc.libraries.getLibraries.queryOptions());
 	const can = useCan();
 	if (books.isPending || audiobooks.isPending || libraries.isPending)
@@ -747,13 +757,17 @@ function EmptyHomeNotice() {
 		canUpload: can("library", "upload"),
 		libraryCount: libraries.data?.length ?? 0,
 		titleCount,
+		importing,
 	});
 	if (steps) return <SetupChecklist steps={steps} />;
 	return (
-		<EmptyState
-			icon={icons.shelf}
-			title={t("home.no_books_title")}
-			message={t("home.empty_member")}
-		/>
+		<View>
+			<EmptyState
+				icon={icons.shelf}
+				title={t("home.no_books_title")}
+				message={t("home.empty_member")}
+			/>
+			<InvitePaste hint={t("home.invite_other")} />
+		</View>
 	);
 }

@@ -15,7 +15,7 @@ const STEP_COPY: Record<
 		title: "mobile.setup.checklist_library",
 		description: "mobile.setup.checklist_library_desc",
 		icon: icons.shelf,
-		href: "/setup/library",
+		href: "/setup/books",
 	},
 	upload: {
 		title: "mobile.setup.checklist_upload",
@@ -114,9 +114,9 @@ function StepRow({ step }: { step: SetupStep }) {
 				>
 					{title}
 				</Text>
-				{step.done ? null : (
+				{step.done && step.id !== "upload" ? null : (
 					<Text variant="caption" tone="secondary">
-						{t(copy.description)}
+						{t(step.done ? "home.importing_title" : copy.description)}
 					</Text>
 				)}
 			</View>

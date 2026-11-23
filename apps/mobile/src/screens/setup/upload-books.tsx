@@ -73,7 +73,7 @@ export function UploadBooks({ libraryUuid }: { libraryUuid?: string }) {
 					canCreate ? (
 						<Button
 							label={t("mobile.setup.checklist_library")}
-							onPress={() => router.replace("/setup/library")}
+							onPress={() => router.replace("/setup/books")}
 						/>
 					) : null
 				}

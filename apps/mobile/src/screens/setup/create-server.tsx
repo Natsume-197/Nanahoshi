@@ -55,7 +55,7 @@ export function CreateServer() {
 					<>
 						<Button
 							label={t("mobile.setup.server_done_action")}
-							onPress={() => router.replace("/setup/library")}
+							onPress={() => router.replace("/setup/books")}
 						/>
 						<Button
 							variant="secondary"
