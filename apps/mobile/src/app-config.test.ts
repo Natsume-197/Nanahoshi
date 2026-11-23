@@ -14,6 +14,14 @@ describe("app variants", () => {
 		expect(config.slug).toBe("nanahoshi");
 	});
 
+	test("Play build carries a versionCode and drops permissions it never uses", () => {
+		const config = applyAppVariant(base, undefined);
+		expect(Number.isInteger(config.android?.versionCode)).toBe(true);
+		expect(config.android?.blockedPermissions).toContain(
+			"android.permission.RECORD_AUDIO",
+		);
+	});
+
 	test("development installs beside production under its own identity", () => {
 		const config = applyAppVariant(base, "development");
 		expect(config.name).toBe("Nanahoshi Dev");

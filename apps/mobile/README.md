@@ -24,6 +24,42 @@ The app looks for Nanahoshi servers on the phone's Wi-Fi (ports 7331 and
 7333). You can also type the address, e.g. `192.168.1.37:7333`; from the Android
 emulator the host machine is `10.0.2.2:7333`.
 
+## Releasing to Google Play
+
+`bun run aab` builds `dist/nanahoshi-<version>-<versionCode>.aab`: production
+app, all ABIs, R8, native debug symbols, signed with the **upload key**. Play
+App Signing keeps the real app signing key; if the upload key is lost, Play
+support can reset it.
+
+First release: `bash scripts/play-release-wizard.sh` walks through the key, the
+build and the Play Console setup step by step. By hand:
+
+One-time, create the upload key and keep it (and its password) backed up
+outside the repo:
+
+```sh
+~/Android/jdk-17/bin/keytool -genkeypair -v -keystore ~/keys/nanahoshi-upload.jks \
+  -alias upload -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then in `~/.gradle/gradle.properties` (absolute path, no `~`):
+
+```properties
+NANAHOSHI_UPLOAD_STORE_FILE=/home/<you>/keys/nanahoshi-upload.jks
+NANAHOSHI_UPLOAD_STORE_PASSWORD=...
+NANAHOSHI_UPLOAD_KEY_ALIAS=upload
+NANAHOSHI_UPLOAD_KEY_PASSWORD=...
+```
+
+Every upload needs a higher `expo.android.versionCode` in `app.json`; bump
+`expo.version` for user-visible releases. The script regenerates `android/`
+so both reach the build. The `plugins/release-signing.js` config plugin wires
+the key into `build.gradle`; without the properties, release builds (and
+`bun run apk`) stay debug-signed and `bun run aab` refuses to run.
+
+Cleartext HTTP stays allowed: servers are usually reached by LAN IP over
+`http://`, and Android cannot scope cleartext to private IP ranges.
+
 ## Screenshots for design review (wireless ADB)
 
 One-time setup:

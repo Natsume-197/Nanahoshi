@@ -10,6 +10,7 @@
 		"check-types": "node scripts/check-types.mjs",
 		"apk": "bash scripts/build-apk.sh release",
 		"apk:debug": "bash scripts/build-apk.sh debug",
+		"aab": "bash scripts/build-aab.sh",
 		"reader:bundle": "bun run --cwd reader-embed build && node scripts/reader-bundle.mjs"
 	},
 	"dependencies": {

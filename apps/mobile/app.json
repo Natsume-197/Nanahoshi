@@ -13,11 +13,19 @@
 		},
 		"android": {
 			"package": "app.nanahoshi.mobile",
+			"versionCode": 1,
 			"adaptiveIcon": {
 				"backgroundColor": "#19191a",
 				"foregroundImage": "./assets/images/adaptive-icon.png"
 			},
-			"softwareKeyboardLayoutMode": "resize"
+			"softwareKeyboardLayoutMode": "resize",
+			"blockedPermissions": [
+				"android.permission.CAMERA",
+				"android.permission.RECORD_AUDIO",
+				"android.permission.SYSTEM_ALERT_WINDOW",
+				"android.permission.READ_EXTERNAL_STORAGE",
+				"android.permission.WRITE_EXTERNAL_STORAGE"
+			]
 		},
 		"plugins": [
 			"expo-router",
@@ -63,7 +71,8 @@
 						"enableShrinkResourcesInReleaseBuilds": true
 					}
 				}
-			]
+			],
+			"./plugins/release-signing.js"
 		],
 		"experiments": {
 			"typedRoutes": true,
