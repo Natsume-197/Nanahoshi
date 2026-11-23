@@ -35,6 +35,7 @@ export const icons = {
 	genre: { ios: "theatermasks", android: "theater_comedy" },
 	collection: { ios: "rectangle.stack", android: "collections_bookmark" },
 	server: { ios: "server.rack", android: "dns" },
+	qrScan: { ios: "qrcode.viewfinder", android: "qr_code_scanner" },
 	signOut: {
 		ios: "rectangle.portrait.and.arrow.right",
 		android: "logout",

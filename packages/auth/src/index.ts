@@ -26,6 +26,7 @@ import {
 import { satisfiesDiscordAccessRules } from "./discord-invite-preflight";
 import { mapDiscordProfileToUser } from "./discord-profile";
 import { mapGoogleProfileToUser } from "./google-profile";
+import { mobileConnect } from "./mobile-connect";
 import { inviteCodeFromOAuthState } from "./oauth-invite-state";
 import { provisionOidcUser } from "./oidc-provisioning";
 import {
@@ -519,6 +520,7 @@ const authConfig = {
 		// including another instance owner, while troubleshooting the instance.
 		admin({ allowImpersonatingAdmins: true }),
 		username(),
+		mobileConnect(),
 		apiKey({
 			defaultPrefix: "nana",
 			enableMetadata: true,

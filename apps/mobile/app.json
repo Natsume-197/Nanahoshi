@@ -43,6 +43,14 @@
 			],
 			"expo-localization",
 			[
+				"expo-camera",
+				{
+					"cameraPermission": "Nanahoshi uses the camera only to scan the code your server shows to connect this phone.",
+					"microphonePermission": false,
+					"recordAudioAndroid": false
+				}
+			],
+			[
 				"expo-font",
 				{
 					"fonts": [

@@ -281,6 +281,34 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "and",
 		"mobile.welcome.legal_privacy": "Privacy Policy",
 		"mobile.welcome.server_offline": "Not responding",
+		"mobile.pair.scan": "Scan QR code",
+		"mobile.pair.scan_title": "Scan the code",
+		"mobile.pair.scan_hint":
+			"Signs this phone in to your server, no address or password needed.",
+		"mobile.pair.scan_where": "On the web: Settings → Mobile app → Show code.",
+		"mobile.pair.not_ours":
+			"That isn't a Nanahoshi code. Show the one under Settings → Mobile app.",
+		"mobile.pair.camera_title": "Allow the camera",
+		"mobile.pair.camera_lead":
+			"Nanahoshi uses the camera only to scan the code your server shows on the web.",
+		"mobile.pair.camera_allow": "Allow camera access",
+		"mobile.pair.camera_settings": "Open settings",
+		"mobile.pair.connecting": "Connecting your phone…",
+		"mobile.pair.failed_title": "Couldn't connect",
+		"mobile.pair.err_unreachable":
+			"Couldn't reach the server in the code. Check that your phone is on the same network, or that the web was opened at an address your phone can reach.",
+		"mobile.pair.err_expired":
+			"This code expired or was already used. Show a new one on the web.",
+		"mobile.pair.err_refused": "This account can't sign in on this server.",
+		"mobile.pair.err_failed": "Something went wrong. Try again.",
+		"mobile.pair.scan_again": "Scan again",
+		"mobile.pair.retry": "Try again",
+		"mobile.pair.signed_in_title": "You're already signed in",
+		"mobile.pair.signed_in_lead":
+			"Sign out first to connect this phone to another account.",
+		"mobile.pair.invalid_title": "Not a connection code",
+		"mobile.pair.invalid_lead":
+			"This link doesn't carry a server and a code. Show a new one on the web under Settings → Mobile app.",
 		"mobile.intro.next": "Next",
 		"mobile.intro.start": "Get started",
 		"mobile.intro.sign_in": "Sign in",
@@ -595,6 +623,36 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "y la",
 		"mobile.welcome.legal_privacy": "Política de privacidad",
 		"mobile.welcome.server_offline": "No responde",
+		"mobile.pair.scan": "Escanear código QR",
+		"mobile.pair.scan_title": "Escanea el código",
+		"mobile.pair.scan_hint":
+			"Inicia sesión en tu servidor desde este teléfono, sin dirección ni contraseña.",
+		"mobile.pair.scan_where":
+			"En la web: Ajustes → App móvil → Mostrar código.",
+		"mobile.pair.not_ours":
+			"Ese no es un código de Nanahoshi. Muestra el de Ajustes → App móvil.",
+		"mobile.pair.camera_title": "Permite la cámara",
+		"mobile.pair.camera_lead":
+			"Nanahoshi usa la cámara solo para escanear el código que muestra tu servidor en la web.",
+		"mobile.pair.camera_allow": "Permitir la cámara",
+		"mobile.pair.camera_settings": "Abrir ajustes",
+		"mobile.pair.connecting": "Conectando tu teléfono…",
+		"mobile.pair.failed_title": "No se pudo conectar",
+		"mobile.pair.err_unreachable":
+			"No se pudo llegar al servidor del código. Comprueba que el teléfono esté en la misma red, o que la web se abrió con una dirección que el teléfono pueda alcanzar.",
+		"mobile.pair.err_expired":
+			"Este código caducó o ya se usó. Muestra uno nuevo en la web.",
+		"mobile.pair.err_refused":
+			"Esta cuenta no puede iniciar sesión en este servidor.",
+		"mobile.pair.err_failed": "Algo salió mal. Inténtalo de nuevo.",
+		"mobile.pair.scan_again": "Escanear de nuevo",
+		"mobile.pair.retry": "Reintentar",
+		"mobile.pair.signed_in_title": "Ya has iniciado sesión",
+		"mobile.pair.signed_in_lead":
+			"Cierra sesión primero para conectar este teléfono a otra cuenta.",
+		"mobile.pair.invalid_title": "No es un código de conexión",
+		"mobile.pair.invalid_lead":
+			"Este enlace no trae un servidor y un código. Muestra uno nuevo en la web, en Ajustes → App móvil.",
 		"mobile.intro.next": "Siguiente",
 		"mobile.intro.start": "Empezar",
 		"mobile.intro.sign_in": "Iniciar sesión",
@@ -905,6 +963,35 @@ export const mobileMessages: Record<string, Record<string, string>> = {
 		"mobile.welcome.legal_and": "と",
 		"mobile.welcome.legal_privacy": "プライバシーポリシー",
 		"mobile.welcome.server_offline": "応答なし",
+		"mobile.pair.scan": "QRコードをスキャン",
+		"mobile.pair.scan_title": "コードをスキャン",
+		"mobile.pair.scan_hint":
+			"アドレスやパスワードを入力せずに、このスマートフォンでサーバーにサインインします。",
+		"mobile.pair.scan_where": "Webで：設定 → モバイルアプリ → コードを表示。",
+		"mobile.pair.not_ours":
+			"Nanahoshiのコードではありません。設定 → モバイルアプリのコードを表示してください。",
+		"mobile.pair.camera_title": "カメラを許可",
+		"mobile.pair.camera_lead":
+			"Nanahoshiはサーバーのウェブに表示されるコードをスキャンするためだけにカメラを使います。",
+		"mobile.pair.camera_allow": "カメラへのアクセスを許可",
+		"mobile.pair.camera_settings": "設定を開く",
+		"mobile.pair.connecting": "スマートフォンを接続中…",
+		"mobile.pair.failed_title": "接続できませんでした",
+		"mobile.pair.err_unreachable":
+			"コードのサーバーに接続できませんでした。スマートフォンが同じネットワークにあるか、スマートフォンから到達できるアドレスでWebを開いたか確認してください。",
+		"mobile.pair.err_expired":
+			"このコードは期限切れか、すでに使用されています。Webで新しいコードを表示してください。",
+		"mobile.pair.err_refused":
+			"このアカウントはこのサーバーにサインインできません。",
+		"mobile.pair.err_failed": "問題が発生しました。もう一度お試しください。",
+		"mobile.pair.scan_again": "もう一度スキャン",
+		"mobile.pair.retry": "再試行",
+		"mobile.pair.signed_in_title": "すでにサインインしています",
+		"mobile.pair.signed_in_lead":
+			"別のアカウントに接続するには、先にサインアウトしてください。",
+		"mobile.pair.invalid_title": "接続コードではありません",
+		"mobile.pair.invalid_lead":
+			"このリンクにはサーバーとコードが含まれていません。Webの設定 → モバイルアプリで新しいコードを表示してください。",
 		"mobile.intro.next": "次へ",
 		"mobile.intro.start": "はじめる",
 		"mobile.intro.sign_in": "ログイン",

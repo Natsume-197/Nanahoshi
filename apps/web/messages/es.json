@@ -24,7 +24,8 @@
 			"activity": "Actividad",
 			"users": "Usuarios",
 			"servers": "Servidores",
-			"registration": "Registro"
+			"registration": "Registro",
+			"mobile": "App móvil"
 		},
 		"search_placeholder": "Buscar ajustes",
 		"navigation_label": "Secciones de ajustes",
@@ -759,6 +760,26 @@
 			"stat_works": "{count} obras",
 			"stat_similarities": "{count} similitudes",
 			"stat_members": "{count} feeds de miembros"
+		},
+		"mobile": {
+			"desc": "Inicia sesión en el teléfono sin escribir la dirección ni la contraseña. Escanea este código con la app de Nanahoshi.",
+			"generate": "Mostrar código",
+			"new_code": "Código nuevo",
+			"step1": "Abre Nanahoshi en tu teléfono.",
+			"step2": "Toca «Escanear código QR».",
+			"step3": "Apunta la cámara a este código.",
+			"expires_in": "Caduca en {time}",
+			"expired": "Este código ha caducado.",
+			"paired": "Tu teléfono está conectado",
+			"paired_desc": "Tiene su propia sesión; cerrar sesión aquí no la cierra allí.",
+			"connect_another": "Conectar otro teléfono",
+			"loopback_warning": "Esta página está abierta en {host}, que tu teléfono no puede alcanzar. Abre Nanahoshi con su dirección de red (por ejemplo, su IP local) antes de mostrar el código.",
+			"generate_failed": "No se pudo crear el código. Inténtalo de nuevo.",
+			"qr_label": "Código QR para conectar tu teléfono",
+			"no_app": "¿Aún no tienes la app?",
+			"no_app_desc": "Escanea esto para instalarla desde Google Play y luego vuelve a mostrar el código.",
+			"open_store": "Abrir Google Play",
+			"store_qr_label": "Código QR de la app en Google Play"
 		}
 	},
 	"time": {

@@ -3,6 +3,7 @@ import {
 	ArrowLeft,
 	Buildings,
 	Database,
+	DeviceMobile,
 	HardDrives,
 	Info,
 	ListChecks,
@@ -27,6 +28,7 @@ import { InstanceActivitySettings } from "@/components/settings/sections/instanc
 import { LanguageSettings } from "@/components/settings/sections/language";
 import { AdminLogs } from "@/components/settings/sections/logs";
 import { MetadataSourcesSettings } from "@/components/settings/sections/metadata-sources";
+import { MobileConnectSettings } from "@/components/settings/sections/mobile-connect";
 import { PrivacySettings } from "@/components/settings/sections/privacy";
 import { ProfileSettings } from "@/components/settings/sections/profile";
 import { RegistrationSettings } from "@/components/settings/sections/registration";
@@ -49,6 +51,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	profile: User,
 	account: Shield,
 	privacy: LockKey,
+	mobile: DeviceMobile,
 	appearance: PaintBrush,
 	language: Translate,
 	about: Info,
@@ -68,6 +71,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	profile: m["settings.nav.profile"],
 	account: m["settings.nav.account"],
 	privacy: m["settings.nav.privacy"],
+	mobile: m["settings.nav.mobile"],
 	appearance: m["settings.nav.appearance"],
 	language: m["settings.nav.language"],
 	about: m["settings.nav.about"],
@@ -106,7 +110,12 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 	const groups: SettingsNavGroup[] = [
 		{
 			label: m["settings.group.account"](),
-			items: [item("profile"), item("account"), item("privacy")],
+			items: [
+				item("profile"),
+				item("account"),
+				item("privacy"),
+				item("mobile"),
+			],
 		},
 		{
 			label: m["settings.group.preferences"](),
@@ -248,6 +257,8 @@ function SettingsContent({
 			return <AccountSettings />;
 		case "privacy":
 			return <PrivacySettings />;
+		case "mobile":
+			return <MobileConnectSettings />;
 		case "appearance":
 			return <AppearanceSettings onCustomize={onCustomizeTheme} />;
 		case "language":

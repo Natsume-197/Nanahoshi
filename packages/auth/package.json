@@ -20,7 +20,8 @@
 		"@nanahoshi/env": "workspace:*",
 		"better-auth": "catalog:",
 		"drizzle-orm": "catalog:",
-		"nodemailer": "^10.0.10"
+		"nodemailer": "^10.0.10",
+		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@nanahoshi/config": "workspace:*",

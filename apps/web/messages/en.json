@@ -24,7 +24,8 @@
 			"activity": "Activity",
 			"users": "Users",
 			"servers": "Servers",
-			"registration": "Registration"
+			"registration": "Registration",
+			"mobile": "Mobile app"
 		},
 		"search_placeholder": "Search settings",
 		"navigation_label": "Settings sections",
@@ -759,6 +760,26 @@
 			"stat_works": "{count} works",
 			"stat_similarities": "{count} similarities",
 			"stat_members": "{count} member feeds"
+		},
+		"mobile": {
+			"desc": "Sign in on your phone without typing an address or password. Scan this code with the Nanahoshi app.",
+			"generate": "Show code",
+			"new_code": "New code",
+			"step1": "Open Nanahoshi on your phone.",
+			"step2": "Tap \"Scan QR code\".",
+			"step3": "Point the camera at this code.",
+			"expires_in": "Expires in {time}",
+			"expired": "This code expired.",
+			"paired": "Your phone is connected",
+			"paired_desc": "It has its own session; signing out here won’t sign it out.",
+			"connect_another": "Connect another phone",
+			"loopback_warning": "This page is open at {host}, which your phone can’t reach. Open Nanahoshi at its network address (for example its LAN IP) before showing the code.",
+			"generate_failed": "Couldn’t create a code. Try again.",
+			"qr_label": "QR code to connect your phone",
+			"no_app": "Don't have the app yet?",
+			"no_app_desc": "Scan this to install it from Google Play, then come back and show the code.",
+			"open_store": "Open Google Play",
+			"store_qr_label": "QR code for the app on Google Play"
 		}
 	},
 	"time": {

@@ -172,6 +172,8 @@ function Navigator({ signedIn, ready }: { signedIn: boolean; ready: boolean }) {
 				</Stack.Protected>
 				{/* Invite links open here signed in or out. */}
 				<Stack.Screen name="invite" options={SETUP_OPTIONS} />
+				{/* The web's "Mobile app" QR: signs this phone in on its own. */}
+				<Stack.Screen name="pair" options={SETUP_OPTIONS} />
 			</Stack>
 			{/* Signed out too: an invite reopens after switching servers. */}
 			<ResumeRoute />

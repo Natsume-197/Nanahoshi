@@ -2,6 +2,7 @@ export const SETTINGS_SECTIONS = [
 	"profile",
 	"account",
 	"privacy",
+	"mobile",
 	"appearance",
 	"language",
 	"about",

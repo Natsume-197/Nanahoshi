@@ -103,12 +103,22 @@ export function Enter() {
 						paper={paper}
 					/>
 				) : (
-					<PaperButton
-						filled
-						paper={paper}
-						label={t("mobile.welcome.connect")}
-						onPress={() => router.push("/connect")}
-					/>
+					<>
+						{/* Signed in on the web: its QR brings the address and the
+						    account in one go. */}
+						<PaperButton
+							paper={paper}
+							icon={icons.qrScan}
+							label={t("mobile.pair.scan")}
+							onPress={() => router.push("/scan")}
+						/>
+						<PaperButton
+							filled
+							paper={paper}
+							label={t("mobile.welcome.connect")}
+							onPress={() => router.push("/connect")}
+						/>
+					</>
 				)}
 			</Animated.View>
 		</View>

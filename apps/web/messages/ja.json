@@ -24,7 +24,8 @@
 			"activity": "アクティビティ",
 			"users": "ユーザー",
 			"servers": "サーバー",
-			"registration": "登録"
+			"registration": "登録",
+			"mobile": "モバイルアプリ"
 		},
 		"search_placeholder": "設定を検索",
 		"navigation_label": "設定セクション",
@@ -759,6 +760,26 @@
 			"stat_works": "作品数：{count}",
 			"stat_similarities": "類似データ数：{count}",
 			"stat_members": "メンバーフィード数：{count}"
+		},
+		"mobile": {
+			"desc": "アドレスやパスワードを入力せずにスマートフォンでサインインできます。Nanahoshiアプリでこのコードをスキャンしてください。",
+			"generate": "コードを表示",
+			"new_code": "新しいコード",
+			"step1": "スマートフォンでNanahoshiを開きます。",
+			"step2": "「QRコードをスキャン」をタップします。",
+			"step3": "カメラをこのコードに向けます。",
+			"expires_in": "残り {time}",
+			"expired": "このコードは期限切れです。",
+			"paired": "スマートフォンが接続されました",
+			"paired_desc": "独自のセッションを持つため、ここでサインアウトしても影響しません。",
+			"connect_another": "別のスマートフォンを接続",
+			"loopback_warning": "このページは {host} で開かれていますが、スマートフォンからは到達できません。コードを表示する前に、ネットワークアドレス（LANのIPなど）でNanahoshiを開いてください。",
+			"generate_failed": "コードを作成できませんでした。もう一度お試しください。",
+			"qr_label": "スマートフォン接続用のQRコード",
+			"no_app": "まだアプリをお持ちでないですか？",
+			"no_app_desc": "これをスキャンしてGoogle Playからインストールし、戻ってコードを表示してください。",
+			"open_store": "Google Playを開く",
+			"store_qr_label": "Google PlayのアプリのQRコード"
 		}
 	},
 	"time": {
