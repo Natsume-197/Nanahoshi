@@ -23,6 +23,7 @@ import {
 	CircleNotch,
 	Cloud,
 	Cpu,
+	DownloadSimple,
 	FloppyDisk,
 	TerminalWindow,
 } from "@phosphor-icons/react";
@@ -38,10 +39,14 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 type Quality = "accurate" | "fast";
 type Provider = "local" | "modal";
+type Engine = "auto" | "ctc" | "whisper";
+
+const MODEL_POLL_MS = 2_000;
 
 type HonomiyaConfigDraft = {
 	enabled: boolean;
 	cliPath: string;
+	engine: Engine;
 	provider: Provider;
 	quality: Quality;
 	parallelChunks: string;
@@ -57,6 +62,7 @@ type ModalCredentialsDraft = {
 const DEFAULT_CONFIG_DRAFT: HonomiyaConfigDraft = {
 	enabled: true,
 	cliPath: "",
+	engine: "auto",
 	provider: "modal",
 	quality: "accurate",
 	parallelChunks: "2",
@@ -72,6 +78,7 @@ const EMPTY_MODAL_CREDENTIALS: ModalCredentialsDraft = {
 function createConfigDraft(config: {
 	enabled: boolean;
 	cliPath: string | null;
+	engine: Engine;
 	provider: Provider;
 	quality: Quality;
 	parallelChunks: number;
@@ -81,6 +88,7 @@ function createConfigDraft(config: {
 	return {
 		enabled: config.enabled,
 		cliPath: config.cliPath ?? "",
+		engine: config.engine,
 		provider: config.provider,
 		quality: config.quality,
 		parallelChunks: String(config.parallelChunks),
@@ -94,6 +102,11 @@ export function HonomiyaSettings() {
 	const diagnosticsQuery = useQuery(
 		orpc.settings.diagnoseHonomiya.queryOptions(),
 	);
+	const modelsQuery = useQuery({
+		...orpc.settings.honomiyaModels.queryOptions(),
+		refetchInterval: (query) =>
+			query.state.data?.some((model) => model.pulling) ? MODEL_POLL_MS : false,
+	});
 	const [configDraft, setConfigDraft] =
 		useState<HonomiyaConfigDraft>(DEFAULT_CONFIG_DRAFT);
 	const [lastSyncedConfig, setLastSyncedConfig] = useState(configQuery.data);
@@ -145,11 +158,23 @@ export function HonomiyaSettings() {
 		onError: (error) => toast.error(error.message),
 	});
 
+	const pullModelMutation = useMutation({
+		...orpc.settings.pullHonomiyaModel.mutationOptions(),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: orpc.settings.honomiyaModels.queryOptions().queryKey,
+			});
+			toast.success(m["settings.honomiya.model_download_started"]());
+		},
+		onError: (error) => toast.error(error.message),
+	});
+
 	const saveSettings = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		updateMutation.mutate({
 			enabled: configDraft.enabled,
 			cliPath: configDraft.cliPath.trim() || null,
+			engine: configDraft.engine,
 			provider: configDraft.provider,
 			quality: configDraft.quality,
 			parallelChunks: Number(configDraft.parallelChunks),
@@ -171,6 +196,8 @@ export function HonomiyaSettings() {
 	};
 
 	const diagnostics = diagnosticsQuery.data;
+	const usesWhisper = configDraft.engine !== "ctc";
+	const usesModal = usesWhisper && configDraft.provider === "modal";
 	const busy = configQuery.isLoading || updateMutation.isPending;
 	const credentialsBusy =
 		updateCredentialsMutation.isPending || removeCredentialsMutation.isPending;
@@ -203,7 +230,7 @@ export function HonomiyaSettings() {
 									: m["settings.honomiya.cli_missing"]()
 							}
 						/>
-						{configDraft.provider === "modal" && (
+						{usesModal && (
 							<RuntimeRow
 								icon={Cloud}
 								label={m["settings.honomiya.modal_status"]()}
@@ -255,7 +282,39 @@ export function HonomiyaSettings() {
 				</Button>
 			</section>
 
-			{configDraft.provider === "modal" && (
+			<section className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-foreground text-xl">
+						{m["settings.honomiya.models_title"]()}
+					</h2>
+					<p className="max-w-2xl text-muted-foreground text-sm">
+						{m["settings.honomiya.models_desc"]()}
+					</p>
+				</div>
+				{modelsQuery.isLoading ? (
+					<Skeleton className="h-32 w-full" />
+				) : modelsQuery.data?.length ? (
+					<SettingRows>
+						{modelsQuery.data.map((model) => (
+							<ModelRow
+								key={model.id}
+								model={model}
+								starting={
+									pullModelMutation.isPending &&
+									pullModelMutation.variables?.model === model.id
+								}
+								onDownload={() => pullModelMutation.mutate({ model: model.id })}
+							/>
+						))}
+					</SettingRows>
+				) : (
+					<p className="text-muted-foreground text-sm">
+						{m["settings.honomiya.models_unavailable"]()}
+					</p>
+				)}
+			</section>
+
+			{usesModal && (
 				<section className="flex flex-col gap-6">
 					<div className="flex flex-col gap-1">
 						<h2 className="font-semibold text-foreground text-xl">
@@ -412,44 +471,111 @@ export function HonomiyaSettings() {
 						<SettingControlRow
 							label={
 								<label
-									htmlFor="honomiya-provider"
+									htmlFor="honomiya-engine"
 									className="font-medium text-foreground text-sm"
 								>
-									{m["settings.honomiya.provider"]()}
+									{m["settings.honomiya.engine"]()}
 								</label>
 							}
 							description={
-								<span id="honomiya-provider-description">
-									{m["settings.honomiya.provider_desc"]()}
+								<span id="honomiya-engine-description">
+									{m["settings.honomiya.engine_desc"]()}
 								</span>
 							}
 						>
-							<Select<Provider>
-								value={configDraft.provider}
+							<Select<Engine>
+								items={[
+									{
+										value: "auto",
+										label: m["settings.honomiya.engine_auto"](),
+									},
+									{ value: "ctc", label: m["settings.honomiya.engine_ctc"]() },
+									{
+										value: "whisper",
+										label: m["settings.honomiya.engine_whisper"](),
+									},
+								]}
+								value={configDraft.engine}
 								disabled={busy}
-								onValueChange={(provider) =>
-									setConfigDraft((current) => ({ ...current, provider }))
+								onValueChange={(engine) =>
+									setConfigDraft((current) => ({ ...current, engine }))
 								}
 							>
 								<SelectTrigger
-									id="honomiya-provider"
-									aria-describedby="honomiya-provider-description"
+									id="honomiya-engine"
+									aria-describedby="honomiya-engine-description"
 									className="w-44"
 								>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectGroup>
-										<SelectItem value="local">
-											{m["settings.honomiya.provider_local"]()}
+										<SelectItem value="auto">
+											{m["settings.honomiya.engine_auto"]()}
 										</SelectItem>
-										<SelectItem value="modal">
-											{m["settings.honomiya.provider_modal"]()}
+										<SelectItem value="ctc">
+											{m["settings.honomiya.engine_ctc"]()}
+										</SelectItem>
+										<SelectItem value="whisper">
+											{m["settings.honomiya.engine_whisper"]()}
 										</SelectItem>
 									</SelectGroup>
 								</SelectContent>
 							</Select>
 						</SettingControlRow>
+						{usesWhisper && (
+							<SettingControlRow
+								label={
+									<label
+										htmlFor="honomiya-provider"
+										className="font-medium text-foreground text-sm"
+									>
+										{m["settings.honomiya.provider"]()}
+									</label>
+								}
+								description={
+									<span id="honomiya-provider-description">
+										{m["settings.honomiya.provider_desc"]()}
+									</span>
+								}
+							>
+								<Select<Provider>
+									items={[
+										{
+											value: "local",
+											label: m["settings.honomiya.provider_local"](),
+										},
+										{
+											value: "modal",
+											label: m["settings.honomiya.provider_modal"](),
+										},
+									]}
+									value={configDraft.provider}
+									disabled={busy}
+									onValueChange={(provider) =>
+										setConfigDraft((current) => ({ ...current, provider }))
+									}
+								>
+									<SelectTrigger
+										id="honomiya-provider"
+										aria-describedby="honomiya-provider-description"
+										className="w-44"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="local">
+												{m["settings.honomiya.provider_local"]()}
+											</SelectItem>
+											<SelectItem value="modal">
+												{m["settings.honomiya.provider_modal"]()}
+											</SelectItem>
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+							</SettingControlRow>
+						)}
 					</SettingRows>
 
 					<FieldGroup className="grid gap-6 sm:grid-cols-2">
@@ -475,64 +601,79 @@ export function HonomiyaSettings() {
 							</FieldDescription>
 						</Field>
 
-						<Field>
-							<FieldLabel htmlFor="honomiya-quality">
-								{m["settings.honomiya.quality"]()}
-							</FieldLabel>
-							<Select<Quality>
-								value={configDraft.quality}
-								disabled={busy}
-								onValueChange={(quality) =>
-									setConfigDraft((current) => ({ ...current, quality }))
-								}
-							>
-								<SelectTrigger
-									id="honomiya-quality"
-									aria-describedby="honomiya-quality-description"
-									className="w-full"
+						{usesWhisper && (
+							<Field>
+								<FieldLabel htmlFor="honomiya-quality">
+									{m["settings.honomiya.quality"]()}
+								</FieldLabel>
+								<Select<Quality>
+									items={[
+										{
+											value: "accurate",
+											label: m["settings.honomiya.quality_accurate"](),
+										},
+										{
+											value: "fast",
+											label: m["settings.honomiya.quality_fast"](),
+										},
+									]}
+									value={configDraft.quality}
+									disabled={busy}
+									onValueChange={(quality) =>
+										setConfigDraft((current) => ({ ...current, quality }))
+									}
 								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										<SelectItem value="accurate">
-											{m["settings.honomiya.quality_accurate"]()}
-										</SelectItem>
-										<SelectItem value="fast">
-											{m["settings.honomiya.quality_fast"]()}
-										</SelectItem>
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-							<FieldDescription id="honomiya-quality-description">
-								{m["settings.honomiya.quality_desc"]()}
-							</FieldDescription>
-						</Field>
-
-						<NumberField
-							id="honomiya-parallel-chunks"
-							label={m["settings.honomiya.parallel_chunks"]()}
-							description={m["settings.honomiya.parallel_chunks_desc"]()}
-							value={configDraft.parallelChunks}
-							min={1}
-							max={16}
-							disabled={busy}
-							onChange={(parallelChunks) =>
-								setConfigDraft((current) => ({ ...current, parallelChunks }))
-							}
-						/>
-						<NumberField
-							id="honomiya-retries"
-							label={m["settings.honomiya.retries"]()}
-							description={m["settings.honomiya.retries_desc"]()}
-							value={configDraft.retries}
-							min={0}
-							max={10}
-							disabled={busy}
-							onChange={(retries) =>
-								setConfigDraft((current) => ({ ...current, retries }))
-							}
-						/>
+									<SelectTrigger
+										id="honomiya-quality"
+										aria-describedby="honomiya-quality-description"
+										className="w-full"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="accurate">
+												{m["settings.honomiya.quality_accurate"]()}
+											</SelectItem>
+											<SelectItem value="fast">
+												{m["settings.honomiya.quality_fast"]()}
+											</SelectItem>
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+								<FieldDescription id="honomiya-quality-description">
+									{m["settings.honomiya.quality_desc"]()}
+								</FieldDescription>
+							</Field>
+						)}
+						{usesWhisper && (
+							<NumberField
+								id="honomiya-parallel-chunks"
+								label={m["settings.honomiya.parallel_chunks"]()}
+								description={m["settings.honomiya.parallel_chunks_desc"]()}
+								value={configDraft.parallelChunks}
+								min={1}
+								max={16}
+								disabled={busy}
+								onChange={(parallelChunks) =>
+									setConfigDraft((current) => ({ ...current, parallelChunks }))
+								}
+							/>
+						)}
+						{usesWhisper && (
+							<NumberField
+								id="honomiya-retries"
+								label={m["settings.honomiya.retries"]()}
+								description={m["settings.honomiya.retries_desc"]()}
+								value={configDraft.retries}
+								min={0}
+								max={10}
+								disabled={busy}
+								onChange={(retries) =>
+									setConfigDraft((current) => ({ ...current, retries }))
+								}
+							/>
+						)}
 						<NumberField
 							id="honomiya-worker-concurrency"
 							label={m["settings.honomiya.worker_concurrency"]()}
@@ -578,6 +719,95 @@ function modalCredentialSourceLabel(
 		default:
 			return m["settings.honomiya.credentials_missing"]();
 	}
+}
+
+type ModelStatus = {
+	id: string;
+	languages: string[];
+	sizeMiB: number;
+	installed: boolean;
+	pulling: boolean;
+	error: string | null;
+};
+
+function modelLanguageLabel(languages: string[]): string {
+	return languages
+		.map((language) => {
+			switch (language) {
+				case "ja":
+					return m["settings.honomiya.model_language_ja"]();
+				case "es":
+					return m["settings.honomiya.model_language_es"]();
+				case "en":
+					return m["settings.honomiya.model_language_en"]();
+				default:
+					return language;
+			}
+		})
+		.join(", ");
+}
+
+function ModelRow({
+	model,
+	starting,
+	onDownload,
+}: {
+	model: ModelStatus;
+	starting: boolean;
+	onDownload: () => void;
+}) {
+	const downloading = model.pulling || starting;
+	return (
+		<SettingControlRow
+			label={
+				<span className="font-medium text-foreground text-sm">
+					{modelLanguageLabel(model.languages)}
+				</span>
+			}
+			description={
+				<span className="flex flex-col gap-0.5">
+					<span>
+						{model.id} ·{" "}
+						{m["settings.honomiya.model_size"]({ size: model.sizeMiB })}
+					</span>
+					{model.error && !downloading && (
+						<span className="text-destructive">
+							{m["settings.honomiya.model_download_failed"]({
+								error: model.error,
+							})}
+						</span>
+					)}
+				</span>
+			}
+		>
+			{model.installed ? (
+				<Badge variant="success">
+					{m["settings.honomiya.model_installed"]()}
+				</Badge>
+			) : (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={downloading}
+					onClick={onDownload}
+				>
+					{downloading ? (
+						<CircleNotch
+							data-icon="inline-start"
+							className="animate-spin motion-reduce:animate-none"
+							aria-hidden="true"
+						/>
+					) : (
+						<DownloadSimple data-icon="inline-start" aria-hidden="true" />
+					)}
+					{downloading
+						? m["settings.honomiya.model_downloading"]()
+						: m["settings.honomiya.model_download"]()}
+				</Button>
+			)}
+		</SettingControlRow>
+	);
 }
 
 function RuntimeRow({

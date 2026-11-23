@@ -1,4 +1,8 @@
 import { readListenGenerationQueue } from "../../infrastructure/queue/queues/read-listen-generation.queue";
+import {
+	type HonomiyaModelStatus,
+	honomiyaModelManager,
+} from "../read-listen/honomiya-models";
 import { resolveHonomiyaCliPath } from "../read-listen/honomiya-process";
 import { modalCredentialStore } from "./modal-credentials";
 import type { HonomiyaConfig } from "./settings.model";
@@ -60,4 +64,24 @@ export async function diagnoseHonomiya(
 		modal,
 		worker: { available: workerCount > 0, count: workerCount },
 	};
+}
+
+/** CTC models known to the installed CLI; empty when the CLI predates them. */
+export async function listHonomiyaModels(
+	config: HonomiyaConfig,
+): Promise<HonomiyaModelStatus[]> {
+	try {
+		const cliPath = await resolveHonomiyaCliPath(config.cliPath ?? undefined);
+		return await honomiyaModelManager.status(cliPath);
+	} catch {
+		return [];
+	}
+}
+
+export async function pullHonomiyaModel(
+	config: HonomiyaConfig,
+	modelId: string,
+): Promise<void> {
+	const cliPath = await resolveHonomiyaCliPath(config.cliPath ?? undefined);
+	await honomiyaModelManager.pull(cliPath, modelId);
 }

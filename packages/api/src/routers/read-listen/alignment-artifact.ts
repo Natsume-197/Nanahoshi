@@ -16,7 +16,7 @@ export type ReadListenAlignmentOrigin = "external" | "honomiya";
 
 const alignmentOriginReportSchema = z.object({
 	transcription: z.object({
-		mode: z.enum(["provider", "precomputed", "timed-text"]),
+		mode: z.enum(["provider", "precomputed", "timed-text", "ctc"]),
 	}),
 });
 

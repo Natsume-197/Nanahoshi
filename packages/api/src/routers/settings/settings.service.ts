@@ -26,6 +26,7 @@ const HONOMIYA_KEY = "honomiya";
 export const DEFAULT_HONOMIYA_CONFIG: HonomiyaConfig = {
 	enabled: true,
 	cliPath: null,
+	engine: "auto",
 	provider: "modal",
 	quality: "accurate",
 	parallelChunks: 2,

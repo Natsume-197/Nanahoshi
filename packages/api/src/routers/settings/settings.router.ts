@@ -34,7 +34,11 @@ import {
 	ProviderCredentialError,
 	ProviderTransientError,
 } from "../books/metadata/providers/provider.utils";
-import { diagnoseHonomiya } from "./honomiya-diagnostics";
+import {
+	diagnoseHonomiya,
+	listHonomiyaModels,
+	pullHonomiyaModel,
+} from "./honomiya-diagnostics";
 import { modalCredentialStore } from "./modal-credentials";
 import {
 	validateComicvineCredential,
@@ -42,6 +46,7 @@ import {
 	validateHardcoverCredential,
 } from "./provider-credential.validator";
 import {
+	PullHonomiyaModelInput,
 	UpdateAmazonInput,
 	UpdateBookLinkPreviewInput,
 	UpdateComicvineInput,
@@ -177,6 +182,17 @@ export const settingsRouter = {
 	diagnoseHonomiya: adminProcedure.handler(async () =>
 		diagnoseHonomiya(await getHonomiyaConfig()),
 	),
+
+	honomiyaModels: adminProcedure.handler(async () =>
+		listHonomiyaModels(await getHonomiyaConfig()),
+	),
+
+	pullHonomiyaModel: adminProcedure
+		.input(PullHonomiyaModelInput)
+		.handler(async ({ input }) => {
+			await pullHonomiyaModel(await getHonomiyaConfig(), input.model);
+			return { started: true as const };
+		}),
 
 	updateHonomiyaModalCredentials: adminProcedure
 		.input(UpdateModalCredentialsInput)

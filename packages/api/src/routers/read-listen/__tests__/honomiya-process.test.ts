@@ -154,4 +154,78 @@ describe("Honomiya process boundary", () => {
 		expect(command).toContain("--timed-text");
 		expect(command).not.toContain("--verify-provider");
 	});
+
+	test("builds a CTC command that keeps provider controls out", () => {
+		const command = createHonomiyaAlignCommand({
+			cliPath: "/opt/honomiya/cli.js",
+			ebookPath: "/library/book.epub",
+			audioPaths: ["/audio/01.mp3", "/audio/02.mp3"],
+			outputPath: "/data/alignment.json",
+			cacheDir: "/data/cache",
+			provider: "modal",
+			quality: "accurate",
+			parallelChunks: 2,
+			retries: 2,
+			ctc: { model: "quartznet15x5-ja", modelDir: "/data/honomiya/models" },
+		});
+
+		expect(command).toEqual([
+			"bun",
+			"/opt/honomiya/cli.js",
+			"align",
+			"--ebook",
+			"/library/book.epub",
+			"--audio",
+			"/audio/01.mp3",
+			"--audio",
+			"/audio/02.mp3",
+			"--engine",
+			"ctc",
+			"--model",
+			"quartznet15x5-ja",
+			"--model-dir",
+			"/data/honomiya/models",
+			"--cache-dir",
+			"/data/cache/ctc",
+			"--output",
+			"/data/alignment.json",
+			"--progress-json",
+		]);
+	});
+
+	test("lets Honomiya choose the CTC model when the language is unknown", () => {
+		const command = createHonomiyaAlignCommand({
+			cliPath: "/opt/honomiya/cli.js",
+			ebookPath: "/library/book.epub",
+			audioPaths: ["/audio/book.m4b"],
+			outputPath: "/data/alignment.json",
+			cacheDir: "/data/cache",
+			provider: "modal",
+			quality: "accurate",
+			parallelChunks: 2,
+			retries: 2,
+			ctc: { model: null, modelDir: "/models" },
+		});
+
+		expect(command).toContain("--engine");
+		expect(command).not.toContain("--model");
+	});
+
+	test("refuses to mix SRT inputs with the CTC engine", () => {
+		expect(() =>
+			createHonomiyaAlignCommand({
+				cliPath: "/opt/honomiya/cli.js",
+				ebookPath: "/library/book.epub",
+				audioPaths: ["/audio/book.m4b"],
+				timedTextPaths: ["/audio/book.srt"],
+				outputPath: "/data/alignment.json",
+				cacheDir: "/data/cache",
+				provider: "modal",
+				quality: "accurate",
+				parallelChunks: 2,
+				retries: 2,
+				ctc: { model: null, modelDir: "/models" },
+			}),
+		).toThrow("Timed-text alignment cannot use the CTC engine");
+	});
 });

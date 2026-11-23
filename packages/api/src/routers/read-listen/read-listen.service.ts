@@ -173,6 +173,7 @@ export class ReadListenService {
 				ebookCatalogHash: string;
 				audiobookCatalogHash: string;
 				label: string;
+				ebookLanguage?: string | null;
 				mode?: "provider" | "timed-text";
 				timedTextPaths?: string[];
 				verifyTimedText?: boolean;
@@ -739,6 +740,7 @@ export class ReadListenService {
 				ebookCatalogHash: sources.ebookCatalogHash,
 				audiobookCatalogHash: sources.audiobookCatalogHash,
 				label: `Generating alignment for ${pair.ebook.title}`,
+				ebookLanguage: sources.ebookLanguage,
 				mode,
 				...(mode === "timed-text"
 					? { verifyTimedText: options.verifyTimedText === true }

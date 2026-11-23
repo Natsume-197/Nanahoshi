@@ -2,7 +2,7 @@
 
 ARG BUN_VERSION=1.4.2
 ARG CALIBRE_VERSION=9.13.0
-ARG HONOMIYA_REF=101b68b792152958eb28639cc5d5ff7254042fb9
+ARG HONOMIYA_REF=2a106b9e03f818a287e10c1e9c11aa73ecbd1d33
 ARG S6_OVERLAY_VERSION=3.2.3.2
 
 # ── Dependency manifests ─────────────────────────────────────────────
@@ -93,6 +93,28 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 	bun install --frozen-lockfile \
 	&& bun run build \
 	&& bun ./dist/cli.js --version
+# The CTC engine loads onnxruntime-node (left external by the bundle) from
+# beside cli.js. Honomiya pins its own version, which its int8 models were
+# calibrated against, so it cannot share the server's copy.
+ARG TARGETARCH
+RUN <<'EOF'
+set -eu
+case "$TARGETARCH" in
+	amd64) ORT_ARCH=x64 ;;
+	arm64) ORT_ARCH=arm64 ;;
+	*) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;;
+esac
+ort=$(readlink -f node_modules/onnxruntime-node)
+common=$(cd "$ort" && bun -e 'console.log(require("node:path").dirname(require.resolve("onnxruntime-common/package.json")))')
+mkdir -p /opt/honomiya/node_modules
+cp dist/cli.js /opt/honomiya/cli.js
+cp -RL "$ort" /opt/honomiya/node_modules/onnxruntime-node
+cp -RL "$common" /opt/honomiya/node_modules/onnxruntime-common
+napi=/opt/honomiya/node_modules/onnxruntime-node/bin/napi-v6
+find "$napi" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +
+find "$napi/linux" -mindepth 1 -maxdepth 1 ! -name "$ORT_ARCH" -exec rm -rf {} +
+test -f "$napi/linux/$ORT_ARCH/onnxruntime_binding.node"
+EOF
 
 # ── Worker toolchain ─────────────────────────────────────────────────
 FROM base AS calibre
@@ -175,7 +197,9 @@ RUN ln -s /app/node_modules/.bun/node_modules/@embedpdf /app/node_modules/@embed
 # Loads the native onnxruntime binding the way the bundled worker resolves it.
 RUN cd dist && bun -e 'await import("@huggingface/transformers")'
 COPY --from=calibre /opt/calibre /opt/calibre
-COPY --from=honomiya --chown=nanahoshi:nanahoshi /src/Honomiya/dist/cli.js /opt/honomiya/cli.js
+COPY --from=honomiya --chown=nanahoshi:nanahoshi /opt/honomiya /opt/honomiya
+# Alpine cannot load the glibc binding, so the CTC runtime is checked here.
+RUN cd /opt/honomiya && bun -e 'await import("onnxruntime-node")'
 ENV PATH="/opt/calibre:${PATH}" QT_QPA_PLATFORM=offscreen
 COPY --from=web-build /app/apps/web/dist /app/apps/web/dist
 COPY --from=web-build /app/apps/web/server.ts /app/apps/web/server.ts

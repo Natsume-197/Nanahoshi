@@ -4,6 +4,7 @@ import { HonomiyaConfigSchema } from "./settings.model";
 const baseConfig = {
 	enabled: true,
 	cliPath: null,
+	engine: "auto" as const,
 	quality: "accurate" as const,
 	parallelChunks: 2,
 	retries: 2,

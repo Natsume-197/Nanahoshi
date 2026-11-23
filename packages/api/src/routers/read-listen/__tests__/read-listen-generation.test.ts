@@ -43,6 +43,7 @@ const input = {
 const config = {
 	enabled: true,
 	cliPath: null,
+	engine: "auto" as const,
 	provider: "modal" as const,
 	quality: "accurate" as const,
 	parallelChunks: 4,
@@ -59,6 +60,7 @@ function harness(
 	createGenerationAttempt = mock(
 		async (): Promise<AttemptResult> => ({ outcome: "created", generation }),
 	),
+	chooseCtc = mock(async (): Promise<{ model: string | null } | null> => null),
 ) {
 	const store = {
 		createGenerationAttempt,
@@ -74,11 +76,13 @@ function harness(
 		store,
 		tasks,
 		queue,
+		chooseCtc,
 		coordinator: new ReadListenGenerationCoordinator(
 			store as never,
 			tasks as never,
 			queue as never,
 			async () => config,
+			chooseCtc,
 		),
 	};
 }
@@ -167,6 +171,68 @@ describe("ReadListenGenerationCoordinator", () => {
 
 		await expect(coordinator.enqueue(input)).rejects.toThrow(
 			"Honomiya generation is disabled",
+		);
+		expect(store.createGenerationAttempt).not.toHaveBeenCalled();
+		expect(queue.add).not.toHaveBeenCalled();
+	});
+
+	test("records CTC as the engine and hands its model to the worker", async () => {
+		const { coordinator, store, tasks, queue, chooseCtc } = harness(
+			undefined,
+			mock(async () => ({ model: "quartznet15x5-ja" })),
+		);
+
+		await coordinator.enqueue({ ...input, ebookLanguage: "ja" });
+
+		expect(chooseCtc).toHaveBeenCalledWith(config, "ja");
+		expect(store.createGenerationAttempt).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "ctc" }),
+		);
+		expect(tasks.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({ provider: "ctc" }),
+			}),
+		);
+		expect(queue.add).toHaveBeenCalledWith(
+			"generate",
+			expect.objectContaining({
+				mode: "provider",
+				ctc: { model: "quartznet15x5-ja" },
+			}),
+			expect.any(Object),
+		);
+	});
+
+	test("keeps SRT generation off the CTC engine", async () => {
+		const { coordinator, queue, chooseCtc } = harness(
+			undefined,
+			mock(async () => ({ model: "quartznet15x5-ja" })),
+		);
+
+		await coordinator.enqueue({
+			...input,
+			mode: "timed-text",
+			timedTextPaths: ["/library/book.srt"],
+		});
+
+		expect(chooseCtc).not.toHaveBeenCalled();
+		expect(queue.add).toHaveBeenCalledWith(
+			"generate",
+			expect.not.objectContaining({ ctc: expect.anything() }),
+			expect.any(Object),
+		);
+	});
+
+	test("records nothing when forced CTC has no model", async () => {
+		const { coordinator, store, queue } = harness(
+			undefined,
+			mock(async () => {
+				throw new Error("No Honomiya CTC model is installed");
+			}),
+		);
+
+		await expect(coordinator.enqueue(input)).rejects.toThrow(
+			"No Honomiya CTC model is installed",
 		);
 		expect(store.createGenerationAttempt).not.toHaveBeenCalled();
 		expect(queue.add).not.toHaveBeenCalled();

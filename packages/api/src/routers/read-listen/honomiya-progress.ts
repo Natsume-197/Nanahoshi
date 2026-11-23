@@ -2,7 +2,8 @@ export const HONOMIYA_PROGRESS_SCHEMA = "honomiya.progress.v1" as const;
 
 export type HonomiyaProgressEvent = {
 	schema: typeof HONOMIYA_PROGRESS_SCHEMA;
-	phase: "transcribe";
+	/** `emit` is the CTC engine's acoustic pass; it plays the role of transcription. */
+	phase: "transcribe" | "emit";
 	sourceIndex: number;
 	totalSources: number;
 	chunk: number;
@@ -51,7 +52,7 @@ export function parseHonomiyaProgressLine(
 	const event = value as Record<string, unknown>;
 	if (
 		event.schema !== HONOMIYA_PROGRESS_SCHEMA ||
-		event.phase !== "transcribe" ||
+		(event.phase !== "transcribe" && event.phase !== "emit") ||
 		!isNonNegativeInteger(event.sourceIndex) ||
 		!isPositiveInteger(event.totalSources) ||
 		event.sourceIndex >= event.totalSources ||

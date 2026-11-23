@@ -8,6 +8,7 @@ import {
 	updateTaskOperationProgress,
 } from "../../modules/taskManager";
 import { existingAlignmentImporter } from "../../routers/read-listen/alignment-artifact";
+import { honomiyaModelDirectory } from "../../routers/read-listen/honomiya-models";
 import {
 	createHonomiyaAlignCommand,
 	resolveHonomiyaCliPath,
@@ -36,13 +37,13 @@ const GENERATION_LOCK_DURATION_MS = 15 * 60_000;
 async function runHonomiya(
 	command: string[],
 	taskId: string,
-	provider: "local" | "modal",
+	env: Record<string, string | undefined>,
 	onProgress: (progress: HonomiyaOperationProgress) => Promise<void>,
 ): Promise<{ stdout: string }> {
 	const process = Bun.spawn(command, {
 		stdout: "pipe",
 		stderr: "pipe",
-		env: await processEnv(provider),
+		env,
 	});
 	let cancelled = false;
 	const poll = setInterval(() => {
@@ -107,8 +108,9 @@ async function consumeHonomiyaStderr(
 }
 
 async function processEnv(
-	provider: "local" | "modal",
+	provider: "local" | "modal" | "ctc",
 ): Promise<Record<string, string | undefined>> {
+	if (provider === "ctc") return { ...process.env };
 	return provider === "modal"
 		? {
 				...(await modalCredentialStore.environment()),
@@ -128,6 +130,7 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 		mode,
 		timedTextPaths,
 		verifyTimedText,
+		ctc,
 	} = job.data;
 	let lastProgress = "";
 	const reportProgress = async (progress: HonomiyaOperationProgress) => {
@@ -211,11 +214,14 @@ async function processGeneration(job: Job<ReadListenGenerationJobData>) {
 			retries: settings.retries,
 			...(mode === "timed-text" && timedTextPaths ? { timedTextPaths } : {}),
 			verifyTimedText,
+			...(mode === "provider" && ctc
+				? { ctc: { model: ctc.model, modelDir: honomiyaModelDirectory() } }
+				: {}),
 		});
 		const output = await runHonomiya(
 			command,
 			taskId,
-			settings.provider,
+			await processEnv(mode === "provider" && ctc ? "ctc" : settings.provider),
 			reportProgress,
 		);
 		log.info(

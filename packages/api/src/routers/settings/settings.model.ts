@@ -37,6 +37,8 @@ export const UpdateBookLinkPreviewInput = z.object({
 export const HonomiyaConfigSchema = z.object({
 	enabled: z.boolean(),
 	cliPath: z.string().trim().max(4096).nullable(),
+	// auto: CTC when a model for the ebook's language is installed, else Whisper.
+	engine: z.enum(["auto", "ctc", "whisper"]),
 	provider: z.enum(["local", "modal"]),
 	quality: z.enum(["accurate", "fast"]),
 	parallelChunks: z.number().int().min(1).max(16),
@@ -52,6 +54,13 @@ export const UpdateModalCredentialsInput = z.object({
 });
 
 export type HonomiyaConfig = z.infer<typeof HonomiyaConfigSchema>;
+
+export const PullHonomiyaModelInput = z.object({
+	model: z
+		.string()
+		.max(64)
+		.regex(/^[a-z0-9][a-z0-9-]*$/u),
+});
 
 // Per-organization configs for the HTTP metadata providers. Empty-string
 // keys clear the stored value (normalized in the router).

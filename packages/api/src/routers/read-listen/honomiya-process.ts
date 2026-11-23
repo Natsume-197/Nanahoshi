@@ -51,12 +51,25 @@ export function createHonomiyaAlignCommand(input: {
 	retries: number;
 	timedTextPaths?: string[];
 	verifyTimedText?: boolean;
+	ctc?: { model: string | null; modelDir: string };
 }): string[] {
 	const command = ["bun", input.cliPath, "align", "--ebook", input.ebookPath];
 	for (const audioPath of input.audioPaths) {
 		command.push("--audio", audioPath);
 	}
-	if (input.timedTextPaths?.length) {
+	if (input.timedTextPaths?.length && input.ctc) {
+		throw new Error("Timed-text alignment cannot use the CTC engine");
+	}
+	if (input.ctc) {
+		command.push("--engine", "ctc");
+		if (input.ctc.model) command.push("--model", input.ctc.model);
+		command.push(
+			"--model-dir",
+			input.ctc.modelDir,
+			"--cache-dir",
+			path.join(input.cacheDir, "ctc"),
+		);
+	} else if (input.timedTextPaths?.length) {
 		if (input.timedTextPaths.length !== input.audioPaths.length) {
 			throw new Error("Each audio track requires one timed-text source");
 		}

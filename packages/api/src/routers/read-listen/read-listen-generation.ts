@@ -4,6 +4,12 @@ import { createTask, failTask, getTask } from "../../modules/taskManager";
 import type { HonomiyaConfig } from "../settings/settings.model";
 import { getHonomiyaConfig } from "../settings/settings.service";
 import {
+	type CtcEngineChoice,
+	honomiyaModelManager,
+	resolveCtcEngine,
+} from "./honomiya-models";
+import { resolveHonomiyaCliPath } from "./honomiya-process";
+import {
 	type ReadListenGenerationRow,
 	readListenRepository,
 } from "./read-listen.repository";
@@ -19,6 +25,8 @@ export type ReadListenGenerationJobData = {
 	mode: "provider" | "timed-text";
 	timedTextPaths?: string[];
 	verifyTimedText?: boolean;
+	/** Set when a provider-mode generation aligns with the CTC engine. */
+	ctc?: CtcEngineChoice;
 };
 
 type GenerationStore = Pick<
@@ -33,6 +41,7 @@ export type EnqueueReadListenGenerationInput = {
 	ebookCatalogHash: string;
 	audiobookCatalogHash: string;
 	label: string;
+	ebookLanguage?: string | null;
 	mode?: "provider" | "timed-text";
 	timedTextPaths?: string[];
 	verifyTimedText?: boolean;
@@ -57,6 +66,10 @@ export class ReadListenGenerationCoordinator {
 			"add"
 		> = readListenGenerationQueue,
 		private readonly getConfig: () => Promise<HonomiyaConfig> = getHonomiyaConfig,
+		private readonly chooseCtc: (
+			config: HonomiyaConfig,
+			language: string | null | undefined,
+		) => Promise<CtcEngineChoice | null> = chooseCtcEngine,
 	) {}
 
 	async enqueue(
@@ -80,10 +93,16 @@ export class ReadListenGenerationCoordinator {
 		if (mode === "provider" && input.timedTextPaths !== undefined) {
 			throw new ConflictError("Provider generation cannot include SRT sources");
 		}
+		const ctc =
+			mode === "provider"
+				? await this.chooseCtc(config, input.ebookLanguage)
+				: null;
+		const provider =
+			mode === "timed-text" ? "timed-text" : ctc ? "ctc" : config.provider;
 		const result = await this.store.createGenerationAttempt({
 			pairId: input.pairUuid,
 			taskId,
-			provider: mode === "timed-text" ? "timed-text" : config.provider,
+			provider,
 			quality: config.quality,
 			requestedByUserId: input.requestedByUserId,
 			ebookCatalogHash: input.ebookCatalogHash,
@@ -117,7 +136,7 @@ export class ReadListenGenerationCoordinator {
 				sealed: true,
 				payload: {
 					pairUuid: input.pairUuid,
-					provider: mode === "timed-text" ? "timed-text" : config.provider,
+					provider,
 					quality: config.quality,
 				},
 			});
@@ -133,6 +152,7 @@ export class ReadListenGenerationCoordinator {
 					settings: config,
 					mode,
 					verifyTimedText,
+					...(ctc ? { ctc } : {}),
 					...(input.timedTextPaths
 						? { timedTextPaths: input.timedTextPaths }
 						: {}),
@@ -155,6 +175,22 @@ export class ReadListenGenerationCoordinator {
 
 		return { taskId, generation: result.generation, reused: false };
 	}
+}
+
+async function chooseCtcEngine(
+	config: HonomiyaConfig,
+	language: string | null | undefined,
+): Promise<CtcEngineChoice | null> {
+	if (config.engine === "whisper") return null;
+	let models: Awaited<ReturnType<typeof honomiyaModelManager.list>> = [];
+	try {
+		const cliPath = await resolveHonomiyaCliPath(config.cliPath ?? undefined);
+		models = await honomiyaModelManager.list(cliPath);
+	} catch (error) {
+		// An older CLI without `models` keeps the Whisper path working under auto.
+		if (config.engine === "ctc") throw error;
+	}
+	return resolveCtcEngine({ preference: config.engine, language, models });
 }
 
 export const readListenGenerationCoordinator =

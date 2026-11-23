@@ -61,4 +61,28 @@ describe("Honomiya progress protocol", () => {
 		expect(progress.phase).toBe("aligning");
 		expect(progress.percent).toBe(85);
 	});
+
+	test("treats CTC emission chunks like transcription chunks", () => {
+		const event = parseHonomiyaProgressLine(
+			JSON.stringify({
+				schema: "honomiya.progress.v1",
+				phase: "emit",
+				sourceIndex: 0,
+				totalSources: 1,
+				chunk: 3,
+				sourceChunks: 12,
+				totalChunks: 12,
+				completedChunks: 6,
+				state: "completed",
+			}),
+		);
+
+		expect(event).not.toBeNull();
+		expect(operationProgressFromHonomiya(event as never)).toEqual({
+			phase: "transcribing",
+			percent: 45,
+			completed: 6,
+			total: 12,
+		});
+	});
 });

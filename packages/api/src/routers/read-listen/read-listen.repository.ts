@@ -145,6 +145,8 @@ export type ReadListenPairSources = {
 	audioPaths: string[];
 	ebookCatalogHash: string;
 	audiobookCatalogHash: string;
+	/** The ebook's metadata language, used to pick a CTC alignment model. */
+	ebookLanguage: string | null;
 };
 
 export type ReadListenPairRow = {
@@ -631,10 +633,12 @@ export class ReadListenRepository {
 					catalogHash: book.filehash,
 					relativePath: book.relativePath,
 					rootPath: libraryPath.path,
+					languageCode: bookMetadata.languageCode,
 				})
 				.from(book)
 				.innerJoin(library, eq(library.id, book.libraryId))
 				.innerJoin(libraryPath, eq(libraryPath.id, book.libraryPathId))
+				.leftJoin(bookMetadata, eq(bookMetadata.bookId, book.id))
 				.where(
 					and(
 						eq(book.id, row.ebookBookId),
@@ -681,6 +685,7 @@ export class ReadListenRepository {
 			audioPaths: audiobookRows.map((audio) => path.resolve(audio.path)),
 			ebookCatalogHash: ebook.catalogHash,
 			audiobookCatalogHash: firstAudio.catalogHash,
+			ebookLanguage: ebook.languageCode ?? null,
 		};
 	}
 
