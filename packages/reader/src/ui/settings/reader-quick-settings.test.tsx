@@ -406,4 +406,19 @@ describe("ReaderQuickSettings desktop dialog", () => {
 			focusPauseAudioAfterLine: true,
 		});
 	});
+
+	test("offers sentence/word highlight mode selector whenever Read & Listen is active", () => {
+		const onChange = mock(() => {});
+		const panel = renderPanel(() => {}, false, {
+			readListenActive: true,
+			onChange,
+		});
+
+		fireEvent.click(panel.getByRole("button", { name: "Layout" }));
+		fireEvent.click(panel.getByRole("button", { name: "Word" }));
+
+		expect(onChange).toHaveBeenCalledWith({
+			readListenHighlightMode: "word",
+		});
+	});
 });

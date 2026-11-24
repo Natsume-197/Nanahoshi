@@ -3,7 +3,10 @@ import { type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import type { ReaderSourceFormat, Section } from "../document/types";
 import { readerApi } from "../host/reader-host";
 import { m } from "../i18n/paraglide/messages";
-import type { ReaderTheme } from "../presentation/settings";
+import type {
+	ReaderTheme,
+	ReadListenHighlightMode,
+} from "../presentation/settings";
 import type { BookReaderApi } from "../reader-contract";
 import {
 	FOCUS_SENTENCE_NAVIGATION_EVENT,
@@ -228,6 +231,7 @@ export function ReadListenRuntime({
 	readerDomRevision,
 	playheadRef,
 	pauseAudioAfterLine = false,
+	highlightMode = "sentence",
 	onExitReadListen,
 	theme,
 }: {
@@ -241,6 +245,7 @@ export function ReadListenRuntime({
 	readerDomRevision: string;
 	playheadRef?: RefObject<number | undefined>;
 	pauseAudioAfterLine?: boolean;
+	highlightMode?: ReadListenHighlightMode;
 	onExitReadListen: () => void;
 	theme?: ReaderTheme;
 }) {
@@ -412,9 +417,11 @@ export function ReadListenRuntime({
 				)}
 			{readerCue && !isInitialTextSeekPending && (
 				<ActiveReadListenCue
-					key={`${alignmentRevision}:${sourceFormat}:${readerCue.id}:${followText}:${unsynced}:${readerDomRevision}`}
+					key={`${alignmentRevision}:${sourceFormat}:${readerCue.id}:${followText}:${unsynced}:${highlightMode}:${isPlaying}:${readerDomRevision}`}
 					cue={readerCue}
 					showHighlight={!unsynced}
+					highlightMode={highlightMode}
+					isPlaying={isPlaying}
 					sectionTargets={
 						targetsBySection.get(
 							toReaderSectionReference(readerCue.text.sectionRef, sourceFormat),

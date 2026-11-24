@@ -1064,6 +1064,7 @@ export function ReaderScreen({
 				pauseAudioAfterLine:
 					presentation.renderer === "text-focus" &&
 					settings.focusPauseAudioAfterLine,
+				highlightMode: settings.readListenHighlightMode,
 				theme,
 			})}
 			{!isPdf && showHeader && (

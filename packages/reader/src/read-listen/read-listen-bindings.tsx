@@ -5,6 +5,7 @@ import type {
 	ReaderTextAnchor,
 	Section,
 } from "../document/types";
+import type { ReadListenHighlightMode } from "../presentation/settings";
 import type { BookReaderApi } from "../reader-contract";
 import {
 	bindReadListenManualFollowPause,
@@ -19,11 +20,14 @@ import { bindReadListenSentenceSeeking } from "./sentence-seeking";
 import {
 	getReadListenPositionIndex,
 	installReadListenActiveHighlight,
+	installReadListenWordHighlight,
 	invalidateReadListenPositionIndex,
 	type ResolvedReadListenAnchor,
+	resolveReadListenWordAnchor,
 } from "./text-anchor";
 import { findReadListenCueNearCharacter } from "./text-position";
 import {
+	findActiveReadListenWord,
 	type ReadListenTimelineCue,
 	toReaderSectionReference,
 } from "./timeline";
@@ -178,6 +182,8 @@ export function ActiveReadListenCue({
 	readerApiRef,
 	forceFollow = false,
 	showHighlight = true,
+	highlightMode = "sentence",
+	isPlaying = false,
 	onFollowSettled,
 }: {
 	cue: ReadListenTimelineCue;
@@ -191,16 +197,24 @@ export function ActiveReadListenCue({
 	forceFollow?: boolean;
 	/** Off while the audio narrates something this sentence is not. */
 	showHighlight?: boolean;
+	highlightMode?: ReadListenHighlightMode;
+	isPlaying?: boolean;
 	onFollowSettled?: () => void;
 }) {
+	const audioActions = useReadListenAudioActions();
 	useMountEffect(() => {
 		let cancelled = false;
 		let animationFrame = 0;
+		let wordFrame = 0;
 		let cleanupHighlight: (() => void) | undefined;
 		let attempts = 0;
 		let readerOwnsFollowNavigation = false;
 		let lastNavigationAttempt = Number.NEGATIVE_INFINITY;
 		let installedSection: HTMLElement | null = null;
+		let currentResolved: ResolvedReadListenAnchor | undefined;
+		let lastWordKey: string | null = null;
+		const useWordHighlight =
+			highlightMode === "word" && Boolean(cue.words?.length);
 		const sectionReference = toReaderSectionReference(
 			cue.text.sectionRef,
 			sourceFormat,
@@ -219,6 +233,42 @@ export function ActiveReadListenCue({
 			attempts += 1;
 			if (attempts < MAX_ANCHOR_FRAMES) {
 				animationFrame = requestAnimationFrame(install);
+			}
+		};
+
+		const paintHighlight = (resolved: ResolvedReadListenAnchor) => {
+			if (!showHighlight) {
+				cleanupHighlight?.();
+				cleanupHighlight = undefined;
+				lastWordKey = null;
+				return;
+			}
+			if (!useWordHighlight) {
+				cleanupHighlight?.();
+				cleanupHighlight =
+					installReadListenActiveHighlight(resolved) ?? undefined;
+				return;
+			}
+			const playheadMs = audioActions.getGlobalCurrentTime() * 1000;
+			const activeWord = findActiveReadListenWord(cue, playheadMs);
+			const nextWordKey = activeWord
+				? `${activeWord.start}:${activeWord.end}:${activeWord.startMs}`
+				: "__sentence__";
+			if (nextWordKey === lastWordKey && cleanupHighlight) return;
+			lastWordKey = nextWordKey;
+			const wordAnchor = activeWord
+				? resolveReadListenWordAnchor(resolved, activeWord)
+				: null;
+			cleanupHighlight?.();
+			cleanupHighlight =
+				installReadListenWordHighlight(resolved, wordAnchor) ?? undefined;
+		};
+
+		const tickWordHighlight = () => {
+			if (cancelled || !useWordHighlight || !showHighlight) return;
+			if (currentResolved) paintHighlight(currentResolved);
+			if (isPlaying) {
+				wordFrame = requestAnimationFrame(tickWordHighlight);
 			}
 		};
 
@@ -269,10 +319,13 @@ export function ActiveReadListenCue({
 				}
 				return;
 			}
-			cleanupHighlight?.();
-			cleanupHighlight = showHighlight
-				? (installReadListenActiveHighlight(resolved) ?? undefined)
-				: undefined;
+			currentResolved = resolved;
+			lastWordKey = null;
+			paintHighlight(resolved);
+			if (useWordHighlight && showHighlight && isPlaying) {
+				cancelAnimationFrame(wordFrame);
+				wordFrame = requestAnimationFrame(tickWordHighlight);
+			}
 			installedSection = section;
 			if (
 				followText &&
@@ -319,6 +372,7 @@ export function ActiveReadListenCue({
 			observer.disconnect();
 			cancelled = true;
 			cancelAnimationFrame(animationFrame);
+			cancelAnimationFrame(wordFrame);
 			cleanupHighlight?.();
 		};
 	});

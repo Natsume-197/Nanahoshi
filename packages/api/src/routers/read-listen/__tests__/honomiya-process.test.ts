@@ -181,6 +181,7 @@ describe("Honomiya process boundary", () => {
 			"/audio/02.mp3",
 			"--engine",
 			"ctc",
+			"--words",
 			"--model",
 			"quartznet15x5-ja",
 			"--model-dir",

@@ -567,6 +567,103 @@ describe("readManagedAlignmentArtifact", () => {
 			await fs.rm(temporaryCwd, { recursive: true, force: true });
 		}
 	});
+
+	test("reads a v2 word-level manifest and rejects out-of-bounds words", async () => {
+		const previousCwd = process.cwd();
+		const temporaryCwd = await fs.mkdtemp(
+			path.join(os.tmpdir(), "read-listen-v2-artifact-"),
+		);
+		try {
+			process.chdir(temporaryCwd);
+			const artifactPath = "data/alignments/pair/artifact-v2.json";
+			await fs.mkdir(path.dirname(artifactPath), { recursive: true });
+			const validBytes = new TextEncoder().encode(
+				JSON.stringify(
+					manifest({
+						schema: "honomiya.read-listen.v2",
+						granularity: "word",
+						cues: [
+							{
+								id: "s-1",
+								text: {
+									kind: "text-quote",
+									sectionRef: "chapter1.xhtml",
+									exact: "Hello world.",
+								},
+								audioFileIndex: 0,
+								startMs: 1000,
+								endMs: 3000,
+								words: [
+									{
+										start: 0,
+										end: 5,
+										text: "Hello",
+										startMs: 1000,
+										endMs: 1800,
+									},
+									{
+										start: 6,
+										end: 11,
+										text: "world",
+										startMs: 1800,
+										endMs: 3000,
+									},
+								],
+							},
+						],
+					}),
+				),
+			);
+			await fs.writeFile(artifactPath, validBytes);
+			const sha256 = createHash("sha256").update(validBytes).digest("hex");
+
+			const result = await readManagedAlignmentArtifact(artifactPath, sha256);
+
+			expect(result.schema).toBe("honomiya.read-listen.v2");
+			expect(result.granularity).toBe("word");
+			expect(result.cues[0]?.words).toHaveLength(2);
+
+			const invalidPath = "data/alignments/pair/artifact-v2-bad.json";
+			const invalidBytes = new TextEncoder().encode(
+				JSON.stringify(
+					manifest({
+						schema: "honomiya.read-listen.v2",
+						granularity: "word",
+						cues: [
+							{
+								id: "s-1",
+								text: {
+									kind: "text-quote",
+									sectionRef: "chapter1.xhtml",
+									exact: "Hello world.",
+								},
+								audioFileIndex: 0,
+								startMs: 1000,
+								endMs: 3000,
+								words: [
+									{
+										start: 0,
+										end: 5,
+										text: "Hello",
+										startMs: 900,
+										endMs: 1800,
+									},
+								],
+							},
+						],
+					}),
+				),
+			);
+			await fs.writeFile(invalidPath, invalidBytes);
+			const badSha = createHash("sha256").update(invalidBytes).digest("hex");
+			await expect(
+				readManagedAlignmentArtifact(invalidPath, badSha),
+			).rejects.toThrow();
+		} finally {
+			process.chdir(previousCwd);
+			await fs.rm(temporaryCwd, { recursive: true, force: true });
+		}
+	});
 });
 
 describe("readManagedAlignmentReport", () => {

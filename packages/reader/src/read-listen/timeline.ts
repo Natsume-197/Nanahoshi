@@ -1,9 +1,18 @@
-import type { ReadListenCue } from "@nanahoshi/api/routers/read-listen/manifest";
+import type {
+	ReadListenCue,
+	ReadListenTimedWord,
+} from "@nanahoshi/api/routers/read-listen/manifest";
 import type { ReaderSourceFormat } from "../document/types";
 
-export type ReadListenTimelineCue = ReadListenCue & {
+export type ReadListenTimelineWord = ReadListenTimedWord & {
 	globalStartMs: number;
 	globalEndMs: number;
+};
+
+export type ReadListenTimelineCue = Omit<ReadListenCue, "words"> & {
+	globalStartMs: number;
+	globalEndMs: number;
+	words?: ReadListenTimelineWord[];
 };
 
 export type ReadListenAudioFile = {
@@ -33,15 +42,25 @@ export function createReadListenTimeline(
 	}
 
 	return cues
-		.map((cue) => {
+		.map((cue): ReadListenTimelineCue => {
 			const offset = offsets.get(cue.audioFileIndex);
 			if (offset === undefined) {
 				throw new Error(`Missing audiobook file ${cue.audioFileIndex}`);
 			}
+			const { words, ...rest } = cue;
 			return {
-				...cue,
+				...rest,
 				globalStartMs: offset + cue.startMs,
 				globalEndMs: offset + cue.endMs,
+				...(words
+					? {
+							words: words.map((word) => ({
+								...word,
+								globalStartMs: offset + word.startMs,
+								globalEndMs: offset + word.endMs,
+							})),
+						}
+					: {}),
 			};
 		})
 		.sort(
@@ -49,6 +68,31 @@ export function createReadListenTimeline(
 				left.globalStartMs - right.globalStartMs ||
 				left.globalEndMs - right.globalEndMs,
 		);
+}
+
+/** Finds the active timed word inside a cue in O(log n), or undefined if none. */
+export function findActiveReadListenWord(
+	cue: ReadListenTimelineCue,
+	globalTimeMs: number,
+): ReadListenTimelineWord | undefined {
+	const words = cue.words;
+	if (!words?.length) return undefined;
+	if (globalTimeMs < cue.globalStartMs || globalTimeMs >= cue.globalEndMs) {
+		return undefined;
+	}
+	let low = 0;
+	let high = words.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		const word = words[middle];
+		if (word && word.globalStartMs <= globalTimeMs) low = middle + 1;
+		else high = middle;
+	}
+	const candidate = words[low - 1];
+	if (candidate && globalTimeMs < candidate.globalEndMs) {
+		return candidate;
+	}
+	return candidate;
 }
 
 /** Finds the cue index under the playhead in O(log n), leaving gaps empty. */

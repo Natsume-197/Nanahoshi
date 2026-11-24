@@ -1,4 +1,7 @@
-import type { ReadListenCue } from "@nanahoshi/api/routers/read-listen/manifest";
+import type {
+	ReadListenCue,
+	ReadListenTimedWord,
+} from "@nanahoshi/api/routers/read-listen/manifest";
 
 type TextSegment = {
 	node: Text;
@@ -432,6 +435,7 @@ function installCssHighlight(
 
 function installFallbackHighlight(
 	resolved: ResolvedReadListenAnchor,
+	secondaryWord?: ResolvedReadListenAnchor | null,
 ): (() => void) | null {
 	const document = resolved.segments[0]?.node.ownerDocument;
 	const view = document?.defaultView;
@@ -454,11 +458,11 @@ function installFallbackHighlight(
 	document.body.append(layer);
 	fallbackHighlights.set(document, layer);
 
-	let animationFrame = 0;
-	const draw = () => {
-		animationFrame = 0;
-		layer.replaceChildren();
-		for (const segment of resolved.segments) {
+	const appendSegments = (
+		target: ResolvedReadListenAnchor,
+		className: string,
+	) => {
+		for (const segment of target.segments) {
 			if (!segment.node.isConnected) continue;
 			const range = document.createRange();
 			range.setStart(segment.node, segment.startOffset);
@@ -472,13 +476,31 @@ function installFallbackHighlight(
 			for (const rect of rects) {
 				if (rect.width <= 0 || rect.height <= 0) continue;
 				const marker = document.createElement("span");
-				marker.className = "read-listen-active-fallback-segment";
+				marker.className = className;
 				marker.style.left = `${rect.left}px`;
 				marker.style.top = `${rect.top}px`;
 				marker.style.width = `${rect.width}px`;
 				marker.style.height = `${rect.height}px`;
 				layer.append(marker);
 			}
+		}
+	};
+
+	let animationFrame = 0;
+	const draw = () => {
+		animationFrame = 0;
+		layer.replaceChildren();
+		if (secondaryWord) {
+			appendSegments(
+				resolved,
+				"read-listen-active-fallback-segment read-listen-active-fallback-segment--sentence",
+			);
+			appendSegments(
+				secondaryWord,
+				"read-listen-active-fallback-segment read-listen-active-fallback-segment--word",
+			);
+		} else {
+			appendSegments(resolved, "read-listen-active-fallback-segment");
 		}
 	};
 	const scheduleDraw = () => {
@@ -500,6 +522,64 @@ function installFallbackHighlight(
 	};
 }
 
+/**
+ * Resolves a timed word's UTF-16 range inside a resolved sentence anchor.
+ * Walks the sentence's DOM text segments directly (already excluding ruby
+ * annotations) and aligns against `word.text` when whitespace normalization
+ * shifts the offset slightly.
+ */
+export function resolveReadListenWordAnchor(
+	resolved: ResolvedReadListenAnchor,
+	word: ReadListenTimedWord,
+): ResolvedReadListenAnchor | null {
+	const mapping: Array<{ node: Text; offset: number }> = [];
+	let sentenceText = "";
+	for (const segment of resolved.segments) {
+		if (!segment.node.isConnected) continue;
+		const data = segment.node.data;
+		const end = Math.min(segment.endOffset, data.length);
+		for (let offset = segment.startOffset; offset < end; offset += 1) {
+			sentenceText += data[offset] ?? "";
+			mapping.push({ node: segment.node, offset });
+		}
+	}
+	if (!sentenceText || !mapping.length) return null;
+
+	const needle = word.text;
+	let start = -1;
+	let end = -1;
+	if (
+		word.start >= 0 &&
+		word.end <= sentenceText.length &&
+		sentenceText.slice(word.start, word.end) === needle
+	) {
+		start = word.start;
+		end = word.end;
+	} else {
+		const searchFrom = Math.max(0, word.start - 4);
+		const foundNear = sentenceText.indexOf(needle, searchFrom);
+		if (foundNear >= 0 && foundNear <= word.start + 8) {
+			start = foundNear;
+			end = foundNear + needle.length;
+		} else {
+			const normalizedNeedle = normalizeQuote(needle);
+			if (normalizedNeedle) {
+				const foundNormalized = sentenceText.indexOf(
+					normalizedNeedle,
+					Math.max(0, word.start - 8),
+				);
+				if (foundNormalized >= 0) {
+					start = foundNormalized;
+					end = foundNormalized + normalizedNeedle.length;
+				}
+			}
+		}
+	}
+	if (start < 0 || end <= start || end > mapping.length) return null;
+	const segments = segmentsForRange(mapping, start, end);
+	return segments.length ? { segments } : null;
+}
+
 export function installReadListenActiveHighlight(
 	resolved: ResolvedReadListenAnchor,
 ): (() => void) | null {
@@ -507,4 +587,29 @@ export function installReadListenActiveHighlight(
 		installCssHighlight("read-listen-active", resolved) ??
 		installFallbackHighlight(resolved)
 	);
+}
+
+/**
+ * Paints a soft sentence tint together with a crisp active-word highlight.
+ * Falls back cleanly to the standard sentence highlight when no word matches.
+ */
+export function installReadListenWordHighlight(
+	sentence: ResolvedReadListenAnchor,
+	word: ResolvedReadListenAnchor | null,
+): (() => void) | null {
+	if (!word) return installReadListenActiveHighlight(sentence);
+	const cleanupSentence = installCssHighlight(
+		"read-listen-active-sentence",
+		sentence,
+	);
+	const cleanupWord = installCssHighlight("read-listen-active-word", word);
+	if (cleanupSentence && cleanupWord) {
+		return () => {
+			cleanupWord();
+			cleanupSentence();
+		};
+	}
+	cleanupWord?.();
+	cleanupSentence?.();
+	return installFallbackHighlight(sentence, word);
 }

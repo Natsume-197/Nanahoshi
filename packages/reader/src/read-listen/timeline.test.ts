@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ReadListenCue } from "@nanahoshi/api/routers/read-listen/manifest";
 import {
 	createReadListenTimeline,
+	findActiveReadListenWord,
 	findAdjacentReadListenCue,
 	findReadListenCue,
 	findReadListenCueIndex,
@@ -147,5 +148,39 @@ describe("Read & Listen timeline", () => {
 		expect(toReaderSectionReference("p-0001.xhtml", "epub")).toBe(
 			"nanahoshi-epub-p-0001-xhtml",
 		);
+	});
+
+	test("maps word timings onto the global clock and resolves the active word", () => {
+		const timeline = createReadListenTimeline(
+			[
+				{
+					id: "c-words",
+					text: {
+						kind: "text-quote",
+						sectionRef: "ch2.xhtml",
+						exact: "Hello world.",
+					},
+					audioFileIndex: 1,
+					startMs: 500,
+					endMs: 2500,
+					words: [
+						{ start: 0, end: 5, text: "Hello", startMs: 500, endMs: 1400 },
+						{ start: 6, end: 11, text: "world", startMs: 1400, endMs: 2500 },
+					],
+				},
+			],
+			[
+				{ index: 0, duration: 10 },
+				{ index: 1, duration: 20 },
+			],
+		);
+		const cue = timeline[0];
+		if (!cue) throw new Error("Expected timeline cue");
+		expect(cue.words?.[0]?.globalStartMs).toBe(10_500);
+		expect(cue.words?.[1]?.globalEndMs).toBe(12_500);
+		expect(findActiveReadListenWord(cue, 10_499)).toBeUndefined();
+		expect(findActiveReadListenWord(cue, 10_800)?.text).toBe("Hello");
+		expect(findActiveReadListenWord(cue, 11_400)?.text).toBe("world");
+		expect(findActiveReadListenWord(cue, 12_500)).toBeUndefined();
 	});
 });

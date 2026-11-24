@@ -2,7 +2,7 @@
 
 ARG BUN_VERSION=1.4.2
 ARG CALIBRE_VERSION=9.13.0
-ARG HONOMIYA_REF=2a106b9e03f818a287e10c1e9c11aa73ecbd1d33
+ARG HONOMIYA_REF=f7c1960287b518332d93658d5fc2488b951e5f57
 ARG S6_OVERLAY_VERSION=3.2.3.2
 
 # ── Dependency manifests ─────────────────────────────────────────────

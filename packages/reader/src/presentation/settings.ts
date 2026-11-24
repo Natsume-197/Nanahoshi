@@ -9,6 +9,7 @@ export type WritingMode = "horizontal-tb" | "vertical-rl";
 export type TextLayout = "scroll" | "paginated" | "focus";
 export type FuriganaStyle = "Hide" | "Partial" | "Toggle" | "Full";
 export type FocusTextSpeed = "instant" | "slow" | "normal" | "fast";
+export type ReadListenHighlightMode = "sentence" | "word";
 export type VerticalTextOrientation = "mixed" | "upright";
 export type TextMarginMode = "auto" | "manual";
 export interface ReaderThemeColors {
@@ -168,6 +169,8 @@ export interface ReaderSettings {
 	focusSentenceIndicator: boolean;
 	/** Read & Listen focus mode: stop at each aligned line until navigation. */
 	focusPauseAudioAfterLine: boolean;
+	/** Read & Listen active highlight granularity when word timings are available. */
+	readListenHighlightMode: ReadListenHighlightMode;
 	visualLayout: VisualLayout;
 	visualReadingDirection: VisualReadingDirection;
 	visualProgressStyle: VisualProgressStyle;
@@ -211,6 +214,7 @@ export const defaultReaderSettings: ReaderSettings = {
 	focusTextSpeed: "normal",
 	focusSentenceIndicator: true,
 	focusPauseAudioAfterLine: false,
+	readListenHighlightMode: "sentence",
 	visualLayout: "single-page",
 	visualReadingDirection: "auto",
 	visualProgressStyle: "text",
@@ -310,6 +314,12 @@ export function normalizeReaderSettings(raw: unknown): ReaderSettings {
 		stored.visualProgressStyle === "bar"
 	) {
 		next.visualProgressStyle = stored.visualProgressStyle;
+	}
+	if (
+		stored.readListenHighlightMode === "sentence" ||
+		stored.readListenHighlightMode === "word"
+	) {
+		next.readListenHighlightMode = stored.readListenHighlightMode;
 	}
 	if (
 		stored.furiganaStyle === "Hide" ||

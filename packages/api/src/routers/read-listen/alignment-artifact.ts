@@ -5,9 +5,9 @@ import path from "node:path";
 import { z } from "zod";
 import { longestAlignmentGapMs } from "./alignment-gaps";
 import {
-	type HONOMIYA_MANIFEST_SCHEMA,
-	type HonomiyaManifestV1,
-	honomiyaManifestV1Schema,
+	type HonomiyaManifest,
+	type HonomiyaManifestSchema,
+	honomiyaManifestSchema,
 } from "./manifest";
 
 const MAX_SIDECAR_BYTES = 64 * 1024 * 1024;
@@ -73,7 +73,7 @@ function resolveManagedArtifactPath(artifactPath: string): string {
 export async function readManagedAlignmentArtifact(
 	artifactPath: string,
 	expectedSha256: string,
-): Promise<HonomiyaManifestV1> {
+): Promise<HonomiyaManifest> {
 	const resolved = resolveManagedArtifactPath(artifactPath);
 	const stat = await fs.stat(resolved);
 	if (!stat.isFile() || stat.size > MAX_SIDECAR_BYTES) {
@@ -84,7 +84,7 @@ export async function readManagedAlignmentArtifact(
 	if (actualSha256 !== expectedSha256) {
 		throw new Error("Alignment artifact identity does not match storage");
 	}
-	return honomiyaManifestV1Schema.parse(
+	return honomiyaManifestSchema.parse(
 		JSON.parse(new TextDecoder().decode(bytes)),
 	);
 }
@@ -117,7 +117,7 @@ export async function readManagedAlignmentReport(
 export type AlignmentImportMetadata = {
 	artifactPath: string;
 	artifactSha256: string;
-	sidecarSchema: typeof HONOMIYA_MANIFEST_SCHEMA;
+	sidecarSchema: HonomiyaManifestSchema;
 	generatorName: "honomiya";
 	generatorVersion: string;
 	origin: ReadListenAlignmentOrigin | null;
@@ -380,7 +380,7 @@ export class ExistingAlignmentImporter {
 		const matches: Array<{
 			path: string;
 			bytes: Uint8Array;
-			manifest: HonomiyaManifestV1;
+			manifest: HonomiyaManifest;
 		}> = [];
 		for (const candidatePath of candidatePaths) {
 			let bytes: Uint8Array | null;
@@ -396,7 +396,7 @@ export class ExistingAlignmentImporter {
 			} catch {
 				continue;
 			}
-			const parsed = honomiyaManifestV1Schema.safeParse(json);
+			const parsed = honomiyaManifestSchema.safeParse(json);
 			if (
 				parsed.success &&
 				this.manifestMatchesSourceHashes(parsed.data, sourceHashes)
@@ -453,7 +453,7 @@ export class ExistingAlignmentImporter {
 	}
 
 	private manifestMatchesSourceHashes(
-		manifest: HonomiyaManifestV1,
+		manifest: HonomiyaManifest,
 		sourceHashes: { ebookSha256: string; audioSha256: string[] },
 	): boolean {
 		if (
@@ -482,7 +482,7 @@ export class ExistingAlignmentImporter {
 		} catch {
 			return { outcome: "invalid", reason: "invalid_manifest" };
 		}
-		const parsed = honomiyaManifestV1Schema.safeParse(json);
+		const parsed = honomiyaManifestSchema.safeParse(json);
 		if (!parsed.success) {
 			return { outcome: "invalid", reason: "invalid_manifest" };
 		}

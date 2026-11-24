@@ -61,7 +61,7 @@ export function createHonomiyaAlignCommand(input: {
 		throw new Error("Timed-text alignment cannot use the CTC engine");
 	}
 	if (input.ctc) {
-		command.push("--engine", "ctc");
+		command.push("--engine", "ctc", "--words");
 		if (input.ctc.model) command.push("--model", input.ctc.model);
 		command.push(
 			"--model-dir",

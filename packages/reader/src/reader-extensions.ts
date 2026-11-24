@@ -1,7 +1,10 @@
 import type { ReactNode, RefObject } from "react";
 import type { LazyHtmlBook } from "./document/lazy-html-book";
 import type { ReaderSourceFormat, Section } from "./document/types";
-import type { ReaderTheme } from "./presentation/settings";
+import type {
+	ReaderTheme,
+	ReadListenHighlightMode,
+} from "./presentation/settings";
 import type { BookReaderApi } from "./reader-contract";
 
 /** Live handles into the mounted reader, for integrations that drive it. */
@@ -21,6 +24,7 @@ export interface ReadListenRenderContext {
 	/** Changes whenever the reader DOM is replaced. */
 	domRevision: string;
 	pauseAudioAfterLine: boolean;
+	highlightMode?: ReadListenHighlightMode;
 	theme: ReaderTheme;
 }
 

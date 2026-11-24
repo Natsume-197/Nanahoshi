@@ -167,6 +167,7 @@ export function useReadListenMode({
 			lazyBook,
 			domRevision,
 			pauseAudioAfterLine,
+			highlightMode,
 			theme,
 		}) => {
 			if (!pairUuid) {
@@ -201,6 +202,7 @@ export function useReadListenMode({
 						readerDomRevision={domRevision}
 						playheadRef={playheadRef}
 						pauseAudioAfterLine={pauseAudioAfterLine}
+						highlightMode={highlightMode}
 						theme={theme}
 						onExitReadListen={() => exit(runtime)}
 					/>

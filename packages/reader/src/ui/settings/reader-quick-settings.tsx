@@ -1393,6 +1393,38 @@ function OpenReaderQuickSettings({
 									)}
 								</>
 							)}
+							{readListenActive && (
+								<QuickSettingsRow
+									label={m["reader_settings.read_listen_highlight_mode"]()}
+								>
+									<div className="w-40">
+										<Segmented
+											theme={theme}
+											ariaLabel={m[
+												"reader_settings.read_listen_highlight_mode"
+											]()}
+											options={[
+												{
+													id: "sentence",
+													text: m[
+														"reader_settings.read_listen_highlight_sentence"
+													](),
+												},
+												{
+													id: "word",
+													text: m[
+														"reader_settings.read_listen_highlight_word"
+													](),
+												},
+											]}
+											selected={settings.readListenHighlightMode}
+											onSelect={(readListenHighlightMode) =>
+												onChange({ readListenHighlightMode })
+											}
+										/>
+									</div>
+								</QuickSettingsRow>
+							)}
 							{canSelectPageColumns && (
 								<QuickSettingsRow label={m["reader_settings.columns"]()}>
 									<div className="w-40">

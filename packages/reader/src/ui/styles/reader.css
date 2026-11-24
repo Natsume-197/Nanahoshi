@@ -732,6 +732,28 @@
 	text-underline-offset: 0.16em;
 }
 
+::highlight(read-listen-active-sentence) {
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 18%,
+		transparent
+	);
+	color: inherit;
+}
+
+::highlight(read-listen-active-word) {
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 52%,
+		transparent
+	);
+	color: inherit;
+	text-decoration-line: underline;
+	text-decoration-color: color-mix(in oklab, currentColor 58%, transparent);
+	text-decoration-thickness: 0.1em;
+	text-underline-offset: 0.16em;
+}
+
 .read-listen-active-fallback {
 	position: fixed;
 	inset: 0;
@@ -749,8 +771,27 @@
 	box-shadow: inset 0 -0.08em color-mix(in oklab, currentColor 42%, transparent);
 }
 
+.read-listen-active-fallback-segment--sentence {
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 18%,
+		transparent
+	);
+	box-shadow: none;
+}
+
+.read-listen-active-fallback-segment--word {
+	background-color: color-mix(
+		in oklab,
+		var(--book-content-selection-background-color) 52%,
+		transparent
+	);
+	box-shadow: inset 0 -0.1em color-mix(in oklab, currentColor 58%, transparent);
+}
+
 @media (prefers-contrast: more) {
-	::highlight(read-listen-active) {
+	::highlight(read-listen-active),
+	::highlight(read-listen-active-word) {
 		background-color: color-mix(
 			in oklab,
 			var(--book-content-selection-background-color) 64%,
@@ -759,7 +800,16 @@
 		text-decoration-color: currentColor;
 	}
 
-	.read-listen-active-fallback-segment {
+	::highlight(read-listen-active-sentence) {
+		background-color: color-mix(
+			in oklab,
+			var(--book-content-selection-background-color) 28%,
+			transparent
+		);
+	}
+
+	.read-listen-active-fallback-segment,
+	.read-listen-active-fallback-segment--word {
 		background-color: color-mix(
 			in oklab,
 			var(--book-content-selection-background-color) 64%,
@@ -770,13 +820,15 @@
 }
 
 @media (forced-colors: active) {
-	::highlight(read-listen-active) {
+	::highlight(read-listen-active),
+	::highlight(read-listen-active-word) {
 		background-color: Highlight;
 		color: HighlightText;
 		text-decoration-color: HighlightText;
 	}
 
-	.read-listen-active-fallback-segment {
+	.read-listen-active-fallback-segment,
+	.read-listen-active-fallback-segment--word {
 		background-color: Highlight;
 		box-shadow: inset 0 -0.08em HighlightText;
 	}

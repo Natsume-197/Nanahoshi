@@ -109,3 +109,14 @@ test("preserves the focus line audio preference", () => {
 			.focusPauseAudioAfterLine,
 	).toBe(false);
 });
+
+test("preserves the Read & Listen highlight mode preference", () => {
+	expect(
+		normalizeReaderSettings({ readListenHighlightMode: "word" })
+			.readListenHighlightMode,
+	).toBe("word");
+	expect(
+		normalizeReaderSettings({ readListenHighlightMode: "paragraph" })
+			.readListenHighlightMode,
+	).toBe("sentence");
+});

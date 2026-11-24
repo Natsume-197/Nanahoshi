@@ -5,7 +5,9 @@ import {
 	findReadListenTargetAtPosition,
 	getReadListenPositionIndex,
 	installReadListenActiveHighlight,
+	installReadListenWordHighlight,
 	resolveReadListenAnchor,
+	resolveReadListenWordAnchor,
 } from "./text-anchor";
 
 describe("Read & Listen text anchors", () => {
@@ -499,5 +501,50 @@ describe("Read & Listen text anchors", () => {
 			Array.from({ length: count }, (_, occurrence) => occurrence * 3),
 		);
 		expect(new Set(offsets).size).toBe(count);
+	});
+
+	test("resolves a word sub-anchor across ruby markup and paints sentence + word highlights", () => {
+		const dom = new JSDOM(
+			"<section><p><ruby>漢字<rt>かんじ</rt></ruby>を読む。</p></section>",
+		);
+		const section = dom.window.document.querySelector("section");
+		if (!section) throw new Error("fixture section missing");
+		const resolved = resolveReadListenAnchor(section, {
+			kind: "text-quote",
+			sectionRef: "chapter.xhtml",
+			exact: "漢字を読む。",
+		});
+		if (!resolved) throw new Error("Expected resolved sentence anchor");
+
+		const wordAnchor = resolveReadListenWordAnchor(resolved, {
+			start: 0,
+			end: 2,
+			text: "漢字",
+			startMs: 100,
+			endMs: 500,
+		});
+		if (!wordAnchor) throw new Error("Expected resolved word anchor");
+		expect(
+			wordAnchor.segments
+				.map((s) => s.node.data.slice(s.startOffset, s.endOffset))
+				.join(""),
+		).toBe("漢字");
+
+		const highlights = new Map<string, unknown>();
+		(dom.window as unknown as { CSS: unknown }).CSS = { highlights };
+		(dom.window as unknown as { Highlight: unknown }).Highlight = class {
+			ranges: Range[];
+			constructor(...ranges: Range[]) {
+				this.ranges = ranges;
+			}
+		};
+
+		const cleanup = installReadListenWordHighlight(resolved, wordAnchor);
+		expect(cleanup).not.toBeNull();
+		expect(highlights.has("read-listen-active-sentence")).toBe(true);
+		expect(highlights.has("read-listen-active-word")).toBe(true);
+		cleanup?.();
+		expect(highlights.has("read-listen-active-sentence")).toBe(false);
+		expect(highlights.has("read-listen-active-word")).toBe(false);
 	});
 });
