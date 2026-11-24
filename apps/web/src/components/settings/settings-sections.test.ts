@@ -15,6 +15,6 @@ describe("settings routes", () => {
 	test("accepts real server sections and rejects unknown deep links", () => {
 		expect(isOrgSettingsSection("libraries")).toBe(true);
 		expect(isOrgSettingsSection("profile")).toBe(false);
-		expect(ORG_SETTINGS_SECTIONS).toHaveLength(10);
+		expect(ORG_SETTINGS_SECTIONS).toHaveLength(11);
 	});
 });

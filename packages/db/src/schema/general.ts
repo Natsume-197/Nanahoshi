@@ -1779,6 +1779,71 @@ export const notification = pgTable(
 
 export type Notification = typeof notification.$inferSelect;
 
+export const ANNOUNCEMENT_SEVERITIES = [
+	"info",
+	"success",
+	"warning",
+	"danger",
+] as const;
+export type AnnouncementSeverity = (typeof ANNOUNCEMENT_SEVERITIES)[number];
+
+/** Admin-posted banner. `server_id` null = instance-wide (app owner only). */
+export const announcement = pgTable(
+	"announcement",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		serverId: text("server_id").references(() => organization.id, {
+			onDelete: "cascade",
+		}),
+		severity: text("severity")
+			.$type<AnnouncementSeverity>()
+			.default("info")
+			.notNull(),
+		title: varchar("title", { length: 120 }).notNull(),
+		body: text("body"),
+		dismissible: boolean("dismissible").default(true).notNull(),
+		startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }),
+		endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" }),
+		createdBy: text("created_by").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("announcement_server_id_idx").on(table.serverId),
+		check(
+			"announcement_severity_check",
+			sql`${table.severity} IN ('info', 'success', 'warning', 'danger')`,
+		),
+	],
+);
+
+export type Announcement = typeof announcement.$inferSelect;
+
+export const announcementDismissal = pgTable(
+	"announcement_dismissal",
+	{
+		announcementId: uuid("announcement_id")
+			.notNull()
+			.references(() => announcement.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		dismissedAt: timestamp("dismissed_at", {
+			withTimezone: true,
+			mode: "string",
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.announcementId, table.userId] })],
+);
+
 // ─── Audiobook Tables ────────────────────────────────────────────────────────
 
 export const audiobookMetadata = pgTable(

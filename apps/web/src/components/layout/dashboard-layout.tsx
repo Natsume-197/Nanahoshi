@@ -17,6 +17,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { AnnouncementBar } from "@/components/announcements/announcement-bar";
 import { isPlayerHiddenRoute } from "@/components/audio-player/player-host";
 import { CreateMenu } from "@/components/dashboard/create-menu";
 import { DashboardAppRail } from "@/components/dashboard/dashboard-app-rail";
@@ -319,6 +320,13 @@ export function DashboardLayout() {
 				>
 					{m["aria.skip_to_content"]()}
 				</a>
+				{/* Full-window routes (settings, server settings, metadata manager)
+				    bring their own chrome; announcements stay off them. */}
+				{!standalone && (
+					<div inert={playerExpanded}>
+						<AnnouncementBar />
+					</div>
+				)}
 				{!standalone && (
 					<header
 						ref={headerRef}

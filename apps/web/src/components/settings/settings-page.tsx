@@ -9,6 +9,7 @@ import {
 	ListChecks,
 	ListMagnifyingGlass,
 	LockKey,
+	Megaphone,
 	MonitorPlay,
 	PaintBrush,
 	Shield,
@@ -19,6 +20,7 @@ import {
 	Waveform,
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
+import { AnnouncementsManager } from "@/components/announcements/announcements-manager";
 import { AboutSettings } from "@/components/settings/sections/about";
 import { AccountSettings } from "@/components/settings/sections/account";
 import { AppearanceSettings } from "@/components/settings/sections/appearance";
@@ -59,6 +61,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	users: Users,
 	servers: Buildings,
 	registration: UserPlus,
+	announcements: Megaphone,
 	metadata: Database,
 	honomiya: Waveform,
 	"data-backups": HardDrives,
@@ -79,6 +82,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	users: m["settings.nav.users"],
 	servers: m["settings.nav.servers"],
 	registration: m["settings.nav.registration"],
+	announcements: m["announcements.nav"],
 	metadata: m["settings.nav.metadata_system"],
 	honomiya: m["settings.nav.honomiya"],
 	"data-backups": m["settings.backups.title"],
@@ -92,6 +96,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"users",
 	"servers",
 	"registration",
+	"announcements",
 	"metadata",
 	"honomiya",
 	"data-backups",
@@ -132,6 +137,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 					item("users"),
 					item("servers"),
 					item("registration"),
+					item("announcements"),
 				],
 			},
 			{
@@ -280,6 +286,8 @@ function SettingsContent({
 			);
 		case "registration":
 			return <RegistrationSettings />;
+		case "announcements":
+			return <AnnouncementsManager scope="instance" />;
 		case "metadata":
 			return <MetadataSourcesSettings />;
 		case "data-backups":

@@ -1,4 +1,5 @@
 import { adminRouter } from "./admin";
+import { announcementsRouter } from "./announcements";
 import { audiobookShelfRouter } from "./audiobook-shelf";
 import { audiobooksRouter } from "./audiobooks";
 import { authorsRouter } from "./authors";
@@ -45,6 +46,7 @@ import { usersRouter } from "./users/users.router";
 
 export const appRouter: {
 	admin: typeof adminRouter;
+	announcements: typeof announcementsRouter;
 	audiobooks: typeof audiobooksRouter;
 	audiobookShelf: typeof audiobookShelfRouter;
 	authors: typeof authorsRouter;
@@ -90,6 +92,7 @@ export const appRouter: {
 	registration: typeof registrationRouter;
 } = {
 	admin: adminRouter,
+	announcements: announcementsRouter,
 	audiobooks: audiobooksRouter,
 	audiobookShelf: audiobookShelfRouter,
 	authors: authorsRouter,

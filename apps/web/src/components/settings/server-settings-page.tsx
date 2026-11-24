@@ -9,10 +9,12 @@ import {
 	Envelope,
 	Key,
 	Lock,
+	Megaphone,
 	Shield,
 	Sparkle,
 	Users,
 } from "@phosphor-icons/react";
+import { AnnouncementsManager } from "@/components/announcements/announcements-manager";
 import { AccessSettings } from "@/components/settings/sections/access";
 import { ServerGeneral } from "@/components/settings/sections/general";
 import { InvitationsSettings } from "@/components/settings/sections/invitations";
@@ -40,6 +42,7 @@ import { m } from "@/paraglide/messages";
 const ICONS: Record<OrgSettingsSection, SettingsNavIcon> = {
 	general: Buildings,
 	stats: ChartBar,
+	announcements: Megaphone,
 	libraries: Books,
 	metadata: Database,
 	recommendations: Sparkle,
@@ -53,6 +56,7 @@ const ICONS: Record<OrgSettingsSection, SettingsNavIcon> = {
 const LABELS: Record<OrgSettingsSection, () => string> = {
 	general: m["settings.org.server_profile"],
 	stats: m["settings.org.stats"],
+	announcements: m["announcements.nav"],
 	libraries: m["settings.org.libraries"],
 	metadata: m["settings.org.metadata"],
 	recommendations: m["settings.recs.title"],
@@ -88,6 +92,7 @@ export function ServerSettingsPage({
 	const canSee: Record<OrgSettingsSection, boolean> = {
 		general: isOrgOwner || can("settings", "update"),
 		stats: can("settings", "update"),
+		announcements: can("settings", "update"),
 		libraries:
 			can("library", "create") ||
 			can("library", "update") ||
@@ -112,7 +117,7 @@ export function ServerSettingsPage({
 	const groups: SettingsNavGroup[] = [
 		{
 			label: org?.name?.trim() || m["settings.org.group_server"](),
-			items: ["general", "stats"]
+			items: ["general", "stats", "announcements"]
 				.filter((key) => canSee[key as OrgSettingsSection])
 				.map((key) => ({
 					key,
@@ -201,6 +206,8 @@ function OrgSettingsContent({
 			return <ServerGeneral />;
 		case "stats":
 			return <StatsSettings />;
+		case "announcements":
+			return <AnnouncementsManager scope="server" />;
 		case "libraries":
 			return (
 				<LibrariesSettings openWizardOnMount={intent === "create-library"} />

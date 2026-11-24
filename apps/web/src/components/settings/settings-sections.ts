@@ -10,6 +10,7 @@ export const SETTINGS_SECTIONS = [
 	"users",
 	"servers",
 	"registration",
+	"announcements",
 	"metadata",
 	"honomiya",
 	"data-backups",
@@ -27,6 +28,7 @@ export function isSettingsSection(value: string): value is SettingsSection {
 export type OrgSettingsSection =
 	| "general"
 	| "stats"
+	| "announcements"
 	| "libraries"
 	| "metadata"
 	| "recommendations"
@@ -39,6 +41,7 @@ export type OrgSettingsSection =
 export const ORG_SETTINGS_SECTIONS = [
 	"general",
 	"stats",
+	"announcements",
 	"libraries",
 	"metadata",
 	"recommendations",
