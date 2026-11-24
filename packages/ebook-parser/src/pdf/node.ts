@@ -8,9 +8,9 @@ import { createCanvas, ImageData } from "@napi-rs/canvas";
 import type { EbookDocument } from "../ebook";
 import { openPdfEbookDocument, pdfDocumentId } from "./document";
 
-const pdfiumWasmBinary = fs.readFile(
-	fileURLToPath(import.meta.resolve("@embedpdf/pdfium/pdfium.wasm")),
-);
+const pdfiumWasmBinary = fs
+	.readFile(fileURLToPath(import.meta.resolve("@embedpdf/pdfium/pdfium.wasm")))
+	.then((bytes) => Uint8Array.from(bytes).buffer);
 
 export async function openPdfFile(filePath: string): Promise<EbookDocument> {
 	return openPdfBytes(await fs.readFile(filePath));

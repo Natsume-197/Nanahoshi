@@ -39,15 +39,15 @@ try {
 		);
 		await page.goto(baseUrl);
 		await page.waitForURL(/\/setup\/?$/);
-		await page.locator("#name").fill("Installation Test");
-		await page.locator('form button[type="button"]').click();
+		await page.getByRole("button", { name: "Get started" }).click();
+		await page.locator("#server-name").fill("Installation Test");
+		await page.locator('form button[type="submit"]').click();
 		await page.locator("#username").fill("installation_admin");
 		await page.locator("#email").fill("installation@example.com");
 		const password = `Installation-${crypto.randomUUID()}`;
 		await page.locator("#password").fill(password);
-		await page.locator("#password-repeat").fill(password);
 		await page.locator('button[type="submit"]').click();
-		await page.waitForURL(/\/dashboard\/?$/, { timeout: 30_000 });
+		await page.waitForURL(/\/welcome\/?$/, { timeout: 30_000 });
 		const signedOut = await page.evaluate(() =>
 			fetch("/api/auth/sign-out", {
 				method: "POST",
