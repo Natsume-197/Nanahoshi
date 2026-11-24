@@ -41,6 +41,7 @@ import { setupRouter } from "./setup.router";
 import { shelvesRouter } from "./shelves";
 import { tagsRouter } from "./tags";
 import { tasksRouter } from "./tasks/task.router";
+import { updatesRouter } from "./updates";
 import { userSettingsRouter } from "./user-settings";
 import { usersRouter } from "./users/users.router";
 
@@ -90,6 +91,7 @@ export const appRouter: {
 	recommendations: typeof recommendationsRouter;
 	instance: typeof instanceRouter;
 	registration: typeof registrationRouter;
+	updates: typeof updatesRouter;
 } = {
 	admin: adminRouter,
 	announcements: announcementsRouter,
@@ -136,5 +138,6 @@ export const appRouter: {
 	recommendations: recommendationsRouter,
 	instance: instanceRouter,
 	registration: registrationRouter,
+	updates: updatesRouter,
 };
 export type AppRouter = typeof appRouter;

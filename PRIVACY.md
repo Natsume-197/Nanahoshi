@@ -46,6 +46,11 @@ export, ask the server's administrator.
 - **Welcome screen.** Before you connect to a server, the welcome screen shows book
   covers loaded from Open Library (`covers.openlibrary.org`) and Amazon's image service
   (`m.media-amazon.com`). Like any web request, those services see your IP address.
+- **Release check (server).** Once an hour the server asks GitHub's public API
+  (`api.github.com`) for Nanahoshi's releases, so administrators know when an update
+  is out. The request carries no account, library or instance data; like any web
+  request, GitHub sees the server's IP address. `NANAHOSHI_UPDATE_CHECK=false` turns
+  it off.
 - **Links you open.** Store pages and Amazon's Kindle settings open in your browser and are
   governed by those sites' own policies.
 

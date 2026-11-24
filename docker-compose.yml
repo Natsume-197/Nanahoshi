@@ -13,9 +13,25 @@ services:
     volumes:
       - server_data:/app/apps/server/data
       - ./books:/books
+      - updater:/var/lib/nanahoshi-updater
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+
+  # Installs new releases when an admin chooses Update in Settings › Updates.
+  # It holds the Docker socket so the server never does, and only ever pulls
+  # the server's own image tag and recreates that one container with the same
+  # settings. Remove this service to update by hand (docker compose pull && up -d).
+  updater:
+    image: ghcr.io/natsume-197/nanahoshi:latest
+    restart: unless-stopped
+    entrypoint: ["bun", "/app/apps/server/dist/updater.mjs"]
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - updater:/var/lib/nanahoshi-updater
 
   postgres:
     image: groonga/pgroonga:4.0.8-alpine-18
@@ -50,3 +66,4 @@ volumes:
   postgres_data:
   server_data:
   redis_data:
+  updater:

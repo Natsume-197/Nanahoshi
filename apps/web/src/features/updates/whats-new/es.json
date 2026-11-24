@@ -1,0 +1,27 @@
+[
+	{
+		"version": "v1.5.0",
+		"date": "2026-11-24",
+		"notices": [
+			"Para actualizar desde la app, añade una vez el nuevo servicio updater de docker-compose.yml y ejecuta docker compose up -d."
+		],
+		"groups": [
+			{
+				"type": "added",
+				"items": [
+					"Actualiza Nanahoshi desde Ajustes › Actualizaciones. Los administradores ven cuándo sale una versión nueva, leen sus notas y eligen Actualizar ahora o Actualizar cuando esté libre.",
+					"Actualizar cuando esté libre espera a que no haya escaneos, audiolibros en reproducción ni copias de seguridad, y todos ven el reinicio programado; un administrador puede cancelarlo.",
+					"Después de una actualización, esta ventana muestra qué cambió. Vuelve a abrirla desde Ajustes › Acerca de."
+				]
+			},
+			{
+				"type": "changed",
+				"items": [
+					"La base de datos se respalda sola antes de que una actualización la modifique. La copia aparece en Ajustes › Data & Backups.",
+					"Si el servidor no puede arrancar, muestra una página que explica por qué en lugar de reiniciarse una y otra vez.",
+					"Las páginas abiertas ofrecen recargar cuando el servidor ya ejecuta una versión más nueva."
+				]
+			}
+		]
+	}
+]

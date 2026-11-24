@@ -1,0 +1,27 @@
+[
+	{
+		"version": "v1.5.0",
+		"date": "2026-11-24",
+		"notices": [
+			"To update from the app, add the new updater service from docker-compose.yml once, then run docker compose up -d."
+		],
+		"groups": [
+			{
+				"type": "added",
+				"items": [
+					"Update Nanahoshi from Settings › Updates. Admins see when a new release is out, read its notes, and choose Update now or Update when idle.",
+					"Update when idle waits until no scan, audiobook stream or backup is running, and everyone sees the planned restart with the option for an admin to cancel it.",
+					"After an update, this window shows what changed. Open it again from Settings › About."
+				]
+			},
+			{
+				"type": "changed",
+				"items": [
+					"The database is backed up automatically before an update changes it. The backup appears in Settings › Data & Backups.",
+					"If the server can't start, it shows a page that says why instead of restarting over and over.",
+					"Open pages offer a reload once the server runs a newer release."
+				]
+			}
+		]
+	}
+]

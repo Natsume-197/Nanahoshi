@@ -1,5 +1,6 @@
 import { Button } from "@nanahoshi/ui/components/button";
 import {
+	ArrowCircleUp,
 	ArrowLeft,
 	Buildings,
 	Database,
@@ -38,6 +39,7 @@ import { ServerDetailView } from "@/components/settings/sections/server-detail-v
 import { AdminServers } from "@/components/settings/sections/servers";
 import { AdminSystem } from "@/components/settings/sections/system";
 import { AdminTasks } from "@/components/settings/sections/tasks";
+import { UpdatesSettings } from "@/components/settings/sections/updates";
 import { AdminUsers } from "@/components/settings/sections/users";
 import { ThemeCustomizerShell } from "@/components/settings/settings-dialog-shell";
 import type { SettingsSection } from "@/components/settings/settings-sections";
@@ -65,6 +67,7 @@ const ICONS: Record<SettingsSection, SettingsNavIcon> = {
 	metadata: Database,
 	honomiya: Waveform,
 	"data-backups": HardDrives,
+	updates: ArrowCircleUp,
 	tasks: ListChecks,
 	logs: ListMagnifyingGlass,
 	activity: MonitorPlay,
@@ -86,6 +89,7 @@ const LABELS: Record<SettingsSection, () => string> = {
 	metadata: m["settings.nav.metadata_system"],
 	honomiya: m["settings.nav.honomiya"],
 	"data-backups": m["settings.backups.title"],
+	updates: m["updates.nav"],
 	tasks: m["settings.nav.tasks"],
 	logs: m["settings.nav.logs"],
 	activity: m["settings.nav.activity"],
@@ -100,6 +104,7 @@ const ADMIN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
 	"metadata",
 	"honomiya",
 	"data-backups",
+	"updates",
 	"tasks",
 	"logs",
 	"activity",
@@ -146,6 +151,7 @@ function buildGroups({ isAdmin }: { isAdmin: boolean }): SettingsNavGroup[] {
 					item("metadata"),
 					item("honomiya"),
 					item("data-backups"),
+					item("updates"),
 					item("tasks"),
 					item("logs"),
 					item("activity"),
@@ -292,6 +298,8 @@ function SettingsContent({
 			return <MetadataSourcesSettings />;
 		case "data-backups":
 			return <DataBackupsSettings />;
+		case "updates":
+			return <UpdatesSettings />;
 		case "honomiya":
 			return <HonomiyaSettings />;
 		case "tasks":

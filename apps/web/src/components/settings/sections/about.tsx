@@ -1,6 +1,15 @@
 import { Button } from "@nanahoshi/ui/components/button";
-import { ArrowSquareOut, Bug, GithubLogo } from "@phosphor-icons/react";
+import {
+	ArrowSquareOut,
+	Bug,
+	GithubLogo,
+	Sparkle,
+} from "@phosphor-icons/react";
+import { useState } from "react";
 import { SettingRow, SettingRows } from "@/components/settings/setting-rows";
+import { BUNDLE_RELEASE } from "@/features/updates/use-updates";
+import { entriesBetween, whatsNewCatalog } from "@/features/updates/whats-new";
+import { WhatsNewDialog } from "@/features/updates/whats-new-dialog";
 import { m } from "@/paraglide/messages";
 
 const PROJECT_URL = "https://github.com/Natsume-197/Nanahoshi";
@@ -11,6 +20,12 @@ const release = import.meta.env.VITE_NANAHOSHI_RELEASE;
 const commit = import.meta.env.VITE_NANAHOSHI_COMMIT;
 
 export function AboutSettings() {
+	const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+	const whatsNew = entriesBetween(
+		whatsNewCatalog(),
+		null,
+		BUNDLE_RELEASE,
+	).slice(0, 5);
 	const releaseLabel =
 		release && release !== "development"
 			? release
@@ -42,6 +57,12 @@ export function AboutSettings() {
 					</div>
 				</div>
 				<div className="flex flex-wrap gap-2">
+					{whatsNew.length > 0 && (
+						<Button variant="outline" onClick={() => setWhatsNewOpen(true)}>
+							<Sparkle data-icon="inline-start" aria-hidden="true" />
+							{m["settings.about.open_whats_new"]()}
+						</Button>
+					)}
 					<Button asChild variant="outline">
 						<a href={PROJECT_URL} target="_blank" rel="noreferrer">
 							<GithubLogo data-icon="inline-start" aria-hidden="true" />
@@ -116,6 +137,11 @@ export function AboutSettings() {
 					/>
 				</SettingRows>
 			</section>
+			<WhatsNewDialog
+				entries={whatsNew}
+				open={whatsNewOpen}
+				onOpenChange={setWhatsNewOpen}
+			/>
 		</div>
 	);
 }

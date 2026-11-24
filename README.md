@@ -30,9 +30,22 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
        volumes:
          - server_data:/app/apps/server/data
          - ./books:/books
+         - updater:/var/lib/nanahoshi-updater
        depends_on:
          postgres: { condition: service_healthy }
          redis: { condition: service_healthy }
+
+     # Installs new releases from Settings › Updates. Optional: see "Updates" below.
+     updater:
+       image: ghcr.io/natsume-197/nanahoshi:latest
+       restart: unless-stopped
+       entrypoint: ["bun", "/app/apps/server/dist/updater.mjs"]
+       environment:
+         PUID: ${PUID:-1000}
+         PGID: ${PGID:-1000}
+       volumes:
+         - /var/run/docker.sock:/var/run/docker.sock
+         - updater:/var/lib/nanahoshi-updater
 
      postgres:
        image: groonga/pgroonga:4.0.8-alpine-18
@@ -67,6 +80,7 @@ A modern, fast, self-hosted, multi-tenant digital library server for managing bo
      postgres_data:
      server_data:
      redis_data:
+     updater:
    ```
 
 3. Save [`.env.example`](.env.example) as `.env`, fill in your URL and required
@@ -81,6 +95,44 @@ Open your configured URL (default `http://localhost:7331`). A short setup names 
 library and creates the administrator account, then asks where your books are: the
 `books` folder mounted above is suggested, and Nanahoshi shows what it found before
 importing. To use the phone app, scan the code under Settings → Mobile app.
+
+## Updates
+
+Nanahoshi checks GitHub for new releases once an hour, and administrators see a
+notice when one is out. Settings → Updates shows the release notes and offers:
+
+- **Update now**: restarts Nanahoshi on the new release right away, for about a minute.
+- **Update when idle**: waits until no scan, audiobook stream or backup has run for
+  5 minutes. Everyone signed in sees the planned restart, and an administrator can
+  cancel it.
+- **Download updates automatically** (on by default) and **Install updates
+  automatically** (off by default).
+
+The `updater` service does the work. It is the only container with the Docker
+socket: the server never gets it, and only asks the updater, through a shared
+folder, to pull the image tag the server already runs and to recreate that one
+container with the same settings, volumes and networks. If the new release can't
+start, or its backup fails before any change, the updater puts the previous
+container back.
+
+Every update is safe to take:
+
+- Before a release changes the database, the server takes a `pg_dump` backup into
+  `data/backups` (it also shows under Settings → Data & Backups). If the backup
+  fails, nothing changes. `NANAHOSHI_PRE_UPDATE_BACKUP=false` skips it.
+- Nanahoshi never moves back: an older release refuses a database a newer one
+  migrated.
+- A server that can't start shows a page saying why, instead of restarting over
+  and over, and tries again by itself an hour later.
+
+Without the `updater` service, update by hand:
+
+```sh
+docker compose pull && docker compose up -d
+```
+
+To stay on one release, use an exact tag such as `ghcr.io/natsume-197/nanahoshi:v1.5.0`;
+the app then offers no update. `NANAHOSHI_UPDATE_CHECK=false` turns the release check off.
 
 ## Local development
 

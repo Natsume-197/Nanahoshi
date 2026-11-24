@@ -14,6 +14,7 @@ import type {
 	GatewayConnectionHandler,
 	GatewayModule,
 } from "./types";
+import { updatesModule } from "./updates.module";
 
 // Bun's WS handler (shared with the server entry, which passes it to Bun.serve).
 export { websocket };
@@ -28,6 +29,7 @@ const modules: GatewayModule[] = [
 	sessionsModule,
 	instanceActivityModule,
 	trayModule,
+	updatesModule,
 ];
 
 // One multiplexed WebSocket per client. Every message is a JSON envelope

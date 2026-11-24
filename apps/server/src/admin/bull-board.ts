@@ -8,6 +8,7 @@ import { ranobedbImportQueue } from "@nanahoshi/api/infrastructure/queue/queues/
 import { recommendationsQueue } from "@nanahoshi/api/infrastructure/queue/queues/recommendations.queue";
 import { scheduledScanQueue } from "@nanahoshi/api/infrastructure/queue/queues/scheduled-scan.queue";
 import { sendToKindleQueue } from "@nanahoshi/api/infrastructure/queue/queues/send-to-kindle.queue";
+import { updatesQueue } from "@nanahoshi/api/infrastructure/queue/queues/updates.queue";
 import { auth } from "@nanahoshi/auth";
 import type { Hono } from "hono";
 import { serveStatic } from "hono/bun";
@@ -41,6 +42,10 @@ export function mountBullBoard(app: Hono) {
 			new BullMQAdapter(recommendationsQueue, {
 				description:
 					"Builds item similarities, popularity, and personalized recommendation mixes",
+			}),
+			new BullMQAdapter(updatesQueue, {
+				description:
+					"Hourly release check, and the minute tick that starts scheduled updates",
 			}),
 		],
 		serverAdapter,

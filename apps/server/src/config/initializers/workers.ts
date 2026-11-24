@@ -25,6 +25,7 @@ export const workersInitializer: RuntimeInitializer = {
 			recommendations,
 			readListenMatchAnalysis,
 			readListenGeneration,
+			updates,
 		] = await Promise.all([
 			import("@nanahoshi/api/infrastructure/workers/database-backup.worker"),
 			import("@nanahoshi/api/infrastructure/workers/file.event.worker"),
@@ -40,6 +41,7 @@ export const workersInitializer: RuntimeInitializer = {
 			import(
 				"@nanahoshi/api/infrastructure/workers/read-listen-generation.worker"
 			),
+			import("@nanahoshi/api/infrastructure/workers/updates.worker"),
 		]);
 
 		workers = [
@@ -53,6 +55,7 @@ export const workersInitializer: RuntimeInitializer = {
 			recommendations.recommendationsWorker,
 			readListenMatchAnalysis.readListenMatchAnalysisWorker,
 			readListenGeneration.readListenGenerationWorker,
+			updates.updatesWorker,
 		];
 
 		workers.push(
@@ -130,6 +133,13 @@ export const workersInitializer: RuntimeInitializer = {
 				{ err },
 				"[Workers] Failed to register metadata retry schedule",
 			),
+		);
+
+		const { registerUpdateSchedules } = await import(
+			"@nanahoshi/api/infrastructure/queue/queues/updates.queue"
+		);
+		await registerUpdateSchedules().catch((err) =>
+			logger.error({ err }, "[Workers] Failed to register update schedules"),
 		);
 
 		workers.push(await startTaskProgressListeners());

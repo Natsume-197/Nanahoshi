@@ -19,6 +19,23 @@ export const env = createEnv({
 		POSTHOG_PROJECT_TOKEN: z.string().optional(),
 		POSTHOG_HOST: z.url().optional(),
 
+		// Updates. The check reads GitHub's public releases API once an hour.
+		NANAHOSHI_UPDATE_CHECK: z
+			.string()
+			.transform((v) => v !== "false")
+			.default(true),
+		NANAHOSHI_RELEASE_REPOSITORY: z
+			.string()
+			.regex(/^[\w.-]+\/[\w.-]+$/)
+			.default("Natsume-197/Nanahoshi"),
+		// The volume shared with the updater sidecar (see docker-compose.yml).
+		NANAHOSHI_UPDATER_DIR: z.string().default("/var/lib/nanahoshi-updater"),
+		// A verified pg_dump before a release migrates the database.
+		NANAHOSHI_PRE_UPDATE_BACKUP: z
+			.string()
+			.transform((v) => v !== "false")
+			.default(true),
+
 		// Database
 		DB_HOST: z.string().default("localhost"),
 		DB_PORT: z.coerce.number().default(5432),

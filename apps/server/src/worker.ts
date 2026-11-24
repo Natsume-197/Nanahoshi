@@ -1,5 +1,6 @@
 import os from "node:os";
 import { logger } from "@nanahoshi/api/lib/logger";
+import { runningRelease } from "@nanahoshi/api/modules/updates/version";
 import {
 	runtimeCpuCapacity,
 	runtimeWorkerCpuBudget,
@@ -10,6 +11,8 @@ import {
 	workerInitializers,
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
+import { toStartupRefusal } from "./config/startup-refusal";
+import { enterSafeMode } from "./safe-mode";
 
 // Lower our own CPU priority (nice): under contention the OS gives the API,
 // Postgres and the user's desktop CPU first. Concurrency is separately sized
@@ -35,8 +38,14 @@ logger.info(
 
 const context: RuntimeContext = {};
 
-await runInitializers(context, workerInitializers);
-logger.info("Worker process ready");
+try {
+	await runInitializers(context, workerInitializers);
+	logger.info("Worker process ready");
+} catch (error) {
+	// Exiting would stop the container (s6 halts it when a process exits) and
+	// take the API's safe-mode page with it, so wait out safe mode instead.
+	enterSafeMode(toStartupRefusal(error), runningRelease(), "worker");
+}
 
 let shuttingDown = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

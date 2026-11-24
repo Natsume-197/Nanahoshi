@@ -14,6 +14,7 @@ export const SETTINGS_SECTIONS = [
 	"metadata",
 	"honomiya",
 	"data-backups",
+	"updates",
 	"tasks",
 	"logs",
 	"activity",

@@ -160,7 +160,12 @@ EOF
 
 # ── Application image (web, API and worker) ───────────────────────────
 FROM oven/bun:${BUN_VERSION}-debian AS app
-LABEL org.opencontainers.image.source="https://github.com/Natsume-197/Nanahoshi"
+ARG NANAHOSHI_RELEASE="development"
+ARG NANAHOSHI_COMMIT=""
+# The updater reads the version label of a pulled image before it installs it.
+LABEL org.opencontainers.image.source="https://github.com/Natsume-197/Nanahoshi" \
+	org.opencontainers.image.version="${NANAHOSHI_RELEASE}" \
+	org.opencontainers.image.revision="${NANAHOSHI_COMMIT}"
 # PostgreSQL 18 matches the compose database. See https://www.postgresql.org/download/linux/debian/
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends curl ca-certificates \
@@ -177,6 +182,7 @@ WORKDIR /app/apps/server
 RUN mkdir -p data/converted \
 	&& chown -R nanahoshi:nanahoshi /app/apps/server /home/nanahoshi
 ENV ENVIRONMENT=production \
+	NANAHOSHI_RELEASE=${NANAHOSHI_RELEASE} \
 	HOME=/home/nanahoshi \
 	PUID=1000 \
 	PGID=1000

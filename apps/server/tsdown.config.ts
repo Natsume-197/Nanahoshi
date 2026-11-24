@@ -1,7 +1,12 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-	entry: ["./src/index.ts", "./src/worker.ts"],
+	entry: {
+		index: "./src/index.ts",
+		worker: "./src/worker.ts",
+		// The updater sidecar runs this from the same image (docker-compose.yml).
+		updater: "./src/updater/main.ts",
+	},
 	format: "esm",
 	outDir: "./dist",
 	clean: true,

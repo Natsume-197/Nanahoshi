@@ -41,6 +41,8 @@ import {
 	useAudioPlayerBook,
 	useAudioPlayerExpanded,
 } from "@/context/audio-player-context";
+import { UpdateBar } from "@/features/updates/update-bar";
+import { WhatsNewOnUpdate } from "@/features/updates/whats-new-dialog";
 import { useAutoHideHeader } from "@/hooks/use-auto-hide-header";
 import { useCardScrollActivity } from "@/hooks/use-card-scroll-activity";
 import { useNotificationEvents } from "@/hooks/use-notification-events";
@@ -288,6 +290,9 @@ export function DashboardLayout() {
 				key={`presence-${activeOrganizationId ?? "none"}`}
 			/>
 			<NotificationEventsListener />
+			{session?.user.id && (
+				<WhatsNewOnUpdate key={session.user.id} userId={session.user.id} />
+			)}
 			<RecommendationEventsListener />
 			<div
 				className="relative flex h-dvh flex-col overflow-hidden bg-background pt-[var(--safe-area-top)] pr-[var(--safe-area-right)] pl-[var(--safe-area-left)]"
@@ -324,6 +329,7 @@ export function DashboardLayout() {
 				    bring their own chrome; announcements stay off them. */}
 				{!standalone && (
 					<div inert={playerExpanded}>
+						<UpdateBar />
 						<AnnouncementBar />
 					</div>
 				)}

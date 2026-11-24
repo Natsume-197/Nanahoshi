@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { logger } from "@nanahoshi/api/lib/logger";
+import { runningRelease } from "@nanahoshi/api/modules/updates/version";
 import { env } from "@nanahoshi/env/server";
 import { buildApp } from "./app";
 import { prepareClientIpRequest } from "./config/client-ip-request";
@@ -11,10 +12,12 @@ import {
 	serverInitializers,
 } from "./config/initializers";
 import type { RuntimeContext } from "./config/initializers/types";
+import { toStartupRefusal } from "./config/startup-refusal";
 import { websocket } from "./gateway/gateway";
 import { restoreFileBody } from "./lib/file-body";
 import { posthog } from "./lib/posthog";
 import type { WebHandler } from "./lib/web-app";
+import { createSafeModeHandler, enterSafeMode } from "./safe-mode";
 
 // Import the packaged SSR runtime without starting a second HTTP listener.
 const webModule = env.WEB_APP_PATH
@@ -32,7 +35,14 @@ const trustedProxyIps = new Set(
 		.filter(Boolean),
 );
 
-await runInitializers(context, serverInitializers);
+let safeMode: ReturnType<typeof createSafeModeHandler> | null = null;
+try {
+	await runInitializers(context, serverInitializers);
+} catch (error) {
+	safeMode = createSafeModeHandler(
+		enterSafeMode(toStartupRefusal(error), runningRelease(), "api"),
+	);
+}
 
 let shuttingDown = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
@@ -57,6 +67,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 
 export default withHttpRequestLimits({
 	async fetch(request: Request, server: Bun.Server<unknown>) {
+		if (safeMode) return safeMode(request);
 		const peer = server.requestIP(request);
 		const response = await app.fetch(
 			prepareClientIpRequest(request, peer?.address, trustedProxyIps),
