@@ -326,8 +326,8 @@ const RECIPE_SURFACES = {
 // Approximations of the base themes' --foreground (which is oklch in CSS) for
 // contrast checks against editor-picked surfaces.
 const BASE_FOREGROUND: Record<PaletteBase, string> = {
-	dark: "#f7f7f7",
-	light: "#1c1c1f",
+	dark: "#f9f9f9",
+	light: "#141414",
 };
 
 export interface ContrastWarning {

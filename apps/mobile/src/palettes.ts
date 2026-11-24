@@ -1,34 +1,36 @@
-// Claude's app palette: warm ivory and warm ink in light, a neutral near-black
-// with warm off-white text in dark. Monochrome: colour comes from the covers.
+// Claude's app palette, shared with the web (packages/ui/src/styles/theme.css).
+// Claude's own hue (~105) reads green, so light is turned to hue 70 and dark
+// surfaces carry a whisper of hue 286; inks are neutral. Monochrome: colour
+// comes from the covers.
 const light = {
-	background: "#faf9f5",
-	chrome: "#f3f2ec", // tab bar
+	background: "#fbf8f5",
+	chrome: "#f5f1ec", // tab bar
 	card: "#ffffff",
 	/** Bottom sheets and their rows: the page's own colour, set apart by the
 	 * scrim and their rounded top, not a lighter fill. */
-	sheet: "#faf9f5",
+	sheet: "#fbf8f5",
 	/** Grouped lists, hub tiles, panels on the canvas. */
-	surfaceCard: "#f0eee6",
-	surfaceCardHover: "#e8e6dc",
-	surface: "#f0eee6", // chips, pressed rows
-	input: "#e8e6dc",
+	surfaceCard: "#f3ede6",
+	surfaceCardHover: "#ece4dc",
+	surface: "#f3ede6", // chips, pressed rows
+	input: "#ece4dc",
 	/** The search field's edge, as on Claude's composer. */
-	fieldBorder: "#d9d7cc",
-	text: "#141413",
-	textSecondary: "#5e5d59",
-	textTertiary: "#87867f",
-	navInactive: "#4d4c48",
+	fieldBorder: "#ddd5cc",
+	text: "#141414",
+	textSecondary: "#5f5c59",
+	textTertiary: "#8a857f",
+	navInactive: "#4c4c4c",
 	/** Material's pill behind the selected tab: neutral, never the accent. */
-	navIndicator: "#e5e3d9",
-	separator: "#e8e6dc",
-	primary: "#141413",
-	onPrimary: "#faf9f5",
-	accent: "#141413",
-	accentSoft: "#efede4",
+	navIndicator: "#e9e1d9",
+	separator: "#ece4dc",
+	primary: "#141414",
+	onPrimary: "#fbf8f5",
+	accent: "#141414",
+	accentSoft: "#f2ece4",
 	progressTrack: "rgba(0,0,0,0.45)",
 	progress: "#f7f7f7",
 	coverEdge: "rgba(0,0,0,0.10)",
-	skeleton: "#efede5",
+	skeleton: "#f2ece5",
 	danger: "#c42b1c",
 	/** Locked metadata fields. */
 	warning: "#905300",
@@ -38,32 +40,32 @@ const light = {
 	coverRadius: 6,
 };
 
-/** Surfaces step up like Claude's: canvas #151515, raised field #20201e,
- * controls on it #313131. */
+/** Surfaces step up like Claude's: canvas #151518, raised field #202023,
+ * controls on it #313134. */
 const dark: typeof light = {
-	background: "#151515",
-	chrome: "#1a1a19",
-	card: "#20201e",
-	sheet: "#151515",
-	surfaceCard: "#20201e",
-	surfaceCardHover: "#2a2a28",
-	surface: "#2a2a28",
-	input: "#20201e",
-	fieldBorder: "#3c3c3a",
-	text: "#f9f9f7",
-	textSecondary: "#a3a29b",
-	textTertiary: "#75746e",
-	navInactive: "#c2c2b6",
-	navIndicator: "#313131",
-	separator: "#2a2a28",
-	primary: "#f9f9f7",
-	onPrimary: "#151515",
-	accent: "#f9f9f7",
-	accentSoft: "#2a2a28",
+	background: "#151518",
+	chrome: "#1a1a1d",
+	card: "#202023",
+	sheet: "#151518",
+	surfaceCard: "#202023",
+	surfaceCardHover: "#29292d",
+	surface: "#29292d",
+	input: "#202023",
+	fieldBorder: "#3b3b3f",
+	text: "#f9f9f9",
+	textSecondary: "#a2a2a2",
+	textTertiary: "#747474",
+	navInactive: "#c1c1c1",
+	navIndicator: "#313134",
+	separator: "#29292d",
+	primary: "#f9f9f9",
+	onPrimary: "#151518",
+	accent: "#f9f9f9",
+	accentSoft: "#29292d",
 	progressTrack: "rgba(0,0,0,0.45)",
 	progress: "#f7f7f7",
 	coverEdge: "rgba(255,255,255,0.10)",
-	skeleton: "#232321",
+	skeleton: "#232326",
 	danger: "#f26b6b",
 	warning: "#efa831",
 	ripple: "rgba(249,249,247,0.10)",
@@ -77,18 +79,18 @@ const amoled: typeof light = {
 	...dark,
 	background: "#000000",
 	chrome: "#000000",
-	card: "#121211",
-	sheet: "#0e0e0d",
-	surfaceCard: "#121211",
-	surfaceCardHover: "#1c1c1a",
-	surface: "#1c1c1a",
-	input: "#161615",
-	fieldBorder: "#2c2c2a",
-	navIndicator: "#262624",
-	separator: "#1f1f1d",
+	card: "#121215",
+	sheet: "#0e0e10",
+	surfaceCard: "#121215",
+	surfaceCardHover: "#1c1c1f",
+	surface: "#1c1c1f",
+	input: "#161619",
+	fieldBorder: "#2b2b2f",
+	navIndicator: "#262529",
+	separator: "#1f1f22",
 	onPrimary: "#000000",
-	accentSoft: "#161615",
-	skeleton: "#161615",
+	accentSoft: "#161619",
+	skeleton: "#161619",
 };
 
 export type Palette = typeof light;

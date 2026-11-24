@@ -7,14 +7,17 @@
 
 :root {
 	color-scheme: light;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.235 0.004 286);
-	--reading: oklch(0.31 0.004 286);
-	--card: oklch(1 0 0);
-	--card-border: oklch(0.92 0.004 286);
-	--card-foreground: oklch(0.205 0.004 286);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.205 0.004 286);
+	/* Claude's palette (as on the phone, apps/mobile/src/palettes.ts) turned to
+	   hue 70: at Claude's hue ~100 the ivory reads olive. Neutral ink,
+	   monochrome accent. */
+	--background: #fbf8f5;
+	--foreground: #141414;
+	--reading: #31302e;
+	--card: #ffffff;
+	--card-border: #ece4dc;
+	--card-foreground: #141414;
+	--popover: #ffffff;
+	--popover-foreground: #141414;
 	--dropdown: color-mix(
 		in oklab,
 		var(--popover) 96%,
@@ -25,20 +28,20 @@
 		var(--destructive) 90%,
 		var(--popover-foreground)
 	);
-	--primary: oklch(0.235 0.004 286);
+	--primary: #141414;
 	/* Resolved on the root, so surfaces that re-point --primary (the reader panel) can still read the app accent. */
 	--app-primary: var(--primary);
-	--primary-foreground: oklch(0.99 0 0);
-	--floating-action: oklch(0.205 0.004 286);
-	--floating-action-foreground: oklch(0.99 0 0);
+	--primary-foreground: #fbf8f5;
+	--floating-action: #141414;
+	--floating-action-foreground: #fbf8f5;
 	--media-action: var(--primary);
 	--media-action-foreground: var(--primary-foreground);
-	--secondary: oklch(0.97 0.003 286);
-	--secondary-foreground: oklch(0.235 0.004 286);
-	--muted: oklch(0.97 0.003 286);
-	--muted-foreground: oklch(0.53 0.007 286);
-	--accent: oklch(0.945 0.004 286);
-	--accent-foreground: oklch(0.235 0.004 286);
+	--secondary: #f3ede6;
+	--secondary-foreground: #141414;
+	--muted: #f3ede6;
+	--muted-foreground: #5f5c59;
+	--accent: #ece4dc;
+	--accent-foreground: #141414;
 	--success: oklch(0.52 0.17 145);
 	--warning: oklch(0.5 0.14 75);
 	--info: oklch(0.5 0.16 250);
@@ -46,14 +49,14 @@
 	--selection-foreground: oklch(0.99 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.99 0 0);
-	--border: oklch(0.92 0.004 286);
-	--input: oklch(0.94 0.004 286);
-	--ring: oklch(0.58 0.008 286);
-	--chart-1: oklch(0.85 0.008 285.7);
-	--chart-2: oklch(0.75 0.009 285.7);
-	--chart-3: oklch(0.65 0.01 285.7);
-	--chart-4: oklch(0.55 0.011 285.7);
-	--chart-5: oklch(0.45 0.012 285.7);
+	--border: #ece4dc;
+	--input: #ece4dc;
+	--ring: #8a857f;
+	--chart-1: color-mix(in oklab, var(--foreground) 20%, var(--background));
+	--chart-2: color-mix(in oklab, var(--foreground) 35%, var(--background));
+	--chart-3: color-mix(in oklab, var(--foreground) 50%, var(--background));
+	--chart-4: color-mix(in oklab, var(--foreground) 65%, var(--background));
+	--chart-5: color-mix(in oklab, var(--foreground) 80%, var(--background));
 	--radius: 0.5rem;
 	--safe-area-top: env(safe-area-inset-top, 0px);
 	--safe-area-right: env(safe-area-inset-right, 0px);
@@ -85,8 +88,8 @@
 	--press-scale: 0.96;
 	--press-scale-subtle: 0.985;
 	--theme-gradient: none;
-	--surface-card: oklch(0.975 0.002 286);
-	--surface-card-hover: oklch(0.96 0.003 286);
+	--surface-card: #f3ede6;
+	--surface-card-hover: #ece4dc;
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
@@ -107,16 +110,15 @@
 	--image-outline: oklch(0 0 0 / 10%);
 	--progress-track: oklch(0 0 0 / 45%);
 	--progress-indicator: oklch(0.97 0 0);
-	/* The navigation chrome is the light system-gray material beside the white
-	   library canvas. */
-	--sidebar: oklch(0.97 0.003 286);
-	--sidebar-foreground: oklch(0.205 0.004 286);
-	--sidebar-primary: oklch(0.235 0.004 286);
-	--sidebar-primary-foreground: oklch(0.99 0 0);
-	--sidebar-accent: oklch(0.9 0.005 286);
-	--sidebar-accent-foreground: oklch(0.205 0.004 286);
-	--sidebar-border: oklch(0.92 0.004 286);
-	--sidebar-ring: oklch(0.58 0.008 286);
+	/* The navigation chrome is the phone's tab-bar ivory beside the canvas. */
+	--sidebar: #f5f1ec;
+	--sidebar-foreground: #141414;
+	--sidebar-primary: #141414;
+	--sidebar-primary-foreground: #fbf8f5;
+	--sidebar-accent: #e9e1d9;
+	--sidebar-accent-foreground: #141414;
+	--sidebar-border: #ece4dc;
+	--sidebar-ring: #8a857f;
 	--nav-inactive: color-mix(
 		in oklab,
 		var(--sidebar-foreground) 68%,
@@ -140,38 +142,38 @@
 .dark {
 	color-scheme: dark;
 	--radius: 0.2rem;
-	/* Content canvas: one step above the navigation chrome, in the same
-	   neutral family (#1f2024 carried a blue cast next to it). */
-	--background: #1f1f20;
-	--foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
-	--reading: color-mix(in oklab, #352d3e 6%, #e3e3e3);
-	--card: #272729;
-	--card-border: color-mix(in oklab, #352d3e 10%, #484848);
-	--card-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
+	/* Claude's dark steps (chrome #151518, a sheet one whisper above, then
+	   #202023 → #2a2a2d → #313134) at hue 286, chroma 0.006: Claude's own
+	   hue ~105 and plain neutral both read green. Monochrome accent. */
+	--background: #1a1a1d;
+	--foreground: #f9f9f9;
+	--reading: #e4e4e4;
+	--card: #202023;
+	--card-border: #3c3c3f;
+	--card-foreground: #f9f9f9;
 	--surface-card: var(--card);
-	--surface-card-hover: color-mix(in oklab, var(--foreground) 8%, var(--card));
+	--surface-card-hover: #2a2a2d;
 	--surface-accent: color-mix(in oklab, var(--primary) 14%, var(--card));
 	--surface-accent-hover: color-mix(in oklab, var(--primary) 22%, var(--card));
 	--surface-hover: var(--muted);
-	--popover: #272729;
-	--popover-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
+	--popover: #202023;
+	--popover-foreground: #f9f9f9;
 	--dropdown: var(--popover);
 	--dropdown-destructive: color-mix(
 		in oklab,
 		var(--destructive) 40%,
 		var(--popover-foreground)
 	);
-	--primary: #8b7a9e;
-	--primary-foreground: #000000;
-	--floating-action: oklch(0.198 0.004 286);
-	--floating-action-foreground: oklch(0.97 0 90);
-	/* Discord's row-hover/active fill. */
-	--secondary: color-mix(in oklab, #352d3e 15%, #3e3e3e);
-	--secondary-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
-	--muted: color-mix(in oklab, #352d3e 12%, #373737);
-	--muted-foreground: color-mix(in oklab, #352d3e 10%, #b8b8b8);
-	--accent: color-mix(in oklab, #352d3e 16%, #515151);
-	--accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
+	--primary: #f9f9f9;
+	--primary-foreground: #151518;
+	--floating-action: #202023;
+	--floating-action-foreground: #f9f9f9;
+	--secondary: #2a2a2d;
+	--secondary-foreground: #f9f9f9;
+	--muted: #2a2a2d;
+	--muted-foreground: #a2a2a2;
+	--accent: #313134;
+	--accent-foreground: #f9f9f9;
 	--success: oklch(0.72 0.17 145);
 	--warning: oklch(0.78 0.15 75);
 	--info: oklch(0.74 0.14 250);
@@ -179,24 +181,24 @@
 	--selection-foreground: oklch(0.16 0.03 255);
 	--destructive: oklch(0.62 0.2 25);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: color-mix(in oklab, #352d3e 10%, #3b3b3b);
-	--input: color-mix(in oklab, #352d3e 12%, #2c2c2c);
+	--border: #313134;
+	--input: #2a2a2d;
 	--control: var(--input);
-	--ring: color-mix(in oklab, #8b7a9e 80%, black);
-	--chart-1: #8b7a9e;
-	--chart-2: color-mix(in oklab, #8b7a9e 80%, var(--background));
-	--chart-3: color-mix(in oklab, #8b7a9e 60%, var(--background));
-	--chart-4: color-mix(in oklab, #8b7a9e 40%, var(--background));
-	--chart-5: color-mix(in oklab, #8b7a9e 20%, var(--background));
+	--ring: #747474;
+	--chart-1: var(--foreground);
+	--chart-2: color-mix(in oklab, var(--foreground) 80%, var(--background));
+	--chart-3: color-mix(in oklab, var(--foreground) 60%, var(--background));
+	--chart-4: color-mix(in oklab, var(--foreground) 40%, var(--background));
+	--chart-5: color-mix(in oklab, var(--foreground) 20%, var(--background));
 	/* Navbar + sidebar share this darker chrome, framing the content panel. */
-	--sidebar: #161617;
-	--sidebar-foreground: color-mix(in oklab, #352d3e 4%, #f7f7f7);
-	--sidebar-primary: #8b7a9e;
-	--sidebar-primary-foreground: #000000;
-	--sidebar-accent: #2c2c2e;
-	--sidebar-accent-foreground: color-mix(in oklab, #352d3e 6%, #f4f4f4);
-	--sidebar-border: #242425;
-	--sidebar-ring: color-mix(in oklab, #8b7a9e 80%, black);
+	--sidebar: #151518;
+	--sidebar-foreground: #f9f9f9;
+	--sidebar-primary: #f9f9f9;
+	--sidebar-primary-foreground: #151518;
+	--sidebar-accent: #313134;
+	--sidebar-accent-foreground: #f9f9f9;
+	--sidebar-border: #202023;
+	--sidebar-ring: #747474;
 	--nav-inactive: color-mix(
 		in oklab,
 		var(--sidebar-foreground) 78%,
@@ -346,14 +348,14 @@
 
 @media (prefers-contrast: more) {
 	:root {
-		--muted-foreground: oklch(0.38 0.007 286);
+		--muted-foreground: #3f3c3a;
 		--nav-inactive: color-mix(
 			in oklab,
 			var(--sidebar-foreground) 85%,
 			var(--sidebar)
 		);
-		--border: oklch(0.76 0.006 286);
-		--ring: oklch(0.25 0.008 286);
+		--border: #bcb4ac;
+		--ring: #31302e;
 		--dropdown: color-mix(
 			in oklab,
 			var(--popover) 90%,
